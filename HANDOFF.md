@@ -1,5 +1,21 @@
 # Pages — Handoff (where this is left off)
 
+> ## ⚠️ DESIGN UPDATE (2026-06-15, Brad) — drop the iframe
+> **Don't use an iframe for `/view`.** Instead of the dashboard shell embedding the
+> content host in an `<iframe sandbox>`, serve user pages **directly** on the content
+> domain and keep the admin/dashboard on its own domain:
+> - **`elcano-pages.com`** → user-facing pages (the content itself, served directly).
+> - **`pages.elcanotek.com`** → admin / dashboard stuff.
+> - **Both still point at the same box** (one process, two vhosts — same as today).
+>   Just no iframes.
+>
+> This supersedes Phase 1 task #3 (`/view/:slug` iframing `/raw/...`) and the "iframe is
+> a preview only" framing in invariant #2. The two-registrable-domain split (invariant
+> #1) is unchanged and still load-bearing — untrusted content stays on `elcano-pages.com`,
+> trusted shell/API on `pages.elcanotek.com`. We're only removing the iframe embedding,
+> not the origin separation. Revisit how `/raw` token auth + the page-password gate work
+> when the content is served directly rather than through a signed-token iframe src.
+
 **TL;DR:** Phase 0 (scaffold) and the Phase 1 *data + render foundation* are done and
 tested. What remains is the Phase 1 *user-facing half*: the version-mutation state
 machine, the `/view` and `/admin` shells, the per-page password, and adding Postgres
