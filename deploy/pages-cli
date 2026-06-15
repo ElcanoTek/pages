@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# /usr/local/bin/pages — operator entry point for Elcano Pages.
+set -euo pipefail
+
+SRC_DIR="${PAGES_SRC_DIR:-/opt/pages-src}"
+ENV_FILE="/etc/default/pages"
+SERVICE="pages.service"
+
+cmd="${1:-}"; shift || true
+
+case "$cmd" in
+  start)    exec sudo systemctl start "$SERVICE" ;;
+  stop)     exec sudo systemctl stop "$SERVICE" ;;
+  restart)  exec sudo systemctl restart "$SERVICE" ;;
+  status)   exec sudo systemctl status "$SERVICE" ;;
+  logs)
+    if [[ $# -gt 0 ]]; then exec sudo journalctl -u "$SERVICE" "$@"; fi
+    exec sudo journalctl -fu "$SERVICE"
+    ;;
+  update)
+    [[ -d "$SRC_DIR/.git" ]] || { echo "no source checkout at $SRC_DIR" >&2; exit 1; }
+    exec sudo bash "$SRC_DIR/scripts/update.sh" "$@"
+    ;;
+  rebuild)
+    [[ -d "$SRC_DIR/.git" ]] || { echo "no source checkout at $SRC_DIR" >&2; exit 1; }
+    exec sudo env PAGES_UPDATE_NO_PULL=1 PAGES_UPDATE_YES=1 bash "$SRC_DIR/scripts/update.sh"
+    ;;
+  env)
+    [[ -f "$ENV_FILE" ]] || { echo "$ENV_FILE missing — run bootstrap.sh" >&2; exit 1; }
+    sudo awk -F= '
+      /^[[:space:]]*#/    { next }
+      /TOKEN|KEY|SECRET|PASSWORD|PEPPER/ { printf "%s=[REDACTED]\n", $1; next }
+      NF>=2                { print }
+    ' "$ENV_FILE"
+    ;;
+  tls)
+    sub="${1:-status}"; shift || true
+    case "$sub" in
+      reload)   exec sudo caddy reload --config /etc/caddy/Caddyfile ;;
+      restart)  exec sudo systemctl restart caddy.service ;;
+      status|*)
+        sudo systemctl is-active caddy.service 2>&1 || true
+        [[ -f /etc/caddy/conf.d/pages.caddy ]] && grep -E '^[^[:space:]{}#].*\{$' /etc/caddy/conf.d/pages.caddy || true
+        ;;
+    esac
+    ;;
+  # ── Phase 1+ subcommands (stubs today; wired as the app grows) ──────────
+  token|page|theme|backup|check-integrity)
+    echo "'pages $cmd' arrives with Phase ${PAGES_PHASE_HINT:-1+}. See PLAN.md §9." >&2
+    exit 2
+    ;;
+  help|-h|--help|"")
+    cat <<'EOF'
+pages — Elcano Pages operator CLI
+
+  pages start | stop | restart | status
+  pages logs [journalctl args...]
+  pages update                 git pull + npm ci + (migrations) + restart
+                               (PAGES_UPDATE_YES=1 to skip the prompt)
+  pages rebuild                rebuild current checkout (skip fetch; post-rollback)
+  pages env                    print /etc/default/pages (secrets redacted)
+  pages tls status|reload|restart
+
+  Planned (PLAN.md §9):
+  pages token add|list|revoke          agent API tokens
+  pages page list|passwd|disable|enable
+  pages theme set|list
+  pages backup [dest]                  pg_dump THEN tar assets/
+  pages check-integrity                refs ↔ files, pointer sanity
+EOF
+    ;;
+  *)
+    echo "unknown command: $cmd" >&2
+    exec "$0" --help
+    ;;
+esac

@@ -1,0 +1,32 @@
+[Unit]
+Description=Elcano Pages — versioned client dashboards
+After=network.target
+# Phase 1 adds Postgres:
+# After=network.target postgresql.service
+# Requires=postgresql.service
+
+[Service]
+Type=simple
+User=pages
+Group=pages
+WorkingDirectory=/opt/pages
+EnvironmentFile=/etc/default/pages
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectHome=true
+ProtectSystem=strict
+# Asset uploads (Phase 2) land here; add more ReadWritePaths as needed.
+ReadWritePaths=/opt/pages/assets
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

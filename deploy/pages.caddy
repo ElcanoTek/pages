@@ -1,0 +1,44 @@
+# Caddy site blocks for Elcano Pages, imported by /etc/caddy/Caddyfile via
+# `import conf.d/*.caddy`. bootstrap.sh substitutes {{DASHBOARD_HOST}} and
+# {{CONTENT_HOST}} and injects `tls internal` when Let's Encrypt is disabled.
+#
+# TWO hostnames, ONE backend (127.0.0.1:3002). The app branches on Host:
+#   dashboard → trusted auth zone (shells, API, MCP)
+#   content   → cookieless untrusted render zone (/raw, /assets)
+# Keep them on DIFFERENT registrable domains (see PLAN.md §7).
+
+# ── Trusted dashboard host ────────────────────────────────────────────────
+{{DASHBOARD_HOST}} {
+	reverse_proxy 127.0.0.1:3002
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		# Our authed shell must never be framed (clickjacking). The app also
+		# sets frame-ancestors 'none' via CSP; this is belt-and-suspenders.
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# ── Cookieless content host (untrusted agent HTML) ────────────────────────
+# No X-Frame-Options here: /raw is MEANT to be framed by the dashboard shell.
+# The app sets the strict CSP `sandbox` + frame-ancestors headers per response.
+{{CONTENT_HOST}} {
+	reverse_proxy 127.0.0.1:3002
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

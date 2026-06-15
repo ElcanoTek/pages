@@ -1,0 +1,19 @@
+{
+  "name": "elcano-pages",
+  "version": "0.1.0",
+  "description": "Quick client pages and dashboards — versioned, Flag-themed, password-protected HTML served on one server.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "helmet": "^8.2.0",
+    "pg": "^8.13.1"
+  }
+}

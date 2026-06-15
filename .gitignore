@@ -27,6 +27,15 @@ go.work.sum
 # env file
 .env
 
+# Node
+node_modules/
+npm-debug.log*
+*.tgz
+
+# Vendored Flag design system (pulled by scripts/sync-flag.sh at build time)
+vendor/flag/
+public/assets/flag/
+
 # Editor/IDE
 # .idea/
 # .vscode/
