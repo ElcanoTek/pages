@@ -9,12 +9,17 @@
 > - **Both still point at the same box** (one process, two vhosts — same as today).
 >   Just no iframes.
 >
-> This supersedes Phase 1 task #3 (`/view/:slug` iframing `/raw/...`) and the "iframe is
-> a preview only" framing in invariant #2. The two-registrable-domain split (invariant
-> #1) is unchanged and still load-bearing — untrusted content stays on `elcano-pages.com`,
-> trusted shell/API on `pages.elcanotek.com`. We're only removing the iframe embedding,
-> not the origin separation. Revisit how `/raw` token auth + the page-password gate work
-> when the content is served directly rather than through a signed-token iframe src.
+> **An iframe as a preview is still fine.** The admin shell (`/admin/:slug`, Phase 1
+> task #4) can keep using a sandboxed iframe to preview a version, and invariant #2's
+> "iframe is a preview only" rule stands there. What changes is the **user-facing**
+> path: this supersedes Phase 1 task #3 (`/view/:slug` iframing `/raw/...`) — the live
+> page is served directly on `elcano-pages.com`, not iframed.
+>
+> The two-registrable-domain split (invariant #1) is unchanged and still load-bearing —
+> untrusted content stays on `elcano-pages.com`, trusted shell/API on
+> `pages.elcanotek.com`. We're only removing the iframe from the live user view, not the
+> origin separation. Revisit how `/raw` token auth + the page-password gate work when the
+> live content is served directly rather than through a signed-token iframe src.
 
 **TL;DR:** Phase 0 (scaffold) and the Phase 1 *data + render foundation* are done and
 tested. What remains is the Phase 1 *user-facing half*: the version-mutation state
