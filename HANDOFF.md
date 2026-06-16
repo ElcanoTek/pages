@@ -76,29 +76,53 @@ source of truth for every decision below.
   `../flag`, or `git clone $FLAG_REPO` (default `ElcanoTek/flag`).
 - `/raw/:slug` in `server.js` — verifies token → `db.getRenderable` → renders.
 
+### Phase 1 keystone + Phase 2 REST agent slice — DONE & TESTED (2026-06-16)
+The version state machine and the bearer-authenticated agent API now exist, so
+agents (and Claude Code) can deploy pages locally end-to-end.
+- `lib/versions.js` — the mutation state machine (PLAN §5): `createPage`, `deploy`,
+  `publish`, `rollback`, `approve`, `reject` + reads. Each mutation: `SELECT … FOR
+  UPDATE` on the page first, content-sha **dedupe**, `expected_version` → **409**
+  optimistic concurrency, **pointer-is-truth** moves, and an `audit_log` row in the
+  SAME txn. Agent authority is gated: open pages → agent may publish/rollback;
+  approval-gated → agent gets `pending` only; approve/reject are admin-only.
+- `lib/audit.js` (txn-coupled writes), `lib/apierror.js` (status-carrying errors),
+  `db.withTransaction`.
+- `lib/tokens.js` — agent API bearer tokens: `pgs_…`, stored as
+  `HMAC-SHA256(token, API_TOKEN_PEPPER)`, raw shown once; `requireBearer` middleware.
+  `scripts/token.js add|list|revoke` mints them locally.
+- `lib/api.js` — `/api/v1` (bearer-only): list/create pages, deploy version, publish,
+  rollback, version history/detail. Wired in `server.js` (replaces the 501 stub).
+  Admin-cookie+CSRF endpoints (approve/reject/disable/approval-toggle) intentionally
+  NOT here yet — they arrive with the `/admin` shell.
+- `scripts/dev.sh` — one command: throwaway Postgres (under `/var/tmp/pages-dev`),
+  migrate, vendor Flag, mint a token (saved to `.devdata/agent-token`), boot the
+  server. This IS the "let Claude Code deploy pages" loop.
+
 ### Tests (all green)
-- `npm test` → `test/unit.test.js`: 9 tests (token tamper/escalation/expiry; render
-  injection preserves charts; theme override; head synthesis).
+- `npm test` → `test/unit.test.js`: 11 tests (token tamper/escalation/expiry; render
+  injection preserves charts; theme override; head synthesis; sha + slug validation).
 - `bash test/run-integration.sh` → spins a throwaway Postgres, migrates, vendors Flag,
-  seeds, asserts the append-only trigger, and drives `/raw` end-to-end:
-  themed render 200 (sandboxed, Flag-injected, charts intact), no-token 403,
-  wrong-slug 404, disabled-page 404. (Requires `postgres` system user + `initdb`.)
+  seeds, asserts the append-only trigger, drives `/raw` end-to-end (themed render 200
+  sandboxed+Flag-injected+charts intact, no-token 403, wrong-slug 404, disabled 404),
+  AND the full REST agent loop (`test/api.integration.js`): unauth 401, create,
+  deploy+publish, pointer-is-truth, /raw render, second deploy moves pointer, history,
+  rollback, dedupe, 409 stale-version, approval-gate (agent→pending, publish 403).
+  (Requires `postgres` system user + `initdb`.)
 
-## What's LEFT in Phase 1 (your next tasks)
-Build in this order; each is independently testable.
+## What's LEFT (your next tasks)
+`lib/versions.js` (was task #1) is **done** — see above. Remaining, in order; each is
+independently testable. Note the **direct-serve** design update at the top of this
+file changes how #3 works.
 
-1. **`lib/versions.js` — the mutation state machine** (PLAN §5 table). Functions:
-   `deploy({slug, html, renderMode, author, source, note, publish})`,
-   `publish`, `approve`, `reject`, `rollback`. Rules:
-   - Wrap each in a txn that does `SELECT … FOR UPDATE` on the `pages` row first.
-   - deploy → insert `draft`; if the page `require_approval`, force `pending` and
-     ignore `publish`. Dedupe by `content_sha256` (same-sha returns existing row).
-   - publish/approve/rollback → set the version `approved` + move
-     `published_version_id` in the same statement. `expected_version` → `409` on
-     mismatch (optimistic concurrency).
-   - reject → `rejected` (terminal). Agents (scope `deploy`) may publish/rollback only
-     on **open** pages; never on approval-gated ones.
-   - Write an `audit_log` row in the SAME txn as every change (`lib/audit.js`).
+1. **MCP-over-HTTP at `/mcp`** (PLAN §11; was Phase 3, pull forward — it's just a thin
+   wrapper). Cutlass's contract (verified in `/root/cutlass`): JSON-RPC 2.0 over
+   `POST /mcp`, protocol `"2024-11-05"`, methods `initialize`/`tools/list`/`tools/call`,
+   `Authorization: Bearer`, response as JSON **or** SSE, optional `Mcp-Session-Id`.
+   Wrap the SAME `lib/versions.js` functions as the REST API (no privileged backdoor).
+   Tools: `list_pages`, `get_page`, `deploy_page`, `publish_page`, `rollback_page`,
+   `list_versions`. Register in cutlass via a ~4-line `getMCPServerDefinitions()` block
+   mirroring `fast_io` (`config.go`), gated on `PAGES_API_TOKEN`. Test by POSTing
+   JSON-RPC at `/mcp` directly — no cutlass needed.
 2. **`lib/pagecookie.js`** — signed per-page client password session
    (`page_<slug>` cookie, HMAC `PAGE_COOKIE_SECRET`, ~30d). bcrypt for `password_hash`.
 3. **`/view/:slug`** (dashboard host) — Elcano admin cookie OR valid page cookie OR

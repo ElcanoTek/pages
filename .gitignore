@@ -32,6 +32,9 @@ node_modules/
 npm-debug.log*
 *.tgz
 
+# Local dev environment (throwaway Postgres cluster + secrets, scripts/dev.sh)
+.devdata/
+
 # Vendored Flag design system (pulled by scripts/sync-flag.sh at build time)
 vendor/flag/
 public/assets/flag/

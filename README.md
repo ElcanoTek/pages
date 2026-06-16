@@ -24,6 +24,21 @@ pending Phases 1–4.
 
 ## Local dev
 
+Fastest path — one command stands up Postgres, migrates, vendors Flag, mints an
+agent token, and boots the server (the "let Claude Code deploy pages" loop):
+
+```bash
+npm install
+sudo bash scripts/dev.sh                      # server on :3099, both vhosts → localhost
+# in another shell:
+TOKEN=$(sudo bash scripts/dev.sh token)
+curl -H "Host: localhost" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"slug":"demo","title":"Demo"}' http://127.0.0.1:3099/api/v1/pages
+# deploy+publish HTML, then it renders at  Host: content.localhost  /raw/demo?t=<signed>
+```
+
+Or wire it up by hand:
+
 ```bash
 npm install
 cp .env.example .env          # set AUTH_SIGNING_PUBKEY to test the admin gate

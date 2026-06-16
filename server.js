@@ -22,6 +22,7 @@ const { shellHelmetOptions, rawHeaders } = require("./lib/csp");
 const rawtoken = require("./lib/rawtoken");
 const render = require("./lib/render");
 const db = require("./lib/db");
+const apiRouter = require("./lib/api");
 
 const PORT = Number(process.env.PORT || 3002);
 // Hostnames are configured per deployment via /etc/default/pages (set by
@@ -131,11 +132,12 @@ dashboardApp.get("/admin/:slug", auth.requireAdmin, (req, res) => {
     .send(`admin '${req.params.slug}' — hello ${req.user.email}. Admin UI arrives in Phase 1.`);
 });
 
-// REST API (Phase 2) and MCP-over-HTTP (Phase 3) — declared now so the shape
-// is visible; both 501 until implemented.
-dashboardApp.all("/api/v1/*splat", (_req, res) =>
-  res.status(501).json({ error: "REST API arrives in Phase 2" })
-);
+// REST API (Phase 2) — bearer-authenticated agent surface. Routes every state
+// change through the version state machine (lib/versions.js); see lib/api.js.
+dashboardApp.use("/api/v1", apiRouter);
+
+// MCP-over-HTTP (Phase 3) — declared now so the shape is visible; 501 until
+// implemented. Will wrap the SAME state-machine functions as the REST API.
 dashboardApp.all("/mcp", (_req, res) =>
   res.status(501).json({ error: "MCP arrives in Phase 3" })
 );

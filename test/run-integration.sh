@@ -27,6 +27,7 @@ createdb -h "$SOCK" -p "$PGPORT" -U "$PGUSER" pages
 
 export PGHOST="$SOCK" PGPORT="$PGPORT" PGUSER="$PGUSER" PGDATABASE=pages
 export RAW_TOKEN_SECRET="integration-secret"
+export API_TOKEN_PEPPER="integration-pepper"
 export DASHBOARD_HOST=localhost CONTENT_HOST=content.localhost
 
 echo "▸ migrate"
@@ -67,5 +68,8 @@ fi
 
 echo "▸ render integration"
 VID_OMNICOM="$VID_OMNICOM" VID_DOWN="$VID_DOWN" node "$ROOT/test/integration.js"
+
+echo "▸ api integration"
+node "$ROOT/test/api.integration.js"
 
 echo "✓ integration passed"

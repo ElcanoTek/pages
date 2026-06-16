@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 process.env.RAW_TOKEN_SECRET = "test-secret-do-not-use-in-prod";
 const rawtoken = require("../lib/rawtoken");
 const render = require("../lib/render");
+const versions = require("../lib/versions");
 
 test("rawtoken: round-trips and preserves binding", () => {
   const t = rawtoken.mint({ pageId: 7, versionId: 42, purpose: "view", renderMode: "themed" });
@@ -75,4 +76,21 @@ test("render: themed mode synthesizes a head when there is none", () => {
   assert.match(out, /<head>/);
   assert.match(out, /design-tokens\.css/);
   assert.match(out, /<p>bare fragment<\/p>/);
+});
+
+// ── version state machine: pure helpers (no DB) ──────────────────────────────
+
+test("versions.sha256: stable and content-sensitive", () => {
+  assert.equal(versions.sha256("hello"), versions.sha256("hello"));
+  assert.notEqual(versions.sha256("hello"), versions.sha256("hello!"));
+  assert.match(versions.sha256("x"), /^[0-9a-f]{64}$/);
+});
+
+test("versions.normalizeSlug: accepts flat + nested, lowercases, rejects junk", () => {
+  assert.equal(versions.normalizeSlug("Omnicom"), "omnicom");
+  assert.equal(versions.normalizeSlug("omnicom/q2-report"), "omnicom/q2-report");
+  assert.equal(versions.normalizeSlug(" acme_co "), "acme_co");
+  for (const bad of ["", "/leading", "trailing/", "has space", "bad//seg", "../etc", null]) {
+    assert.throws(() => versions.normalizeSlug(bad), /slug/i, `should reject: ${JSON.stringify(bad)}`);
+  }
 });
