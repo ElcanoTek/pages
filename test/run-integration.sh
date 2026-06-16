@@ -72,4 +72,7 @@ VID_OMNICOM="$VID_OMNICOM" VID_DOWN="$VID_DOWN" node "$ROOT/test/integration.js"
 echo "▸ api integration"
 node "$ROOT/test/api.integration.js"
 
+echo "▸ mcp integration"
+node "$ROOT/test/mcp.integration.js"
+
 echo "✓ integration passed"

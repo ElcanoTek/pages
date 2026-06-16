@@ -97,6 +97,13 @@ agents (and Claude Code) can deploy pages locally end-to-end.
 - `scripts/dev.sh` — one command: throwaway Postgres (under `/var/tmp/pages-dev`),
   migrate, vendor Flag, mint a token (saved to `.devdata/agent-token`), boot the
   server. This IS the "let Claude Code deploy pages" loop.
+- `lib/mcp.js` — **MCP-over-HTTP at `/mcp`** (the agent-native surface). Hand-rolled
+  JSON-RPC 2.0 (`initialize`/`tools/list`/`tools/call`, protocol `2024-11-05`),
+  bearer-authed, wrapping the SAME `lib/versions.js` functions as REST. Tools:
+  `list_pages`, `get_page`, `deploy_page` (create-or-update), `update_page`,
+  `publish_page`, `rollback_page`, `list_versions`, `page_urls`. Verified against
+  cutlass's MCP client contract. `docs/API.md` now documents both surfaces + the
+  cutlass/chat registration snippet (config-only; NOT edited in those repos).
 
 ### Tests (all green)
 - `npm test` → `test/unit.test.js`: 11 tests (token tamper/escalation/expiry; render
@@ -107,23 +114,20 @@ agents (and Claude Code) can deploy pages locally end-to-end.
   AND the full REST agent loop (`test/api.integration.js`): unauth 401, create,
   deploy+publish, pointer-is-truth, /raw render, second deploy moves pointer, history,
   rollback, dedupe, 409 stale-version, approval-gate (agent→pending, publish 403).
-  (Requires `postgres` system user + `initdb`.)
+  AND the MCP surface (`test/mcp.integration.js`): unauth 401, initialize handshake,
+  initialized-notification 202, tools/list (8 tools), deploy_page create+publish,
+  get_page/list_pages, dedupe, update+rollback, unknown-tool/method JSON-RPC errors,
+  approval gate (pending + publish isError). (Requires `postgres` system user + `initdb`.)
 
 ## What's LEFT (your next tasks)
-`lib/versions.js` (was task #1) is **done** — see above. Remaining, in order; each is
-independently testable. Note the **direct-serve** design update at the top of this
-file changes how #3 works.
+`lib/versions.js` and **MCP** (were the first tasks) are **done** — see above.
+Remaining, in order; each is independently testable. Note the **direct-serve**
+design update at the top of this file changes how #1 works.
 
-1. **MCP-over-HTTP at `/mcp`** (PLAN §11; was Phase 3, pull forward — it's just a thin
-   wrapper). Cutlass's contract (verified in `/root/cutlass`): JSON-RPC 2.0 over
-   `POST /mcp`, protocol `"2024-11-05"`, methods `initialize`/`tools/list`/`tools/call`,
-   `Authorization: Bearer`, response as JSON **or** SSE, optional `Mcp-Session-Id`.
-   Wrap the SAME `lib/versions.js` functions as the REST API (no privileged backdoor).
-   Tools: `list_pages`, `get_page`, `deploy_page`, `publish_page`, `rollback_page`,
-   `list_versions`. Register in cutlass via a ~4-line `getMCPServerDefinitions()` block
-   mirroring `fast_io` (`config.go`), gated on `PAGES_API_TOKEN`. Test by POSTing
-   JSON-RPC at `/mcp` directly — no cutlass needed.
-2. **`lib/pagecookie.js`** — signed per-page client password session
+0. **Register the MCP server in chat & cutlass** — config-only, in those repos (NOT
+   here): see the snippet in `docs/API.md`. Add `PAGES_API_TOKEN` to both, mint a
+   token with `pages token add`, done.
+1. **`lib/pagecookie.js`** — signed per-page client password session
    (`page_<slug>` cookie, HMAC `PAGE_COOKIE_SECRET`, ~30d). bcrypt for `password_hash`.
 3. **`/view/:slug`** (dashboard host) — Elcano admin cookie OR valid page cookie OR
    password form. On access: mint a `view` token for the published version and return
