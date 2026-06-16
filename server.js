@@ -144,8 +144,21 @@ if (process.env.PAGES_DEV_LOGIN === "1" && process.env.DEV_ADMIN_COOKIE) {
   console.warn("⚠ DEV LOGIN ENABLED: GET /__dev/login sets a local admin cookie. Do NOT set PAGES_DEV_LOGIN=1 in production.");
   dashboardApp.get("/__dev/login", (req, res) => {
     res.setHeader("Set-Cookie", `${cookieName}=${process.env.DEV_ADMIN_COOKIE}; Path=/; HttpOnly; SameSite=Lax`);
-    const next = typeof req.query.next === "string" && req.query.next.startsWith("/") ? req.query.next : "/";
-    res.redirect(302, next);
+    // Accept `next` (our own param) or `return_to` (what auth.loginRedirectURL
+    // sends when requireAdmin bounces here). Always reduce to a LOCAL path so a
+    // no-cookie /admin visit round-trips through here and back — never to the
+    // real auth/home. Open-redirect-safe: we keep only the pathname.
+    const raw =
+      (typeof req.query.next === "string" && req.query.next) ||
+      (typeof req.query.return_to === "string" && req.query.return_to) ||
+      "/";
+    let dest = "/";
+    try {
+      dest = raw.startsWith("/") ? raw : new URL(raw).pathname + new URL(raw).search;
+    } catch {
+      dest = "/";
+    }
+    res.redirect(302, dest);
   });
 }
 

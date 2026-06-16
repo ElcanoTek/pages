@@ -67,6 +67,10 @@ export FLAG_SRC="${FLAG_SRC:-/root/flag/design-system}"
 eval "$(node "$ROOT/scripts/dev-auth.js" "$DEV")"
 export AUTH_SIGNING_PUBKEY DEV_ADMIN_COOKIE DEV_ADMIN_EMAIL
 export PAGES_DEV_LOGIN=1
+# Keep auth-failure redirects LOCAL in dev — never bounce to the real
+# auth.elcanotek.com (which forwards to home). A no-cookie /admin visit then
+# round-trips through the local dev-login and back.
+export AUTH_LOGIN_URL="http://localhost:${PORT}/__dev/login"
 
 pg() { runuser -u postgres -- "$@"; }
 
