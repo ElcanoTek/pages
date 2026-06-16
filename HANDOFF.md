@@ -104,6 +104,20 @@ agents (and Claude Code) can deploy pages locally end-to-end.
   `publish_page`, `rollback_page`, `list_versions`, `page_urls`. Verified against
   cutlass's MCP client contract. `docs/API.md` now documents both surfaces + the
   cutlass/chat registration snippet (config-only; NOT edited in those repos).
+  `docs/INTEGRATION.md` + `scripts/mcp-smoke.sh` give the registration patches and a
+  local test recipe; verified end-to-end with the real cutlass agent.
+- **Admin GUI — `/admin/:slug`** (Flag-themed shell, `requireAdmin`). `lib/adminshell.js`
+  + `public/shell-assets/{admin.js,shell.css}`: version list, **pending review queue**,
+  sandboxed **preview** iframe (preview-only, invariant #2), and buttons for publish /
+  rollback / approve / reject / disable-enable / approval-toggle / theme. Mutations go
+  through `lib/adminapi.js` (`/api/v1/admin/*`) — **admin cookie + CSRF** (`lib/csrf.js`:
+  signed double-submit token + Origin check), the human-only surface kept off the agent
+  API. New `versions.js` admin ops: `setDisabled`/`setApproval`/`setTheme`/`listThemes`.
+  Flag assets served on the dashboard host at `/shell-assets/flag`.
+- **Local admin login** — `scripts/dev-auth.js` mints a throwaway Ed25519 keypair +
+  admin cookie; `dev.sh` enables a **gated** `/__dev/login` route (only when
+  `PAGES_DEV_LOGIN=1`) so `/admin` works in a browser locally with no real auth service.
+  Never enable in prod.
 
 ### Tests (all green)
 - `npm test` → `test/unit.test.js`: 11 tests (token tamper/escalation/expiry; render
@@ -117,30 +131,27 @@ agents (and Claude Code) can deploy pages locally end-to-end.
   AND the MCP surface (`test/mcp.integration.js`): unauth 401, initialize handshake,
   initialized-notification 202, tools/list (8 tools), deploy_page create+publish,
   get_page/list_pages, dedupe, update+rollback, unknown-tool/method JSON-RPC errors,
-  approval gate (pending + publish isError). (Requires `postgres` system user + `initdb`.)
+  approval gate (pending + publish isError) AND the admin surface
+  (`test/admin.integration.js`, real Ed25519 admin cookie): auth gate (401/403), read,
+  CSRF gates, publish/rollback, 409, approve→live + reject→terminal, approval toggle,
+  disable/enable, preview-token, and the `/admin/:slug` shell route (200 vs 302).
+  (Requires `postgres` system user + `initdb`.)
 
 ## What's LEFT (your next tasks)
-`lib/versions.js` and **MCP** (were the first tasks) are **done** — see above.
-Remaining, in order; each is independently testable. Note the **direct-serve**
-design update at the top of this file changes how #1 works.
+`lib/versions.js`, **MCP**, and the **`/admin` GUI** (were the first tasks) are **done**
+— see above. Remaining, in order.
 
 0. **Register the MCP server in chat & cutlass** — config-only, in those repos (NOT
-   here): see the snippet in `docs/API.md`. Add `PAGES_API_TOKEN` to both, mint a
-   token with `pages token add`, done.
-1. **`lib/pagecookie.js`** — signed per-page client password session
-   (`page_<slug>` cookie, HMAC `PAGE_COOKIE_SECRET`, ~30d). bcrypt for `password_hash`.
-3. **`/view/:slug`** (dashboard host) — Elcano admin cookie OR valid page cookie OR
-   password form. On access: mint a `view` token for the published version and return
-   a shell that iframes `https://<CONTENT_HOST>/raw/<slug>?t=…`
-   (`sandbox="allow-scripts"`, `referrerpolicy="no-referrer"`). `password_hash NULL`
-   = Elcano-only.
-4. **`/admin/:slug`** (`requireAdmin`) — Flag-themed shell: version list w/ the
-   `pending` review queue at top; sandboxed preview of any version; buttons for
-   publish / rollback / approve / reject; `require_approval` + `disable` toggles;
-   theme picker. All mutations go through `/api/v1` (Phase 2) with a CSRF token — or,
-   if you wire them directly now, keep them admin-cookie+CSRF and audit-logged.
-   Build shells with Flag tokens/components (`public/assets/flag`).
-5. **`bootstrap.sh` — add Postgres** (mirror chat/moc §9): install
+   here): see `docs/INTEGRATION.md` (exact edits + local test recipe). Mint tokens with
+   `pages token add`; set `PAGES_MCP_TOKEN` (cutlass) / `PAGES_API_TOKEN` (chat).
+1. **`/view/:slug` + per-page password** — ⚠️ **needs the direct-serve design decision
+   first** (top of this file, Brad): the live client page is served **directly** on the
+   content host (`elcano-pages.com/<slug>`), not via an iframe — so the per-page password
+   gate must work on the cookieless content origin (its own cookie jar, NOT the SSO
+   cookie). Decide that, then build: `lib/pagecookie.js` (signed `page_<slug>` cookie,
+   HMAC `PAGE_COOKIE_SECRET`, ~30d; bcrypt `password_hash`) + the password form + the
+   direct-serve path. `password_hash NULL` = Elcano-only.
+2. **`bootstrap.sh` — add Postgres** (mirror chat/moc §9): install
    `postgresql postgresql-server`, `initdb`, `pg_hba` loopback → `scram-sha-256`,
    create role/db `pages`, write `DATABASE_URL`, run `node lib/migrate.js`, run
    `sync-flag.sh`. Add `After/Requires=postgresql.service` to `pages.service` (already

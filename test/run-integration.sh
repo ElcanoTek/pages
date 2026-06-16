@@ -75,4 +75,7 @@ node "$ROOT/test/api.integration.js"
 echo "▸ mcp integration"
 node "$ROOT/test/mcp.integration.js"
 
+echo "▸ admin integration"
+node "$ROOT/test/admin.integration.js"
+
 echo "✓ integration passed"

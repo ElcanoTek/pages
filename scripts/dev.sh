@@ -59,6 +59,14 @@ export DASHBOARD_HOST=localhost CONTENT_HOST=content.localhost CONTENT_HOST_ALSO
 export PORT
 export FLAG_SRC="${FLAG_SRC:-/root/flag/design-system}"
 
+# Local dev admin auth: there's no real auth service locally, so mint a
+# throwaway Ed25519 keypair + admin cookie (persisted in .devdata) and enable the
+# gated dev-login route so /admin works in a browser. NEVER set PAGES_DEV_LOGIN
+# in production.
+eval "$(node "$ROOT/scripts/dev-auth.js" "$DEV")"
+export AUTH_SIGNING_PUBKEY DEV_ADMIN_COOKIE DEV_ADMIN_EMAIL
+export PAGES_DEV_LOGIN=1
+
 pg() { runuser -u postgres -- "$@"; }
 
 # 1. Initialize the cluster once. Postgres won't run as root → owned by postgres.
@@ -99,10 +107,14 @@ fi
 cat <<EOF
 
   Pages dev environment ready.
-    dashboard host : http://127.0.0.1:$PORT      (Host: localhost)
-    content host   : http://127.0.0.1:$PORT      (Host: content.localhost)
+    dashboard host : http://localhost:$PORT       (Host: localhost)
+    content host   : http://content.localhost:$PORT
     agent token    : $(cat "$TOKENFILE")
                      (also saved in .devdata/agent-token)
+
+  Admin GUI (local dev-login, then pick any page slug):
+    http://localhost:$PORT/__dev/login?next=/admin/<slug>
+    (signs you in as ${DEV_ADMIN_EMAIL} via a throwaway dev keypair)
 
   Example — deploy a page as the agent:
     TOKEN=\$(cat .devdata/agent-token)

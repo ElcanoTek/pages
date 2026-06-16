@@ -23,6 +23,9 @@ const rawtoken = require("./lib/rawtoken");
 const render = require("./lib/render");
 const db = require("./lib/db");
 const apiRouter = require("./lib/api");
+const adminApiRouter = require("./lib/adminapi");
+const adminShell = require("./lib/adminshell");
+const csrf = require("./lib/csrf");
 const mcp = require("./lib/mcp");
 
 const PORT = Number(process.env.PORT || 3002);
@@ -105,11 +108,32 @@ dashboardApp.use(express.json({ limit: "2mb" }));
 
 dashboardApp.get("/healthz", (_req, res) => res.type("text").send("ok"));
 
-// Public shell assets (CSS/JS for the trusted /view + /admin UI). Phase 1+.
+// Public shell assets (CSS/JS for the trusted /view + /admin UI).
 dashboardApp.use(
   "/shell-assets",
   express.static(path.join(__dirname, "public", "shell-assets"), { index: false })
 );
+// The shell is Flag-themed, so serve the vendored Flag tokens/fonts/theme on the
+// dashboard host too (the content host serves its own copy at /assets/flag for
+// rendered pages). Same files, two zones.
+dashboardApp.use(
+  "/shell-assets/flag",
+  express.static(path.join(__dirname, "public", "assets", "flag"), { index: false })
+);
+
+// Local dev-login (GATED). The real auth service mints the elcano_auth cookie;
+// locally scripts/dev.sh mints a dev one and exposes it here so /admin works in
+// a browser without auth.elcanotek.com. Mounted ONLY when PAGES_DEV_LOGIN=1 and
+// a cookie is provided — never enable in production.
+if (process.env.PAGES_DEV_LOGIN === "1" && process.env.DEV_ADMIN_COOKIE) {
+  const cookieName = process.env.AUTH_COOKIE_NAME || "elcano_auth";
+  console.warn("⚠ DEV LOGIN ENABLED: GET /__dev/login sets a local admin cookie. Do NOT set PAGES_DEV_LOGIN=1 in production.");
+  dashboardApp.get("/__dev/login", (req, res) => {
+    res.setHeader("Set-Cookie", `${cookieName}=${process.env.DEV_ADMIN_COOKIE}; Path=/; HttpOnly; SameSite=Lax`);
+    const next = typeof req.query.next === "string" && req.query.next.startsWith("/") ? req.query.next : "/";
+    res.redirect(302, next);
+  });
+}
 
 // Who am I — proves the SSO cookie path works end to end.
 dashboardApp.get("/api/me", auth.requireAuth, (req, res) => {
@@ -124,14 +148,18 @@ dashboardApp.get("/view/:slug", (req, res) => {
     .send(`view '${req.params.slug}' — client view arrives in Phase 1.`);
 });
 
-// Admin — Elcano staff only. Phase 1 adds the version list, preview, publish,
-// rollback, approve/reject queue, theme picker, and (Phase 4) source editing.
+// Admin shell — Elcano staff only. Flag-themed version list + pending review
+// queue + sandboxed preview + publish/rollback/approve/reject/disable/approval/
+// theme controls. The page is a bootstrap that drives the admin JSON API below.
 dashboardApp.get("/admin/:slug", auth.requireAdmin, (req, res) => {
-  res
-    .status(501)
-    .type("text")
-    .send(`admin '${req.params.slug}' — hello ${req.user.email}. Admin UI arrives in Phase 1.`);
+  const token = csrf.mint(req.user.email);
+  res.type("html").send(adminShell.render(req.params.slug, token, req.user.email));
 });
+
+// Admin JSON API (cookie + CSRF) — the human mutation surface. Mounted BEFORE
+// the bearer router so its /api/v1/admin/* paths win; everything else falls
+// through to the agent API.
+dashboardApp.use("/api/v1/admin", adminApiRouter);
 
 // REST API (Phase 2) — bearer-authenticated agent surface. Routes every state
 // change through the version state machine (lib/versions.js); see lib/api.js.

@@ -1,0 +1,77 @@
+/* shell.css — admin shell styling built on Flag semantic tokens (PLAN §8).
+   We never hardcode colors/spacing — everything reads from design-tokens.css. */
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Dubai", system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+code { font-family: "Share Tech Mono", ui-monospace, monospace; color: var(--color-text-secondary); }
+a { color: var(--color-accent); }
+
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  background: var(--color-surface-1);
+  border-bottom: 1px solid var(--color-border);
+}
+.app-header__title { font-size: var(--font-size-subtitle); font-weight: 700; }
+.app-header__who { color: var(--color-text-muted); font-size: var(--font-size-caption); }
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: var(--space-6); display: grid; gap: var(--space-6); }
+.muted { color: var(--color-text-muted); }
+.row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+.spread { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+
+.card {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.card h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-subtitle); }
+
+.badge {
+  display: inline-block; padding: 2px var(--space-2); border-radius: var(--radius-pill);
+  font-size: var(--font-size-overline); text-transform: uppercase; letter-spacing: .04em;
+  border: 1px solid var(--color-border-strong); color: var(--color-text-secondary);
+}
+.badge.live { color: var(--color-status-success-fg); background: var(--color-status-success-bg); border-color: var(--color-status-success-border); }
+.badge.pending { color: var(--color-status-pending-fg); background: var(--color-status-pending-bg); border-color: var(--color-status-pending-border); }
+.badge.rejected, .badge.error { color: var(--color-status-error-fg); background: var(--color-status-error-bg); border-color: var(--color-status-error-border); }
+.badge.draft { color: var(--color-text-muted); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: var(--space-3); border-bottom: 1px solid var(--color-border-subtle); vertical-align: top; }
+th { color: var(--color-text-muted); font-size: var(--font-size-caption); font-weight: 600; }
+tr.current { background: var(--color-surface-2); }
+
+.btn {
+  font: inherit; cursor: pointer; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md); border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-2); color: var(--color-text-primary);
+  transition: var(--transition-fast);
+}
+.btn:hover { border-color: var(--color-accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.btn-danger { background: var(--color-status-error-bg); border-color: var(--color-status-error-border); color: var(--color-status-error-fg); }
+.btn-sm { font-size: var(--font-size-caption); padding: 2px var(--space-2); }
+
+select, input { font: inherit; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface-2); color: var(--color-text-primary); min-height: 2.5rem; }
+
+iframe.preview { width: 100%; height: 520px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #fff; }
+
+#toast {
+  position: fixed; bottom: var(--space-5); left: 50%; transform: translateX(-50%);
+  background: var(--color-surface-2); border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary); padding: var(--space-3) var(--space-5); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md); opacity: 0; transition: opacity var(--transition-base); pointer-events: none; max-width: 80vw;
+}
+#toast.show { opacity: 1; }
+#toast.err { border-color: var(--color-status-error-border); color: var(--color-status-error-fg); }
