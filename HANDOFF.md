@@ -118,6 +118,20 @@ agents (and Claude Code) can deploy pages locally end-to-end.
   admin cookie; `dev.sh` enables a **gated** `/__dev/login` route (only when
   `PAGES_DEV_LOGIN=1`) so `/admin` works in a browser locally with no real auth service.
   Never enable in prod.
+- **Client `/view` — direct-serve + per-page password** (PLAN §6b, direct-serve
+  decision). The live page is served DIRECTLY on the content host
+  (`elcano-pages.com/<slug>`), no iframe. `lib/contentview.js` gates it: disabled/
+  unknown/unpublished → 404; password page → trusted (non-sandboxed) password form →
+  POST verifies → sets a signed page-session cookie (`lib/pagecookie.js`, content
+  origin's OWN cookie jar, NOT the SSO cookie) → renders the published version with the
+  **sandbox CSP**. Elcano-only pages (no password) are brokered by the dashboard
+  `/view/:slug` (SSO → short `view` token → content host exchanges it for a session).
+  Passwords hashed with scrypt (dependency-free; the `password_hash` column is generic).
+  `lib/csp.js` gained `gateHeaders()` (trusted, non-sandboxed) for the form.
+  `versions.setPassword` exposed on bearer + admin APIs.
+  > Security-model note (worth Brad's nod): this amends "content host is cookieless" to
+  > "never touches the *SSO* cookie, but may hold its own page-session cookie." SSO
+  > isolation is unchanged.
 
 ### Tests (all green)
 - `npm test` → `test/unit.test.js`: 11 tests (token tamper/escalation/expiry; render
@@ -138,20 +152,15 @@ agents (and Claude Code) can deploy pages locally end-to-end.
   (Requires `postgres` system user + `initdb`.)
 
 ## What's LEFT (your next tasks)
-`lib/versions.js`, **MCP**, and the **`/admin` GUI** (were the first tasks) are **done**
-— see above. Remaining, in order.
+**Phase 1 is functionally complete** — `lib/versions.js`, the REST + MCP agent
+surfaces, the `/admin` GUI, and the client `/view` (direct-serve + password) are all
+**done and tested** (see above). Remaining:
 
 0. **Register the MCP server in chat & cutlass** — config-only, in those repos (NOT
    here): see `docs/INTEGRATION.md` (exact edits + local test recipe). Mint tokens with
    `pages token add`; set `PAGES_MCP_TOKEN` (cutlass) / `PAGES_API_TOKEN` (chat).
-1. **`/view/:slug` + per-page password** — ⚠️ **needs the direct-serve design decision
-   first** (top of this file, Brad): the live client page is served **directly** on the
-   content host (`elcano-pages.com/<slug>`), not via an iframe — so the per-page password
-   gate must work on the cookieless content origin (its own cookie jar, NOT the SSO
-   cookie). Decide that, then build: `lib/pagecookie.js` (signed `page_<slug>` cookie,
-   HMAC `PAGE_COOKIE_SECRET`, ~30d; bcrypt `password_hash`) + the password form + the
-   direct-serve path. `password_hash NULL` = Elcano-only.
-2. **`bootstrap.sh` — add Postgres** (mirror chat/moc §9): install
+   Verified locally with the real cutlass agent.
+1. **`bootstrap.sh` — add Postgres** (mirror chat/moc §9): install
    `postgresql postgresql-server`, `initdb`, `pg_hba` loopback → `scram-sha-256`,
    create role/db `pages`, write `DATABASE_URL`, run `node lib/migrate.js`, run
    `sync-flag.sh`. Add `After/Requires=postgresql.service` to `pages.service` (already

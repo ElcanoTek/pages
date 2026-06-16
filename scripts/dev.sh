@@ -56,6 +56,7 @@ fi
 
 export PGHOST="$SOCK" PGPORT="$PGPORT" PGUSER=pages PGDATABASE=pages
 export DASHBOARD_HOST=localhost CONTENT_HOST=content.localhost CONTENT_HOST_ALSO=content.localhost
+export CONTENT_ORIGIN="http://content.localhost:${PORT}" DASHBOARD_ORIGIN="http://localhost:${PORT}"
 export PORT
 export FLAG_SRC="${FLAG_SRC:-/root/flag/design-system}"
 

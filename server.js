@@ -18,10 +18,12 @@ const express = require("express");
 const helmet = require("helmet");
 
 const auth = require("./lib/auth");
-const { shellHelmetOptions, rawHeaders } = require("./lib/csp");
+const { shellHelmetOptions, rawHeaders, CONTENT_ORIGIN } = require("./lib/csp");
 const rawtoken = require("./lib/rawtoken");
 const render = require("./lib/render");
 const db = require("./lib/db");
+const versions = require("./lib/versions");
+const contentview = require("./lib/contentview");
 const apiRouter = require("./lib/api");
 const adminApiRouter = require("./lib/adminapi");
 const adminShell = require("./lib/adminshell");
@@ -97,6 +99,18 @@ contentApp.get("/raw/:slug", async (req, res) => {
   }
 });
 
+// Direct-serve the live client page (PLAN §6b). elcano-pages.com/<slug> is the
+// client URL: the content host owns the per-page password gate (its own cookie
+// jar, never the SSO cookie) and renders the published version with the sandbox
+// CSP. Registered LAST so /healthz, /assets, /raw win first. POST handles the
+// password form (the only place the content host parses a body).
+contentApp.get("/{*slug}", (req, res, next) => contentview.serve(req, res).catch(next));
+contentApp.post(
+  "/{*slug}",
+  express.urlencoded({ extended: false, limit: "1kb" }),
+  (req, res, next) => contentview.unlock(req, res).catch(next)
+);
+
 contentApp.use((_req, res) => res.status(404).type("text").send("not found"));
 
 // ===========================================================================
@@ -140,12 +154,23 @@ dashboardApp.get("/api/me", auth.requireAuth, (req, res) => {
   res.json({ email: req.user.email, tenant: req.user.tenant, admin: auth.isElcanoAdmin(req.user) });
 });
 
-// Client view — Phase 1 adds per-page password + signed /raw embedding.
-dashboardApp.get("/view/:slug", (req, res) => {
-  res
-    .status(501)
-    .type("text")
-    .send(`view '${req.params.slug}' — client view arrives in Phase 1.`);
+// Client view broker (PLAN §6b). For Elcano-only pages (no password), the
+// content host can't do SSO — so staff come here: we verify the Elcano session,
+// mint a short broker token for the published version, and bounce to the content
+// host, which exchanges it for a page-session cookie. (Password pages can be
+// opened directly on the content host; this also works as a staff shortcut.)
+dashboardApp.get("/view/:slug", auth.requireAuth, async (req, res, next) => {
+  try {
+    const { page } = await versions.getPage(req.params.slug);
+    if (!page.published_version_id) return res.status(404).type("text").send("nothing published yet");
+    const token = rawtoken.mint(
+      { pageId: page.id, versionId: page.published_version_id, purpose: "view", renderMode: "themed" },
+      120
+    );
+    res.redirect(302, `${CONTENT_ORIGIN}/${page.slug}?t=${encodeURIComponent(token)}`);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Admin shell — Elcano staff only. Flag-themed version list + pending review

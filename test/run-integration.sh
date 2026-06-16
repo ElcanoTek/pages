@@ -28,6 +28,7 @@ createdb -h "$SOCK" -p "$PGPORT" -U "$PGUSER" pages
 export PGHOST="$SOCK" PGPORT="$PGPORT" PGUSER="$PGUSER" PGDATABASE=pages
 export RAW_TOKEN_SECRET="integration-secret"
 export API_TOKEN_PEPPER="integration-pepper"
+export PAGE_COOKIE_SECRET="integration-page-secret"
 export DASHBOARD_HOST=localhost CONTENT_HOST=content.localhost
 
 echo "▸ migrate"
@@ -77,5 +78,8 @@ node "$ROOT/test/mcp.integration.js"
 
 echo "▸ admin integration"
 node "$ROOT/test/admin.integration.js"
+
+echo "▸ view integration"
+node "$ROOT/test/view.integration.js"
 
 echo "✓ integration passed"
