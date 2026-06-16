@@ -142,6 +142,17 @@ dashboardApp.use(
 if (process.env.PAGES_DEV_LOGIN === "1" && process.env.DEV_ADMIN_COOKIE) {
   const cookieName = process.env.AUTH_COOKIE_NAME || "elcano_auth";
   console.warn("⚠ DEV LOGIN ENABLED: GET /__dev/login sets a local admin cookie. Do NOT set PAGES_DEV_LOGIN=1 in production.");
+
+  // Keep auth-failure redirects on the SAME host (relative), so localhost,
+  // 127.0.0.1, or a VM IP all work without bouncing to a pinned host or the
+  // real auth. Runs before the /admin + /view routes (registered later), so a
+  // no-session GET is intercepted here instead of by requireAdmin/requireAuth.
+  dashboardApp.use((req, res, next) => {
+    if (req.method === "GET" && /^\/(admin|view)\//.test(req.path) && !auth.currentSession(req)) {
+      return res.redirect(302, `/__dev/login?next=${encodeURIComponent(req.originalUrl)}`);
+    }
+    next();
+  });
   dashboardApp.get("/__dev/login", (req, res) => {
     res.setHeader("Set-Cookie", `${cookieName}=${process.env.DEV_ADMIN_COOKIE}; Path=/; HttpOnly; SameSite=Lax`);
     // Accept `next` (our own param) or `return_to` (what auth.loginRedirectURL

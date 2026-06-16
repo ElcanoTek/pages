@@ -42,3 +42,6 @@ public/assets/flag/
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local screenshots
+screenshots/
