@@ -41,7 +41,9 @@
 
   function card(p) {
     const st = statusOf(p);
-    const live = `${contentOrigin}/${encodeURIComponent(p.slug)}`;
+    // "View live" goes through the dashboard /view broker (SSO → content-host
+    // session), which works for staff on BOTH password and Elcano-only pages.
+    // Linking straight to the content host would just hit the staff-only gate.
     const meta = el("div", { class: "page-card__meta muted" },
       el("span", {}, p.published_version_id ? `live · #${p.published_version_id}` : "not published"),
       el("span", {}, "·"),
@@ -49,7 +51,9 @@
     );
     const foot = el("div", { class: "page-card__foot row" },
       el("a", { class: "btn btn-sm btn-primary", href: `/admin/${encodeURIComponent(p.slug)}` }, "Open admin"),
-      el("a", { class: "btn btn-sm", href: live, target: "_blank", rel: "noopener" }, "View live ↗")
+      p.published_version_id
+        ? el("a", { class: "btn btn-sm", href: `/view/${encodeURIComponent(p.slug)}`, target: "_blank", rel: "noopener" }, "View live ↗")
+        : null
     );
     return el("div", { class: "card page-card" },
       el("div", { class: "page-card__head" },
