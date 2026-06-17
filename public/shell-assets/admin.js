@@ -4,7 +4,8 @@
 // edits rendered DOM of a page — preview is a sandboxed iframe (invariant #2).
 
 (function () {
-  const { slug, csrf } = window.__PAGES__;
+  // Read bootstrap from the JSON data island (inline scripts are CSP-blocked).
+  const { slug, csrf } = JSON.parse(document.getElementById("pages-bootstrap")?.textContent || "{}");
   const api = `/api/v1/admin/pages/${encodeURIComponent(slug)}`;
   const app = document.getElementById("app");
 

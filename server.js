@@ -27,6 +27,7 @@ const contentview = require("./lib/contentview");
 const apiRouter = require("./lib/api");
 const adminApiRouter = require("./lib/adminapi");
 const adminShell = require("./lib/adminshell");
+const welcomeShell = require("./lib/welcomeshell");
 const csrf = require("./lib/csrf");
 const mcp = require("./lib/mcp");
 
@@ -195,6 +196,16 @@ dashboardApp.get("/view/:slug", auth.requireAuth, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Admin landing — Elcano staff only. Flag-themed index that lists every page
+// (via the read-only admin API) with links into each per-slug shell. Registered
+// BEFORE /admin/:slug so "welcome" resolves to the index, not a page slug.
+dashboardApp.get(["/admin", "/admin/welcome"], auth.requireAdmin, (req, res) => {
+  const contentOrigin =
+    process.env.CONTENT_ORIGIN ||
+    `${CONTENT_HOST.startsWith("localhost") || CONTENT_HOST.startsWith("content.localhost") ? "http" : "https"}://${CONTENT_HOST}`;
+  res.type("html").send(welcomeShell.render(req.user.email, contentOrigin));
 });
 
 // Admin shell — Elcano staff only. Flag-themed version list + pending review
