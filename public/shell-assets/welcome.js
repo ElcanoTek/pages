@@ -55,25 +55,24 @@
     // "View live" goes through the dashboard /view broker (SSO → content-host
     // session), which works for staff on BOTH password and Elcano-only pages.
     // Linking straight to the content host would just hit the staff-only gate.
-    const meta = el("div", { class: "page-card__meta muted" },
-      el("span", {}, p.published_version_id ? `live · #${p.published_version_id}` : "not published"),
-      el("span", {}, "·"),
-      el("span", {}, `updated ${fmt(p.updated_at)}`)
+    const meta = el("div", { class: "page-card__meta" },
+      el("span", {}, p.published_version_id ? `Version ${p.published_version_id}` : "No published version"),
+      el("span", { class: "sep" }, "·"),
+      el("span", {}, `Updated ${fmt(p.updated_at)}`)
     );
-    const foot = el("div", { class: "page-card__foot row" },
-      el("a", { class: "btn btn-sm btn-primary", href: `/admin/${encodeURIComponent(p.slug)}` }, "Open admin"),
+    const foot = el("div", { class: "page-card__foot" },
+      el("a", { class: "btn btn-sm btn-primary", href: `/admin/${encodeURIComponent(p.slug)}` }, "Open"),
       p.published_version_id
-        ? el("a", { class: "btn btn-sm", href: `/view/${encodeURIComponent(p.slug)}`, target: "_blank", rel: "noopener" }, "View live ↗")
+        ? el("a", { class: "btn btn-sm", href: `/view/${encodeURIComponent(p.slug)}`, target: "_blank", rel: "noopener" }, "View live")
         : null
     );
     return el("div", { class: "card page-card" },
       el("div", { class: "page-card__head" },
         el("div", { class: "spread" },
-          el("span", { class: "page-card__kicker muted" }, "page"),
-          el("span", { class: "badge " + st.cls }, st.label)
+          el("span", { class: "status " + st.cls }, el("span", { class: "dot" }), st.label),
+          el("code", { class: "page-card__slug mono" }, "/" + p.slug)
         ),
-        el("h3", { class: "page-card__title" }, p.title || p.slug),
-        el("code", { class: "page-card__slug" }, "/" + p.slug)
+        el("h3", { class: "page-card__title" }, p.title || p.slug)
       ),
       meta,
       foot
@@ -135,17 +134,17 @@
 
     return el("div", { class: "card compose-card" },
       el("div", { class: "spread" },
-        el("h2", {}, "Compose a page with Cutlass"),
-        el("span", { class: "badge pending" }, "dev · testing")
+        el("h2", { style: "margin:0" }, "Compose with Cutlass"),
+        el("span", { class: "tag" }, "Dev")
       ),
-      el("p", { class: "muted" }, "Describe a dashboard; Cutlass writes themed HTML and publishes it here. Runs the local Cutlass CLI (OpenRouter) and can take ~30–90s."),
+      el("p", { class: "compose-card__intro" }, "Describe a page and Cutlass writes themed HTML and publishes it here. Runs the local Cutlass agent; a run typically takes 30–90 seconds."),
       el("form", { class: "compose", onsubmit: run },
-        el("label", {}, "Prompt", promptTa),
+        el("label", {}, el("span", { class: "label-text" }, "Prompt"), promptTa),
         el("div", { class: "compose__row" },
-          el("label", {}, "Slug", slugIn),
-          el("label", {}, "Title (optional)", titleIn)
+          el("label", {}, el("span", { class: "label-text" }, "Slug"), slugIn),
+          el("label", {}, el("span", { class: "label-text" }, "Title (optional)"), titleIn)
         ),
-        el("div", { class: "row" }, btn, status),
+        el("div", { class: "compose__actions" }, btn, status),
         logPre
       )
     );
@@ -153,16 +152,22 @@
 
   function render({ pages }) {
     app.innerHTML = "";
-
-    // ── hero ──
     const live = pages.filter((p) => p.published_version_id && !p.disabled).length;
-    app.append(el("section", { class: "hero" },
-      el("h1", { class: "hero__title" }, "Welcome to Pages admin"),
-      el("p", { class: "hero__sub muted" },
-        "Versioned, Flag-themed client pages. Open a page to review versions, preview, publish, or roll back."),
-      el("div", { class: "row hero__stats" },
-        el("span", { class: "badge" }, `${pages.length} page${pages.length === 1 ? "" : "s"}`),
-        el("span", { class: "badge live" }, `${live} live`))
+
+    // ── page header ──
+    app.append(el("header", { class: "page-head" },
+      el("div", { class: "page-head__top" },
+        el("div", {},
+          el("p", { class: "overline" }, "Admin"),
+          el("h1", {}, "Client Pages")
+        ),
+        el("div", { class: "stats" },
+          el("span", { class: "stat" }, el("b", {}, String(pages.length)), el("span", {}, pages.length === 1 ? "page" : "pages")),
+          el("span", { class: "stat" }, el("b", {}, String(live)), el("span", {}, "live"))
+        )
+      ),
+      el("p", { class: "page-head__sub" },
+        "Versioned, Flag-themed client pages. Open a page to review versions, preview, publish, or roll back.")
     ));
 
     // ── compose (dev/test) ──
@@ -172,16 +177,15 @@
     if (!pages.length) {
       app.append(el("div", { class: "card empty" },
         el("h2", {}, "No pages yet"),
-        el("p", { class: "muted" },
-          "Pages are created by agents (cutlass / chat) over MCP, or via the REST API. "),
-        el("p", { class: "muted" }, "Once a page is deployed it'll show up here.")
+        el("p", { class: "muted" }, "Pages are created by agents (Cutlass / chat) over MCP, or via the REST API."),
+        el("p", { class: "muted" }, "Once a page is deployed it will appear here.")
       ));
       return;
     }
 
     // ── page grid ──
-    const grid = el("div", { class: "page-grid" }, ...pages.map(card));
-    app.append(grid);
+    app.append(el("div", { class: "section-label" }, el("span", { class: "overline" }, "All pages")));
+    app.append(el("div", { class: "page-grid" }, ...pages.map(card)));
   }
 
   function load() {
