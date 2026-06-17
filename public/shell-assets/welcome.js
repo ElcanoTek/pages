@@ -97,7 +97,13 @@
       ev.preventDefault();
       if (running) return;
       const prompt = promptTa.value.trim();
-      const slug = slugIn.value.trim().toLowerCase();
+      // Normalize: lowercase, strip slashes/spaces → hyphens, collapse/trim hyphens.
+      const slug = slugIn.value.trim().toLowerCase()
+        .replace(/^\/+|\/+$/g, "")        // drop leading/trailing slashes (e.g. "/test")
+        .replace(/[\s_]+/g, "-")           // spaces/underscores → hyphen
+        .replace(/[^a-z0-9-]+/g, "")       // drop anything else
+        .replace(/-+/g, "-").replace(/^-|-$/g, "");
+      slugIn.value = slug; // reflect the cleaned value back to the user
       if (!prompt) { status.textContent = "enter a prompt"; return; }
       if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { status.textContent = "slug: lowercase letters/digits with single hyphens"; return; }
       running = true; btn.disabled = true;
