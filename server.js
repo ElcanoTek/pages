@@ -28,6 +28,7 @@ const apiRouter = require("./lib/api");
 const adminApiRouter = require("./lib/adminapi");
 const adminShell = require("./lib/adminshell");
 const welcomeShell = require("./lib/welcomeshell");
+const compose = require("./lib/compose"); // DEV-only "compose with Cutlass" panel (gated)
 const csrf = require("./lib/csrf");
 const mcp = require("./lib/mcp");
 
@@ -205,8 +206,18 @@ dashboardApp.get(["/admin", "/admin/welcome"], auth.requireAdmin, (req, res) => 
   const contentOrigin =
     process.env.CONTENT_ORIGIN ||
     `${CONTENT_HOST.startsWith("localhost") || CONTENT_HOST.startsWith("content.localhost") ? "http" : "https"}://${CONTENT_HOST}`;
-  res.type("html").send(welcomeShell.render(req.user.email, contentOrigin));
+  res.type("html").send(
+    welcomeShell.render(req.user.email, contentOrigin, { csrf: csrf.mint(req.user.email), compose: compose.enabled() })
+  );
 });
+
+// DEV/TEST ONLY: "compose a page with Cutlass" — spawns the cutlass CLI which
+// deploys back via /mcp. Mounted (before the admin API) ONLY when gated on
+// (PAGES_COMPOSE=1 + CUTLASS_BIN/DIR). Never enabled in production.
+if (compose.enabled()) {
+  console.warn("⚠ COMPOSE ENABLED: POST /api/v1/admin/compose spawns the Cutlass CLI. Dev/test only — never set PAGES_COMPOSE=1 in production.");
+  dashboardApp.use("/api/v1/admin/compose", compose.router);
+}
 
 // Admin shell — Elcano staff only. Flag-themed version list + pending review
 // queue + sandboxed preview + publish/rollback/approve/reject/disable/approval/

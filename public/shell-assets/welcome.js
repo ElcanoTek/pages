@@ -7,7 +7,7 @@
 (function () {
   // Read bootstrap from the JSON data island (inline scripts are CSP-blocked).
   const boot = JSON.parse(document.getElementById("pages-bootstrap")?.textContent || "{}");
-  const { contentOrigin } = boot;
+  const { csrf } = boot;
   const app = document.getElementById("app");
 
   const el = (tag, attrs = {}, ...kids) => {
@@ -28,6 +28,17 @@
     if (!r.ok) throw new Error(j.error || r.status);
     return j;
   }
+  async function postJSON(url, body) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf || "" },
+      body: JSON.stringify(body || {}),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || r.status);
+    return j;
+  }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : "—");
 
@@ -69,6 +80,71 @@
     );
   }
 
+  // ── compose panel (DEV/TEST only; shown when the server enables it) ──
+  // Describe a page → POST spawns the Cutlass CLI → it deploys back via MCP →
+  // we poll the job log and refresh the grid when it finishes.
+  function composePanel() {
+    const promptTa = el("textarea", { rows: "4", required: "",
+      placeholder: "Describe the page — e.g. 'A KPI dashboard for Omnicom: three metric cards (spend, impressions, CTR) and a bar chart of monthly spend.'" });
+    const slugIn = el("input", { type: "text", placeholder: "omnicom-q2", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
+    const titleIn = el("input", { type: "text", placeholder: "Omnicom Q2 Dashboard" });
+    const status = el("span", { class: "muted compose__status" });
+    const logPre = el("pre", { class: "compose__log", style: "display:none" });
+    const btn = el("button", { class: "btn btn-primary", type: "submit" }, "Generate with Cutlass");
+    let running = false;
+
+    async function run(ev) {
+      ev.preventDefault();
+      if (running) return;
+      const prompt = promptTa.value.trim();
+      const slug = slugIn.value.trim().toLowerCase();
+      if (!prompt) { status.textContent = "enter a prompt"; return; }
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) { status.textContent = "slug: lowercase letters/digits with single hyphens"; return; }
+      running = true; btn.disabled = true;
+      logPre.style.display = "block"; logPre.textContent = "";
+      status.textContent = "starting Cutlass…";
+      try {
+        const { jobId } = await postJSON("/api/v1/admin/compose", { prompt, slug, title: titleIn.value.trim() });
+        for (;;) {
+          await sleep(1500);
+          const j = await getJSON("/api/v1/admin/compose/" + jobId);
+          logPre.textContent = j.log || "";
+          logPre.scrollTop = logPre.scrollHeight;
+          if (j.status === "running") { status.textContent = "Cutlass is working…"; continue; }
+          if (j.status === "done") {
+            status.textContent = `done ✓ — published /${j.slug}`;
+            await sleep(700);
+            load(); // re-render the grid; the new page card appears
+          } else {
+            status.textContent = "failed — see log below";
+          }
+          break;
+        }
+      } catch (e) {
+        status.textContent = "error: " + e.message;
+      } finally {
+        running = false; btn.disabled = false;
+      }
+    }
+
+    return el("div", { class: "card compose-card" },
+      el("div", { class: "spread" },
+        el("h2", {}, "Compose a page with Cutlass"),
+        el("span", { class: "badge pending" }, "dev · testing")
+      ),
+      el("p", { class: "muted" }, "Describe a dashboard; Cutlass writes themed HTML and publishes it here. Runs the local Cutlass CLI (OpenRouter) and can take ~30–90s."),
+      el("form", { class: "compose", onsubmit: run },
+        el("label", {}, "Prompt", promptTa),
+        el("div", { class: "compose__row" },
+          el("label", {}, "Slug", slugIn),
+          el("label", {}, "Title (optional)", titleIn)
+        ),
+        el("div", { class: "row" }, btn, status),
+        logPre
+      )
+    );
+  }
+
   function render({ pages }) {
     app.innerHTML = "";
 
@@ -82,6 +158,9 @@
         el("span", { class: "badge" }, `${pages.length} page${pages.length === 1 ? "" : "s"}`),
         el("span", { class: "badge live" }, `${live} live`))
     ));
+
+    // ── compose (dev/test) ──
+    if (boot.compose) app.append(composePanel());
 
     // ── empty state ──
     if (!pages.length) {

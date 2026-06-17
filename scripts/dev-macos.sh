@@ -64,6 +64,17 @@ export AUTH_SIGNING_PUBKEY DEV_ADMIN_COOKIE DEV_ADMIN_EMAIL
 export PAGES_DEV_LOGIN=1
 export AUTH_LOGIN_URL="http://localhost:${PORT}/__dev/login"
 
+# DEV-only "compose a page with Cutlass" panel: enable it if the cutlass binary
+# is built next door. pages spawns it; cutlass reads its own .env (OpenRouter key
+# + PAGES_MCP_*). NEVER set PAGES_COMPOSE=1 in production.
+export CUTLASS_DIR="${CUTLASS_DIR:-$(cd "$ROOT/../cutlass" 2>/dev/null && pwd)}"
+export CUTLASS_BIN="${CUTLASS_BIN:-$CUTLASS_DIR/bin/cutlass}"
+if [ -x "$CUTLASS_BIN" ]; then
+  export PAGES_COMPOSE=1
+else
+  echo "▸ compose panel OFF (no cutlass binary at $CUTLASS_BIN — run 'make build' in cutlass to enable)"
+fi
+
 # 0. Postgres reachable?
 if ! psql "$DATABASE_URL" -tAc "SELECT 1" >/dev/null 2>&1; then
   # DB may simply not exist yet — try to create it (server itself must be up).
