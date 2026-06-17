@@ -215,7 +215,7 @@ dashboardApp.get(["/admin", "/admin/welcome"], auth.requireAdmin, (req, res) => 
 // deploys back via /mcp. Mounted (before the admin API) ONLY when gated on
 // (PAGES_COMPOSE=1 + CUTLASS_BIN/DIR). Never enabled in production.
 if (compose.enabled()) {
-  console.warn("⚠ COMPOSE ENABLED: POST /api/v1/admin/compose spawns the Cutlass CLI. Dev/test only — never set PAGES_COMPOSE=1 in production.");
+  console.warn(`⚠ COMPOSE ENABLED [driver: ${compose.driverLabel()}]: POST /api/v1/admin/compose runs Cutlass. Dev/test only — never set PAGES_COMPOSE=1 in production.`);
   dashboardApp.use("/api/v1/admin/compose", compose.router);
 }
 
