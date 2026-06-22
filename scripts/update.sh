@@ -59,7 +59,18 @@ runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && npm ci --omit=dev --no-audit
   || die "npm ci failed — live service untouched"
 # Syntax-check the entrypoint before we swap.
 runuser -u "$APP_USER" -- node --check "$STAGING/server.js" || die "server.js failed syntax check"
-# Phase 1+: run DB migrations here (node lib/migrate.js) before the swap.
+# Run pending DB migrations before the swap. They're idempotent (tracked in
+# schema_migrations) and additive, so the still-running old code is unaffected.
+ENV_FILE="/etc/default/pages"
+if [[ -f "$ENV_FILE" ]] && grep -q '^DATABASE_URL=' "$ENV_FILE"; then
+  DB_URL="$(. "$ENV_FILE" >/dev/null 2>&1; printf '%s' "$DATABASE_URL")"
+  runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && DATABASE_URL='$DB_URL' node lib/migrate.js" \
+    || die "migrations failed — live service untouched"
+  runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && bash scripts/sync-flag.sh" >/dev/null 2>&1 || true
+  ok "migrations applied"
+else
+  warn "no DATABASE_URL in $ENV_FILE — skipping migrations"
+fi
 ok "staging build ok"
 
 step "Swapping into place + restarting"

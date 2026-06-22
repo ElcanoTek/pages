@@ -31,6 +31,7 @@ const welcomeShell = require("./lib/welcomeshell");
 const compose = require("./lib/compose"); // DEV-only "compose with Cutlass" panel (gated)
 const csrf = require("./lib/csrf");
 const mcp = require("./lib/mcp");
+const limits = require("./lib/ratelimit");
 
 const PORT = Number(process.env.PORT || 3002);
 // Hostnames are configured per deployment via /etc/default/pages (set by
@@ -82,7 +83,7 @@ contentApp.use(
 // authorization here (no cookies on this host). It binds the exact version +
 // purpose, so it can't be replayed for another version or escalated to edit.
 // Headers (sandbox CSP etc.) are set on EVERY path, including errors.
-contentApp.get("/raw/:slug", async (req, res) => {
+contentApp.get("/raw/:slug", limits.content, async (req, res) => {
   res.set(rawHeaders());
   const claims = rawtoken.verify(req.query.t);
   if (!claims) return res.status(403).type("html").send("<!doctype html><title>pages</title><p>Invalid or expired link.</p>");
@@ -106,9 +107,10 @@ contentApp.get("/raw/:slug", async (req, res) => {
 // jar, never the SSO cookie) and renders the published version with the sandbox
 // CSP. Registered LAST so /healthz, /assets, /raw win first. POST handles the
 // password form (the only place the content host parses a body).
-contentApp.get("/{*slug}", (req, res, next) => contentview.serve(req, res).catch(next));
+contentApp.get("/{*slug}", limits.content, (req, res, next) => contentview.serve(req, res).catch(next));
 contentApp.post(
   "/{*slug}",
+  limits.password, // brute-force guard on the per-page password
   express.urlencoded({ extended: false, limit: "1kb" }),
   (req, res, next) => contentview.unlock(req, res).catch(next)
 );
@@ -119,8 +121,14 @@ contentApp.use((_req, res) => res.status(404).type("text").send("not found"));
 // DASHBOARD HOST (trusted auth zone)
 // ===========================================================================
 dashboardApp.use(helmet(shellHelmetOptions(auth.AUTH_ORIGIN)));
-dashboardApp.use(express.urlencoded({ extended: false }));
-dashboardApp.use(express.json({ limit: "2mb" }));
+dashboardApp.use(express.urlencoded({ extended: false, limit: "64kb" }));
+// JSON body cap = the per-version HTML ceiling (PLAN §7: HTML ≤ ~1–2 MB).
+dashboardApp.use(express.json({ limit: process.env.MAX_HTML_BYTES || "2mb" }));
+
+// Rate limits on the agent surfaces (PLAN §7/§9). Registered before the route
+// mounts so they cover /api/v1, /api/v1/admin(/compose), and /mcp.
+dashboardApp.use("/api/v1", limits.api);
+dashboardApp.use("/mcp", limits.mcp);
 
 dashboardApp.get("/healthz", (_req, res) => res.type("text").send("ok"));
 

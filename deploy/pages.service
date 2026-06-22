@@ -1,9 +1,7 @@
 [Unit]
 Description=Elcano Pages — versioned client dashboards
-After=network.target
-# Phase 1 adds Postgres:
-# After=network.target postgresql.service
-# Requires=postgresql.service
+After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
 Type=simple
