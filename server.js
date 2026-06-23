@@ -252,9 +252,11 @@ dashboardApp.use("/mcp", mcp.router);
 // the browser re-issues as GET. Mirrors home.
 dashboardApp.all("/logout", (_req, res) => res.redirect(303, `${auth.AUTH_LOGIN_URL}/logout`));
 
-dashboardApp.get("/", (_req, res) =>
-  res.type("text").send("Elcano Pages. Client dashboards live at /view/<slug>; staff admin at /admin/<slug>.")
-);
+// Root is not a public surface: there's nothing to show an anonymous visitor,
+// and the old plain-text blurb advertised the /admin and /view paths. Bounce to
+// /admin, which is requireAdmin-gated — staff land on the welcome index, everyone
+// else is sent to SSO login. 302 (temporary) so the root stays a redirect.
+dashboardApp.get("/", (_req, res) => res.redirect(302, "/admin"));
 
 dashboardApp.use((_req, res) => res.status(404).type("text").send("not found"));
 
