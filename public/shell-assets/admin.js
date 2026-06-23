@@ -73,6 +73,68 @@
     } catch (e) { toast("preview failed: " + e.message, true); }
   }
 
+  // ── Phase 4: source editor ─────────────────────────────────────────────────
+  // PLAN §8: edits the stored *source*, never the rendered DOM. Save deploys a
+  // new draft (source:"admin") via deploy-source; the admin then clicks Preview
+  // (sandboxed iframe) and Publish separately. Lossless — chart markup survives.
+  let editorOpen = false;
+  async function openEditor(page, published) {
+    if (editorOpen) return;
+    editorOpen = true;
+    const card = document.getElementById("editor-card");
+    card.style.display = "";
+    const ta = document.getElementById("editor-src");
+    const modeSel = document.getElementById("editor-mode");
+    const noteIn = document.getElementById("editor-note");
+    const status = document.getElementById("editor-status");
+    if (!ta.value) {
+      // Seed with the live HTML (or the latest version's) so the admin edits
+      // from a real starting point, not a blank textarea.
+      try {
+        const seed = published && published.html ? published.html : "";
+        ta.value = seed;
+        modeSel.value = published && published.render_mode ? published.render_mode : "themed";
+      } catch { /* empty page — start blank */ }
+    }
+    status.textContent = "";
+    ta.focus();
+  }
+  function closeEditor() {
+    editorOpen = false;
+    const card = document.getElementById("editor-card");
+    if (card) card.style.display = "none";
+  }
+  async function saveDraft(opts) {
+    const ta = document.getElementById("editor-src");
+    const modeSel = document.getElementById("editor-mode");
+    const noteIn = document.getElementById("editor-note");
+    const status = document.getElementById("editor-status");
+    const html = ta.value;
+    if (!html.trim()) { status.textContent = "empty — nothing to save"; return null; }
+    status.textContent = "saving draft…";
+    try {
+      const r = await post(`/deploy-source`, {
+        html,
+        render_mode: modeSel.value,
+        note: noteIn.value.trim() || "Inline edit",
+      });
+      status.textContent = r.deduped
+        ? `no changes (identical to version #${r.version.id})`
+        : `saved as draft #${r.version.id}`;
+      noteIn.value = "";
+      // Reload so the new version appears in the history + is publishable.
+      load();
+      return r.version.id;
+    } catch (e) {
+      status.textContent = "save failed: " + e.message;
+      return null;
+    }
+  }
+  async function saveAndPreview() {
+    const id = await saveDraft();
+    if (id != null) preview(id);
+  }
+
   function versionRow(v, page) {
     const isLive = String(v.id) === String(page.published_version_id);
     const actions = el("div", { class: "row" });
@@ -123,10 +185,37 @@
         page.disabled
           ? el("button", { class: "btn", onclick: () => act("Enabled", `/enable`) }, "Enable page")
           : el("button", { class: "btn btn-danger", onclick: () => act("Disabled", `/disable`) }, "Take down (disable)"),
+        el("button", { class: "btn", onclick: () => openEditor(page, data.published) }, "Edit source"),
         el("span", { class: "muted" }, "theme:"), themeSel
       )
     );
     app.append(controls);
+
+    // ── source editor (Phase 4) ──────────────────────────────────────────────
+    app.append(el("div", { id: "editor-card", class: "card", style: "display:none" },
+      el("div", { class: "spread" },
+        el("h2", {}, "Edit source"),
+        el("button", { class: "btn btn-sm", onclick: closeEditor }, "Close")
+      ),
+      el("p", { class: "muted", style: "margin-top:0" },
+        "Edits the stored HTML source (lossless). Save deploys a new draft; then Preview or Publish it."),
+      el("textarea", { id: "editor-src", rows: "18", spellcheck: "false", wrap: "off", placeholder: "<!-- page HTML -->", style: "font-family:'Share Tech Mono',ui-monospace,monospace;font-size:var(--font-size-caption)" }),
+      el("div", { class: "row", style: "margin-top:var(--space-3)" },
+        el("label", { style: "display:flex;align-items:center;gap:var(--space-2);min-height:0" },
+          el("span", { class: "muted" }, "render mode"),
+          el("select", { id: "editor-mode", style: "width:auto;min-height:0" },
+            el("option", { value: "themed", selected: "" }, "themed"),
+            el("option", { value: "raw" }, "raw"))),
+        el("label", { style: "display:flex;align-items:center;gap:var(--space-2);min-height:0;flex:1" },
+          el("span", { class: "muted" }, "note"),
+          el("input", { id: "editor-note", type: "text", placeholder: "what changed", style: "min-height:0" }))
+      ),
+      el("div", { class: "row", style: "margin-top:var(--space-3)" },
+        el("button", { class: "btn btn-primary", onclick: saveDraft }, "Save draft"),
+        el("button", { class: "btn", onclick: saveAndPreview }, "Save & preview"),
+        el("span", { id: "editor-status", class: "muted" })
+      )
+    ));
 
     // ── pending review queue (top) ──
     if (pending.length) {

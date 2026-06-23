@@ -123,10 +123,40 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
     assert.match(pv.json.url, /\/raw\/adm\?t=/, "preview url points at /raw");
     console.log("✓ preview-token mints a /raw URL");
 
+    // 8b. source editor: deploy-source (admin cookie + CSRF). Saves edited HTML
+    // as a new draft (source:"admin"), never auto-publishing. Respects dedupe
+    // and the approval gate. PLAN §8 — edits stored source, lossless.
+    assert.equal(
+      (await req("POST", "/api/v1/admin/pages/adm/deploy-source", { cookie: adminCookie, csrf: true, origin: ORIGIN, body: {} })).status,
+      400, "empty body → 400 (html required)"
+    );
+    assert.equal(
+      (await req("POST", "/api/v1/admin/pages/adm/deploy-source", { cookie: adminCookie, csrf: true, body: { html: HTML(3) } })).status,
+      403, "no Origin → 403 (CSRF gate still applies)"
+    );
+    const edited = await adminPost("/api/v1/admin/pages/adm/deploy-source", { html: HTML(3), note: "typo fix" });
+    assert.equal(edited.status, 200, "deploy-source ok");
+    assert.equal(edited.json.version.status, "draft", "saved as draft (not published)");
+    assert.equal(edited.json.version.source, "admin", "source tagged admin");
+    assert.equal(edited.json.published, false, "not published");
+    assert.equal((await adminGet("/api/v1/admin/pages/adm")).json.page.published_version_id, v1, "live pointer unchanged by edit");
+    // dedupe: same HTML again → deduped:true, same version id, no new row.
+    const dup = await adminPost("/api/v1/admin/pages/adm/deploy-source", { html: HTML(3) });
+    assert.equal(dup.json.deduped, true, "identical re-save deduped");
+    assert.equal(dup.json.version.id, edited.json.version.id, "dedupe returns the same version id");
+    // the saved draft is publishable via the normal publish endpoint.
+    assert.equal((await adminPost("/api/v1/admin/pages/adm/publish", { version_id: edited.json.version.id, expected_version: v1 })).status, 200, "edited draft publishable");
+    assert.equal((await adminGet("/api/v1/admin/pages/adm")).json.page.published_version_id, edited.json.version.id, "edited version now live");
+    // on an approval-gated page the edit lands pending, not draft.
+    const gatedEdit = await adminPost("/api/v1/admin/pages/admg/deploy-source", { html: HTML(9) });
+    assert.equal(gatedEdit.json.version.status, "pending", "gated page edit → pending");
+    assert.equal(gatedEdit.json.gated, true, "gated flag set");
+    console.log("✓ source editor (deploy-source: draft + dedupe + publishable + gated)");
+
     // 9. the /admin/:slug HTML shell itself: admin → 200 bootstrap; anon → login redirect.
     const shell = await req("GET", "/admin/adm", { cookie: adminCookie });
     assert.equal(shell.status, 200);
-    assert.match(shell.body, /window\.__PAGES__/, "shell injects bootstrap");
+    assert.match(shell.body, /id="pages-bootstrap"/, "shell injects bootstrap");
     assert.match(shell.body, /\/shell-assets\/admin\.js/, "shell loads admin.js");
     assert.match(shell.body, /shell-assets\/flag\/tokens\/design-tokens\.css/, "shell links Flag tokens");
     const anon = await req("GET", "/admin/adm");
