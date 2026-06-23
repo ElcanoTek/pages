@@ -1,0 +1,27 @@
+/* Self-hosted Dubai font — matches the Google Fonts "Dubai" family.
+ * Source: Dubai Executive Council / Monotype (© 2017 Dubai Executive Council).
+ * Files: DubaiW23-Regular.{woff2,ttf}, DubaiW23-Bold.{woff2,ttf}
+ * Weights used by the Flag design system:
+ *   400 — body / UI text  (--font-body)
+ *   700 — headlines / subheadlines  (--font-heading)
+ */
+
+@font-face {
+  font-family: "Dubai";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    url("./dubai/DubaiW23-Regular.woff2") format("woff2"),
+    url("./dubai/DubaiW23-Regular.ttf")   format("truetype");
+}
+
+@font-face {
+  font-family: "Dubai";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    url("./dubai/DubaiW23-Bold.woff2") format("woff2"),
+    url("./dubai/DubaiW23-Bold.ttf")   format("truetype");
+}

@@ -58,7 +58,6 @@ export PGHOST="$SOCK" PGPORT="$PGPORT" PGUSER=pages PGDATABASE=pages
 export DASHBOARD_HOST=localhost CONTENT_HOST=content.localhost CONTENT_HOST_ALSO=content.localhost
 export CONTENT_ORIGIN="http://content.localhost:${PORT}" DASHBOARD_ORIGIN="http://localhost:${PORT}"
 export PORT
-export FLAG_SRC="${FLAG_SRC:-/root/flag/design-system}"
 
 # Local dev admin auth: there's no real auth service locally, so mint a
 # throwaway Ed25519 keypair + admin cookie (persisted in .devdata) and enable the
@@ -95,11 +94,9 @@ if ! psql -h "$SOCK" -p "$PGPORT" -U pages -lqt | cut -d'|' -f1 | grep -qw pages
   createdb -h "$SOCK" -p "$PGPORT" -U pages pages
 fi
 
-# 4. Migrate + vendor Flag.
+# 4. Migrate.
 echo "▸ migrate"
 node "$ROOT/lib/migrate.js"
-echo "▸ vendor flag (from $FLAG_SRC)"
-bash "$ROOT/scripts/sync-flag.sh" >/dev/null
 
 # 5. Ensure an agent token exists; save the raw value (only shown at creation).
 if [ ! -s "$TOKENFILE" ]; then

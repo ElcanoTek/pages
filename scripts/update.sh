@@ -66,7 +66,6 @@ if [[ -f "$ENV_FILE" ]] && grep -q '^DATABASE_URL=' "$ENV_FILE"; then
   DB_URL="$(. "$ENV_FILE" >/dev/null 2>&1; printf '%s' "$DATABASE_URL")"
   runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && DATABASE_URL='$DB_URL' node lib/migrate.js" \
     || die "migrations failed — live service untouched"
-  runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && bash scripts/sync-flag.sh" >/dev/null 2>&1 || true
   ok "migrations applied"
 else
   warn "no DATABASE_URL in $ENV_FILE — skipping migrations"

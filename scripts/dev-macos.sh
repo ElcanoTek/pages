@@ -13,8 +13,8 @@
 #   bash scripts/dev-macos.sh           # boot everything, server in foreground
 #   bash scripts/dev-macos.sh token     # print the saved agent token and exit
 #
-# Requires: Homebrew postgresql@16 running (`brew services start postgresql@16`),
-# node, and a sibling ../flag/design-system (sync-flag resolves it automatically).
+# Requires: Homebrew postgresql@16 running (`brew services start postgresql@16`)
+# and node.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -88,11 +88,9 @@ if ! psql "$DATABASE_URL" -tAc "SELECT 1" >/dev/null 2>&1; then
   fi
 fi
 
-# 1. Migrate + vendor Flag.
+# 1. Migrate.
 echo "▸ migrate"
 node "$ROOT/lib/migrate.js"
-echo "▸ vendor flag"
-bash "$ROOT/scripts/sync-flag.sh" >/dev/null
 
 # 2. Ensure an agent token exists; save the raw value (only shown at creation).
 if [ ! -s "$TOKENFILE" ]; then

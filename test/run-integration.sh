@@ -34,9 +34,8 @@ export DASHBOARD_HOST=localhost CONTENT_HOST=content.localhost
 echo "▸ migrate"
 node "$ROOT/lib/migrate.js"
 
-echo "▸ vendor flag"
-FLAG_SRC=/root/flag/design-system bash "$ROOT/scripts/sync-flag.sh" >/dev/null
-test -f "$ROOT/public/assets/flag/tokens/design-tokens.css" && echo "  flag tokens vendored"
+test -f "$ROOT/public/assets/flag/tokens/design-tokens.css" && echo "  flag tokens present" \
+  || { echo "  flag tokens missing — public/assets/flag/ not committed?" >&2; exit 1; }
 
 echo "▸ seed"
 HTML='<!doctype html><html><head><title>Omnicom</title></head><body><h1>Q2</h1><canvas id=c></canvas><script>chart()</script></body></html>'

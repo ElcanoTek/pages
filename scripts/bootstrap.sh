@@ -186,15 +186,11 @@ chmod 0640 "$ENV_FILE"
 chown root:"$APP_USER" "$ENV_FILE" 2>/dev/null || true
 ok "env seeded at $ENV_FILE"
 
-# Migrate the schema (seeds the 'flag' theme) and vendor the Flag design system.
+# Migrate the schema (seeds the 'flag' theme).
 info "running database migrations"
 runuser -u "$APP_USER" -- bash -c "cd '$APP_DIR' && DATABASE_URL='$DATABASE_URL' node lib/migrate.js" \
   || die "migrations failed — check DATABASE_URL and that postgresql is running"
 ok "schema migrated"
-info "vendoring Flag design system"
-runuser -u "$APP_USER" -- bash -c "cd '$APP_DIR' && bash scripts/sync-flag.sh" >/dev/null 2>&1 \
-  && ok "Flag vendored → public/assets/flag" \
-  || warn "sync-flag failed — pages will still boot; re-run 'pages update' once Flag source is reachable"
 
 step "5/6  Installing systemd unit + CLI + starting"
 install -m 0644 "$APP_DIR/deploy/pages.service" /etc/systemd/system/
