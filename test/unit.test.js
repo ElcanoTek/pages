@@ -4828,7 +4828,8 @@ test("content host: nothing a client can reach calls this an internal tool", () 
   // The gate, the portal index and every error page are the only Pages-owned
   // screens an EXTERNAL partner ever sees. They shared the admin header's
   // "Elcano Internal" eyebrow, so a client logged into a card labelled as our
-  // internal tooling. The admin's own header keeps it — that audience IS internal.
+  // internal tooling. Since clients deploy Pages themselves, the admin header
+  // must not carry it either — no surface anywhere brands this as internal.
   const contentview = require("../lib/contentview.js");
   const errorshell = require("../lib/errorshell.js");
   const shell = require("../lib/shell.js");
@@ -4850,8 +4851,10 @@ test("content host: nothing a client can reach calls this an internal tool", () 
     assert.match(html, /Elcano/, `${name} lost its branding altogether`);
   }
 
-  // The admin header is the one place it belongs, and it must not be swept up.
-  assert.match(shell.header("qa@elcanotek.com"), /Elcano Internal/);
+  // The admin header identifies the tool by name only.
+  const adminHeader = shell.header("qa@elcanotek.com");
+  assert.ok(!/Elcano Internal/.test(adminHeader), "admin header still calls Pages an internal tool");
+  assert.match(adminHeader, /ds-app-header__title">Pages</);
 });
 
 test("content host: one chrome, one favicon, one 404", () => {
