@@ -16,11 +16,18 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Dependency audit (production)
-        # Fail on HIGH/CRITICAL advisories in the production tree. The two
-        # remaining moderates are @hono/node-server's Windows-only serve-static
-        # path traversal — a component the MCP SDK bundles but Pages never uses
-        # (Pages serves MCP through Express on Linux). --audit-level=high keeps
-        # those visible-but-accepted without failing the build.
+        # Fail on HIGH/CRITICAL advisories in the production tree. This once
+        # carried a note about two accepted moderates — @hono/node-server's
+        # Windows-only serve-static path traversal, bundled by the MCP SDK but
+        # never on a path Pages uses, since it serves MCP through Express on
+        # Linux. That advisory is gone: the tree audits clean at every level as
+        # of @hono/node-server 1.19.17.
+        #
+        # The threshold stays at `high` deliberately, as a policy rather than a
+        # workaround for those two: a moderate in a transitive dependency should
+        # be read and judged, not made to block every unrelated PR the moment it
+        # is published. Tighten this to `moderate` if that trade stops being the
+        # right one — the tree is clean today, so it would cost nothing now.
         run: npm audit --omit=dev --audit-level=high
       - name: Unit tests
         run: npm test
