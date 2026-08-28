@@ -1,0 +1,31 @@
+{
+  "name": "elcano-pages",
+  "version": "0.1.0",
+  "description": "Quick client pages and dashboards — versioned, Flag-themed, password-protected HTML served on one server.",
+  "license": "BUSL-1.1",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/unit.test.js test/theme.test.js",
+    "test:browser": "playwright test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.2.0",
+    "parse5": "^7.3.0",
+    "pg": "^8.13.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1"
+  }
+}

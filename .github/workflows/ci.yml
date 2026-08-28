@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Dependency audit (production)
+        # Fail on HIGH/CRITICAL advisories in the production tree. The two
+        # remaining moderates are @hono/node-server's Windows-only serve-static
+        # path traversal — a component the MCP SDK bundles but Pages never uses
+        # (Pages serves MCP through Express on Linux). --audit-level=high keeps
+        # those visible-but-accepted without failing the build.
+        run: npm audit --omit=dev --audit-level=high
+      - name: Unit tests
+        run: npm test
+      - name: Shell syntax check
+        run: |
+          for f in scripts/*.sh test/*.sh deploy/pages-cli; do
+            bash -n "$f"
+          done
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser accessibility and workflow tests
+        run: npm run test:browser
+      - name: Upload browser report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+      - name: Integration suite
+        # Runs as the unprivileged runner user — exercises the non-root
+        # provisioning path (a throwaway cluster via the preinstalled PG 16).
+        run: bash test/run-integration.sh

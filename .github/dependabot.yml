@@ -1,0 +1,11 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # Production deps only; dev tooling (playwright/axe) is pinned by the
+    # browser test job and bumped deliberately.
+    allow:
+      - dependency-type: "production"

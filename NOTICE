@@ -1,0 +1,53 @@
+Pages
+Copyright (c) 2026 ElcanoTek, Inc.
+
+This product includes software and assets developed by third parties. The
+components below are redistributed in this repository under their own terms;
+those terms govern those components, not the Business Source License 1.1 that
+covers ElcanoTek's own code (see LICENSE).
+
+-------------------------------------------------------------------------------
+Business Source License 1.1 — licence text
+-------------------------------------------------------------------------------
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
+
+MariaDB grants permission to use the licence text to license other works,
+subject to the Covenants of Licensor reproduced in LICENSE. The licence text is
+reproduced verbatim and unmodified.
+
+-------------------------------------------------------------------------------
+Share Tech Mono — public/assets/flag/fonts/ShareTechMono.ttf
+-------------------------------------------------------------------------------
+Copyright (c) 2012, Carrois Type Design, Ralph du Carrois
+(post@carrois.com www.carrois.com), with Reserved Font Name "Share Tech Mono".
+Licensed under the SIL Open Font License, Version 1.1. The full licence text is
+bundled at public/assets/flag/fonts/OFL.txt.
+https://openfontlicense.org/
+
+-------------------------------------------------------------------------------
+VT323 — public/assets/flag/fonts/VT323.ttf
+-------------------------------------------------------------------------------
+Copyright (c) 2011, The VT323 Project Authors (peter.hull@oikoi.com), with
+Reserved Font Name "VT323".
+Licensed under the SIL Open Font License, Version 1.1. The full licence text is
+bundled at public/assets/flag/fonts/OFL.txt.
+https://openfontlicense.org/
+
+-------------------------------------------------------------------------------
+IBM Plex Sans — public/assets/flag/fonts/ibm-plex-sans/IBMPlexSans-{400,700}.woff2
+-------------------------------------------------------------------------------
+Copyright (c) 2017 IBM Corp. with Reserved Font Name "Plex".
+Licensed under the SIL Open Font License, Version 1.1. The full licence text is
+bundled at public/assets/flag/fonts/ibm-plex-sans/OFL.txt.
+https://github.com/IBM/plex
+
+-------------------------------------------------------------------------------
+Runtime dependencies
+-------------------------------------------------------------------------------
+Pages depends on npm packages that are NOT vendored into this repository; they
+are fetched by `npm ci` and each carries its own licence. See package.json for
+the declared set and `npm ls --omit=dev` / `node_modules/*/LICENSE` in an
+installed tree for the full list and texts. The production tree includes, among
+others: express, helmet, express-rate-limit, pg, ajv, ajv-formats, parse5, zod,
+and @modelcontextprotocol/sdk.

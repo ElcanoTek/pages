@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campaign Dashboard</title>
+<style>
+:root{
+  --navy-900:#12294b; --navy-700:#1e3a63; --navy-100:#e4ecf6;
+  --accent-1:#3f6aa6; --accent-2:#8aa8cd;
+  --surface:#ffffff; --surface-alt:#f7f9fc;
+  --text-primary:#1a2233; --text-secondary:#5a6577; --divider:#e3e8ef;
+  --tier-green:#1e9e5a; --tier-yellow:#e8a520; --tier-red:#d9463e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--surface-alt);color:var(--text-primary);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:13px;line-height:1.5;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1600px;margin:0 auto;padding:22px 26px 60px}
+.card{background:var(--surface);border:1px solid var(--divider);border-radius:14px}
+.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-1)}
+.sect-title{font-size:19px;font-weight:700;margin:2px 0 0}
+.muted{color:var(--text-secondary)}
+.brandrow{display:flex;align-items:center;gap:14px;padding:6px 2px 16px}
+.brandrow img{height:44px;width:auto;display:block}
+/* Page switcher (Pages injects #pages-nav on a portal-authorised render; absent
+   otherwise, and this whole control is then never built). A native <details> so
+   the open/close needs no script, and real <a> elements so navigation, keyboard
+   focus and middle-click all come for free — the sandbox withholds allow-popups,
+   so a scripted window.open would silently do nothing. */
+.pagenav{margin-inline-start:auto;position:relative;font-size:13px}
+.pagenav>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--divider);border-radius:8px;background:var(--surface);color:var(--text-secondary);font-weight:600}
+.pagenav>summary::-webkit-details-marker{display:none}
+.pagenav>summary:hover{border-color:var(--accent-2);color:var(--navy-700)}
+.pagenav>summary:focus-visible{outline:2px solid var(--accent-1);outline-offset:2px}
+.pagenav__caret{font-size:10px;line-height:1}
+.pagenav__menu{position:absolute;z-index:20;inset-inline-end:0;min-width:16rem;max-width:min(22rem,90vw);margin-block-start:6px;padding:8px;border:1px solid var(--divider);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(18,41,75,.16)}
+.pagenav__label{padding:4px 8px 8px;color:var(--text-secondary);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.pagenav__menu a{display:block;padding:8px;border-radius:6px;color:var(--text-primary);text-decoration:none;overflow-wrap:anywhere}
+.pagenav__menu a:hover{background:var(--surface-alt)}
+.pagenav__menu a[aria-current="page"]{background:var(--navy-100);font-weight:700}
+.pagenav__menu a.pagenav__label{padding:4px 8px 8px;color:var(--text-secondary)}
+.pagenav__menu a.pagenav__label:hover{color:var(--navy-700);background:none;text-decoration:underline}
+.pagenav__home{margin-inline-start:6px;color:var(--text-secondary);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+@media print{.pagenav{display:none}}
+.brandfallback{font-size:20px;font-weight:800;letter-spacing:-.01em;color:var(--navy-900)}
+.header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:24px;padding:18px 20px;margin-bottom:16px}
+.header>:first-child{flex:1 1 16rem;min-width:0}
+.h-title{font-size:23px;font-weight:800;letter-spacing:-.01em;margin:0}
+.h-facts{margin:6px 0 0;font-size:12.5px;color:var(--text-secondary)}
+.stampblock{text-align:right;font-size:12px;color:var(--text-secondary);min-width:230px;max-width:100%}
+/* Once the stamp has wrapped under the title it is no longer a right-hand
+   column, and right-aligning a full-width block reads as a mistake. */
+@media(max-width:40rem){.stampblock{min-width:0;text-align:left}}
+.stampblock b{color:var(--text-primary);font-weight:600}
+.btn{font-family:inherit;font-size:13px;border-radius:8px;border:1px solid var(--divider);
+  background:var(--surface);color:var(--text-primary);padding:8px 12px;cursor:pointer}
+.btn:hover{background:var(--surface-alt)}
+.btn-primary{background:var(--navy-700);border-color:var(--navy-700);color:#fff}
+.btn-primary:hover{background:var(--navy-900)}
+.btn-sm{padding:6px 10px;font-size:12px}
+.btn[disabled]{opacity:.4;cursor:default}
+.hero-caption{text-align:right;font-size:11px;color:var(--text-secondary);margin:0 2px 8px}
+.hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
+.hcard{background:linear-gradient(135deg,var(--accent-1),var(--navy-900));color:#fff;border-radius:14px;padding:15px 16px}
+.hcard .val{font-size:30px;font-weight:700;line-height:1.12;display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 9px;background:#ffffff59}
+.hcard .lab{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.85;margin-top:4px}
+.trendrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;min-height:24px}
+.delta{font-size:11.5px;font-weight:700}
+.hcard .delta.up{color:#8ef0bb}.hcard .delta.down{color:#ffb3ad}.hcard .delta.flat{color:#ffffffb3}
+.notes{background:var(--navy-100);border:1px solid #d3e0f0;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:12.5px}
+.notes div+div{margin-top:4px}
+.controls{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;position:relative;padding:14px 16px;margin-bottom:18px}
+.ctl{position:relative}
+.ctl-label{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);margin-bottom:5px}
+.scopenote{margin-left:auto;font-size:12px;color:var(--text-secondary);padding-bottom:8px}
+.seg{display:inline-flex;border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+.seg button{font-family:inherit;font-size:13px;padding:8px 14px;border:0;background:var(--surface);cursor:pointer;color:var(--text-primary)}
+.seg button.on{background:var(--navy-700);color:#fff}
+
+/* ===== DATE RANGE POPOVER (redesigned to match reference) ===== */
+.dpop{position:absolute;top:100%;left:0;margin-top:8px;z-index:30;background:#fff;
+  border-radius:16px;box-shadow:0 16px 48px rgba(18,41,75,.20),0 2px 8px rgba(18,41,75,.08);
+  display:none;overflow:hidden;width:auto}
+.dpop.open{display:flex}
+.dpop-rail{width:200px;background:#f0f1f4;padding:12px 0;flex-shrink:0;display:flex;flex-direction:column}
+.dpop-rail button{display:block;width:100%;text-align:left;font-family:inherit;font-size:13px;
+  padding:11px 22px;border:0;background:none;cursor:pointer;color:var(--text-primary);
+  transition:background .12s}
+.dpop-rail button:hover:not([disabled]){background:#e2e4ea}
+.dpop-rail button.active{background:var(--navy-700);color:#fff;font-weight:600}
+.dpop-rail button[disabled]{color:#aab2be;cursor:default}
+.dpop-rail button[disabled]:hover{background:none}
+.dpop-main{padding:18px 20px 14px;display:flex;flex-direction:column;gap:14px;min-width:760px}
+.dpop-inputs{display:flex;align-items:center;gap:10px}
+.dpop-field{border:1px solid var(--divider);border-radius:8px;font-size:13px;font-family:inherit;
+  padding:7px 10px;width:110px;text-align:center;color:var(--text-primary)}
+.dpop-field:focus{outline:none;border-color:var(--navy-700);box-shadow:0 0 0 2px rgba(30,58,99,.15)}
+.dpop-dash{color:var(--text-secondary);font-size:15px}
+.dpop-nav{display:flex;gap:4px;margin-left:auto}
+.dpop-nav button{width:32px;height:32px;border:1px solid var(--divider);background:#fff;border-radius:8px;
+  cursor:pointer;font-family:inherit;font-size:14px;line-height:1;color:var(--text-primary);
+  display:flex;align-items:center;justify-content:center}
+.dpop-nav button:hover{background:var(--surface-alt);border-color:var(--accent-2)}
+.dpop-calendars{display:flex;gap:24px}
+.dpop-month{width:360px}
+.dpop-mtitle{text-align:center;font-size:14px;font-weight:700;margin-bottom:10px;color:var(--text-primary)}
+.dpop-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dpop-wd{font-size:11px;color:var(--text-secondary);text-align:center;height:22px;line-height:22px;font-weight:600}
+.dpop-day{aspect-ratio:1;border:0;background:transparent;font-family:inherit;font-size:12.5px;
+  color:var(--text-primary);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .1s,color .1s;min-height:38px}
+.dpop-day:hover:not(.out):not(.endpoint){background:var(--navy-100)}
+.dpop-day.inrange{background:var(--navy-100);border-radius:0}
+.dpop-day.endpoint{background:var(--navy-700);color:#fff;font-weight:600;border-radius:8px}
+.dpop-day.endpoint:hover{background:var(--navy-700)}
+.dpop-day.out{color:#c7ced8;cursor:default;background:transparent}
+.dpop-day.out:hover{background:transparent}
+.dpop-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+.dpop-foot .btn-cancel{border:1px solid var(--divider);background:#fff;color:var(--text-primary)}
+.dpop-foot .btn-cancel:hover{background:var(--surface-alt)}
+.dpop-foot .btn-apply{background:var(--navy-700);border:1px solid var(--navy-700);color:#fff;font-weight:600}
+.dpop-foot .btn-apply:hover{background:var(--navy-900);border-color:var(--navy-900)}
+
+/* ===== DEAL POPOVER (unchanged) ===== */
+.pop{position:absolute;top:100%;left:0;margin-top:8px;z-index:30;background:#fff;border:1px solid var(--divider);
+  border-radius:12px;box-shadow:0 14px 40px rgba(18,41,75,.18);display:none;overflow:hidden}
+.pop.open{display:block}
+.dealpop{min-width:420px}
+.dealhead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--divider);font-size:12px;color:var(--text-secondary)}
+.linkbtn{border:0;background:none;color:var(--navy-700);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0 0 0 12px}
+.deallist{max-height:280px;overflow:auto;padding:6px 0}
+.dealitem{display:flex;gap:10px;padding:8px 14px;cursor:pointer;align-items:flex-start}
+.dealitem.on{background:var(--navy-100)}
+.dealitem .sn{font-size:13px;font-weight:600}
+.dealitem .fn{font-size:10.5px;color:var(--text-secondary);white-space:normal;line-height:1.4;word-break:break-word}
+.dealfoot{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--divider)}
+
+.sect{margin-bottom:18px;padding:16px 18px}
+.sect-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+.tblwrap{overflow-x:auto;border:1px solid var(--divider);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+thead th{background:var(--navy-700);color:#fff;font-size:11.5px;font-weight:600;text-align:right;padding:9px 10px;white-space:nowrap}
+thead th.l{text-align:left}
+tbody td{padding:9px 10px;border-top:1px solid var(--divider);text-align:right;white-space:nowrap}
+tbody td.l{text-align:left;white-space:normal}
+tbody tr.total td{border-top:2px solid var(--navy-700);background:var(--navy-100);font-weight:700}
+.dealcell .sn{font-weight:600}
+.dealcell .fn{font-size:10.5px;color:var(--text-secondary);white-space:normal;line-height:1.45;max-width:460px}
+.tierdot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-left:6px;vertical-align:middle;background:#c7ced8}
+.empty{padding:26px 14px;text-align:center;color:var(--text-secondary);font-size:12.5px;border:1px dashed var(--divider);border-radius:10px}
+.chnote{font-size:12px;color:var(--text-secondary);margin-top:3px}
+.chartrow{display:flex;flex-wrap:wrap;gap:18px}
+.chartbox{flex:1 1 420px;min-width:min(100%,420px);position:relative}
+.legend{display:flex;gap:16px;align-items:center;font-size:11.5px;color:var(--text-secondary);margin-bottom:6px;flex-wrap:wrap}
+.sw{width:16px;height:0;border-top:2.5px solid var(--navy-700);display:inline-block;margin-right:6px;vertical-align:middle}
+.sw.bar{height:10px;border:0;background:var(--accent-1);opacity:.32;vertical-align:middle}
+.sw.goal{border-top:1.5px dashed var(--tier-red)}
+.plot{position:relative;width:100%}
+.plot svg{width:100%;display:block}
+.ovl{position:absolute;font-size:10.5px;color:var(--text-secondary);pointer-events:none;white-space:nowrap}
+.tip{position:absolute;z-index:20;background:#fff;border:1px solid var(--divider);border-radius:10px;
+  box-shadow:0 10px 26px rgba(18,41,75,.16);padding:9px 11px;font-size:11.5px;pointer-events:none;display:none;min-width:190px}
+.tip b{display:block;margin-bottom:4px;font-size:12px}
+.tip .r{display:flex;justify-content:space-between;gap:14px}
+.diag{border:1px dashed var(--accent-1);border-radius:12px;padding:14px 16px;background:#fff;margin-bottom:16px;font-size:12.5px}
+.foot{font-size:11.5px;color:var(--text-secondary);line-height:1.6}
+.foot h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-primary);margin:0 0 6px}
+.foot p{margin:0 0 10px}
+.pending{display:inline-block;background:#fff5e0;border:1px solid #f0d69a;color:#8a6206;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
+/* Fix vs live page: dots as HTML overlays so they stay circular inside the width-stretched SVG */
+.epdot{position:absolute;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+.hdot{position:absolute;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;display:none}
+@media print{
+  body{background:#fff}
+  [data-noprint]{display:none !important}
+  .wrap{max-width:none;padding:0}
+  table,tr,td,th,.chartbox,.hcard,.sect{break-inside:avoid}
+  thead{display:table-header-group}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brandrow">
+    <svg role="img" aria-label="Northwind Media Group" style="height:44px;width:auto;display:block" id="Group_4" data-name="Group 4" xmlns="http://www.w3.org/2000/svg" width="90.317" height="70.341" viewBox="0 0 90.317 70.341">
+  <g id="Group_3" data-name="Group 3">
+    <path id="Path_1" data-name="Path 1" d="M9.19,25.95H20.757l-.529,2.678H16.4V42H13.113V28.628H9.19Z" transform="translate(-9.07 -16.592)" fill="#002d9c"></path>
+    <path id="Path_2" data-name="Path 2" d="M38.82,24.2l3.164-.738a16.13,16.13,0,0,1,.209,2.886V28.7c0,.371-.047.853-.047.993a5.177,5.177,0,0,1,3.347-1.271,3.168,3.168,0,0,1,3.07,1.684,4.96,4.96,0,0,1,.3,2.2V40.57H45.834V32.627c0-1.177-.324-1.616-1.2-1.616A4.072,4.072,0,0,0,42.184,32.1v8.476H39.042V26.9a12.235,12.235,0,0,0-.222-2.7" transform="translate(-26.067 -15.163)" fill="#002d9c"></path>
+    <path id="Path_3" data-name="Path 3" d="M76.313,44.235l1.2,1.846a6.786,6.786,0,0,1-4.455,1.641c-3.394,0-5.59-2.4-5.59-6.118a6.472,6.472,0,0,1,1.479-4.69,4.648,4.648,0,0,1,3.718-1.595,4.826,4.826,0,0,1,3.419,1.249c1.087,1.109,1.569,2.7,1.569,5.172v.716H70.817v.094c0,1.825.9,2.865,2.494,2.865a4.651,4.651,0,0,0,3-1.181m-5.449-4.042h3.581v-.141a3.044,3.044,0,0,0-.371-1.778,1.5,1.5,0,0,0-1.364-.691c-1.177,0-1.846.925-1.846,2.562Z" transform="translate(-42.502 -21.966)" fill="#002d9c"></path>
+    <path id="Path_4" data-name="Path 4" d="M8.91,72.554h3.419l1.386,6.327a42.655,42.655,0,0,1,.853,5.287c.068-.622.345-2.912.831-5.129l1.433-6.489h3.535l1.479,7.184c.3,1.5.695,4.251.695,4.251.047-.507.6-4,.878-5.334l1.317-6.1H28.13l-3.88,16.189H20.716l-1.437-6.536a45.1,45.1,0,0,1-.763-4.664s-.324,2.264-.785,4.618l-1.317,6.583H12.743Z" transform="translate(-8.91 -43.323)" fill="#002d9c"></path>
+    <path id="Path_5" data-name="Path 5" d="M64.123,90.765l1.2,1.846a6.786,6.786,0,0,1-4.456,1.642c-3.394,0-5.59-2.4-5.59-6.118a6.472,6.472,0,0,1,1.479-4.69,4.648,4.648,0,0,1,3.718-1.595A4.826,4.826,0,0,1,63.9,83.1c1.087,1.109,1.569,2.7,1.569,5.172v.716H58.627v.094c0,1.825.9,2.865,2.494,2.865a4.606,4.606,0,0,0,3-1.181m-5.449-4.038h3.581v-.141a3.045,3.045,0,0,0-.371-1.778,1.5,1.5,0,0,0-1.364-.691c-1.177,0-1.846.925-1.846,2.562Z" transform="translate(-35.51 -48.658)" fill="#002d9c"></path>
+    <path id="Path_6" data-name="Path 6" d="M82.782,83.463a8.827,8.827,0,0,1,1.919-.972,7.986,7.986,0,0,1,3.232-.691c1.987,0,3.347.738,3.812,2.055a5.965,5.965,0,0,1,.209,2.123l-.068,3.974v.209a2.416,2.416,0,0,0,1.109,2.426L91.351,94.48a3.287,3.287,0,0,1-1.663-1.433,5.013,5.013,0,0,1-.716.622,4.1,4.1,0,0,1-2.379.648c-2.631,0-4.063-1.339-4.063-3.7,0-2.771,1.919-4.063,5.683-4.063.23,0,.371,0,.691.021v-.486c0-1.317-.256-1.757-1.386-1.757A6.532,6.532,0,0,0,84.1,85.676Zm6.071,5.244h-.141c-2.149,0-2.886.392-2.886,1.8a1.4,1.4,0,0,0,1.364,1.548,2.23,2.23,0,0,0,1.616-.81Z" transform="translate(-51.141 -48.629)" fill="#002d9c"></path>
+    <path id="Path_7" data-name="Path 7" d="M115.758,77.176l-.785,2.055h-1.987V85.26c0,1.5.277,1.893,1.339,1.893a4.029,4.029,0,0,0,1.109-.23l.392,1.846a6.466,6.466,0,0,1-2.516.533c-1.569,0-2.84-.691-3.185-1.731a4.351,4.351,0,0,1-.209-1.825V79.231H108.74V77.223h1.177a20.907,20.907,0,0,1,.115-2.818l3.142-.785a35.022,35.022,0,0,0-.183,3.556h2.767Z" transform="translate(-66.176 -43.937)" fill="#002d9c"></path>
+    <path id="Path_8" data-name="Path 8" d="M126.83,70.358l3.164-.738a16.13,16.13,0,0,1,.209,2.886v2.358c0,.371-.047.853-.047.993a5.177,5.177,0,0,1,3.347-1.271,3.168,3.168,0,0,1,3.07,1.684,4.961,4.961,0,0,1,.3,2.2v8.267h-3.027V78.787c0-1.177-.324-1.616-1.2-1.616a4.072,4.072,0,0,0-2.447,1.087v8.476h-3.142V73.056a12.163,12.163,0,0,0-.222-2.7" transform="translate(-76.553 -41.642)" fill="#002d9c"></path>
+    <path id="Path_9" data-name="Path 9" d="M164.323,90.385l1.2,1.846a6.786,6.786,0,0,1-4.456,1.641c-3.394,0-5.59-2.4-5.59-6.118a6.472,6.472,0,0,1,1.479-4.69,4.648,4.648,0,0,1,3.718-1.595,4.826,4.826,0,0,1,3.419,1.249c1.087,1.109,1.569,2.7,1.569,5.172v.716h-6.835V88.7c0,1.825.9,2.865,2.494,2.865a4.6,4.6,0,0,0,3-1.181m-5.449-4.042h3.581V86.2a3.044,3.044,0,0,0-.371-1.778,1.5,1.5,0,0,0-1.364-.691c-1.177,0-1.846.925-1.846,2.562Z" transform="translate(-92.988 -48.44)" fill="#002d9c"></path>
+    <path id="Path_10" data-name="Path 10" d="M183.38,82.108l2.771-.738a3.807,3.807,0,0,1,.486,1.684,5.326,5.326,0,0,1,1.757-1.5,2.761,2.761,0,0,1,1.015-.183,2.385,2.385,0,0,1,1.155.256l-.853,2.724a1.737,1.737,0,0,0-.9-.23,2.461,2.461,0,0,0-1.893.993v8.361h-3.1v-7.9a10.767,10.767,0,0,0-.443-3.466" transform="translate(-108.992 -48.382)" fill="#002d9c"></path>
+    <path id="Path_11" data-name="Path 11" d="M20.7,120.062l-1.454,2.2a4.227,4.227,0,0,0-2.562-.9,3.325,3.325,0,0,0-2.724,1.386,7.389,7.389,0,0,0-.9,4.136c0,2.2.183,3.419.669,4.3a3.342,3.342,0,0,0,3.1,1.8,4.172,4.172,0,0,0,2.426-.785c.094-.068.209-.162.324-.256l1.479,2.034a6.556,6.556,0,0,1-4.455,1.5,6.556,6.556,0,0,1-5.244-2.217,8.378,8.378,0,0,1-1.94-5.752,10.252,10.252,0,0,1,1.087-4.988,6.9,6.9,0,0,1,6.144-3.718,6.522,6.522,0,0,1,4.055,1.262" transform="translate(-9.197 -69.853)" fill="#002d9c"></path>
+    <path id="Path_12" data-name="Path 12" d="M43.522,128.97a4.948,4.948,0,0,1,4.016,1.778,6.143,6.143,0,0,1,1.364,4.319,6.392,6.392,0,0,1-1.479,4.571,4.829,4.829,0,0,1-3.9,1.641c-3.211,0-5.312-2.4-5.312-6.118s2.123-6.191,5.312-6.191m.043,2.285a1.671,1.671,0,0,0-1.595,1.2,11.19,11.19,0,0,0,.068,5.611,1.713,1.713,0,0,0,1.569.972c1.339,0,1.919-1.2,1.919-4a5.507,5.507,0,0,0-.622-3.164,1.644,1.644,0,0,0-1.339-.627" transform="translate(-25.718 -75.687)" fill="#002d9c"></path>
+    <path id="Path_13" data-name="Path 13" d="M67.4,129.4l2.793-.763a3.053,3.053,0,0,1,.418,1.2,4.078,4.078,0,0,1,2.886-1.2,3.19,3.19,0,0,1,2.4.972,3.894,3.894,0,0,1,.46.576A4.343,4.343,0,0,1,79.7,128.64a3.666,3.666,0,0,1,2.332.738c.669.576.878,1.271.878,2.886v8.408h-3v-7.807c0-1.407-.162-1.684-.972-1.684a3.522,3.522,0,0,0-2.055.993v8.5H73.953V132.98c0-1.479-.209-1.825-1.062-1.825a3.279,3.279,0,0,0-2.034.9v8.613H67.831v-8.246A6.005,6.005,0,0,0,67.4,129.4" transform="translate(-42.462 -75.498)" fill="#002d9c"></path>
+    <path id="Path_14" data-name="Path 14" d="M110.63,128.686l2.75-.486a5.354,5.354,0,0,1,.209,1.109A3.962,3.962,0,0,1,116.5,128.2a4.277,4.277,0,0,1,2.332.716c1.271.853,2.2,2.379,2.2,5.1,0,2.541-.392,3.859-1.641,5.15a4.223,4.223,0,0,1-3.164,1.339,4.968,4.968,0,0,1-2.473-.622,9,9,0,0,1,.047.972v3.7l-2.98.785V131.666a15.21,15.21,0,0,0-.188-2.98m3.185,8.685a2.921,2.921,0,0,0,1.71.695c1.522,0,2.123-1.04,2.123-3.743a8.49,8.49,0,0,0-.3-2.609,1.423,1.423,0,0,0-1.479-.993,2.859,2.859,0,0,0-2.055.9v5.752Z" transform="translate(-67.26 -75.246)" fill="#002d9c"></path>
+    <path id="Path_15" data-name="Path 15" d="M139.272,129.813a8.826,8.826,0,0,1,1.919-.972,7.986,7.986,0,0,1,3.232-.691c1.987,0,3.347.738,3.812,2.055a5.965,5.965,0,0,1,.209,2.123l-.068,3.974v.209a2.416,2.416,0,0,0,1.109,2.426l-1.642,1.893a3.288,3.288,0,0,1-1.663-1.433,5.012,5.012,0,0,1-.716.622,4.063,4.063,0,0,1-2.379.648c-2.635,0-4.063-1.339-4.063-3.7,0-2.771,1.919-4.063,5.683-4.063.23,0,.371,0,.691.021v-.486c0-1.317-.256-1.757-1.386-1.757a6.532,6.532,0,0,0-3.419,1.339Zm6.071,5.244h-.136c-2.149,0-2.886.392-2.886,1.8a1.4,1.4,0,0,0,1.364,1.548,2.23,2.23,0,0,0,1.616-.81Z" transform="translate(-83.546 -75.217)" fill="#002d9c"></path>
+    <path id="Path_16" data-name="Path 16" d="M166.91,129.2l2.75-.785a3.034,3.034,0,0,1,.439,1.479,10.413,10.413,0,0,1,1.364-.878,4.861,4.861,0,0,1,2.123-.507,2.932,2.932,0,0,1,2.84,1.71,4.761,4.761,0,0,1,.23,1.684v8.638h-3.049v-7.692c0-1.339-.23-1.731-1.04-1.731a3.605,3.605,0,0,0-2.149,1.062v8.361h-3.1v-8.57a8.55,8.55,0,0,0-.414-2.771" transform="translate(-99.545 -75.372)" fill="#002d9c"></path>
+    <path id="Path_17" data-name="Path 17" d="M193.28,129.111l3.164-.371,2.055,6.882c.209.716.622,2.447.622,2.447s.23-1.317.371-1.893c.183-.738.23-.853.46-1.641l1.778-5.611h3.257l-4.3,11.985c-.81,2.285-1.407,3.279-2.264,3.9a6.272,6.272,0,0,1-2.865,1.087l-1.062-2.034a6.919,6.919,0,0,0,1.919-.785,3.631,3.631,0,0,0,.878-.968,7.261,7.261,0,0,0,.669-1.386h-.785c-.183-.554-.277-.785-.486-1.386-.23-.716-.6-1.893-.623-1.94Z" transform="translate(-114.671 -75.555)" fill="#002d9c"></path>
+    <path id="Path_18" data-name="Path 18" d="M122.51,4c-.46,1.164-.9,2.247-1.313,3.334a20.369,20.369,0,0,0-1.151,8.979,15.36,15.36,0,0,1-.375,6.187,8.854,8.854,0,0,1-7.739,6.361,9.21,9.21,0,0,1-9.384-4.208,9.409,9.409,0,0,1,5.53-14.569c1.833-.5,3.722-.785,5.568-1.232a21.279,21.279,0,0,0,8.207-4.345c.2-.149.392-.3.657-.507" transform="translate(-61.664 -4)" fill="#33b1ff"></path>
+  </g>
+</svg>
+  </div>
+
+  <div class="card header">
+    <div>
+      <h1 class="h-title" id="hTitle"></h1>
+      <p class="h-facts" id="hFacts"></p>
+    </div>
+    <div class="stampblock">
+      <div>Data through <b id="stampThrough"></b></div>
+      <div>Flight <b id="stampFlight"></b></div>
+      <div>Sources last refreshed <b id="stampRefresh"></b></div>
+      <div style="margin-top:8px" data-noprint><button class="btn btn-sm" onclick="window.print()">Download PDF</button></div>
+    </div>
+  </div>
+
+  <div class="hero-caption" id="heroCaption"></div>
+  <div class="hero" id="hero"></div>
+
+  <div class="notes">
+    <div id="noteKpi"></div>
+    <div id="notePoc"></div>
+  </div>
+
+  <div class="card controls" data-noprint>
+    <div class="ctl" id="ctlDate">
+      <span class="ctl-label">Date Range</span>
+      <button class="btn" id="dateTrigger" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
+          <rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg><span id="dateTriggerLabel"></span>
+      </button>
+      <div class="dpop" id="datePop">
+        <div class="dpop-rail" id="presetRail"></div>
+        <div class="dpop-main">
+          <div class="dpop-inputs">
+            <input class="dpop-field" id="draftStart" placeholder="MM/DD/YYYY">
+            <span class="dpop-dash">—</span>
+            <input class="dpop-field" id="draftEnd" placeholder="MM/DD/YYYY">
+            <div class="dpop-nav">
+              <button type="button" data-nav="-12" title="Back 1 year">«</button>
+              <button type="button" data-nav="-1" title="Back 1 month">‹</button>
+              <button type="button" data-nav="1" title="Forward 1 month">›</button>
+              <button type="button" data-nav="12" title="Forward 1 year">»</button>
+            </div>
+          </div>
+          <div class="dpop-calendars" id="dpopMonths"></div>
+          <div class="dpop-foot">
+            <button class="btn btn-sm btn-cancel" id="dateCancel" type="button">Cancel</button>
+            <button class="btn btn-sm btn-apply" id="dateApply" type="button">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctl">
+      <span class="ctl-label">Dimension</span>
+      <span class="seg" id="dimSeg">
+        <button type="button" data-dim="deal" class="on">By Deal</button>
+        <button type="button" data-dim="daily">Daily</button>
+      </span>
+    </div>
+
+    <div class="ctl" id="ctlDeal">
+      <span class="ctl-label">Deal Name</span>
+      <button class="btn" id="dealTrigger" type="button" style="min-width:260px;text-align:left">
+        <span id="dealTriggerLabel">All deals</span> <span style="float:right">▾</span>
+      </button>
+      <div class="pop dealpop" id="dealPop">
+        <div class="dealhead">
+          <span id="dealCount">0 of 0 selected</span>
+          <span><button class="linkbtn" id="dealAll" type="button">Select all</button><button class="linkbtn" id="dealClear" type="button">Clear</button></span>
+        </div>
+        <div class="deallist" id="dealList"></div>
+        <div class="dealfoot">
+          <button class="btn btn-sm" id="dealCancel" type="button">Cancel</button>
+          <button class="btn btn-sm btn-primary" id="dealDone" type="button">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="scopenote" id="scopeNote"></div>
+  </div>
+
+  <div id="tracking"></div>
+
+  <div class="card sect">
+    <div class="sect-head"><div>
+      <div class="eyebrow">Trend</div>
+      <div class="sect-title">Cumulative KPI</div>
+      <div class="chnote">Solid line = cumulative KPI · faint bars = single-day KPI · dashed = goal. Series re-base to the selected date range.</div>
+    </div></div>
+    <div class="chartrow" id="charts"></div>
+  </div>
+
+  <div class="card sect">
+    <div class="sect-head">
+      <div>
+        <div class="eyebrow">Trend</div>
+        <div class="sect-title">Week over Week</div>
+        <div class="chnote">Calendar weeks (Mon–Sun) inside the selected range. Partial weeks are labeled.</div>
+      </div>
+      <button class="btn btn-sm" data-noprint onclick="exportCsv('wow')">Export Excel</button>
+    </div>
+    <div id="wowTable"></div>
+    <div style="margin-top:16px" class="chartbox" id="weeklySpend"></div>
+  </div>
+
+  <div class="diag" id="diag"></div>
+
+  <div class="card sect foot">
+    <h4>Footnotes</h4>
+    <p><b>1. Refresh methodology.</b> Both feeds refresh the same way on request: the ingest re-scans each
+      source for its newest files and rebuilds every metric from scratch — no manual re-entry and no stale
+      carry-forward. The page is static between refreshes; there is no background job, timer, or scheduler.
+      Asking to refresh the dashboard is what triggers a new pull.</p>
+    <p><b>2. Source detail.</b> <span id="fnSources"><span class="muted">Source detail populates on the first ingest.</span></span> Overlapping rolling windows are deduped on (Deal ID + Date) with the most recently
+      delivered file winning; restated trailing-7-day files supersede earlier deliveries. All dates are handled
+      in a single timezone (ET) before any join.</p>
+    <p><b>3. Metric basis.</b> Every ratio is computed as summed numerator ÷ summed denominator —
+      never an average of ratios. Cumulative KPI at day <i>n</i> is the range-to-date numerator ÷ the
+      range-to-date denominator. Any metric that cannot be computed renders N/A, never 0.</p>
+  </div>
+</div>
+<script type="application/schema+json" id="pages-config-schema">{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"NWM Campaign Dashboard — CONFIG","description":"Per-campaign settings, fixed for the life of the campaign. Everything that changes on a refresh lives in the data payload instead, so a refresh never has to touch this block.","type":"object","additionalProperties":false,"required":["campaign","client","accountCode","geo","sspLabel","dspLabel","conversionEvent","flightStart","channels","deals","revshareMap"],"properties":{"campaign":{"type":"string","minLength":1,"maxLength":200,"description":"Display name in the header and the page title."},"client":{"type":"string","minLength":1,"maxLength":200},"accountCode":{"type":"string","pattern":"^[A-Z0-9]+$","maxLength":32,"description":"Elcano account code, e.g. ACCT00156. Used in the header and CSV filenames."},"geo":{"type":"string","minLength":1,"maxLength":64},"sspLabel":{"type":"string","minLength":1,"maxLength":64,"description":"Supply-side platform shown in column headers, e.g. 'Index Exchange'."},"dspLabel":{"type":"string","minLength":1,"maxLength":64,"description":"Demand-side platform, e.g. 'Amazon DSP'."},"conversionEvent":{"type":"string","minLength":1,"maxLength":64,"description":"Column header for the conversion metric, e.g. 'Purchases'."},"poc":{"type":"string","maxLength":120,"description":"Elcano point of contact shown in the header."},"flightStart":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"flightEnd":{"type":["string","null"],"pattern":"^\\d{4}-\\d{2}-\\d{2}$","description":"null while the campaign is still running."},"showDeltas":{"type":"boolean","description":"Show the 7-day delta columns and arrows."},"channels":{"type":"array","minItems":1,"maxItems":12,"description":"One entry per channel, each with the KPI the dashboard grades it against.","items":{"type":"object","additionalProperties":false,"required":["id","name","kpi","kpiLabel","target","yellow","lowerIsBetter","unit","decimals"],"properties":{"id":{"type":"string","pattern":"^[a-z0-9_]+$","maxLength":32,"description":"Referenced by deals[].channel."},"name":{"type":"string","minLength":1,"maxLength":64},"kpi":{"type":"string","enum":["cpm","cpc","cpa","cpcv","ctr","vcr","viewability"]},"kpiLabel":{"type":"string","minLength":1,"maxLength":64},"target":{"type":"number","description":"The green threshold."},"yellow":{"type":"number","description":"The amber threshold; past it the tier is red."},"lowerIsBetter":{"type":"boolean","description":"true for cost KPIs (CPM/CPC/CPA), false for rate KPIs."},"unit":{"type":"string","enum":["$","%",""]},"decimals":{"type":"integer","minimum":0,"maximum":4}}}},"deals":{"type":"array","minItems":1,"maxItems":200,"description":"The deal registry. rows[].dealId in the data payload must reference one of these ids.","items":{"type":"object","additionalProperties":false,"required":["id","channel","short","code","full"],"properties":{"id":{"type":"string","minLength":1,"maxLength":32,"description":"SSP deal id; joins to rows[].dealId."},"channel":{"type":"string","pattern":"^[a-z0-9_]+$","maxLength":32,"description":"Must match a channels[].id."},"short":{"type":"string","minLength":1,"maxLength":80,"description":"Label shown in the deal table and filter."},"code":{"type":"string","minLength":1,"maxLength":16,"description":"Attribution code; keys into revshareMap."},"full":{"type":"string","minLength":1,"maxLength":300,"description":"Full SSP deal name, shown in the CSV export."}}}},"revshareMap":{"type":"object","description":"Attribution code → revenue share. Keyed by deals[].code.","minProperties":1,"additionalProperties":{"type":"object","additionalProperties":false,"required":["pct","type"],"properties":{"pct":{"type":"number","minimum":0,"maximum":100},"type":{"type":"string","enum":["margin","revenue"],"description":"margin = (grossMargin - platformFee) x pct; revenue = revenue x pct."}}}}}}</script>
+<script type="application/json" id="pages-config">{"campaign":"Example Brand — Seasonal Awareness","client":"Example Brand · Example Agency","accountCode":"ACCT00000","geo":"US","sspLabel":"Index Exchange","dspLabel":"Amazon DSP","conversionEvent":"Purchases","poc":"Account Manager","flightStart":"2026-06-01","flightEnd":"2026-07-31","showDeltas":true,"channels":[{"id":"display","name":"Display","kpi":"cpm","kpiLabel":"DSP CPM","target":3.5,"yellow":4.2,"lowerIsBetter":true,"unit":"$","decimals":2},{"id":"olv","name":"Online video","kpi":"cpcv","kpiLabel":"DSP CPCV","target":0.03,"yellow":0.04,"lowerIsBetter":true,"unit":"$","decimals":3}],"deals":[{"id":"9000001","channel":"display","short":"Awareness · Display","code":"B14","full":"NWM-IX-Example Brand-9000001_Index_Amazon_Example Agency_Example Brand_NA_Awareness_Display_All_US_ACCT00000_B14"},{"id":"9000002","channel":"display","short":"Consideration · Display","code":"B14","full":"NWM-IX-Example Brand-9000002_Index_Amazon_Example Agency_Example Brand_NA_Consideration_Display_All_US_ACCT00000_B14"},{"id":"9000003","channel":"olv","short":"Awareness · OLV","code":"B20","full":"NWM-IX-Example Brand-9000003_Index_Amazon_Example Agency_Example Brand_NA_Awareness_OLV_All_US_ACCT00000_B20"}],"revshareMap":{"B14":{"pct":70,"type":"margin"},"B20":{"pct":65,"type":"margin"}}}</script>
+<script type="application/schema+json" id="pages-data-schema">{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"NWM Campaign Dashboard — DATA payload","description":"The refresh payload for a NWM-family campaign dashboard. This object is the ONLY thing a data-only update may replace (the JSON between the /* DATA-START */ and /* DATA-END */ anchors in the page script). Campaign identity, channels, deals, and the revshare map live in CONFIG and are not part of this contract. Cross-file constraint the schema cannot express: every rows[].dealId and unallocated[].channel must exist in the deployed page's CONFIG.deals / CONFIG.channels.","type":"object","additionalProperties":false,"required":["dataThrough","lastRefreshed","unmapped","rows","unallocated"],"properties":{"dataThrough":{"description":"Last date covered by ingested data, ISO YYYY-MM-DD. null only before the first ingest.","type":["string","null"],"pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"lastRefreshed":{"description":"Human-readable refresh stamp shown in the header, e.g. 'Aug 2, 2026'. null only before the first ingest.","type":["string","null"],"maxLength":64},"unmapped":{"description":"Join diagnostics for the SSP↔DSP reconciliation. Must reflect the real ingest — never hardcoded to zero. null only before the first ingest.","type":["object","null"],"additionalProperties":false,"required":["sspRows","dspRows"],"properties":{"sspRows":{"type":"integer","minimum":0},"dspRows":{"type":"integer","minimum":0},"notes":{"type":"array","items":{"type":"string","maxLength":500},"maxItems":10}}},"rows":{"description":"One row per (deal, day). SSP-derived fields (revenue, grossMargin, platformFee, sspImpressions) travel together; DSP-derived fields (dspSpend, dspImpressions, viewableImpressions, clicks, conversions) travel together. A row may carry either group or both — a missing group renders N/A, never 0.","type":"array","maxItems":5000,"items":{"type":"object","additionalProperties":false,"required":["dealId","date"],"dependentRequired":{"revenue":["grossMargin","platformFee","sspImpressions"],"dspSpend":["dspImpressions","viewableImpressions","clicks","conversions"]},"properties":{"dealId":{"type":"string","minLength":1,"maxLength":32},"date":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"revenue":{"type":"number","minimum":0},"grossMargin":{"type":"number"},"platformFee":{"type":"number","minimum":0},"sspImpressions":{"type":"integer","minimum":0},"dspSpend":{"type":"number","minimum":0},"dspImpressions":{"type":"integer","minimum":0},"viewableImpressions":{"type":"integer","minimum":0},"clicks":{"type":"integer","minimum":0},"conversions":{"type":"integer","minimum":0},"completedViews":{"description":"Only for channels whose KPI is CPCV (e.g. OLV).","type":"integer","minimum":0}}}},"unallocated":{"description":"Conversions attributed to an ad group rather than a deal. Included in channel/campaign totals; deal-level columns show an em dash.","type":"array","maxItems":500,"items":{"type":"object","additionalProperties":false,"required":["channel","date","conversions"],"properties":{"channel":{"type":"string","minLength":1,"maxLength":32},"date":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"conversions":{"type":"integer","minimum":0}}}},"sourceDetail":{"description":"Plain-text source detail for footnote 2 (files ingested, last delivery, dedupe notes). Rendered as text, never as HTML. Optional; the footnote shows a placeholder until provided.","type":"string","maxLength":2000}}}</script>
+<script type="application/json" id="pages-data">{"contract_version":1,"refreshed_at":"1970-01-01T00:00:00.000Z","source_as_of":"1970-01-01T00:00:00.000Z","data":{"dataThrough":null,"lastRefreshed":null,"unmapped":null,"rows":[],"unallocated":[]}}</script>
+<script type="application/json" id="pages-data-example">{"dataThrough":"2026-06-30","lastRefreshed":"Jun 30, 2026","unmapped":{"sspRows":4,"dspRows":2,"notes":["Example data for previewing this design. Not a real campaign."]},"rows":[{"dealId":"9000001","date":"2026-06-01","revenue":1239.84,"grossMargin":520.74,"platformFee":99.19,"sspImpressions":302400,"dspSpend":1012.74,"dspImpressions":297864,"viewableImpressions":214462,"clicks":268,"conversions":13},{"dealId":"9000002","date":"2026-06-01","revenue":936.77,"grossMargin":393.44,"platformFee":74.94,"sspImpressions":228480,"dspSpend":765.18,"dspImpressions":225053,"viewableImpressions":162038,"clicks":203,"conversions":10},{"dealId":"9000003","date":"2026-06-01","revenue":681.91,"grossMargin":286.4,"platformFee":54.55,"sspImpressions":166320,"dspSpend":557.01,"dspImpressions":163825,"viewableImpressions":117954,"clicks":147,"conversions":7,"completedViews":127784},{"dealId":"9000001","date":"2026-06-02","revenue":1489.39,"grossMargin":625.54,"platformFee":119.15,"sspImpressions":363265,"dspSpend":1216.57,"dspImpressions":357816,"viewableImpressions":257628,"clicks":322,"conversions":16},{"dealId":"9000002","date":"2026-06-02","revenue":908.67,"grossMargin":381.64,"platformFee":72.69,"sspImpressions":221626,"dspSpend":742.23,"dspImpressions":218302,"viewableImpressions":157177,"clicks":196,"conversions":10},{"dealId":"9000003","date":"2026-06-02","revenue":663.96,"grossMargin":278.87,"platformFee":53.12,"sspImpressions":161942,"dspSpend":542.34,"dspImpressions":159513,"viewableImpressions":114849,"clicks":144,"conversions":7,"completedViews":124420},{"dealId":"9000001","date":"2026-06-03","revenue":1448.49,"grossMargin":608.37,"platformFee":115.88,"sspImpressions":353290,"dspSpend":1183.17,"dspImpressions":347991,"viewableImpressions":250554,"clicks":313,"conversions":16},{"dealId":"9000002","date":"2026-06-03","revenue":879.78,"grossMargin":369.51,"platformFee":70.38,"sspImpressions":214581,"dspSpend":718.63,"dspImpressions":211362,"viewableImpressions":152181,"clicks":190,"conversions":10},{"dealId":"9000003","date":"2026-06-03","revenue":645.49,"grossMargin":271.11,"platformFee":51.64,"sspImpressions":157437,"dspSpend":527.26,"dspImpressions":155075,"viewableImpressions":111654,"clicks":140,"conversions":7,"completedViews":120959},{"dealId":"9000001","date":"2026-06-04","revenue":1406.44,"grossMargin":590.71,"platformFee":112.52,"sspImpressions":343035,"dspSpend":1148.82,"dspImpressions":337889,"viewableImpressions":243280,"clicks":304,"conversions":15},{"dealId":"9000002","date":"2026-06-04","revenue":1052.99,"grossMargin":442.26,"platformFee":84.24,"sspImpressions":256826,"dspSpend":860.11,"dspImpressions":252974,"viewableImpressions":182141,"clicks":228,"conversions":11},{"dealId":"9000003","date":"2026-06-04","revenue":626.51,"grossMargin":263.13,"platformFee":50.12,"sspImpressions":152807,"dspSpend":511.75,"dspImpressions":150515,"viewableImpressions":108371,"clicks":135,"conversions":7,"completedViews":117402},{"dealId":"9000001","date":"2026-06-05","revenue":1363.25,"grossMargin":572.57,"platformFee":109.06,"sspImpressions":332500,"dspSpend":1113.54,"dspImpressions":327513,"viewableImpressions":235809,"clicks":295,"conversions":15},{"dealId":"9000002","date":"2026-06-05","revenue":1024.59,"grossMargin":430.33,"platformFee":81.97,"sspImpressions":249900,"dspSpend":836.92,"dspImpressions":246152,"viewableImpressions":177229,"clicks":222,"conversions":11},{"dealId":"9000003","date":"2026-06-05","revenue":607.01,"grossMargin":254.94,"platformFee":48.56,"sspImpressions":148050,"dspSpend":495.82,"dspImpressions":145829,"viewableImpressions":104997,"clicks":131,"conversions":7,"completedViews":113747},{"dealId":"9000001","date":"2026-06-06","revenue":817.72,"grossMargin":343.44,"platformFee":65.42,"sspImpressions":199445,"dspSpend":667.94,"dspImpressions":196453,"viewableImpressions":141446,"clicks":177,"conversions":9},{"dealId":"9000002","date":"2026-06-06","revenue":617.16,"grossMargin":259.2,"platformFee":49.37,"sspImpressions":150526,"dspSpend":504.11,"dspImpressions":148268,"viewableImpressions":106753,"clicks":133,"conversions":7},{"dealId":"9000003","date":"2026-06-06","revenue":363.93,"grossMargin":152.85,"platformFee":29.11,"sspImpressions":88764,"dspSpend":297.27,"dspImpressions":87433,"viewableImpressions":62952,"clicks":79,"conversions":4,"completedViews":68198},{"dealId":"9000001","date":"2026-06-07","revenue":980.09,"grossMargin":411.64,"platformFee":78.41,"sspImpressions":239047,"dspSpend":800.57,"dspImpressions":235461,"viewableImpressions":169532,"clicks":212,"conversions":11},{"dealId":"9000002","date":"2026-06-07","revenue":598.58,"grossMargin":251.41,"platformFee":47.89,"sspImpressions":145996,"dspSpend":488.94,"dspImpressions":143806,"viewableImpressions":103540,"clicks":129,"conversions":6},{"dealId":"9000003","date":"2026-06-07","revenue":436.96,"grossMargin":183.53,"platformFee":34.96,"sspImpressions":106575,"dspSpend":356.92,"dspImpressions":104976,"viewableImpressions":75583,"clicks":94,"conversions":5,"completedViews":81881},{"dealId":"9000001","date":"2026-06-08","revenue":1537.17,"grossMargin":645.61,"platformFee":122.97,"sspImpressions":374920,"dspSpend":1255.61,"dspImpressions":369296,"viewableImpressions":265893,"clicks":332,"conversions":17},{"dealId":"9000002","date":"2026-06-08","revenue":934.72,"grossMargin":392.58,"platformFee":74.78,"sspImpressions":227980,"dspSpend":763.5,"dspImpressions":224560,"viewableImpressions":161683,"clicks":202,"conversions":10},{"dealId":"9000003","date":"2026-06-08","revenue":685.08,"grossMargin":287.74,"platformFee":54.81,"sspImpressions":167092,"dspSpend":559.59,"dspImpressions":164586,"viewableImpressions":118502,"clicks":148,"conversions":7,"completedViews":128377},{"dealId":"9000001","date":"2026-06-09","revenue":1492.4,"grossMargin":626.81,"platformFee":119.39,"sspImpressions":364000,"dspSpend":1219.04,"dspImpressions":358540,"viewableImpressions":258149,"clicks":323,"conversions":16},{"dealId":"9000002","date":"2026-06-09","revenue":1116.32,"grossMargin":468.86,"platformFee":89.31,"sspImpressions":272272,"dspSpend":911.84,"dspImpressions":268188,"viewableImpressions":193095,"clicks":241,"conversions":12},{"dealId":"9000003","date":"2026-06-09","revenue":664.86,"grossMargin":279.24,"platformFee":53.19,"sspImpressions":162162,"dspSpend":543.08,"dspImpressions":159730,"viewableImpressions":115006,"clicks":144,"conversions":7,"completedViews":124589},{"dealId":"9000001","date":"2026-06-10","revenue":1446.48,"grossMargin":607.52,"platformFee":115.72,"sspImpressions":352800,"dspSpend":1181.53,"dspImpressions":347508,"viewableImpressions":250206,"clicks":313,"conversions":16},{"dealId":"9000002","date":"2026-06-10","revenue":1086.07,"grossMargin":456.15,"platformFee":86.89,"sspImpressions":264894,"dspSpend":887.13,"dspImpressions":260921,"viewableImpressions":187863,"clicks":235,"conversions":12},{"dealId":"9000003","date":"2026-06-10","revenue":644.13,"grossMargin":270.53,"platformFee":51.53,"sspImpressions":157106,"dspSpend":526.15,"dspImpressions":154749,"viewableImpressions":111419,"clicks":139,"conversions":7,"completedViews":120704},{"dealId":"9000001","date":"2026-06-11","revenue":1399.41,"grossMargin":587.75,"platformFee":111.95,"sspImpressions":341320,"dspSpend":1143.08,"dspImpressions":336200,"viewableImpressions":242064,"clicks":303,"conversions":15},{"dealId":"9000002","date":"2026-06-11","revenue":1055.04,"grossMargin":443.11,"platformFee":84.4,"sspImpressions":257326,"dspSpend":861.78,"dspImpressions":253466,"viewableImpressions":182496,"clicks":228,"conversions":11},{"dealId":"9000003","date":"2026-06-11","revenue":622.89,"grossMargin":261.61,"platformFee":49.83,"sspImpressions":151925,"dspSpend":508.8,"dspImpressions":149646,"viewableImpressions":107745,"clicks":135,"conversions":7,"completedViews":116724},{"dealId":"9000001","date":"2026-06-12","revenue":1673.64,"grossMargin":702.93,"platformFee":133.89,"sspImpressions":408205,"dspSpend":1367.08,"dspImpressions":402082,"viewableImpressions":289499,"clicks":362,"conversions":18},{"dealId":"9000002","date":"2026-06-12","revenue":1023.22,"grossMargin":429.75,"platformFee":81.86,"sspImpressions":249567,"dspSpend":835.8,"dspImpressions":245823,"viewableImpressions":176993,"clicks":221,"conversions":11},{"dealId":"9000003","date":"2026-06-12","revenue":746.23,"grossMargin":313.42,"platformFee":59.7,"sspImpressions":182007,"dspSpend":609.54,"dspImpressions":179277,"viewableImpressions":129079,"clicks":161,"conversions":8,"completedViews":139836},{"dealId":"9000001","date":"2026-06-13","revenue":1008.92,"grossMargin":423.74,"platformFee":80.71,"sspImpressions":246078,"dspSpend":824.12,"dspImpressions":242387,"viewableImpressions":174519,"clicks":218,"conversions":11},{"dealId":"9000002","date":"2026-06-13","revenue":614.19,"grossMargin":257.96,"platformFee":49.14,"sspImpressions":149803,"dspSpend":501.69,"dspImpressions":147556,"viewableImpressions":106240,"clicks":133,"conversions":7},{"dealId":"9000003","date":"2026-06-13","revenue":449.69,"grossMargin":188.87,"platformFee":35.98,"sspImpressions":109680,"dspSpend":367.32,"dspImpressions":108035,"viewableImpressions":77785,"clicks":97,"conversions":5,"completedViews":84267},{"dealId":"9000001","date":"2026-06-14","revenue":979.47,"grossMargin":411.38,"platformFee":78.36,"sspImpressions":238895,"dspSpend":800.06,"dspImpressions":235312,"viewableImpressions":169425,"clicks":212,"conversions":11},{"dealId":"9000002","date":"2026-06-14","revenue":593.5,"grossMargin":249.27,"platformFee":47.48,"sspImpressions":144756,"dspSpend":484.79,"dspImpressions":142585,"viewableImpressions":102661,"clicks":128,"conversions":6},{"dealId":"9000003","date":"2026-06-14","revenue":436.4,"grossMargin":183.29,"platformFee":34.91,"sspImpressions":106439,"dspSpend":356.46,"dspImpressions":104842,"viewableImpressions":75486,"clicks":94,"conversions":5,"completedViews":81777},{"dealId":"9000001","date":"2026-06-15","revenue":1531.15,"grossMargin":643.08,"platformFee":122.49,"sspImpressions":373450,"dspSpend":1250.68,"dspImpressions":367848,"viewableImpressions":264851,"clicks":331,"conversions":17},{"dealId":"9000002","date":"2026-06-15","revenue":1148.52,"grossMargin":482.38,"platformFee":91.88,"sspImpressions":280126,"dspSpend":938.14,"dspImpressions":275924,"viewableImpressions":198665,"clicks":248,"conversions":12},{"dealId":"9000003","date":"2026-06-15","revenue":681.91,"grossMargin":286.4,"platformFee":54.55,"sspImpressions":166320,"dspSpend":557.01,"dspImpressions":163825,"viewableImpressions":117954,"clicks":147,"conversions":7,"completedViews":127784},{"dealId":"9000001","date":"2026-06-16","revenue":1481.35,"grossMargin":622.17,"platformFee":118.51,"sspImpressions":361305,"dspSpend":1210.01,"dspImpressions":355885,"viewableImpressions":256237,"clicks":320,"conversions":16},{"dealId":"9000002","date":"2026-06-16","revenue":1115.63,"grossMargin":468.56,"platformFee":89.25,"sspImpressions":272105,"dspSpend":911.28,"dspImpressions":268023,"viewableImpressions":192977,"clicks":241,"conversions":12},{"dealId":"9000003","date":"2026-06-16","revenue":659.44,"grossMargin":276.97,"platformFee":52.76,"sspImpressions":160839,"dspSpend":538.65,"dspImpressions":158426,"viewableImpressions":114067,"clicks":143,"conversions":7,"completedViews":123572},{"dealId":"9000001","date":"2026-06-17","revenue":1767.92,"grossMargin":742.52,"platformFee":141.43,"sspImpressions":431200,"dspSpend":1444.09,"dspImpressions":424732,"viewableImpressions":305807,"clicks":382,"conversions":19},{"dealId":"9000002","date":"2026-06-17","revenue":1081.97,"grossMargin":454.43,"platformFee":86.56,"sspImpressions":263894,"dspSpend":883.78,"dspImpressions":259936,"viewableImpressions":187154,"clicks":234,"conversions":12},{"dealId":"9000003","date":"2026-06-17","revenue":788.33,"grossMargin":331.1,"platformFee":63.07,"sspImpressions":192276,"dspSpend":643.93,"dspImpressions":189392,"viewableImpressions":136362,"clicks":170,"conversions":9,"completedViews":147726},{"dealId":"9000001","date":"2026-06-18","revenue":1718.84,"grossMargin":721.92,"platformFee":137.51,"sspImpressions":419230,"dspSpend":1404,"dspImpressions":412942,"viewableImpressions":297318,"clicks":372,"conversions":19},{"dealId":"9000002","date":"2026-06-18","revenue":1047.52,"grossMargin":439.96,"platformFee":83.8,"sspImpressions":255493,"dspSpend":855.65,"dspImpressions":251661,"viewableImpressions":181196,"clicks":226,"conversions":11},{"dealId":"9000003","date":"2026-06-18","revenue":766.18,"grossMargin":321.79,"platformFee":61.29,"sspImpressions":186874,"dspSpend":625.84,"dspImpressions":184071,"viewableImpressions":132531,"clicks":166,"conversions":8,"completedViews":143575},{"dealId":"9000001","date":"2026-06-19","revenue":1668.62,"grossMargin":700.82,"platformFee":133.49,"sspImpressions":406980,"dspSpend":1362.98,"dspImpressions":400875,"viewableImpressions":288630,"clicks":361,"conversions":18},{"dealId":"9000002","date":"2026-06-19","revenue":1012.29,"grossMargin":425.16,"platformFee":80.98,"sspImpressions":246901,"dspSpend":826.87,"dspImpressions":243197,"viewableImpressions":175102,"clicks":219,"conversions":11},{"dealId":"9000003","date":"2026-06-19","revenue":743.52,"grossMargin":312.28,"platformFee":59.48,"sspImpressions":181346,"dspSpend":607.33,"dspImpressions":178626,"viewableImpressions":128611,"clicks":161,"conversions":8,"completedViews":139328},{"dealId":"9000001","date":"2026-06-20","revenue":1002.69,"grossMargin":421.13,"platformFee":80.22,"sspImpressions":244559,"dspSpend":819.03,"dspImpressions":240891,"viewableImpressions":173442,"clicks":217,"conversions":11},{"dealId":"9000002","date":"2026-06-20","revenue":751.41,"grossMargin":315.59,"platformFee":60.11,"sspImpressions":183270,"dspSpend":613.77,"dspImpressions":180521,"viewableImpressions":129975,"clicks":162,"conversions":8},{"dealId":"9000003","date":"2026-06-20","revenue":446.61,"grossMargin":187.58,"platformFee":35.73,"sspImpressions":108929,"dspSpend":364.8,"dspImpressions":107295,"viewableImpressions":77252,"clicks":97,"conversions":5,"completedViews":83690},{"dealId":"9000001","date":"2026-06-21","revenue":970.13,"grossMargin":407.45,"platformFee":77.61,"sspImpressions":236617,"dspSpend":792.43,"dspImpressions":233068,"viewableImpressions":167809,"clicks":210,"conversions":10},{"dealId":"9000002","date":"2026-06-21","revenue":729.87,"grossMargin":306.55,"platformFee":58.39,"sspImpressions":178016,"dspSpend":596.18,"dspImpressions":175346,"viewableImpressions":126249,"clicks":158,"conversions":8},{"dealId":"9000003","date":"2026-06-21","revenue":431.91,"grossMargin":181.4,"platformFee":34.55,"sspImpressions":105345,"dspSpend":352.8,"dspImpressions":103765,"viewableImpressions":74711,"clicks":93,"conversions":5,"completedViews":80937},{"dealId":"9000001","date":"2026-06-22","revenue":1511.06,"grossMargin":634.64,"platformFee":120.88,"sspImpressions":368550,"dspSpend":1234.27,"dspImpressions":363022,"viewableImpressions":261376,"clicks":327,"conversions":16},{"dealId":"9000002","date":"2026-06-22","revenue":1141.69,"grossMargin":479.51,"platformFee":91.34,"sspImpressions":278460,"dspSpend":932.56,"dspImpressions":274283,"viewableImpressions":197484,"clicks":247,"conversions":12},{"dealId":"9000003","date":"2026-06-22","revenue":831.08,"grossMargin":349.06,"platformFee":66.49,"sspImpressions":202703,"dspSpend":678.85,"dspImpressions":199662,"viewableImpressions":143757,"clicks":180,"conversions":9,"completedViews":155736},{"dealId":"9000001","date":"2026-06-23","revenue":1811.83,"grossMargin":760.97,"platformFee":144.95,"sspImpressions":441910,"dspSpend":1479.96,"dspImpressions":435281,"viewableImpressions":313402,"clicks":392,"conversions":20},{"dealId":"9000002","date":"2026-06-23","revenue":1105.38,"grossMargin":464.26,"platformFee":88.43,"sspImpressions":269606,"dspSpend":902.91,"dspImpressions":265562,"viewableImpressions":191205,"clicks":239,"conversions":12},{"dealId":"9000003","date":"2026-06-23","revenue":807.7,"grossMargin":339.24,"platformFee":64.62,"sspImpressions":197001,"dspSpend":659.76,"dspImpressions":194046,"viewableImpressions":139713,"clicks":175,"conversions":9,"completedViews":151356},{"dealId":"9000001","date":"2026-06-24","revenue":1758.88,"grossMargin":738.73,"platformFee":140.71,"sspImpressions":428995,"dspSpend":1436.7,"dspImpressions":422560,"viewableImpressions":304243,"clicks":380,"conversions":19},{"dealId":"9000002","date":"2026-06-24","revenue":1068.3,"grossMargin":448.68,"platformFee":85.46,"sspImpressions":260562,"dspSpend":872.62,"dspImpressions":256654,"viewableImpressions":184791,"clicks":231,"conversions":12},{"dealId":"9000003","date":"2026-06-24","revenue":783.81,"grossMargin":329.2,"platformFee":62.7,"sspImpressions":191174,"dspSpend":640.24,"dspImpressions":188306,"viewableImpressions":135580,"clicks":169,"conversions":8,"completedViews":146879},{"dealId":"9000001","date":"2026-06-25","revenue":1704.78,"grossMargin":716.01,"platformFee":136.38,"sspImpressions":415800,"dspSpend":1392.51,"dspImpressions":409563,"viewableImpressions":294885,"clicks":369,"conversions":18},{"dealId":"9000002","date":"2026-06-25","revenue":1276.35,"grossMargin":536.07,"platformFee":102.11,"sspImpressions":311304,"dspSpend":1042.56,"dspImpressions":306634,"viewableImpressions":220776,"clicks":276,"conversions":14},{"dealId":"9000003","date":"2026-06-25","revenue":759.4,"grossMargin":318.95,"platformFee":60.75,"sspImpressions":185220,"dspSpend":620.3,"dspImpressions":182442,"viewableImpressions":131358,"clicks":164,"conversions":8,"completedViews":142305},{"dealId":"9000001","date":"2026-06-26","revenue":1649.53,"grossMargin":692.8,"platformFee":131.96,"sspImpressions":402325,"dspSpend":1347.39,"dspImpressions":396290,"viewableImpressions":285329,"clicks":357,"conversions":18},{"dealId":"9000002","date":"2026-06-26","revenue":1239.75,"grossMargin":520.7,"platformFee":99.18,"sspImpressions":302379,"dspSpend":1012.67,"dspImpressions":297843,"viewableImpressions":214447,"clicks":268,"conversions":13},{"dealId":"9000003","date":"2026-06-26","revenue":734.48,"grossMargin":308.48,"platformFee":58.76,"sspImpressions":179141,"dspSpend":599.94,"dspImpressions":176454,"viewableImpressions":127047,"clicks":159,"conversions":8,"completedViews":137634},{"dealId":"9000001","date":"2026-06-27","revenue":987.74,"grossMargin":414.85,"platformFee":79.02,"sspImpressions":240913,"dspSpend":806.82,"dspImpressions":237299,"viewableImpressions":170855,"clicks":214,"conversions":11},{"dealId":"9000002","date":"2026-06-27","revenue":745.47,"grossMargin":313.1,"platformFee":59.64,"sspImpressions":181823,"dspSpend":608.93,"dspImpressions":179096,"viewableImpressions":128949,"clicks":161,"conversions":8},{"dealId":"9000003","date":"2026-06-27","revenue":439.6,"grossMargin":184.63,"platformFee":35.17,"sspImpressions":107220,"dspSpend":359.08,"dspImpressions":105612,"viewableImpressions":76041,"clicks":95,"conversions":5,"completedViews":82377},{"dealId":"9000001","date":"2026-06-28","revenue":1181.88,"grossMargin":496.39,"platformFee":94.55,"sspImpressions":288263,"dspSpend":965.39,"dspImpressions":283939,"viewableImpressions":204436,"clicks":256,"conversions":13},{"dealId":"9000002","date":"2026-06-28","revenue":721.82,"grossMargin":303.17,"platformFee":57.75,"sspImpressions":176054,"dspSpend":589.6,"dspImpressions":173413,"viewableImpressions":124857,"clicks":156,"conversions":8},{"dealId":"9000003","date":"2026-06-28","revenue":526.92,"grossMargin":221.3,"platformFee":42.15,"sspImpressions":128517,"dspSpend":430.4,"dspImpressions":126589,"viewableImpressions":91144,"clicks":114,"conversions":6,"completedViews":98739},{"dealId":"9000001","date":"2026-06-29","revenue":1850.58,"grossMargin":777.25,"platformFee":148.05,"sspImpressions":451360,"dspSpend":1511.61,"dspImpressions":444590,"viewableImpressions":320105,"clicks":400,"conversions":20},{"dealId":"9000002","date":"2026-06-29","revenue":1125.29,"grossMargin":472.62,"platformFee":90.02,"sspImpressions":274462,"dspSpend":919.17,"dspImpressions":270345,"viewableImpressions":194648,"clicks":243,"conversions":12},{"dealId":"9000003","date":"2026-06-29","revenue":824.75,"grossMargin":346.4,"platformFee":65.98,"sspImpressions":201159,"dspSpend":673.68,"dspImpressions":198142,"viewableImpressions":142662,"clicks":178,"conversions":9,"completedViews":154551},{"dealId":"9000001","date":"2026-06-30","revenue":1793.75,"grossMargin":753.38,"platformFee":143.5,"sspImpressions":437500,"dspSpend":1465.19,"dspImpressions":430938,"viewableImpressions":310275,"clicks":388,"conversions":19},{"dealId":"9000002","date":"2026-06-30","revenue":1341.73,"grossMargin":563.53,"platformFee":107.34,"sspImpressions":327250,"dspSpend":1095.96,"dspImpressions":322341,"viewableImpressions":232086,"clicks":290,"conversions":15},{"dealId":"9000003","date":"2026-06-30","revenue":799.11,"grossMargin":335.63,"platformFee":63.93,"sspImpressions":194906,"dspSpend":652.74,"dspImpressions":191982,"viewableImpressions":138227,"clicks":173,"conversions":9,"completedViews":149746}],"unallocated":[{"channel":"display","date":"2026-06-28","conversions":6},{"channel":"olv","date":"2026-06-29","conversions":3}],"sourceDetail":"Example dataset shipped with the template so the library can preview the design populated. Never deployed to a page."}</script>
+<script>
+/* ================================================================
+   CONFIG and DATA are the two managed blocks above, not literals in
+   this script. Pages replaces ONLY those block contents:
+     * #pages-config — per-campaign settings, via update_page_config
+     * #pages-data   — the refresh payload, via update_page_data
+   Each is validated against the schema block beside it before it is
+   written, and neither write can disturb the other's bytes. The
+   render layer below is unchanged and unaware of the split.
+   ================================================================ */
+const CONFIG = JSON.parse(document.getElementById('pages-config').textContent);
+const DATA = JSON.parse(document.getElementById('pages-data').textContent).data;
+
+/* Glue: expose DATA to the render layer in the shapes it expects. */
+const ROWS=(DATA.rows||[]).slice();
+const UNALLOCATED=(DATA.unallocated||[]).slice();
+CONFIG.dataThrough=DATA.dataThrough||null;
+CONFIG.lastRefreshed=DATA.lastRefreshed||null;
+CONFIG.unmapped=DATA.unmapped||null;
+const NA="N/A", DASH="\u2014";
+const $=s=>document.querySelector(s);
+const hasData=()=>ROWS.length>0;
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parseISO=s=>{const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2]);};
+const usd=(v,dec)=>v==null||!isFinite(v)?NA:"$"+v.toLocaleString("en-US",{minimumFractionDigits:dec==null?2:dec,maximumFractionDigits:dec==null?2:dec});
+const num=v=>v==null||!isFinite(v)?NA:Math.round(v).toLocaleString("en-US");
+const pctf=(v,dec)=>v==null||!isFinite(v)?NA:(v*100).toFixed(dec==null?2:dec)+"%";
+const safeDiv=(a,b)=>(b==null||b===0||!isFinite(b))?null:a/b;
+const mdy=s=>s?parseISO(s).toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}):"";
+const md=s=>s?parseISO(s).toLocaleDateString("en-US",{month:"2-digit",day:"2-digit"}):"";
+const pretty=s=>s?parseISO(s).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+const prettyRange=(a,b)=>(a&&b)?parseISO(a).toLocaleDateString("en-US",{month:"short",day:"numeric"})+" \u2013 "+pretty(b):"No data loaded";
+function dataSpan(){if(ROWS.length){const ds=ROWS.map(r=>r.date).sort();return {start:CONFIG.flightStart||ds[0], end:CONFIG.dataThrough||ds[ds.length-1]};}return {start:CONFIG.flightStart, end:CONFIG.flightEnd||CONFIG.dataThrough};}
+const STATE={start:dataSpan().start,end:dataSpan().end,dim:"deal",deals:CONFIG.deals.map(d=>d.id)};
+const dealById=id=>CONFIG.deals.filter(d=>d.id===id)[0];
+function scopedRows(){return ROWS.filter(r=>STATE.deals.indexOf(r.dealId)>=0 && (!STATE.start||r.date>=STATE.start) && (!STATE.end||r.date<=STATE.end));}
+function agg(rows){const a={revenue:0,dspSpend:0,grossMargin:0,platformFee:0,dspImpressions:0,sspImpressions:0,clicks:0,conversions:0,viewableImpressions:0,completedViews:0};rows.forEach(r=>{for(const k in a){if(typeof r[k]==="number")a[k]+=r[k];}});return a;}
+function nwmMargin(rows){if(!rows.length) return null;const byDeal={};rows.forEach(r=>{(byDeal[r.dealId]=byDeal[r.dealId]||[]).push(r);});let total=0,any=false;for(const id in byDeal){const d=dealById(id), map=d?CONFIG.revshareMap[d.code]:null;if(!map) continue;const a=agg(byDeal[id]);total+=(map.type==="revenue"?a.revenue:(a.grossMargin-a.platformFee))*(map.pct/100);any=true;}return any?total:null;}
+function kpiValue(chan,rows){if(!rows||!rows.length) return null;const a=agg(rows);if(chan.kpi==="cpm"){const q=safeDiv(a.dspSpend,a.dspImpressions);return q==null?null:q*1000;}if(chan.kpi==="cpcv") return safeDiv(a.dspSpend,a.completedViews);if(chan.kpi==="cpa")  return safeDiv(a.dspSpend,a.conversions);if(chan.kpi==="ctr")  return safeDiv(a.clicks,a.dspImpressions);return null;}
+function kpiParts(chan,rows){const a=agg(rows);if(chan.kpi==="cpm")  return {n:a.dspSpend,d:a.dspImpressions,mult:1000,dLabel:"Cumulative impressions"};if(chan.kpi==="cpcv") return {n:a.dspSpend,d:a.completedViews,mult:1,dLabel:"Cumulative completed views"};if(chan.kpi==="cpa")  return {n:a.dspSpend,d:a.conversions,mult:1,dLabel:"Cumulative conversions"};return {n:a.clicks,d:a.dspImpressions,mult:1,dLabel:"Cumulative impressions"};}
+function tier(chan,v){if(v==null||chan.target==null||chan.yellow==null) return null;if(chan.lowerIsBetter) return v<=chan.target?"green":(v<=chan.yellow?"yellow":"red");return v>=chan.target?"green":(v>=chan.yellow?"yellow":"red");}
+const tierColor=t=>t==="green"?"var(--tier-green)":t==="yellow"?"var(--tier-yellow)":t==="red"?"var(--tier-red)":"#c7ced8";
+const tierName=t=>t==="green"?"ON GOAL":t==="yellow"?"NEEDS ATTENTION":t==="red"?"OFF GOAL":"Awaiting data";
+const tierWord=t=>t?t.charAt(0).toUpperCase()+t.slice(1):"";
+function kpiFmt(chan,v){if(v==null) return NA;if(chan.unit==="$") return usd(v,chan.decimals);if(chan.unit==="%") return pctf(v,chan.decimals);return v.toFixed(chan.decimals);}
+const goalText=c=>c.target==null?"goal TBD":"goal "+kpiFmt(c,c.target);
+function deltaWindows(){if(!STATE.end) return null;const end=parseISO(STATE.end), start=parseISO(STATE.start||STATE.end);const span=Math.min(7,Math.round((end-start)/86400000)+1);const cs=new Date(end); cs.setDate(cs.getDate()-(span-1));const pe=new Date(cs);  pe.setDate(pe.getDate()-1);const ps=new Date(pe);  ps.setDate(ps.getDate()-(span-1));return {curStart:iso(cs),curEnd:iso(end),priorStart:iso(ps),priorEnd:iso(pe),days:span};}
+function deltaOn(rows,fn,goodUp){const w=deltaWindows();if(!w||!rows.length) return {html:DASH,cls:"flat",raw:null};const cur=fn(rows.filter(r=>r.date>=w.curStart&&r.date<=w.curEnd));const pri=fn(rows.filter(r=>r.date>=w.priorStart&&r.date<=w.priorEnd));if(cur==null||pri==null||pri===0) return {html:DASH,cls:"flat",raw:null};const ch=(cur-pri)/Math.abs(pri), up=ch>=0;return {html:(up?"\u25B2 ":"\u25BC ")+Math.abs(ch*100).toFixed(1)+"%",cls:(up===goodUp)?"up":"down",raw:ch};}
+function deltaTd(d){if(!d||d.raw==null) return DASH;const c=d.cls=="up"?"var(--tier-green)":d.cls=="down"?"var(--tier-red)":"var(--text-secondary)";return '<span class="delta" style="color:'+c+'">'+d.html+'</span>';}
+function sparkline(fn){const w=deltaWindows();if(!w||!hasData()) return '<svg width="120" height="22" viewBox="0 0 120 22"></svg>';const rows=scopedRows(), pts=[]; let d=parseISO(w.curStart);while(iso(d)<=w.curEnd){const day=iso(d);const v=fn(rows.filter(r=>r.date===day));pts.push(v==null?0:v);d.setDate(d.getDate()+1);}const mx=Math.max.apply(null,pts.concat([1])), mn=Math.min.apply(null,pts.concat([0]));const W=120,H=22,P=3;const xy=pts.map((v,i)=>[P+i*(W-2*P)/Math.max(1,pts.length-1),H-P-((v-mn)/((mx-mn)||1))*(H-2*P)]);let dd="";xy.forEach((p,i)=>{if(i===0){dd="M"+p[0]+","+p[1];}else{const q=xy[i-1],cx=(q[0]+p[0])/2;dd+=" C"+cx+","+q[1]+" "+cx+","+p[1]+" "+p[0]+","+p[1];}});return '<svg width="120" height="22" viewBox="0 0 120 22"><path d="'+dd+'" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6"/>'+xy.map(p=>'<circle cx="'+p[0]+'" cy="'+p[1]+'" r="1.4" fill="#fff" fill-opacity=".7"/>').join("")+'</svg>';}
+function renderHeader(){$("#hFacts").textContent=[CONFIG.client,CONFIG.accountCode,CONFIG.channels.map(c=>c.name).join(" + "),CONFIG.sspLabel+" \u2192 "+CONFIG.dspLabel,CONFIG.geo].join(" \u00B7 ");$("#stampThrough").innerHTML=CONFIG.dataThrough?pretty(CONFIG.dataThrough):'<span class="pending">awaiting first ingest</span>';$("#stampFlight").innerHTML=CONFIG.flightStart?(CONFIG.flightEnd?prettyRange(CONFIG.flightStart,CONFIG.flightEnd):pretty(CONFIG.flightStart)+" \u2013 ongoing"):'<span class="pending">TBD</span>';$("#stampRefresh").innerHTML=CONFIG.lastRefreshed?CONFIG.lastRefreshed:'<span class="pending">never</span>';$("#noteKpi").innerHTML="<b>Performance:</b> "+CONFIG.channels.map(c=>c.name+" \u2014 "+c.kpiLabel+" at "+(c.target==null?"target TBD":kpiFmt(c,c.target))+(c.lowerIsBetter?" (lower is better)":"")).join(" \u00B7 ");$("#notePoc").innerHTML="<b>POC:</b> "+esc(CONFIG.poc);const w=deltaWindows();$("#heroCaption").textContent=(w&&hasData())?"Sparkline + \u0394: last "+w.days+" days ("+md(w.curStart)+"\u2013"+md(w.curEnd)+") vs. prior "+w.days+" ("+md(w.priorStart)+"\u2013"+md(w.priorEnd)+")":"Sparkline + \u0394: trailing 7 days vs. the prior 7 \u2014 populates on the first data load";}
+function heroCard(value,label,tierT,spark,delta){const dot=(tierT!==undefined)?'<span class="dot" style="background:'+tierColor(tierT)+'" title="'+tierName(tierT)+'"></span>':'';return '<div class="hcard"><div class="val">'+value+dot+'</div><div class="lab">'+label+'</div>'+(CONFIG.showDeltas?'<div class="trendrow">'+spark+'<span class="delta '+delta.cls+'">'+delta.html+'</span></div>':'')+'</div>';}
+function rangeLabel(){const s=dataSpan();if(!STATE.start||!STATE.end) return "";if(s.start===STATE.start&&s.end===STATE.end) return "";return " ("+md(STATE.start)+"\u2013"+md(STATE.end)+")";}
+function renderHero(){const rows=scopedRows(), a=agg(rows), L=rangeLabel(), out=[];out.push(heroCard(hasData()?usd(a.revenue):NA,"Revenue"+L,undefined,sparkline(rs=>agg(rs).revenue),deltaOn(rows,rs=>agg(rs).revenue,true)));const tm=nwmMargin(rows);out.push(heroCard(tm==null?NA:usd(tm),"Total Margin"+L,undefined,sparkline(rs=>nwmMargin(rs)),deltaOn(rows,rs=>nwmMargin(rs),true)));out.push(heroCard(hasData()?usd(a.dspSpend):NA,"Total DSP Spend"+L,undefined,sparkline(rs=>agg(rs).dspSpend),deltaOn(rows,rs=>agg(rs).dspSpend,true)));out.push(heroCard(hasData()?num(a.sspImpressions):NA,"Total SSP Impressions"+L,undefined,sparkline(rs=>agg(rs).sspImpressions),deltaOn(rows,rs=>agg(rs).sspImpressions,true)));CONFIG.channels.forEach(c=>{const pick=rs=>rs.filter(r=>{const d=dealById(r.dealId);return d&&d.channel===c.id;});const cr=pick(rows), v=kpiValue(c,cr);out.push(heroCard(kpiFmt(c,v),c.name+" "+c.kpiLabel+L,tier(c,v),sparkline(rs=>kpiValue(c,pick(rs))),deltaOn(cr,rs=>kpiValue(c,rs),!c.lowerIsBetter)));});$("#hero").innerHTML=out.join("");}
+function dealCols(){return ["Deal Name","Deal ID","Revenue ($)","DSP Spend","\u0394 Spend (7d)","NWM Margin ($)","DSP Impressions","SSP Impressions","DSP Clicks","DSP CTR (%)","KPI","\u0394 KPI (7d)",CONFIG.conversionEvent,"Viewability (%)"];}
+function dailyCols(){return ["Date","Revenue ($)","DSP Spend","\u0394 Spend (7d)","NWM Margin ($)","DSP Impressions","SSP Impressions","DSP Clicks","DSP CTR (%)","KPI","\u0394 KPI (7d)",CONFIG.conversionEvent,"Viewability (%)"];}
+function metricCells(chan,rows,deltaRows){const a=agg(rows), tm=nwmMargin(rows), v=kpiValue(chan,rows), t=tier(chan,v);const dS=CONFIG.showDeltas?deltaOn(deltaRows,rs=>agg(rs).dspSpend,true):null;const dK=CONFIG.showDeltas?deltaOn(deltaRows,rs=>kpiValue(chan,rs),!chan.lowerIsBetter):null;const has=rows.length>0;return [has?usd(a.revenue):NA,has?usd(a.dspSpend):NA,deltaTd(dS),tm==null?DASH:usd(tm),has?num(a.dspImpressions):NA,has?num(a.sspImpressions):NA,has?num(a.clicks):NA,has?pctf(safeDiv(a.clicks,a.dspImpressions)):NA,kpiFmt(chan,v)+'<span class="tierdot" style="background:'+tierColor(t)+'" title="'+tierName(t)+'"></span>',deltaTd(dK),has?num(a.conversions):NA,has?pctf(safeDiv(a.viewableImpressions,a.dspImpressions),1):NA];}
+function renderTracking(){const rows=scopedRows();const html=CONFIG.channels.map(c=>{const deals=CONFIG.deals.filter(d=>d.channel===c.id&&STATE.deals.indexOf(d.id)>=0);const cr=rows.filter(r=>{const d=dealById(r.dealId);return d&&d.channel===c.id;});const cols=STATE.dim==="deal"?dealCols():dailyCols();let inner;if(!hasData()){inner='<div class="empty">No data ingested yet &mdash; this table populates on the first refresh. Columns, ordering, tier dots and the Total row are already wired; metrics render N/A rather than 0 until a delivered file backs them.</div>';}else{let body="";if(STATE.dim==="deal"){body=deals.map(d=>{const dr=cr.filter(r=>r.dealId===d.id);return "<tr><td class='l dealcell'><div class='sn'>"+esc(d.short)+"</div><div class='fn'>"+esc(d.full)+"</div></td>"+"<td class='l'>"+esc(d.id)+"</td>"+metricCells(c,dr,dr).map(x=>"<td>"+x+"</td>").join("")+"</tr>";}).join("");body+="<tr class='total'><td class='l'>Total \u2014 "+esc(c.name)+"</td><td class='l'>"+deals.length+" deals</td>"+metricCells(c,cr,cr).map(x=>"<td>"+x+"</td>").join("")+"</tr>";}else{const days=cr.map(r=>r.date).filter((v,i,s)=>s.indexOf(v)===i).sort();body=days.map(day=>{const dr=cr.filter(r=>r.date===day);return "<tr><td class='l'>"+mdy(day)+"</td>"+metricCells(c,dr,dr).map(x=>"<td>"+x+"</td>").join("")+"</tr>";}).join("");body+="<tr class='total'><td class='l'>Total \u2014 "+esc(c.name)+"</td>"+metricCells(c,cr,cr).map(x=>"<td>"+x+"</td>").join("")+"</tr>";}inner="<div class='tblwrap'><table><thead><tr>"+cols.map((h,i)=>"<th"+(i===0||(STATE.dim==="deal"&&i===1)?" class='l'":"")+">"+esc(h)+"</th>").join("")+"</tr></thead><tbody>"+body+"</tbody></table></div>";}return "<div class='card sect'><div class='sect-head'><div>"+"<div class='eyebrow'>Tracking</div><div class='sect-title'>"+esc(c.name)+"</div>"+"<div class='chnote'>KPI: "+esc(c.kpiLabel)+" \u00B7 "+goalText(c)+"</div>"+"</div><button class='btn btn-sm' data-noprint onclick=\"exportCsv('"+c.id+"')\">Export Excel</button></div>"+inner+unallocatedBlock(c)+"</div>";}).join("");$("#tracking").innerHTML=html;}
+function unallocatedBlock(c){const rows=UNALLOCATED.filter(u=>u.channel===c.id);if(!rows.length) return "";const total=rows.reduce((s,u)=>s+(u.conversions||0),0);return "<div class='chnote' style='margin-top:8px'>Unallocated (ad group\u2013attributed): "+num(total)+" "+esc(CONFIG.conversionEvent).toLowerCase()+" reported against an ad group rather than a deal. Included in channel and campaign totals; deal-only columns show \u2014.</div>";}
+function weekStart(d){const x=new Date(d);const w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return x;}
+function weekBuckets(){if(!STATE.start||!STATE.end) return [];const out=[]; let cur=weekStart(parseISO(STATE.start));const end=parseISO(STATE.end);while(cur<=end){const ws=new Date(cur), we=new Date(cur); we.setDate(we.getDate()+6);const s=iso(ws)<STATE.start?STATE.start:iso(ws);const e=iso(we)>STATE.end?STATE.end:iso(we);out.push({label:md(s)+"\u2013"+md(e),start:s,end:e,partial:(iso(ws)<STATE.start||iso(we)>STATE.end)});cur.setDate(cur.getDate()+7);}return out;}
+function renderWow(){const chan=CONFIG.channels;const head=["Week","DSP Spend","WoW Spend \u0394","DSP Impressions"].concat([].concat.apply([],chan.map(c=>[c.name+" "+c.kpiLabel,c.name+" WoW \u0394"]))).concat(["Clicks","CTR",CONFIG.conversionEvent,"CPA"]);if(!hasData()){$("#wowTable").innerHTML='<div class="empty">Week buckets build from the selected date range once data is ingested. Partial weeks will be labeled "(partial)".</div>';$("#weeklySpend").innerHTML='<div class="empty">Weekly spend chart \u2014 awaiting first data load.</div>';return;}const rows=scopedRows(), wks=weekBuckets(); let prevSpend=null, body="";wks.forEach(w=>{const wr=rows.filter(r=>r.date>=w.start&&r.date<=w.end), a=agg(wr);let d=DASH;if(prevSpend!=null&&prevSpend!==0){const ch=(a.dspSpend-prevSpend)/Math.abs(prevSpend), up=ch>=0;d='<span class="delta" style="color:'+(up?"var(--tier-green)":"var(--tier-red)")+'">'+(up?"\u25B2 ":"\u25BC ")+Math.abs(ch*100).toFixed(1)+"%</span>";}prevSpend=a.dspSpend;const cells=[usd(a.dspSpend),d,num(a.dspImpressions)];chan.forEach(c=>{const cr=wr.filter(r=>{const dd=dealById(r.dealId);return dd&&dd.channel===c.id;});const v=kpiValue(c,cr), t=tier(c,v);cells.push(kpiFmt(c,v)+'<span class="tierdot" style="background:'+tierColor(t)+'" title="'+tierName(t)+'"></span>');cells.push(DASH);});cells.push(num(a.clicks),pctf(safeDiv(a.clicks,a.dspImpressions)),num(a.conversions),usd(safeDiv(a.dspSpend,a.conversions)));body+="<tr><td class='l'>"+w.label+(w.partial?" (partial)":"")+"</td>"+cells.map(x=>"<td>"+x+"</td>").join("")+"</tr>";});const a=agg(rows), tc=[usd(a.dspSpend),DASH,num(a.dspImpressions)];chan.forEach(c=>{const cr=rows.filter(r=>{const dd=dealById(r.dealId);return dd&&dd.channel===c.id;});const v=kpiValue(c,cr),t=tier(c,v);tc.push(kpiFmt(c,v)+'<span class="tierdot" style="background:'+tierColor(t)+'"></span>');tc.push(DASH);});tc.push(num(a.clicks),pctf(safeDiv(a.clicks,a.dspImpressions)),num(a.conversions),usd(safeDiv(a.dspSpend,a.conversions)));body+="<tr class='total'><td class='l'>Total</td>"+tc.map(x=>"<td>"+x+"</td>").join("")+"</tr>";$("#wowTable").innerHTML="<div class='tblwrap'><table><thead><tr>"+head.map((h,i)=>"<th"+(i===0?" class='l'":"")+">"+esc(h)+"</th>").join("")+"</tr></thead><tbody>"+body+"</tbody></table></div>";renderWeeklySpend(wks,rows);}
+function renderDiag(){const u=CONFIG.unmapped;let s;if(!u){s="<b>Unmapped diagnostic.</b> No ingest has run yet, so there is nothing to reconcile. On the first refresh this strip reports the real count of SSP and DSP rows that failed to join (and how each was resolved) \u2014 it is never hardcoded to zero. Deals in scope with no rows in either source are listed here rather than silently dropped.";}else{s="<b>Unmapped diagnostic.</b> SSP rows unmatched: "+num(u.sspRows)+" \u00B7 DSP rows unmatched: "+num(u.dspRows)+(u.notes&&u.notes.length?"<br>"+u.notes.map(esc).join("<br>"):"");}$("#diag").innerHTML=s;}
+function csvEsc(v){const s=String(v==null?"":v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function exportCsv(which){const scope=[["Campaign",CONFIG.campaign],["Account code",CONFIG.accountCode],["View",which==="wow"?"Week over Week":(STATE.dim==="deal"?"By Deal":"Daily")],["Channel",which==="wow"?"all":which],["Date range",(STATE.start||"n/a")+" to "+(STATE.end||"n/a")],["Deal filter",STATE.deals.length===CONFIG.deals.length?"all":STATE.deals.join(" + ")],["Delta window",(function(){const w=deltaWindows();return w?w.curStart+" to "+w.curEnd+" vs "+w.priorStart+" to "+w.priorEnd:"n/a";})()],["Exported",new Date().toISOString()]];let out=scope.map(r=>r.map(csvEsc).join(",")).join("\n")+"\n\n";if(!hasData()){out+="No data ingested yet. This export carries the Scope block only; rows appear after the first refresh.\n";}else if(which==="wow"){out+=["Week","Partial","DSP Spend","DSP Impressions","Clicks","Conversions"].join(",")+"\n";weekBuckets().forEach(w=>{const a=agg(scopedRows().filter(r=>r.date>=w.start&&r.date<=w.end));out+=[w.label,w.partial,a.dspSpend,a.dspImpressions,a.clicks,a.conversions].map(csvEsc).join(",")+"\n";});}else{const c=CONFIG.channels.filter(x=>x.id===which)[0];out+=["Deal Name","Deal ID","Revenue","DSP Spend","Gross Margin","Platform Fee","Net Margin","Attribution Code","Revshare %","NWM Margin","DSP Impressions","SSP Impressions","Clicks","CTR","KPI","KPI Tier",CONFIG.conversionEvent,"Viewability"].join(",")+"\n";CONFIG.deals.filter(d=>d.channel===c.id&&STATE.deals.indexOf(d.id)>=0).forEach(d=>{const dr=scopedRows().filter(r=>r.dealId===d.id), a=agg(dr);const map=CONFIG.revshareMap[d.code], net=a.grossMargin-a.platformFee;const tm=map?((map.type==="revenue"?a.revenue:net)*(map.pct/100)):"";const v=kpiValue(c,dr);out+=[d.full,d.id,a.revenue,a.dspSpend,a.grossMargin,a.platformFee,net,d.code,map?map.pct/100:"",tm,a.dspImpressions,a.sspImpressions,a.clicks,safeDiv(a.clicks,a.dspImpressions),v==null?"":v,tierWord(tier(c,v)),a.conversions,safeDiv(a.viewableImpressions,a.dspImpressions)].map(csvEsc).join(",")+"\n";});}const name=[CONFIG.accountCode,which,(which==="wow"?"weekly":STATE.dim),(STATE.start||"na"),"to",(STATE.end||"na")].join("_")+".csv";const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out],{type:"text/csv"}));a.download=name; document.body.appendChild(a); a.click(); a.remove();}
+function renderCharts(){$("#charts").innerHTML=CONFIG.channels.map(c=>{const legend='<div class="legend"><span><span class="sw"></span>Cumulative '+esc(c.kpiLabel)+'</span>'+'<span><span class="sw bar"></span>Single-day '+esc(c.kpiLabel)+'</span>'+'<span><span class="sw goal"></span>Goal '+(c.target==null?"TBD":kpiFmt(c,c.target))+'</span>'+'<span style="margin-left:auto">Units: '+(c.unit==="$"?"USD":"ratio")+' \u00B7 '+(STATE.start&&STATE.end?md(STATE.start)+"\u2013"+md(STATE.end):"range TBD")+'</span></div>';return '<div class="chartbox"><div class="chnote" style="font-weight:600;color:var(--text-primary)">'+esc(c.name)+' \u2014 cumulative '+esc(c.kpiLabel)+'</div>'+legend+'<div class="plot" id="plot-'+c.id+'"></div></div>';}).join("");CONFIG.channels.forEach(c=>drawCumulative(c));}
+function drawCumulative(c){const host=document.getElementById("plot-"+c.id);const rows=scopedRows().filter(r=>{const d=dealById(r.dealId);return d&&d.channel===c.id;});if(!rows.length){host.innerHTML='<div class="empty">Cumulative '+esc(c.kpiLabel)+' \u2014 awaiting first data load. Once ingested this plot draws the cumulative line, single-day bars, the dashed goal line and per-day hover crosshair with a tooltip.</div>';return;}const days=rows.map(r=>r.date).filter((v,i,s)=>s.indexOf(v)===i).sort();const W=760,H=260,ML=56,MR=16,MT=14,MB=34, pw=W-ML-MR, ph=H-MT-MB;let cn=0,cd=0,cs=0; const series=days.map(day=>{const dr=rows.filter(r=>r.date===day), p=kpiParts(c,dr), a=agg(dr);cn+=p.n; cd+=p.d; cs+=a.dspSpend;const daily=p.d?p.n/p.d*p.mult:null;const cum=cd?cn/cd*p.mult:null;return {day,daily,cum,spend:a.dspSpend,cumSpend:cs,cumDen:cd};});const vals=[].concat(series.map(s=>s.daily),series.map(s=>s.cum),[c.target]).filter(v=>v!=null&&isFinite(v));const mx=Math.max.apply(null,vals)*1.15||1;const x=i=>ML+(series.length===1?pw/2:i*pw/(series.length-1));const y=v=>MT+ph-(v/mx)*ph;const bw=Math.max(2,pw/series.length*0.6);let svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:260px">';for(let g=0;g<=4;g++){const gy=MT+ph*g/4;svg+='<line x1="'+ML+'" y1="'+gy+'" x2="'+(W-MR)+'" y2="'+gy+'" stroke="#eef2f7"/>';}series.forEach((s,i)=>{ if(s.daily==null) return;svg+='<rect class="dbar" data-i="'+i+'" x="'+(x(i)-bw/2)+'" y="'+y(s.daily)+'" width="'+bw+'" height="'+(MT+ph-y(s.daily))+'" fill="var(--accent-1)" opacity=".32"/>';});if(c.target!=null) svg+='<line x1="'+ML+'" y1="'+y(c.target)+'" x2="'+(W-MR)+'" y2="'+y(c.target)+'" stroke="var(--tier-red)" stroke-width="1.5" stroke-dasharray="5 4"/>';const pts=series.filter(s=>s.cum!=null);if(pts.length) svg+='<path d="'+pts.map((s,i)=>(i?"L":"M")+x(series.indexOf(s))+","+y(s.cum)).join(" ")+'" fill="none" stroke="var(--navy-700)" stroke-width="2.5"/>';const last=pts[pts.length-1];svg+='<line id="cross-'+c.id+'" x1="0" y1="'+MT+'" x2="0" y2="'+(MT+ph)+'" stroke="var(--navy-700)" stroke-dasharray="4 3" opacity="0" />';series.forEach((s,i)=>{ const hw=pw/series.length;svg+='<rect class="hz" data-i="'+i+'" x="'+(x(i)-hw/2)+'" y="'+MT+'" width="'+hw+'" height="'+ph+'" fill="transparent" style="cursor:crosshair"/>';});svg+='</svg>';host.innerHTML=svg+'<div class="tip" id="tip-'+c.id+'"></div>';if(last){const ep=document.createElement("div");ep.className="epdot";ep.style.background=tierColor(tier(c,last.cum));ep.style.left=(x(series.indexOf(last))/W*100)+"%";ep.style.top=(y(last.cum)/H*100)+"%";host.appendChild(ep);}const hc=document.createElement("div");hc.className="hdot";hc.style.width="8px";hc.style.height="8px";hc.style.background="var(--navy-700)";host.appendChild(hc);const hd=document.createElement("div");hd.className="hdot";hd.style.width="7px";hd.style.height="7px";hd.style.background="var(--accent-1)";host.appendChild(hd);const addOvl=(txt,left,top,extra)=>{const d=document.createElement("div");d.className="ovl";d.textContent=txt;d.style.left=left;d.style.top=top;if(extra)d.setAttribute("style",d.getAttribute("style")+";"+extra);host.appendChild(d);};for(let g=0;g<=4;g++){const v=mx*(1-g/4);addOvl(c.unit==="$"?usd(v,c.decimals):pctf(v,c.decimals),"2px","calc("+((MT+ph*g/4)/H*100)+"% - 7px)");}addOvl(mdy(days[0]).slice(0,5),(ML/W*100)+"%","calc(100% - 16px)");addOvl(mdy(days[days.length-1]).slice(0,5),"calc("+((W-MR)/W*100)+"% - 34px)","calc(100% - 16px)");const tip=document.getElementById("tip-"+c.id);const cross=document.getElementById("cross-"+c.id);host.querySelectorAll(".hz").forEach(z=>{z.addEventListener("mousemove",ev=>{const i=+z.dataset.i, s=series[i];cross.setAttribute("x1",x(i));cross.setAttribute("x2",x(i));cross.setAttribute("opacity","1");host.querySelectorAll(".dbar").forEach(b=>b.setAttribute("opacity",+b.dataset.i===i?".85":".32"));if(s.cum!=null){hc.style.left=(x(i)/W*100)+"%";hc.style.top=(y(s.cum)/H*100)+"%";hc.style.display="block";}if(s.daily!=null){hd.style.left=(x(i)/W*100)+"%";hd.style.top=(y(s.daily)/H*100)+"%";hd.style.display="block";}const vs=(c.target==null||s.cum==null)?DASH:((s.cum-c.target)>=0?"+":"")+kpiFmt(c,s.cum-c.target);tip.innerHTML="<b>"+mdy(s.day)+"</b>"+"<div class='r'><span>Day "+esc(c.kpiLabel)+"</span><span>"+kpiFmt(c,s.daily)+"</span></div>"+"<div class='r'><span>Day spend</span><span>"+usd(s.spend)+"</span></div>"+"<div class='r'><span>Cumulative "+esc(c.kpiLabel)+"</span><span>"+kpiFmt(c,s.cum)+"</span></div>"+"<div class='r'><span>Cumulative spend</span><span>"+usd(s.cumSpend)+"</span></div>"+"<div class='r'><span>"+esc(kpiParts(c,[]).dLabel)+"</span><span>"+num(s.cumDen)+"</span></div>"+"<div class='r'><span>vs. goal</span><span>"+vs+"</span></div>";tip.style.display="block";const rect=host.getBoundingClientRect();let lx=ev.clientX-rect.left+14; if(lx>rect.width-200) lx=lx-220;tip.style.left=lx+"px"; tip.style.top=Math.max(4,ev.clientY-rect.top-40)+"px";});z.addEventListener("mouseleave",()=>{tip.style.display="none";cross.setAttribute("opacity","0");hc.style.display="none";hd.style.display="none";host.querySelectorAll(".dbar").forEach(b=>b.setAttribute("opacity",".32"));});});}
+function renderWeeklySpend(wks,rows){const host=$("#weeklySpend");const data=wks.map(w=>({label:w.label,partial:w.partial,v:agg(rows.filter(r=>r.date>=w.start&&r.date<=w.end)).dspSpend}));if(!data.length){host.innerHTML='<div class="empty">Weekly spend chart \u2014 awaiting first data load.</div>';return;}const W=900,H=220,ML=50,MR=14,MT=26,MB=30,pw=W-ML-MR,ph=H-MT-MB;const mx=Math.max.apply(null,data.map(d=>d.v).concat([1]))*1.2;const bw=Math.min(64,pw/data.length*0.6);let svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="height:220px">';data.forEach((d,i)=>{const cx=ML+(i+0.5)*pw/data.length, h=(d.v/mx)*ph;svg+='<rect x="'+(cx-bw/2)+'" y="'+(MT+ph-h)+'" width="'+bw+'" height="'+h+'" fill="var(--accent-1)" opacity="'+(d.partial?".45":".9")+'" rx="3"/>';});svg+='<line x1="'+ML+'" y1="'+(MT+ph)+'" x2="'+(W-MR)+'" y2="'+(MT+ph)+'" stroke="var(--divider)"/></svg>';host.innerHTML='<div class="chnote" style="font-weight:600;color:var(--text-primary)">Weekly DSP spend</div>'+'<div class="plot">'+svg+'</div>'+'<div class="chnote">Bars at reduced opacity are partial weeks &mdash; they cover only the in-range days, so they are not comparable to full weeks.</div>';const plot=host.querySelector(".plot");data.forEach((d,i)=>{const cx=ML+(i+0.5)*pw/data.length, h=(d.v/mx)*ph;const lab=document.createElement("div");lab.className="ovl";lab.textContent=usd(d.v,0);lab.style.left="calc("+(cx/W*100)+"% - 28px)";lab.style.top=((MT+ph-h-16)/H*100)+"%";lab.style.width="56px";lab.style.textAlign="center";plot.appendChild(lab);const xl=document.createElement("div");xl.className="ovl";xl.textContent=d.label+(d.partial?" (p)":"");xl.style.left="calc("+(cx/W*100)+"% - 40px)";xl.style.top="calc(100% - 16px)";xl.style.width="80px";xl.style.textAlign="center";plot.appendChild(xl);});}
+const DRAFT={start:STATE.start,end:STATE.end,anchor:null};
+let calMonth=(function(){const s=dataSpan().start;return s?parseISO(s):new Date();})();
+calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth(),1);
+function presets(){const span=dataSpan();const ref=span.end?parseISO(span.end):new Date();const mk=(a,b)=>({s:iso(a),e:iso(b)});const d=n=>{const x=new Date(ref);x.setDate(x.getDate()-n);return x;};const y=new Date(ref); y.setDate(y.getDate()-1);const ws=(function(){const x=new Date(ref);x.setDate(x.getDate()-((x.getDay()+6)%7));return x;})();const lws=new Date(ws); lws.setDate(lws.getDate()-7);const lwe=new Date(ws); lwe.setDate(lwe.getDate()-1);const ms=new Date(ref.getFullYear(),ref.getMonth(),1);const lms=new Date(ref.getFullYear(),ref.getMonth()-1,1), lme=new Date(ref.getFullYear(),ref.getMonth(),0);const q=Math.floor(ref.getMonth()/3), qs=new Date(ref.getFullYear(),q*3,1);const lqs=new Date(ref.getFullYear(),q*3-3,1), lqe=new Date(ref.getFullYear(),q*3,0);const ys=new Date(ref.getFullYear(),0,1);const lys=new Date(ref.getFullYear()-1,0,1), lye=new Date(ref.getFullYear()-1,11,31);return [["Entire flight", span.start&&span.end?{s:span.start,e:span.end}:null],["Yesterday",mk(y,y)],["Previous 7 days",mk(d(6),ref)],["Previous 30 days",mk(d(29),ref)],["Previous 90 days",mk(d(89),ref)],["This week",mk(ws,ref)],["Last week",mk(lws,lwe)],["This month",mk(ms,ref)],["Last month",mk(lms,lme)],["This quarter",mk(qs,ref)],["Last quarter",mk(lqs,lqe)],["This year",mk(ys,ref)],["Last year",mk(lys,lye)]];}
+function clamp(p){const span=dataSpan();if(!p||!span.start||!span.end) return null;const s=p.s<span.start?span.start:p.s, e=p.e>span.end?span.end:p.e;if(s>span.end||e<span.start||s>e) return null;return {s:s,e:e};}
+function renderRail(){const ps=presets();$("#presetRail").innerHTML=ps.map((p,i)=>{const c=clamp(p[1]);const isActive=c&&DRAFT.start===c.s&&DRAFT.end===c.e;return '<button type="button" data-p="'+i+'"'+(c?"":" disabled")+(isActive?' class="active"':'')+'>'+p[0]+'</button>';}).join("");$("#presetRail").querySelectorAll("button").forEach(b=>{if(b.disabled) return;b.onclick=()=>{const c=clamp(ps[+b.dataset.p][1]); if(!c) return;DRAFT.start=c.s;DRAFT.end=c.e;DRAFT.anchor=null;calMonth=new Date(parseISO(c.s).getFullYear(),parseISO(c.s).getMonth(),1);renderCal();};});}
+function monthGrid(base){const span=dataSpan();const first=new Date(base.getFullYear(),base.getMonth(),1);const off=(first.getDay()+6)%7, dim=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();let h='<div class="dpop-month"><div class="dpop-mtitle">'+first.toLocaleDateString("en-US",{month:"long",year:"numeric"})+'</div><div class="dpop-grid">';["M","T","W","T","F","S","S"].forEach(w=>{h+='<div class="dpop-wd">'+w+'</div>';});for(let i=0;i<off;i++) h+='<div></div>';for(let dnum=1;dnum<=dim;dnum++){const ds=iso(new Date(base.getFullYear(),base.getMonth(),dnum));const out=!span.start||!span.end||ds<span.start||ds>span.end;let cls="dpop-day";if(!out){if(ds===DRAFT.start||ds===DRAFT.end) cls+=" endpoint";else if(DRAFT.start&&DRAFT.end&&ds>DRAFT.start&&ds<DRAFT.end) cls+=" inrange";}else{cls+=" out";}h+='<button type="button" class="'+cls+'" data-d="'+ds+'"'+(out?" disabled":"")+'>'+dnum+'</button>';}return h+'</div></div>';}
+function renderCal(){const nxt=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);$("#dpopMonths").innerHTML=monthGrid(calMonth)+monthGrid(nxt);$("#draftStart").value=DRAFT.start?mdy(DRAFT.start):"";$("#draftEnd").value=DRAFT.end?mdy(DRAFT.end):"";$("#dpopMonths").querySelectorAll(".dpop-day").forEach(b=>{if(b.disabled) return;b.onclick=()=>{const ds=b.dataset.d;if(!DRAFT.start||DRAFT.anchor==="done"||(DRAFT.start&&DRAFT.end)){DRAFT.start=ds;DRAFT.end=null;DRAFT.anchor="open";}else if(ds<DRAFT.start){DRAFT.start=ds;}else {DRAFT.end=ds;DRAFT.anchor="done";}renderCal();};});renderRail();}
+function syncDateTrigger(){$("#dateTriggerLabel").textContent=(STATE.start&&STATE.end)?prettyRange(STATE.start,STATE.end):"No data loaded";}
+function initDate(){$("#dateTrigger").onclick=e=>{e.stopPropagation();const p=$("#datePop"); const open=p.classList.contains("open");closeAll(); if(!open){DRAFT.start=STATE.start;DRAFT.end=STATE.end;DRAFT.anchor=null;renderCal();p.classList.add("open");}};$("#datePop").onclick=e=>e.stopPropagation();$("#dateCancel").onclick=()=>{DRAFT.start=STATE.start;DRAFT.end=STATE.end;$("#datePop").classList.remove("open");};$("#dateApply").onclick=()=>{let s=DRAFT.start,e=DRAFT.end||DRAFT.start;if(s&&e){ if(s>e){const t=s;s=e;e=t;} STATE.start=s;STATE.end=e;}$("#datePop").classList.remove("open"); renderAll();};document.querySelectorAll(".dpop-nav button").forEach(b=>{b.onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+ +b.dataset.nav,1);renderCal();};});$("#draftStart").addEventListener("change",function(){const v=this.value.trim();if(v){const d=parseMDY(v); if(d){DRAFT.start=iso(d);renderCal();}}});$("#draftEnd").addEventListener("change",function(){const v=this.value.trim();if(v){const d=parseMDY(v); if(d){DRAFT.end=iso(d);renderCal();}}});renderCal();}
+function parseMDY(s){const p=s.split("/");if(p.length!==3)return null;const m=parseInt(p[0])-1,d=parseInt(p[1]),y=parseInt(p[2]);if(isNaN(m)||isNaN(d)||isNaN(y))return null;return new Date(y,m,d);}
+let DEAL_DRAFT=STATE.deals.slice();
+function renderDealList(){$("#dealCount").textContent=DEAL_DRAFT.length+" of "+CONFIG.deals.length+" selected";$("#dealList").innerHTML=CONFIG.deals.map(d=>{const on=DEAL_DRAFT.indexOf(d.id)>=0;return '<label class="dealitem'+(on?" on":"")+'"><input type="checkbox" data-id="'+d.id+'"'+(on?" checked":"")+'>'+'<span><span class="sn">'+esc(d.short)+'</span><div class="fn">'+esc(d.full)+'</div></span></label>';}).join("");$("#dealList").querySelectorAll("input").forEach(cb=>{cb.onchange=()=>{const id=cb.dataset.id;if(cb.checked){if(DEAL_DRAFT.indexOf(id)<0)DEAL_DRAFT.push(id);}else DEAL_DRAFT=DEAL_DRAFT.filter(x=>x!==id);renderDealList();};});}
+function syncDealTrigger(){const sel=CONFIG.deals.filter(d=>STATE.deals.indexOf(d.id)>=0);$("#dealTriggerLabel").textContent=(sel.length===CONFIG.deals.length)?"All deals":(sel.length<=2?sel.map(d=>d.short).join(" + "):sel.length+" deals");$("#scopeNote").textContent="Showing: "+((sel.length===CONFIG.deals.length)?"all deals":sel.length+" of "+CONFIG.deals.length+" deals")+" \u00B7 one table per channel";}
+function initDeal(){$("#dealTrigger").onclick=e=>{e.stopPropagation();const p=$("#dealPop"); const open=p.classList.contains("open");closeAll(); if(!open){DEAL_DRAFT=STATE.deals.slice();renderDealList();p.classList.add("open");}};$("#dealPop").onclick=e=>e.stopPropagation();$("#dealAll").onclick=()=>{DEAL_DRAFT=CONFIG.deals.map(d=>d.id);renderDealList();};$("#dealClear").onclick=()=>{DEAL_DRAFT=[];renderDealList();};$("#dealCancel").onclick=()=>{$("#dealPop").classList.remove("open");};$("#dealDone").onclick=()=>{STATE.deals=DEAL_DRAFT.length?DEAL_DRAFT.slice():CONFIG.deals.map(d=>d.id);$("#dealPop").classList.remove("open"); renderAll();};}
+function closeAll(){document.querySelectorAll(".pop,.dpop").forEach(p=>p.classList.remove("open"));}
+document.addEventListener("click",closeAll);
+function renderAll(){renderHeader(); renderHero(); syncDateTrigger(); syncDealTrigger();renderTracking(); renderCharts(); renderWow(); renderDiag();}
+document.querySelectorAll("#dimSeg button").forEach(b=>{b.onclick=()=>{document.querySelectorAll("#dimSeg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");STATE.dim=b.dataset.dim;renderTracking();};});
+$("#hTitle").textContent=CONFIG.campaign;
+document.title=CONFIG.campaign+" | Campaign Source of Truth";
+if(DATA.sourceDetail){$("#fnSources").textContent=DATA.sourceDetail;}
+initDate(); initDeal(); renderAll();
+
+/* ---- Page switcher -------------------------------------------------------
+   Pages injects <script type="application/json" id="pages-nav"> into <head> on
+   a themed render that a partner's portal authorised, listing the dashboards
+   THEIR credential opens. It is absent on a staff view, on a page-password view,
+   and on any page that is in no portal — so this reads defensively and renders
+   nothing at all when there is no block. (An unguarded
+   JSON.parse(getElementById(...).textContent) is a TypeError that halts the rest
+   of this script, which is how a missing optional block takes a whole dashboard
+   down.)
+
+   Titles come from a SIBLING page's row, so they are set by whoever owns that
+   page: textContent only, never innerHTML. */
+(function pageSwitcher(){
+  const block = document.getElementById("pages-nav");
+  if(!block) return;
+  let nav;
+  try{ nav = JSON.parse(block.textContent); }catch(_){ return; }
+  const pages = Array.isArray(nav && nav.pages) ? nav.pages : [];
+  if(pages.length < 2) return;              // nothing to switch between
+
+  const details = document.createElement("details");
+  details.className = "pagenav";
+  const summary = document.createElement("summary");
+  summary.append(document.createTextNode("Page"));
+  const caret = document.createElement("span");
+  caret.className = "pagenav__caret";
+  caret.setAttribute("aria-hidden","true");
+  caret.textContent = "\u25be";
+  summary.append(caret);
+  details.append(summary);
+
+  /* Every string and every affordance below matches lib/render.js's built-in
+     control. A partner moving between a templated dashboard and one Pages renders
+     itself sees the same menu; two vocabularies for one thing is the mess. */
+  const portalName = (nav.portal && nav.portal.name) ? nav.portal.name : "";
+  const portalUrl = (nav.portal && nav.portal.url) ? nav.portal.url : "";
+  const menu = document.createElement("nav");
+  menu.className = "pagenav__menu";
+  menu.setAttribute("aria-label", portalName ? portalName + " dashboards" : "Your dashboards");
+  /* The head is a LINK to the portal index when the payload carries its URL.
+     The index is the one surface that always works for a partner, and the menu
+     used to name it without offering a way back. */
+  const label = document.createElement(portalUrl ? "a" : "div");
+  label.className = "pagenav__label";
+  if(portalUrl) label.href = portalUrl;
+  label.textContent = portalName || "Your dashboards";
+  menu.append(label);
+  pages.forEach(function(entry){
+    const link = document.createElement("a");
+    link.href = entry.url;                  /* ready-made and absolute: slugs nest */
+    link.textContent = entry.title || entry.slug;
+    if(entry.current) link.setAttribute("aria-current","page");
+    if(entry.home){
+      const badge = document.createElement("span");
+      badge.className = "pagenav__home";
+      badge.textContent = "Start here";     /* the same words the portal index uses */
+      link.append(badge);
+    }
+    menu.append(link);
+  });
+  if(nav.truncated){
+    /* Was "More dashboards are available from your portal link" — dead text with
+       the URL one string away in the same payload. */
+    const more = document.createElement(portalUrl ? "a" : "div");
+    more.className = "pagenav__label";
+    if(portalUrl) more.href = portalUrl;
+    more.textContent = portalUrl ? "See all in your portal" : "More are available from your portal link";
+    menu.append(more);
+  }
+  details.append(menu);
+
+  /* Click-away and Escape close it. Both are addEventListener, never an inline
+     handler: inline handlers are evaluated in a scope that does not see the
+     consts in this script. */
+  document.addEventListener("click", function(event){
+    if(details.open && !details.contains(event.target)) details.open = false;
+  });
+  details.addEventListener("keydown", function(event){
+    if(event.key === "Escape"){ details.open = false; summary.focus(); }
+  });
+
+  const row = document.querySelector(".brandrow");
+  if(row) row.append(details);
+})();
+</script>
+</body>
+</html>

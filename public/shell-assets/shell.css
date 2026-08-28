@@ -1,0 +1,1185 @@
+/* SPDX-License-Identifier: BUSL-1.1
+ * Copyright (c) 2026 ElcanoTek, Inc.
+ */
+/* Pages-owned Flag shell. All color, type, spacing, elevation, and motion values
+   come from the vendored Flag tokens. The action fill is Pages-local by design:
+   96% primary + 4% black (98% primary on hover) keeps white CTA text at AA. */
+
+:root {
+  --pages-action-fill: color-mix(in srgb, var(--color-primary) 96%, var(--color-black));
+  --pages-action-hover: color-mix(in srgb, var(--color-primary) 98%, var(--color-black));
+  --pages-danger-fill: color-mix(in srgb, var(--color-danger) 76%, var(--color-black));
+  --pages-danger-hover: color-mix(in srgb, var(--color-danger) 82%, var(--color-black));
+  /* WCAG 1.4.11 wants 3:1 for a control's boundary. --color-border-strong reaches
+     ~2:1 against our panels in the dark theme, so a control whose whole state is
+     its boundary — a checkbox — rings itself with the strongest muted tint
+     instead (7.9:1 dark, 5.1:1 light). Pages-local because Flag has no token for
+     "boundary of a control", only for the border of a surface. */
+  --pages-control-boundary: var(--color-text-muted);
+  /* Flag sizes the sticky app header in the stylesheet (.shell-header), not in a
+     token, so anything that pins beneath it or scrolls out from under it has to
+     name that height here. Same for the detail screen's own section bar, which
+     stacks below the header. Both are re-stated where the media queries change
+     the chrome's height, so the two offsets can never drift from the real one. */
+  --pages-sticky-header: 4.5rem;
+  /* Derived, not measured: padding-block twice, the link's own touch target, and
+     the bottom rule — the three things that actually draw .detail-nav. Written
+     out rather than rounded off so changing the bar's padding moves the anchor
+     offset with it; a browser assertion holds the two together. */
+  --pages-detail-nav: calc(var(--space-2) * 2 + 2rem + 1px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { min-width: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body {
+  min-width: 0;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: clip;
+  font-family: var(--font-body);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background: var(--gradient-bg-home-signature);
+  transition: color var(--transition-base), background var(--transition-base);
+}
+
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea, summary { -webkit-tap-highlight-color: transparent; }
+img, svg, iframe { max-width: 100%; }
+a { color: var(--color-accent); text-decoration-thickness: from-font; text-underline-offset: 0.15em; }
+a:hover { color: var(--color-text-primary); }
+a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+p { margin: 0; color: var(--color-text-secondary); }
+h1, h2, h3 { margin: 0; font-family: var(--font-heading); font-weight: var(--font-weight-bold); }
+h1 { font-size: var(--font-size-title); line-height: var(--line-height-title); }
+h2 { font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
+h3 { font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg); }
+code, .mono { font-family: var(--font-code); overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.muted { color: var(--color-text-muted); }
+.overline {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-overline);
+  line-height: var(--line-height-overline);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.icon-inline { width: 1rem; height: 1rem; flex: none; display: block; }
+.cluster { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.spread { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+
+/* Canonical Flag app header */
+.page-header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
+  backdrop-filter: blur(var(--space-3));
+}
+.shell-header {
+  width: min(100%, var(--container-dense));
+  min-height: 4.5rem;
+  margin-inline: auto;
+  padding: var(--space-3) var(--space-page-gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.ds-app-header__brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+.ds-app-header__brand:hover { color: var(--color-text-primary); text-decoration: none; }
+.ds-app-header__mark { width: 2.5rem; height: 2.5rem; flex: none; object-fit: contain; }
+.ds-app-header__text { min-width: 0; display: grid; }
+.ds-app-header__eyebrow {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-overline);
+  line-height: var(--line-height-overline);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ds-app-header__title { color: var(--color-text-primary); font-size: var(--font-size-subtitle); font-weight: var(--font-weight-bold); }
+.ds-app-header__actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); flex-wrap: nowrap; }
+.session-user {
+  max-width: 18rem;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-signout { min-height: 2rem; }
+
+.theme-toggle { position: relative; display: inline-grid; place-items: center; }
+.theme-toggle__icon { grid-area: 1 / 1; }
+[data-theme="dark"] .theme-toggle__icon--moon { display: none; }
+[data-theme="light"] .theme-toggle__icon--sun { display: none; }
+
+/* Page containers and hierarchy */
+.shell {
+  width: min(100%, var(--container-dense));
+  min-width: 0;
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-page-gutter) var(--space-9);
+  display: grid;
+  gap: var(--space-section-stack);
+}
+.detail-shell { gap: var(--space-5); }
+/* Every screen stacks its sections at the same rhythm. This was .detail-app,
+   and the index — the one screen that never had it — ran its heading straight
+   into the table with no gap at all, which is why its summary line sat on top
+   of the workspace rail. */
+.screen-stack { min-width: 0; display: grid; gap: var(--space-section-stack); }
+.standalone-shell {
+  width: min(100%, 30rem);
+  min-height: 100vh;
+  margin-inline: auto;
+  padding: var(--space-7) var(--space-5);
+  display: grid;
+  place-content: center;
+  gap: var(--space-5);
+}
+.standalone-brand { display: flex; align-items: center; gap: var(--space-3); }
+.standalone-brand img { width: 2.25rem; height: 2.25rem; object-fit: contain; }
+.standalone-brand > span { display: grid; }
+.standalone-card { display: grid; gap: var(--space-4); background: var(--gradient-surface-elevated); box-shadow: var(--shadow-lg); }
+.standalone-card .btn { width: fit-content; margin-block-start: var(--space-2); }
+.page-heading { display: grid; gap: var(--space-4); min-width: 0; }
+.page-heading__row { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: var(--space-5); }
+.page-heading__copy { min-width: 0; display: grid; gap: var(--space-2); }
+.page-heading__copy h1, .page-overview h1 { overflow-wrap: anywhere; }
+.page-heading__intro { max-width: 68ch; }
+.page-heading__actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+/* A summary line, not a row of cards. As cards each one sized to its own label —
+   "1 template" narrow, "8 approval gated" wide — so all three screens opened on a
+   ragged row of mismatched boxes, each drawing the same border, radius and shadow
+   as the data table beneath it. Nothing on the page could read as primary when a
+   count and a thousand-row table were framed identically.
+   Separators instead of boxes: the numbers stay scannable, the frame goes. */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0;
+  padding-block-start: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.stat {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  padding-inline: var(--space-5);
+  border-inline-start: 1px solid var(--color-border);
+}
+.stat:first-child { padding-inline-start: 0; border-inline-start: 0; }
+.stat strong { color: var(--color-text-primary); font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
+.stat span { color: var(--color-text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
+
+.panel, .card {
+  min-width: 0;
+  padding: var(--space-card-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--gradient-surface-panel);
+  box-shadow: var(--shadow-section);
+}
+.panel--elevated { background: var(--gradient-surface-elevated); box-shadow: var(--shadow-md); }
+.section-block { min-width: 0; display: grid; gap: var(--space-4); }
+.section-heading { display: grid; gap: var(--space-2); }
+.section-heading p { max-width: 70ch; }
+.section-heading--row { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+/* Every .section-heading--row is a heading and one action side. space-between
+   puts the action at the end — until the pair wraps, where a lone item on the
+   second line falls back to flex-start and the same heading pattern stops
+   reading the same way at phone widths (#209 review). margin-inline-start: auto
+   is the end-alignment that survives the wrap. */
+.section-heading--row > :last-child { margin-inline-start: auto; }
+/* Headings that are focus anchors after a rebuild removed the control that was
+   pressed (portals.js focusAfterAdd, templates.js's h2). Only ever reached
+   programmatically or by keyboard, so it must be visible when it is. */
+.section-heading [tabindex="-1"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* Controls */
+.btn, .icon-action {
+  appearance: none;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+}
+.btn {
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-caption);
+  white-space: nowrap;
+}
+.btn:hover, .icon-action:hover { border-color: var(--color-accent); background: var(--color-surface-1); transform: translateY(-1px); }
+.btn:active, .icon-action:active { transform: translateY(0); box-shadow: none; }
+.btn:focus-visible, .icon-action:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn:disabled, .icon-action:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn:disabled:hover, .icon-action:disabled:hover { border-color: var(--color-border-strong); background: var(--color-surface-2); }
+.btn-primary { color: var(--color-white); background: var(--pages-action-fill); border-color: var(--pages-action-fill); }
+.btn-primary:hover { color: var(--color-white); background: var(--pages-action-hover); border-color: var(--pages-action-hover); }
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-ghost:hover { background: var(--color-overlay-soft); }
+.btn-danger { color: var(--color-status-error-fg); border-color: var(--color-status-error-border); background: transparent; }
+.btn-danger:hover { color: var(--color-status-error-fg); background: var(--color-status-error-bg); border-color: var(--color-status-error-border); }
+.btn-danger-solid { color: var(--color-white); border-color: var(--pages-danger-fill); background: var(--pages-danger-fill); }
+.btn-danger-solid:hover { color: var(--color-white); border-color: var(--pages-danger-hover); background: var(--pages-danger-hover); }
+.btn-sm { min-height: 2rem; padding: var(--space-1) var(--space-3); font-size: var(--font-size-caption); }
+.icon-action {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.field { min-width: 0; display: grid; gap: var(--space-2); }
+.field-label { color: var(--color-text-secondary); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); }
+/* .note/.note--warning are the standalone twins of .field-help/.field-error — a
+   warning under a table row, a dialog's inline error, a line of guidance under a
+   heading. They look identical on purpose and share the declarations so they
+   cannot drift, but they stay separate names: .field-help/.field-error carry a
+   form field's meaning and belong to a field() row's help slot. */
+.field-help, .field-error, .note { color: var(--color-text-muted); font-size: var(--font-size-caption); }
+.field-error, .note--warning { color: var(--color-status-error-fg); }
+input, select, textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: var(--color-surface-2);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+textarea { resize: vertical; line-height: var(--line-height-body); }
+/* A file input renders user-agent chrome by default, which is the only piece of
+   OS styling anywhere in the product. Dress its button as a small .btn. */
+input[type="file"] { padding: var(--space-2); cursor: pointer; }
+input[type="file"]::file-selector-button {
+  margin-inline-end: var(--space-3);
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: var(--color-surface-1);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+input[type="file"]:hover::file-selector-button { border-color: var(--color-accent); }
+input::placeholder, textarea::placeholder { color: var(--color-text-muted); opacity: 1; }
+input:hover, select:hover, textarea:hover { border-color: var(--color-accent); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--color-accent); box-shadow: var(--focus-ring); }
+input:disabled, select:disabled, textarea:disabled { color: var(--color-text-disabled); cursor: not-allowed; opacity: 0.65; }
+.form-stack { display: grid; gap: var(--space-5); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.form-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-3); }
+.form-status { min-height: 1.25rem; margin-right: auto; color: var(--color-text-muted); font-size: var(--font-size-caption); }
+
+/* Status and system feedback */
+.badge, .status {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  /* A pill is a single line by construction: the radius, the centred dot and the
+     fit-content box all assume one. Wrapped, the dot floats against a two-line
+     block and the shape stops reading as a chip. Every label these carry is two
+     words at most ("Live · gated", "Not published"), so nothing here wants to
+     wrap — the labels only started to when the body face changed width. */
+  white-space: nowrap;
+  font-size: var(--font-size-overline);
+  line-height: var(--line-height-overline);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.badge { padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); }
+/* Four tones, one per meaning. The parallel `.badge.live` / `.badge.pending`
+   convention that used to sit here had no consumer in lib/ or public/ — a second
+   naming scheme for the same four states, kept alive only by this rule. */
+.badge--live { color: var(--color-status-success-fg); border-color: var(--color-status-success-border); background: var(--color-status-success-bg); }
+.badge--pending { color: var(--color-status-pending-fg); border-color: var(--color-status-pending-border); background: var(--color-status-pending-bg); }
+.badge--warning { color: var(--color-status-warning-fg); border-color: var(--color-status-warning-border); background: var(--color-status-warning-bg); }
+.badge--error { color: var(--color-status-error-fg); border-color: var(--color-status-error-border); background: var(--color-status-error-bg); }
+.badge--draft { color: var(--color-text-secondary); background: var(--color-overlay-soft); }
+.status { color: var(--color-text-secondary); }
+.status__dot { width: var(--space-2); height: var(--space-2); flex: none; border-radius: var(--radius-pill); background: var(--color-text-muted); }
+.status--live .status__dot { background: var(--color-success); }
+.status--pending .status__dot { background: var(--color-info); }
+.status--warning .status__dot { background: var(--color-warning, var(--color-status-warning-fg)); }
+.status--error .status__dot { background: var(--color-danger); }
+
+.state-panel {
+  width: 100%;
+  min-height: 14rem;
+  padding: var(--space-8) var(--space-6);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-3);
+  text-align: center;
+  background: var(--color-overlay-soft);
+}
+/* The title's element varies with the depth of the section the panel sits in, so
+   the rule keys off the class rather than the tag. */
+.state-panel__title { max-width: 38rem; margin: 0; font-family: var(--font-heading); font-weight: var(--font-weight-bold); font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
+/* `overflow-wrap: anywhere`, not `break-word`: only `anywhere` is counted in
+   min-content, and min-content is what sizes this panel. The empty state names a
+   literal path (`templates/<name>/template.html`), one unbreakable 247px token —
+   wider than the 240px a 320px viewport leaves — so the panel grew past the shell
+   and took the page into a horizontal scroll. Same idiom the table cells use. */
+.state-panel p { max-width: 46rem; overflow-wrap: anywhere; }
+.state-panel--error { border-color: var(--color-status-error-border); background: var(--color-status-error-bg); }
+.spinner {
+  display: inline-block;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  animation: spin 0.8s linear infinite;
+}
+.spinner--inline { width: 1rem; height: 1rem; }
+.spinner--panel { width: 2rem; height: 2rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.toast-region {
+  position: fixed;
+  inset-inline: var(--space-4);
+  inset-block-end: var(--space-5);
+  z-index: 100;
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+}
+.toast {
+  max-width: min(36rem, 100%);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--color-status-success-border);
+  border-radius: var(--radius-md);
+  color: var(--color-status-success-fg);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-lg);
+  animation: toast-in var(--transition-base);
+}
+.toast--error { color: var(--color-status-error-fg); border-color: var(--color-status-error-border); display: flex; align-items: start; gap: var(--space-3); padding-inline-end: var(--space-2); }
+.toast__message { min-width: 0; }
+/* The region is click-through so a toast never blocks the screen underneath. The
+   toast itself must not be, or its Dismiss button cannot be pressed — which is
+   what the region's pointer-events: none did to the first version of it. */
+.toast--error { pointer-events: auto; }
+/* An error toast is dismissible because it is the only record that something did
+   not happen; a success toast is a receipt and can expire on its own. */
+.toast__close { flex: none; color: inherit; border-color: transparent; background: transparent; }
+.toast__close:hover { border-color: var(--color-status-error-border); background: var(--color-status-error-bg); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(var(--space-2)); } }
+.clipboard-fallback { position: fixed; inset-inline-start: -100vw; }
+
+/* Native modal dialog primitive */
+.ui-dialog {
+  width: min(42rem, calc(100vw - (2 * var(--space-5))));
+  max-width: none;
+  max-height: calc(100dvh - (2 * var(--space-5)));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  color: var(--color-text-primary);
+  background: transparent;
+  box-shadow: var(--shadow-lg);
+}
+.ui-dialog::backdrop { background: var(--color-overlay-strong); backdrop-filter: blur(var(--space-1)); }
+.ui-dialog--wide { width: min(82rem, calc(100vw - (2 * var(--space-5)))); }
+.ui-dialog__surface {
+  max-height: inherit;
+  overflow: auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--gradient-surface-elevated);
+}
+.ui-dialog__header { padding: var(--space-6); display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); border-bottom: 1px solid var(--color-border); }
+.ui-dialog__heading { min-width: 0; display: grid; gap: var(--space-2); }
+.ui-dialog__description { max-width: 62ch; }
+.ui-dialog__close { flex: none; }
+.ui-dialog__body { min-width: 0; padding: var(--space-6); overflow: auto; }
+/* makeDialog always appends a body, but a confirmation carries its whole message
+   in the header — so confirmations shipped an empty padded band fenced by the
+   header's bottom border and the action row's top border, which reads as a form
+   that failed to load. Collapse it, and drop the row it occupied so the actions
+   are not left holding the 1fr track. Applies to every dialog with nothing in its
+   body, so the next one cannot reintroduce the band. */
+.ui-dialog__body:empty { display: none; }
+.ui-dialog__surface:has(> .ui-dialog__body:empty) { grid-template-rows: auto auto; }
+.ui-dialog__actions { min-height: 0; padding: var(--space-4) var(--space-6); display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-3); border-top: 1px solid var(--color-border); }
+
+/* Detail context navigation */
+.context-bar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+/* Top-level section tabs. Transparent borders at rest so marking the current tab
+   never shifts the row — same trick as .workspace-nav__item. */
+.context-nav { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-5); }
+.context-tab {
+  /* The bar already draws a rule under this row; the tab meets it. The block-end
+     padding is the tab's, not the bar's, so the underline lands ON the rule
+     instead of floating above it. */
+  padding: var(--space-1) 0 var(--space-4);
+  border: 0;
+  border-radius: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+  white-space: nowrap;
+  /* Reserved at rest, so marking the current tab shifts nothing — the same
+     reason the pill's border used to be transparent rather than absent. */
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.context-tab:hover { color: var(--color-text-primary); background: none; box-shadow: inset 0 -2px 0 var(--color-border-strong); text-decoration: none; }
+.context-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.context-tab[aria-current="page"] { color: var(--color-text-primary); background: none; box-shadow: inset 0 -2px 0 var(--color-accent); }
+.page-switcher { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+/* The detail screen's second row. Row one is the same section nav every screen
+   shows, so the product's top-level navigation no longer disappears the moment a
+   page is opened; row two says where in it you are, and carries the switcher. */
+.detail-bar { min-width: 0; display: flex; align-items: center; gap: var(--space-4); }
+.breadcrumb { min-width: 0; }
+.breadcrumb__list { margin: 0; padding: 0; list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); font-size: var(--font-size-caption); }
+.breadcrumb__item { min-width: 0; display: flex; align-items: center; gap: var(--space-2); color: var(--color-text-secondary); }
+/* An author `display` beats the UA rule for [hidden] in any engine that does not
+   mark it !important, and the workspace crumb ships hidden until the payload
+   names it — without this it would render as an empty crumb with a separator. */
+.breadcrumb__item[hidden] { display: none; }
+/* The separator is generated, so the trail has no stray characters for a screen
+   reader to read out between the crumbs. */
+.breadcrumb__item + .breadcrumb__item::before { content: "/"; color: var(--color-text-muted); }
+.breadcrumb__item > a { color: var(--color-text-secondary); text-decoration: none; }
+.breadcrumb__item > a:hover { color: var(--color-text-primary); text-decoration: underline; }
+.breadcrumb__item > a:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.breadcrumb__item > [aria-current="page"] { min-width: 0; color: var(--color-text-primary); font-weight: var(--font-weight-bold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The detail screen's third row: in-page navigation. The screen is a ~4,250px
+   scroll at 390px and the only way to Settings was to drag a 40rem preview stage
+   past, so one row of anchor links pins under the app header for the whole
+   scroll. It is the only one of the three rows that sticks.
+
+   It is deliberately NOT the pill the rows above it use. .context-tab (product
+   destinations) and .detail-bar (where you are in the product) both live within
+   ~130px of this row, and a third identically-drawn pill row would read as a
+   third set of destinations. These are in-page anchors, so they are plain text
+   with an underline under the current one — the tab idiom, not the pill one.
+
+   .detail-body exists purely so this can stick. position: sticky resolves against
+   the nearest block container, and a grid item's containing block is its own grid
+   area; as a child of .detail-shell or #app — both grids — the bar would have
+   exactly its own height to travel in, i.e. none. admin.js wraps the bar and the
+   sections in this one block instead. */
+.detail-body { min-width: 0; display: block; }
+.detail-nav {
+  position: sticky;
+  inset-block-start: var(--pages-sticky-header);
+  /* Under the app header (30) and every dialog (100), over the sections. */
+  z-index: 20;
+  margin-block-end: var(--space-section-stack);
+  padding-block: var(--space-2);
+  /* The strong border and the shadow are both load-bearing in LIGHT, where the
+     bar's own --color-surface-1 is white and so is the preview iframe that
+     scrolls under it: with the plain --color-border the boundary between them
+     measured ~1.2:1 and the bar dissolved into the iframe. Dark separates on the
+     surface change alone. */
+  border-bottom: 1px solid var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
+  /* Opaque, and no backdrop-filter, unlike .page-header. The preview iframe is
+     composited: with a backdrop-filter on this bar Chromium painted the iframe
+     over it, so the bar vanished across the preview column while still taking
+     the clicks. An opaque fill also spares the reader page content ghosting
+     through the 8% the header can afford because nothing scrolls under it. */
+  background: var(--color-surface-1);
+}
+/* It wraps rather than scrolls, like .context-nav. The three labels fit on one
+   row down to 320px, but at a larger root font they do not, and a scroller here
+   costs more than it buys: one axis of `overflow: auto` makes BOTH axes a
+   clipping box, and this list is exactly as tall as the pill inside it, so the
+   4px --focus-ring on a link was sliced off on all four edges. Wrapping keeps
+   the whole ring and never hides a label behind a scrollbar nobody can see. */
+.detail-nav__list {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+/* Transparent underline at rest so marking the current section never shifts the
+   row — the same trick as .context-tab and .workspace-nav__item, applied to the
+   edge this row marks instead of the border a pill draws. */
+.detail-nav__link {
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-2);
+  border-block-end: 2px solid transparent;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+.detail-nav__link:hover { color: var(--color-text-primary); background: var(--color-overlay-soft); text-decoration: none; }
+.detail-nav__link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Two signals, not one: the accent rule AND the text going primary, so the mark
+   does not rest on colour alone. */
+.detail-nav__link[aria-current="true"] { color: var(--color-text-primary); border-block-end-color: var(--color-accent); }
+/* Both the bar's links and the overview's "N versions waiting for review" land on
+   these headings, which have to clear the app header and the bar together. The
+   heading takes focus on arrival (tabindex="-1" in admin.js), so it also needs a
+   ring — same pair of rules as .template-detail. */
+/* The heading is the anchor, but it is not the top of the section: an overline
+   sits above it inside .section-heading, and landing the h2 flush under the bar
+   cropped that overline off the screen. So the offset clears both sticky bars
+   AND the overline's own line box plus the gap below it — all four read off the
+   tokens that draw them, so none of it can drift.
+
+   Scoped to .detail-body, not .screen-stack: templates and portals share
+   .screen-stack and have no bar, so scoping it there gave their headings the
+   bar's height as phantom offset. .detail-body is the wrapper this bar owns. */
+.detail-body .section-heading > h2 {
+  scroll-margin-block-start: calc(
+    var(--pages-sticky-header) + var(--pages-detail-nav)
+    + (var(--font-size-overline) * var(--line-height-overline)) + var(--space-2));
+}
+.detail-body .section-heading > h2:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+.page-switcher__select { width: clamp(12rem, 34vw, 28rem); min-height: 2rem; padding-block: var(--space-1); font-size: var(--font-size-caption); }
+.page-switcher__count { min-width: 4rem; color: var(--color-text-secondary); font-size: var(--font-size-caption); text-align: center; white-space: nowrap; }
+.page-switcher[data-error] .page-switcher__count { color: var(--color-status-error-fg); }
+
+/* Admin index: workspaces + responsive operational list */
+/* 14rem truncated "Campaign operations" and "Executive reporting" — ordinary team
+   names — to "Campaign opera…". 16rem plus a wrapping label fits both, and a name
+   longer than two lines is still readable rather than cut. */
+.workspace-layout { min-width: 0; display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+/* A filter rail, not a card. As a .panel it was a short bordered box with a long
+   empty column beneath it, and the selected item inside drew a second border —
+   a box in a box. The divider belongs to the CONTENT column, which is as tall as
+   the table, so the rail reads as part of the page rather than as an object
+   floating on it. */
+.workspace-sidebar { position: sticky; inset-block-start: 6rem; padding: 0; }
+.workspace-sidebar__head { margin-block-end: var(--space-3); padding-inline: var(--space-3); display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+/* On a bare rail this was the only bordered box in the whole column, so it read
+   as something dropped there rather than as the rail's own control. Quiet at
+   rest, a real target on hover — the same treatment .btn-ghost gets. */
+.workspace-sidebar__head .icon-action { border-color: transparent; background: none; }
+.workspace-sidebar__head .icon-action:hover { border-color: var(--color-border-strong); background: var(--color-surface-2); }
+.workspace-sidebar__head h2 {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-overline);
+  line-height: var(--line-height-overline);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.workspace-nav { display: grid; gap: var(--space-1); }
+.workspace-nav__item {
+  appearance: none;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font-weight: var(--font-weight-bold);
+}
+.workspace-nav__item:hover { color: var(--color-text-primary); background: var(--color-overlay-soft); }
+.workspace-nav__item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.workspace-nav__item[aria-pressed="true"] { color: var(--color-text-primary); background: var(--color-overlay-soft); }
+/* An accent bar, not a border. A border round the selected item made it a second
+   box inside the rail's box; a marker says "this one" without drawing another
+   object. ::before rather than box-shadow so :focus-visible's ring still wins. */
+.workspace-nav__item[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: var(--space-1);
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+.workspace-nav__label { min-width: 0; overflow-wrap: anywhere; }
+.workspace-nav__count { flex: none; min-width: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-pill); color: var(--color-text-muted); background: var(--color-overlay-soft); font-size: var(--font-size-caption); text-align: center; }
+.workspace-mobile { display: none; }
+.workspace-index {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+  padding-inline-start: var(--space-6);
+  border-inline-start: 1px solid var(--color-border);
+}
+.workspace-index__results { min-width: 0; }
+.index-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+/* One line, not a second heading stack. This was an overline, an h2 and a caption
+   in a column — a whole second page header sitting under the real one, and the
+   reader met two titles for one screen. The scope and its count are one fact. */
+.index-toolbar__copy { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); }
+.index-toolbar__copy h2 { font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg); overflow-wrap: anywhere; }
+.index-toolbar__copy h2::after { content: "\00b7"; margin-inline-start: var(--space-2); color: var(--color-text-muted); font-weight: var(--font-weight-regular); }
+.workspace-index__count { color: var(--color-text-muted); font-size: var(--font-size-caption); }
+.search-field { width: min(22rem, 100%); position: relative; }
+.search-field .icon-inline { position: absolute; inset-inline-start: var(--space-3); inset-block-start: 50%; transform: translateY(-50%); color: var(--color-text-muted); pointer-events: none; }
+.search-field input { padding-inline-start: var(--space-8); }
+
+/* The end of a windowed list. It says how much is left before offering to load
+   it, so the button is a choice rather than a surprise. */
+.index-more { margin-block-start: var(--space-4); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-3); }
+.index-more__button { min-width: 10rem; }
+
+.operation-table-wrap { min-width: 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--gradient-surface-panel); box-shadow: var(--shadow-section); }
+/* A list is framed once. The wrap draws its own border, radius and shadow, so
+   inside a panel — which draws the same three — it must not draw them again: the
+   panel is the frame there. This is why the template library's list had two
+   frames and both detail panels' tables still did. */
+.panel .operation-table-wrap { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.operation-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.operation-table caption { padding: var(--space-4); text-align: start; }
+.operation-table th, .operation-table td { min-width: 0; padding: var(--space-3); border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: middle; overflow-wrap: anywhere; }
+/* No fill: a shaded band inside a bordered card was a third frame on one list.
+   The stronger rule under the header is what separates it from the rows. */
+.operation-table th {
+  color: var(--color-text-muted);
+  background: transparent;
+  border-bottom-color: var(--color-border-strong);
+  font-size: var(--font-size-overline);
+  line-height: var(--line-height-overline);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* The actions sit at the row's end (.row-actions is justify-content: flex-end),
+   so their column heading does too. Every table that has an actions column, not
+   just the index's — a heading that does not sit over its own column is the kind
+   of small wrongness that reads as carelessness without being nameable. */
+.operation-table th.operation-table__actions,
+.operation-table th.operation-table__member-actions,
+.operation-table th.template-table__actions { text-align: end; }
+.operation-table tbody tr:last-child td { border-bottom: 0; }
+.operation-table tbody tr:hover { background: var(--color-overlay-soft); }
+/* The one column NOT sized by its heading: "STATUS" is short, but the chip under
+   it is "LIVE · GATED", and that chip does not wrap (see .badge, .status). At the
+   7.5rem it used to share with the live-version column it had 96px of content box
+   and needed 100px, so the label rendered outside its own pill. 8.5rem gives
+   112px: 12px of room for IBM Plex Sans, and exactly enough for the widest
+   fallback face, which is what paints during `font-display: swap`. The extra 1rem
+   comes out of the auto-width title column, where a long title takes a second
+   line instead — a column that already wraps by design. */
+.operation-table__status { width: 8.5rem; }
+.operation-table__page { width: auto; }
+/* Every fixed column is the width of its own heading and no more, because what
+   they take, the title column loses: at 8rem and 11rem the longest page title
+   wrapped over four lines and that row stood twice as tall as its neighbours.
+   "LIVE VERSION" is the constraint — it broke over two lines under 7.5rem and set
+   a ragged top edge across the whole header row. */
+.operation-table__live { width: 7.5rem; }
+.operation-table__updated { width: 8rem; }
+.operation-table__workspace { width: 11rem; }
+.operation-table__actions { width: 11.5rem; }
+/* The portal member table has two columns, so with table-layout: fixed and no
+   width at all they split 50/50 — leaving the left-aligned ACTIONS header ~430px
+   from the right-aligned cluster it labels, on the primary desktop view of the
+   feature. Constraining the column puts the header back over its own buttons. */
+.operation-table__member-actions { width: 22rem; }
+.page-cell { min-width: 0; display: grid; gap: var(--space-1); }
+.page-cell strong, .page-cell code { overflow-wrap: anywhere; }
+.page-cell code { color: var(--color-text-muted); font-size: var(--font-size-caption); }
+.table-meta { color: var(--color-text-secondary); font-size: var(--font-size-caption); }
+/* "Data 46d old · checked today" is two facts, and joining them with a middot in
+   a fixed column left lines ending on their own separator. Each fact gets a line,
+   and only the rows that actually carry both pay for the second one. */
+.table-meta__line { display: block; }
+.row-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
+/* A cluster whose leading controls are pressed REPEATEDLY — the portal member
+   row's reorder arrows — cannot sit at a different x on every row, or the second
+   press in the same spot lands on the cell beside it. In a right-aligned cluster
+   that is exactly what happens, because "Make home" comes and goes with the row's
+   state. Two groups pinned to the two edges instead: the arrows at the column's
+   start, the text buttons at its end, both at one x for every row. Collapsed to
+   cards the 60rem block's `justify-content: flex-start` takes over by source
+   order, which is what keeps every card's cluster on one line. */
+.row-actions--split { justify-content: space-between; }
+.row-actions__group { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.workspace-assignment { min-width: 0; display: grid; gap: var(--space-1); }
+.workspace-assignment select { min-height: 2rem; padding-block: var(--space-1); font-size: var(--font-size-caption); }
+/* The row states its workspace and opens a dialog to change it. Left-aligned and
+   able to wrap, because it is a name being reported, not a label on a control. */
+.workspace-assignment__button { justify-content: start; width: 100%; white-space: normal; text-align: start; font-weight: var(--font-weight-regular, inherit); }
+/* The row's title is the link to its review screen, so the row needs no button to
+   say so. It has to keep looking like the heading of the row, not like body copy. */
+.page-cell__title { color: var(--color-text-primary); font-weight: var(--font-weight-bold); text-decoration: none; overflow-wrap: anywhere; }
+.page-cell__title:hover { color: var(--color-text-primary); text-decoration: underline; }
+.page-cell__title:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+.workspace-manager-body { display: grid; align-content: start; gap: var(--space-5); }
+.workspace-create-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); }
+.workspace-create-form .form-status { min-height: 0; grid-column: 1 / -1; margin: 0; }
+.workspace-manager-list { display: grid; gap: var(--space-3); }
+.workspace-manager-list .state-panel { min-height: 10rem; padding: var(--space-6) var(--space-4); }
+.workspace-manager-row { min-width: 0; padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); display: grid; gap: var(--space-3); background: var(--color-overlay-soft); }
+.workspace-manager-row__main { min-width: 0; display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
+.workspace-manager-row__copy { min-width: 0; display: grid; gap: var(--space-1); }
+.workspace-manager-row__copy strong { overflow-wrap: anywhere; }
+.workspace-manager-row__actions { flex: none; display: flex; gap: var(--space-2); }
+.workspace-rename-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-2); }
+/* Generic UI, shared across screens — kept here, above the screen-specific
+   blocks, because each of these has more than one consumer.
+   .code-block is a read-only block of preformatted text: a JSON schema on
+   /admin/templates, a generated password on /admin/portals, a compose log on
+   /admin. Every one of them is shown as TEXT and never injected as markup.
+   .compose-log is that block at the shorter height a log wants.
+   Careful: a CSS comment ends at the first terminator, so a selector written
+   inside one with a trailing star-slash silently swallows the rule that follows.
+   That is how .code-block shipped dead once, when it was called
+   .template-code. */
+.code-block, .compose-log { max-height: 22rem; margin: 0; padding: var(--space-4); overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-secondary); background: var(--color-bg); font-family: var(--font-code); font-size: var(--font-size-caption); white-space: pre-wrap; overflow-wrap: anywhere; }
+.compose-log { max-height: 18rem; }
+/* The chosen row of an operation table, on any screen that keeps a selection. */
+/* A master/detail selection needs to be visible, not only announced: background
+   alone is not a signal on a striped list, and both screens marked it differently.
+   One treatment, driven by the aria state so the two cannot drift. */
+.row--selected, .operation-table tbody tr[aria-current="true"] { background: var(--color-overlay-soft); box-shadow: inset var(--space-1) 0 0 0 var(--color-accent); }
+
+/* Template library (/admin/templates). Reuses the panel, section, table, field
+   and badge primitives, plus .code-block above. What is left is a definition
+   list for revision facts and the column widths of the two tables. */
+.template-kv { margin: 0; display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: var(--space-2) var(--space-4); }
+.template-kv dt { color: var(--color-text-muted); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); }
+.template-kv dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.template-kv ul { margin: var(--space-1) 0 0; padding-inline-start: var(--space-5); }
+/* Inspect scrolls the detail panel into view, and the app header is sticky, so
+   the heading and its actions need to clear it. */
+.template-detail { scroll-margin-block-start: 6rem; }
+.template-detail h2:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.template-contract { min-width: 0; display: grid; gap: var(--space-3); }
+.template-contract .segmented { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.template-table__template { width: auto; }
+.template-table__num { width: 7rem; }
+.template-table__hash { width: 10rem; }
+.template-table__when { width: 10rem; }
+.template-table__actions { width: 12.5rem; }
+
+/* Page detail: overview + review workspace */
+.page-overview { min-width: 0; display: grid; gap: var(--space-4); }
+.page-overview__top { min-width: 0; display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-5); }
+.page-overview__identity { min-width: 0; display: grid; gap: var(--space-2); }
+.page-overview__slug { color: var(--color-text-muted); }
+.page-overview__statuses { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
+/* The work waiting on a human is the one thing in the header that is a call to
+   action, so it is a link into the queue rather than a fourth equal pill. */
+.page-overview__todo { color: var(--color-accent); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); text-decoration: none; }
+.page-overview__todo:hover { color: var(--color-text-primary); text-decoration: underline; }
+.page-overview__todo:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.review-layout { min-width: 0; display: grid; grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.version-browser { min-width: 0; padding: 0; overflow: hidden; }
+.version-browser__header { padding: var(--space-4); display: grid; gap: var(--space-3); border-bottom: 1px solid var(--color-border); }
+.segmented { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-overlay-soft); }
+.segmented__button { min-width: 0; padding: var(--space-2); border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--color-text-secondary); background: transparent; cursor: pointer; font-weight: var(--font-weight-bold); font-size: var(--font-size-caption); overflow-wrap: anywhere; }
+.segmented__button:hover { color: var(--color-text-primary); background: var(--color-surface-2); }
+.segmented__button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.segmented__button[aria-pressed="true"] { color: var(--color-text-primary); border-color: var(--color-border-strong); background: var(--color-surface-1); box-shadow: var(--shadow-sm); }
+/* An explicit minmax(0, 1fr) track is load-bearing. The implicit `auto` track was
+   floored at the widest row's min-content — a version authored by a long agent
+   address measured 368px inside a 334px content box — so every row overhung the
+   panel and `.version-browser { overflow: hidden }` sheared off the status badge
+   and the date, which is exactly what this list exists to show. */
+.version-list { max-height: 43rem; margin: 0; padding: var(--space-2); overflow: auto; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-1); }
+.version-list > li { min-width: 0; }
+.version-option {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+}
+.version-option:hover { border-color: var(--color-border); background: var(--color-overlay-soft); }
+.version-option:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.version-option[aria-current="true"] { border-color: var(--color-accent); background: var(--color-surface-2); box-shadow: var(--shadow-sm); }
+.version-option__top { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+/* The version label may wrap; the badge never shrinks, so a status is either fully
+   readable or not shown at all. */
+.version-option__top > strong { min-width: 0; overflow-wrap: anywhere; }
+.version-option__top > .badge { flex: none; }
+.version-option__meta { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-caption); }
+/* The author is the only elastic part of the row: it ellipses (full address stays in
+   its title attribute) so the timestamp beside it keeps its full width. */
+.version-option__meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-option__meta > time { flex: none; white-space: nowrap; }
+.version-list__empty { padding: var(--space-6) var(--space-4); text-align: center; }
+
+.preview-workspace { min-width: 0; padding: 0; overflow: hidden; }
+.preview-toolbar { min-width: 0; padding: var(--space-4); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); border-bottom: 1px solid var(--color-border); }
+.preview-toolbar__title { min-width: 0; display: grid; gap: var(--space-1); }
+.preview-toolbar__title h3 { overflow-wrap: anywhere; }
+.version-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
+/* The admin's own controls for the render sit above it, in the admin's own
+   surface, rather than floating over the client's content. */
+.preview-frame-bar { min-width: 0; padding: var(--space-3) var(--space-4); display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); border-bottom: 1px solid var(--color-border); background: var(--color-overlay-soft); }
+.preview-viewports { grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(22rem, 100%); }
+.preview-frame-bar__status { margin-inline-start: auto; color: var(--color-text-secondary); font-size: var(--font-size-caption); }
+
+/* Dashboards ship their own light theme, so the stage is a light surface by
+   design. It is a frame around someone else's page, not part of this one. */
+.preview-stage { min-width: 0; min-height: 36rem; position: relative; display: grid; justify-items: center; background: var(--color-white); }
+.preview-stage iframe { width: 100%; max-width: 100%; height: 40rem; border: 0; background: var(--color-white); transition: width var(--transition-base); }
+/* px, deliberately, and the only px in this stylesheet that is not a hairline:
+   these are device widths, not spacing. In rem they would scale with the reader's
+   font size, so "Mobile" would stop being 390px — the width it is simulating. */
+.preview-stage[data-viewport="tablet"] iframe { width: 768px; }
+.preview-stage[data-viewport="mobile"] iframe { width: 390px; }
+/* A narrowed frame needs its edges visible, or it reads as a broken full-width
+   render rather than a deliberate width. */
+.preview-stage[data-viewport="tablet"] iframe,
+.preview-stage[data-viewport="mobile"] iframe { border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+/* Once the frame is narrower than the stage, the stage stops being the page and
+   becomes the surface the page sits on — so it takes the admin's own colour.
+   Left white, the surrounding field reads as part of the client's render. */
+.preview-stage[data-viewport="tablet"],
+.preview-stage[data-viewport="mobile"] { padding: var(--space-5); background: var(--color-surface-1); }
+/* :not() is load-bearing: this rule is more specific than .state-panel--error and
+   would otherwise repaint a failed preview as the neutral loading panel — which is
+   exactly what it used to do, so the error state lost its red border and, with the
+   doubled min-height, was taller than the panel it replaced. */
+.preview-stage .state-panel:not(.state-panel--error) { min-height: 36rem; border: 0; border-radius: 0; color: var(--color-text-primary); background: var(--color-surface-1); }
+.preview-stage .state-panel--error { min-height: 36rem; border-radius: 0; }
+.version-detail { padding: var(--space-4); border-top: 1px solid var(--color-border); }
+.version-detail dl { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+.version-detail div { min-width: 0; display: grid; align-content: start; gap: var(--space-1); }
+.version-detail dt { color: var(--color-text-muted); font-size: var(--font-size-overline); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; }
+.version-detail dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.version-detail__note { grid-column: 1 / -1; }
+
+/* Client access and Settings */
+.access-grid, .settings-grid { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+.subpanel { min-width: 0; padding: var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-md); display: grid; align-content: start; gap: var(--space-4); background: var(--color-overlay-soft); }
+.subpanel__head { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
+.copy-field { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.copy-field input { font-family: var(--font-code); }
+.password-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.setting-list { display: grid; gap: var(--space-4); }
+.setting-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem); align-items: center; gap: var(--space-5); padding-block-end: var(--space-4); border-bottom: 1px solid var(--color-border); }
+.setting-row:last-child { padding-block-end: 0; border-bottom: 0; }
+.setting-row__copy { min-width: 0; display: grid; gap: var(--space-1); }
+.setting-row__copy strong { overflow-wrap: anywhere; }
+/* One control column for every setting row (#156). A grid, not a flex row, so the
+   control and the line reporting its last commit stack; justify-items keeps each
+   control's box the width of the control, because a stretched <label> makes a
+   strip of empty panel next to a switch commit the setting when clicked. */
+.setting-row__control { min-width: 0; display: grid; justify-items: start; gap: var(--space-2); }
+.setting-row__control input[type="text"], .setting-row__control select { width: 100%; }
+/* The row's two report slots share one reserved line and collapse when empty, so
+   reporting a one-line outcome moves nothing else on the panel — a commit fired by
+   blur paints while the click that caused the blur is still in flight. */
+.setting-row__feedback { min-width: 0; min-height: calc(var(--font-size-caption) * var(--line-height-caption)); }
+/* Both slots keep their box in the flow and in the accessibility tree: an empty
+   one draws no line box, so the two together are never taller than the one with
+   something in it, and neither is ever `hidden` — a role="alert" that appears
+   already carrying its text announces nothing. */
+.setting-row__feedback > * { min-height: 0; margin: 0; line-height: var(--line-height-caption); }
+.toggle-label { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-secondary); font-weight: var(--font-weight-bold); cursor: pointer; }
+.toggle-label input {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  accent-color: var(--color-primary);
+  /* The unchecked box is the only thing on the panel saying a page is taken down,
+     and the boundary the UA draws for it is ~2:1 on our surfaces. */
+  box-shadow: 0 0 0 1px var(--pages-control-boundary);
+}
+.danger-zone {
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-inline-start: var(--space-1) solid var(--color-status-error-border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  background: var(--gradient-surface-panel);
+  box-shadow: var(--shadow-section);
+}
+.danger-zone__copy { min-width: 0; display: grid; gap: var(--space-1); }
+.danger-zone__copy .overline { color: var(--color-status-error-fg); }
+.danger-zone__copy p:last-child { max-width: 68ch; }
+.danger-zone__action { display: flex; justify-content: flex-end; }
+
+/* Tall, but never so tall that the rest of the form falls off the bottom: the
+   dialog's other rows (header, meta row, status line, action bar) cost about
+   34rem, so past ~46rem of viewport the box gives that back instead of pushing
+   Render mode and both help lines under the sticky action bar — which is what a
+   flat 52dvh did on every laptop under ~1000px tall. The 12rem floor keeps it
+   usable on a short viewport, where .ui-dialog__surface scrolls instead. */
+.source-editor { min-height: clamp(12rem, calc(100dvh - 34rem), 52dvh); resize: vertical; font-family: var(--font-code); font-size: var(--font-size-caption); tab-size: 2; white-space: pre; overflow: auto; }
+/* Version note (wide, it is the audit trail) beside Render mode (narrow, two options). */
+.editor-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, 14rem); gap: var(--space-4); }
+
+@media (max-width: 75rem) {
+  .workspace-layout { grid-template-columns: 1fr; }
+  .workspace-sidebar { display: none; }
+  .workspace-index { padding-inline-start: 0; border-inline-start: 0; }
+  .workspace-mobile { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); }
+  /* A 1024-1200px laptop has room for a table; it used to get the phone layout.
+     Between here and the collapse the table keeps its columns and scrolls inside
+     its own box, so the page itself never scrolls sideways and no column — the
+     workspace control included — is taken away to make it fit. */
+  .operation-table-wrap { overflow-x: auto; }
+  .operation-table { min-width: 46rem; }
+}
+
+@media (max-width: 60rem) {
+  .operation-table { min-width: 0; }
+  .operation-table, .operation-table tbody, .operation-table tr, .operation-table td { display: block; width: 100%; }
+  /* The collapse turns the table into blocks but a caption keeps its
+     `display: table-caption`, which inside a block box shrinks to min-content —
+     a ~60px column one word per line. Only the sr-only captions escaped it,
+     because they are positioned out of flow. */
+  .operation-table caption { display: block; }
+  .operation-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .operation-table tbody { display: grid; gap: var(--space-3); padding: var(--space-3); }
+  /* Every collapsed row is a labelled card. Cells carry their column name in
+     data-label, which the pseudo-element below renders once the header row is
+     gone — so a table that omits data-label collapses into unlabelled values. */
+  .operation-table tbody tr {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: var(--color-overlay-soft);
+  }
+  .operation-table tbody tr:hover { background: var(--color-overlay-soft); }
+  .operation-table td { min-width: 0; padding: var(--space-3); border-bottom: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: start; gap: var(--space-1); }
+  .operation-table td::before { content: attr(data-label); color: var(--color-text-muted); font-size: var(--font-size-overline); font-weight: var(--font-weight-bold); letter-spacing: 0.06em; text-transform: uppercase; }
+  .operation-table td:not(:last-child) { border-bottom: 1px solid var(--color-border); }
+  /* The admin index has a bespoke arrangement for its own six fields. It is
+     scoped to that table: the named areas only exist here, so applying them to
+     any other operation-table scatters its cells into implicit tracks. */
+  .operation-table--index tbody tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "page page page status"
+      "live updated workspace actions";
+  }
+  .operation-table--index td:not(:last-child) { border-bottom: 0; }
+  .operation-table--index td[data-label="Status"] { grid-area: status; border-bottom: 1px solid var(--color-border); }
+  .operation-table--index td[data-label="Page"] { grid-area: page; border-bottom: 1px solid var(--color-border); }
+  .operation-table--index td[data-label="Live version"] { grid-area: live; }
+  .operation-table--index td[data-label="Last update"] { grid-area: updated; }
+  .operation-table--index td[data-label="Workspace"] { grid-area: workspace; }
+  .operation-table--index td[data-label="Actions"] { grid-area: actions; }
+  .row-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 64rem) {
+  .session-user { display: none; }
+  .operation-table__updated { width: 9rem; }
+  .operation-table__workspace { width: 11rem; }
+  .operation-table__actions { width: 12rem; }
+  .review-layout { grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr); }
+  .version-detail dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 52rem) {
+  .shell { padding-inline: var(--space-5); }
+  .review-layout { grid-template-columns: 1fr; }
+  .version-list { max-height: 24rem; }
+  .access-grid, .settings-grid { grid-template-columns: 1fr; }
+  .operation-table--index tbody tr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "page page"
+      "status live"
+      "updated workspace"
+      "actions actions";
+  }
+  .operation-table--index td:not([data-label="Actions"]) { border-bottom: 1px solid var(--color-border); }
+}
+
+@media (max-width: 40rem) {
+  /* The header shrinks here, so everything pinned under it follows. */
+  :root { --pages-sticky-header: 4rem; }
+  .shell-header { min-height: 4rem; padding-inline: var(--space-4); }
+  .ds-app-header__mark { width: 2rem; height: 2rem; }
+  .ds-app-header__eyebrow, .header-signout span { display: none; }
+  .header-signout { width: 2rem; min-width: 2rem; padding: 0; }
+  .shell { padding: var(--space-6) var(--space-4) var(--space-8); gap: var(--space-6); }
+  .page-heading__row { align-items: start; }
+  .page-heading__actions, .page-heading__actions .btn { width: 100%; }
+  .stats { width: 100%; }
+  .stat { flex: 1; }
+  .panel, .card { padding: var(--space-4); }
+  .context-bar, .detail-bar { align-items: stretch; flex-direction: column; gap: var(--space-2); }
+  .context-bar > .btn { align-self: start; }
+  .page-switcher { width: 100%; justify-content: stretch; }
+  .page-switcher__select { width: auto; flex: 1; }
+  .page-switcher__count { min-width: 3.5rem; }
+  .index-toolbar { align-items: stretch; }
+  .search-field { width: 100%; }
+  .workspace-mobile { grid-template-columns: minmax(0, 1fr) 2.75rem; }
+  .workspace-mobile .workspace-mobile__manage { width: 2.75rem; min-width: 2.75rem; padding-inline: 0; }
+  .workspace-mobile__manage-label { display: none; }
+  /* :not() is load-bearing — this has the same specificity as the --index rule in
+     the 52rem block above and would otherwise win on source order, flattening the
+     index's own two-column arrangement into one very tall column. */
+  .operation-table:not(.operation-table--index) tbody tr { grid-template-columns: minmax(0, 1fr); }
+  .template-contract .segmented { grid-template-columns: minmax(0, 1fr); }
+  .form-grid, .editor-meta { grid-template-columns: 1fr; }
+  .form-actions, .ui-dialog__actions { align-items: stretch; flex-direction: column-reverse; }
+  .form-actions .btn, .ui-dialog__actions .btn { width: 100%; }
+  .ui-dialog { width: calc(100vw - (2 * var(--space-3))); max-height: calc(100dvh - (2 * var(--space-3))); }
+  .ui-dialog__header, .ui-dialog__body { padding: var(--space-4); }
+  .ui-dialog__actions { padding: var(--space-3) var(--space-4); }
+  .workspace-manager-row__main { align-items: stretch; flex-direction: column; }
+  .workspace-manager-row__actions { width: 100%; }
+  .workspace-manager-row__actions .btn { flex: 1; }
+  .workspace-create-form { grid-template-columns: 1fr; }
+  .workspace-create-form .btn { width: 100%; }
+  .workspace-create-form .form-status { grid-column: auto; }
+  .workspace-rename-form { grid-template-columns: 1fr; }
+  .preview-toolbar { align-items: stretch; }
+  .version-actions { justify-content: flex-start; }
+  .preview-stage, .preview-stage .state-panel { min-height: 24rem; }
+  .preview-stage iframe { height: 28rem; }
+  /* Below the tablet width there is no room to simulate one. */
+  .preview-stage[data-viewport="tablet"] iframe { width: 100%; border-inline: 0; }
+  .preview-frame-bar__status { margin-inline-start: 0; }
+  .version-detail dl { grid-template-columns: 1fr; }
+  .version-detail__note { grid-column: auto; }
+  .copy-field { grid-template-columns: 1fr; }
+  .copy-field .btn { width: 100%; }
+  .password-actions, .password-actions .btn { width: 100%; }
+  /* No control override here: the column is already full width and each control
+     already ends where it ends, which is what stops a full-width ghost button in a
+     panel whose other four controls start at the same left edge. */
+  .setting-row { grid-template-columns: 1fr; gap: var(--space-3); }
+  .danger-zone { padding: var(--space-4); grid-template-columns: 1fr; gap: var(--space-3); }
+  .danger-zone__action { justify-content: flex-start; }
+  .danger-zone__action .btn { width: 100%; }
+}
+
+@media (pointer: coarse) {
+  .btn, input, select, .segmented__button { min-height: 2.75rem; }
+  /* A full-size touch target makes the bar taller, so its anchor offset grows —
+     same three terms, with the target the rule below sets. */
+  :root { --pages-detail-nav: calc(var(--space-2) * 2 + 2.75rem + 1px); }
+  .detail-nav__link { min-height: 2.75rem; }
+  .workspace-assignment select, .page-switcher__select { min-height: 2.75rem; }
+  .icon-action {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .header-signout { width: auto; min-width: 2.75rem; }
+  .toggle-label { min-height: 2.75rem; }
+}
+
+@media (max-height: 30rem) {
+  .ui-dialog__surface {
+    display: block;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .ui-dialog__body { overflow: visible; }
+  .ui-dialog__actions {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .ui-dialog__actions .btn { width: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

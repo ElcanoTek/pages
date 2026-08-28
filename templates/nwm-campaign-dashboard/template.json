@@ -1,0 +1,5 @@
+{
+  "title": "NWM Campaign Dashboard",
+  "description": "Per-campaign delivery, revenue, margin and KPI pacing for a NWM campaign, joined SSP<->DSP. Config carries the campaign identity, channels with their KPI targets and thresholds, the deal registry and the revshare map; the data payload carries one row per (deal, day) plus join diagnostics. Ships empty: every section renders its awaiting-first-ingest state until the first update_page_data.",
+  "note": "Converted from the sources/templates_sources pilot pack: CONFIG/DATA literals moved into the managed blocks, data schema draft-07 -> 2020-12, config schema authored from the CONFIG shape. Render layer, markup and CSS carried over byte-identical; rendered values verified equal to the pilot PREVIEW."
+}
