@@ -17,30 +17,23 @@ subject to the Covenants of Licensor reproduced in LICENSE. The licence text is
 reproduced verbatim and unmodified.
 
 -------------------------------------------------------------------------------
-Share Tech Mono — public/assets/flag/fonts/ShareTechMono.ttf
+Nebula Sans — public/assets/flag/fonts/nebula-sans/NebulaSans-*.woff2
 -------------------------------------------------------------------------------
-Copyright (c) 2012, Carrois Type Design, Ralph du Carrois
-(post@carrois.com www.carrois.com), with Reserved Font Name "Share Tech Mono".
+Copyright (c) 2024 Nebula Entertainment & Broadcasting LLC, with Reserved Font
+Name "Nebula". Based on Source Sans, copyright (c) 2010-2024 Adobe, with
+Reserved Font Name "Source".
 Licensed under the SIL Open Font License, Version 1.1. The full licence text is
-bundled at public/assets/flag/fonts/OFL.txt.
-https://openfontlicense.org/
+bundled at public/assets/flag/fonts/nebula-sans/OFL.txt.
+https://www.nebulasans.com/
 
 -------------------------------------------------------------------------------
-VT323 — public/assets/flag/fonts/VT323.ttf
+Hack — public/assets/flag/fonts/hack/hack-*.woff2, hack-*.woff
 -------------------------------------------------------------------------------
-Copyright (c) 2011, The VT323 Project Authors (peter.hull@oikoi.com), with
-Reserved Font Name "VT323".
-Licensed under the SIL Open Font License, Version 1.1. The full licence text is
-bundled at public/assets/flag/fonts/OFL.txt.
-https://openfontlicense.org/
-
--------------------------------------------------------------------------------
-IBM Plex Sans — public/assets/flag/fonts/ibm-plex-sans/IBMPlexSans-{400,700}.woff2
--------------------------------------------------------------------------------
-Copyright (c) 2017 IBM Corp. with Reserved Font Name "Plex".
-Licensed under the SIL Open Font License, Version 1.1. The full licence text is
-bundled at public/assets/flag/fonts/ibm-plex-sans/OFL.txt.
-https://github.com/IBM/plex
+Copyright (c) 2018 Source Foundry Authors — MIT License. Bitstream Vera Sans
+Mono copyright (c) 2003 Bitstream Inc. — Bitstream Vera License. DejaVu
+contributions are in the public domain. The full licence text is bundled at
+public/assets/flag/fonts/hack/LICENSE.md.
+https://sourcefoundry.org/hack/
 
 -------------------------------------------------------------------------------
 Runtime dependencies

@@ -56,6 +56,15 @@ h1 { font-size: var(--font-size-title); line-height: var(--line-height-title); }
 h2 { font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
 h3 { font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg); }
 code, .mono { font-family: var(--font-code); overflow-wrap: anywhere; }
+/* Nebula Sans defaults to PROPORTIONAL figures — its digit advances run from 407
+   to 625 units per 1000em, a 53% spread — so a column of numbers set in it is
+   visibly ragged and two rows' "Version 1" and "Version 11" do not line up.
+   IBM Plex Sans, which this replaced, was uniform by default and hid the need.
+   `tnum` is in the font, so the fix is one declaration: every table, and every
+   <time>, gets tabular figures. Non-table numeric readouts opt in by name below
+   (.stat strong, .workspace-nav__count, .version-option__meta) — prose keeps
+   the proportional figures it reads better with. */
+table, time { font-variant-numeric: tabular-nums; }
 [hidden] { display: none !important; }
 
 .sr-only {
@@ -196,7 +205,7 @@ code, .mono { font-family: var(--font-code); overflow-wrap: anywhere; }
   border-inline-start: 1px solid var(--color-border);
 }
 .stat:first-child { padding-inline-start: 0; border-inline-start: 0; }
-.stat strong { color: var(--color-text-primary); font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
+.stat strong { color: var(--color-text-primary); font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); font-variant-numeric: tabular-nums; }
 .stat span { color: var(--color-text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 
 .panel, .card {
@@ -673,7 +682,7 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
   background: var(--color-accent);
 }
 .workspace-nav__label { min-width: 0; overflow-wrap: anywhere; }
-.workspace-nav__count { flex: none; min-width: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-pill); color: var(--color-text-muted); background: var(--color-overlay-soft); font-size: var(--font-size-caption); text-align: center; }
+.workspace-nav__count { flex: none; min-width: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-pill); color: var(--color-text-muted); background: var(--color-overlay-soft); font-size: var(--font-size-caption); text-align: center; font-variant-numeric: tabular-nums; }
 .workspace-mobile { display: none; }
 .workspace-index {
   min-width: 0;
@@ -733,23 +742,37 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
    it is "LIVE · GATED", and that chip does not wrap (see .badge, .status). At the
    7.5rem it used to share with the live-version column it had 96px of content box
    and needed 100px, so the label rendered outside its own pill. 8.5rem gives
-   112px: 12px of room for IBM Plex Sans, and exactly enough for the widest
-   fallback face, which is what paints during `font-display: swap`. The extra 1rem
-   comes out of the auto-width title column, where a long title takes a second
-   line instead — a column that already wraps by design. */
+   112px: 9.5px of room over the 102.5px the chip measures in Nebula Sans, and
+   exactly enough for the widest fallback face, which is what paints during
+   `font-display: swap`. The extra 1rem comes out of the auto-width title column,
+   where a long title takes a second line instead — a column that already wraps
+   by design. */
 .operation-table__status { width: 8.5rem; }
 .operation-table__page { width: auto; }
 /* Every fixed column is the width of its own heading and no more, because what
    they take, the title column loses: at 8rem and 11rem the longest page title
    wrapped over four lines and that row stood twice as tall as its neighbours.
    "LIVE VERSION" is the constraint — it broke over two lines under 7.5rem and set
-   a ragged top edge across the whole header row. */
+   a ragged top edge across the whole header row.
+   1201px is the width these three are really sized against, and it is not
+   obvious why: it is one pixel above the collapse below, so the workspace
+   sidebar is still on screen AND the table still owns every column, and the
+   title cell gets only what the fixed widths leave. At 11rem for WORKSPACE that
+   was 82px, and the longest page title stacked twenty lines deep — one row over
+   500px tall on its own. WORKSPACE is where the 24px had to come from: its
+   heading needs 91.4px of the 152px it keeps at 9.5rem (Nebula Sans, padding
+   included), and a workspace NAME longer than that wraps to a second line as it
+   already did at 11rem — which costs no row height, because the page cell beside
+   it is two lines regardless. The other two cannot give it up. LAST UPDATE holds
+   8rem because "59 minutes ago" is a real value and it needs every pixel of the
+   104px content box; take half a rem and most of the first hour after a deploy
+   reads over two lines. LIVE VERSION is pinned by its own heading (see above). */
 .operation-table__live { width: 7.5rem; }
 .operation-table__updated { width: 8rem; }
-.operation-table__workspace { width: 11rem; }
+.operation-table__workspace { width: 9.5rem; }
 /* The other exception, for the same reason as STATUS: this column is sized by its
-   CONTENT, not its heading. The cluster is "View live ↗" and "Revise" — 174.5px in
-   IBM Plex Sans, 193px in system-ui, the widest fallback and the face that paints
+   CONTENT, not its heading. The cluster is "View live ↗" and "Revise" — 183px in
+   Nebula Sans, 193px in system-ui, the widest fallback and the face that paints
    during `font-display: swap`. At 11.5rem the content box was 160px, so the two
    buttons wrapped and every row in the table stood 72px instead of 32px. 14rem
    leaves 200px between the cell's 12px paddings: enough for the fallback, with the
@@ -758,8 +781,14 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 /* The portal member table has two columns, so with table-layout: fixed and no
    width at all they split 50/50 — leaving the left-aligned ACTIONS header ~430px
    from the right-aligned cluster it labels, on the primary desktop view of the
-   feature. Constraining the column puts the header back over its own buttons. */
-.operation-table__member-actions { width: 22rem; }
+   feature. Constraining the column puts the header back over its own buttons.
+   23rem, not 22rem, because the width has a second job: the widest cluster —
+   both arrows plus "Make home", "Edit" and "Remove", the row state that carries
+   every control — measures 328.5px in Nebula Sans, and a 22rem column leaves it
+   328px. Half a pixel short is enough to wrap the text buttons onto a second
+   line, which moves the arrows off the y every other row puts them at, and the
+   split below exists precisely so a repeated press stays over its own control. */
+.operation-table__member-actions { width: 23rem; }
 .page-cell { min-width: 0; display: grid; gap: var(--space-1); }
 .page-cell strong, .page-cell code { overflow-wrap: anywhere; }
 .page-cell code { color: var(--color-text-muted); font-size: var(--font-size-caption); }
@@ -884,9 +913,9 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 .version-option__top { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 /* The version label may wrap; the badge never shrinks, so a status is either fully
    readable or not shown at all. */
-.version-option__top > strong { min-width: 0; overflow-wrap: anywhere; }
+.version-option__top > strong { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .version-option__top > .badge { flex: none; }
-.version-option__meta { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-caption); }
+.version-option__meta { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-caption); font-variant-numeric: tabular-nums; }
 /* The author is the only elastic part of the row: it ellipses (full address stays in
    its title attribute) so the timestamp beside it keeps its full width. */
 .version-option__meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
