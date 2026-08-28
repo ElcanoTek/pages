@@ -745,13 +745,22 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
    wrapped over four lines and that row stood twice as tall as its neighbours.
    "LIVE VERSION" is the constraint — it broke over two lines under 7.5rem and set
    a ragged top edge across the whole header row.
-   A consequence worth naming, since it is what "and no more" buys: a workspace
-   NAME longer than the 152px content box wraps to a second line. That costs no
-   row height — the page cell beside it is already two lines — and it is the
-   deliberate trade, not a bug to widen away. */
+   1201px is the width these three are really sized against, and it is not
+   obvious why: it is one pixel above the collapse below, so the workspace
+   sidebar is still on screen AND the table still owns every column, and the
+   title cell gets only what the fixed widths leave. At 11rem for WORKSPACE that
+   was 82px, and the longest page title stacked twenty lines deep — one row over
+   500px tall on its own. WORKSPACE is where the 24px had to come from: its
+   heading needs 91.4px of the 152px it keeps at 9.5rem (Nebula Sans, padding
+   included), and a workspace NAME longer than that wraps to a second line as it
+   already did at 11rem — which costs no row height, because the page cell beside
+   it is two lines regardless. The other two cannot give it up. LAST UPDATE holds
+   8rem because "59 minutes ago" is a real value and it needs every pixel of the
+   104px content box; take half a rem and most of the first hour after a deploy
+   reads over two lines. LIVE VERSION is pinned by its own heading (see above). */
 .operation-table__live { width: 7.5rem; }
 .operation-table__updated { width: 8rem; }
-.operation-table__workspace { width: 11rem; }
+.operation-table__workspace { width: 9.5rem; }
 /* The other exception, for the same reason as STATUS: this column is sized by its
    CONTENT, not its heading. The cluster is "View live ↗" and "Revise" — 183px in
    Nebula Sans, 193px in system-ui, the widest fallback and the face that paints
@@ -763,8 +772,14 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 /* The portal member table has two columns, so with table-layout: fixed and no
    width at all they split 50/50 — leaving the left-aligned ACTIONS header ~430px
    from the right-aligned cluster it labels, on the primary desktop view of the
-   feature. Constraining the column puts the header back over its own buttons. */
-.operation-table__member-actions { width: 22rem; }
+   feature. Constraining the column puts the header back over its own buttons.
+   23rem, not 22rem, because the width has a second job: the widest cluster —
+   both arrows plus "Make home", "Edit" and "Remove", the row state that carries
+   every control — measures 328.5px in Nebula Sans, and a 22rem column leaves it
+   328px. Half a pixel short is enough to wrap the text buttons onto a second
+   line, which moves the arrows off the y every other row puts them at, and the
+   split below exists precisely so a repeated press stays over its own control. */
+.operation-table__member-actions { width: 23rem; }
 .page-cell { min-width: 0; display: grid; gap: var(--space-1); }
 .page-cell strong, .page-cell code { overflow-wrap: anywhere; }
 .page-cell code { color: var(--color-text-muted); font-size: var(--font-size-caption); }
