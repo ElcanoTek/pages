@@ -747,7 +747,14 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 .operation-table__live { width: 7.5rem; }
 .operation-table__updated { width: 8rem; }
 .operation-table__workspace { width: 11rem; }
-.operation-table__actions { width: 11.5rem; }
+/* The other exception, for the same reason as STATUS: this column is sized by its
+   CONTENT, not its heading. The cluster is "View live ↗" and "Revise" — 174.5px in
+   IBM Plex Sans, 193px in system-ui, the widest fallback and the face that paints
+   during `font-display: swap`. At 11.5rem the content box was 160px, so the two
+   buttons wrapped and every row in the table stood 72px instead of 32px. 14rem
+   leaves 200px between the cell's 12px paddings: enough for the fallback, with the
+   40px coming out of the auto-width title column, which wraps by design. */
+.operation-table__actions { width: 14rem; }
 /* The portal member table has two columns, so with table-layout: fixed and no
    width at all they split 50/50 — leaving the left-aligned ACTIONS header ~430px
    from the right-aligned cluster it labels, on the primary desktop view of the
