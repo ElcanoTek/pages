@@ -56,6 +56,15 @@ h1 { font-size: var(--font-size-title); line-height: var(--line-height-title); }
 h2 { font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
 h3 { font-size: var(--font-size-body-lg); line-height: var(--line-height-body-lg); }
 code, .mono { font-family: var(--font-code); overflow-wrap: anywhere; }
+/* Nebula Sans defaults to PROPORTIONAL figures — its digit advances run from 407
+   to 625 units per 1000em, a 53% spread — so a column of numbers set in it is
+   visibly ragged and two rows' "Version 1" and "Version 11" do not line up.
+   IBM Plex Sans, which this replaced, was uniform by default and hid the need.
+   `tnum` is in the font, so the fix is one declaration: every table, and every
+   <time>, gets tabular figures. Non-table numeric readouts opt in by name below
+   (.stat strong, .workspace-nav__count, .version-option__meta) — prose keeps
+   the proportional figures it reads better with. */
+table, time { font-variant-numeric: tabular-nums; }
 [hidden] { display: none !important; }
 
 .sr-only {
@@ -196,7 +205,7 @@ code, .mono { font-family: var(--font-code); overflow-wrap: anywhere; }
   border-inline-start: 1px solid var(--color-border);
 }
 .stat:first-child { padding-inline-start: 0; border-inline-start: 0; }
-.stat strong { color: var(--color-text-primary); font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); }
+.stat strong { color: var(--color-text-primary); font-size: var(--font-size-subtitle); line-height: var(--line-height-subtitle); font-variant-numeric: tabular-nums; }
 .stat span { color: var(--color-text-muted); font-size: var(--font-size-caption); line-height: var(--line-height-caption); }
 
 .panel, .card {
@@ -673,7 +682,7 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
   background: var(--color-accent);
 }
 .workspace-nav__label { min-width: 0; overflow-wrap: anywhere; }
-.workspace-nav__count { flex: none; min-width: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-pill); color: var(--color-text-muted); background: var(--color-overlay-soft); font-size: var(--font-size-caption); text-align: center; }
+.workspace-nav__count { flex: none; min-width: 1.75rem; padding-inline: var(--space-2); border-radius: var(--radius-pill); color: var(--color-text-muted); background: var(--color-overlay-soft); font-size: var(--font-size-caption); text-align: center; font-variant-numeric: tabular-nums; }
 .workspace-mobile { display: none; }
 .workspace-index {
   min-width: 0;
@@ -904,9 +913,9 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 .version-option__top { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 /* The version label may wrap; the badge never shrinks, so a status is either fully
    readable or not shown at all. */
-.version-option__top > strong { min-width: 0; overflow-wrap: anywhere; }
+.version-option__top > strong { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .version-option__top > .badge { flex: none; }
-.version-option__meta { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-caption); }
+.version-option__meta { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-caption); font-variant-numeric: tabular-nums; }
 /* The author is the only elastic part of the row: it ellipses (full address stays in
    its title attribute) so the timestamp beside it keeps its full width. */
 .version-option__meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
