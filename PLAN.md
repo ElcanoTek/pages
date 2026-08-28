@@ -502,7 +502,8 @@ asset ≤ ~10–25 MB), rate limits (§9).
 **Default look = Flag.** We vendor a pinned copy of `/root/flag/design-system` into
 `pages/vendor/flag/` (refreshed by `scripts/sync-flag.sh`) and serve it from the
 **content host** at `/assets/flag/`: `tokens/design-tokens.css`,
-`fonts/fonts.css` + IBM Plex Sans woff2, `icons/core-icons.svg`, `theme/theme-controller.js`.
+`fonts/fonts.css` + the Nebula Sans and Hack font files, `icons/core-icons.svg`,
+`theme/theme-controller.js`.
 Flag's contract is honored as-is: `html[data-theme]` light/dark, storage key
 `flag-theme-preference`, system-default.
 
@@ -551,7 +552,7 @@ redefines just the brand-relevant tokens, e.g.:
 :root[data-theme="dark"], :root[data-theme="light"] {
   --color-primary: #c8102e;          /* client brand */
   --color-accent:  #ffb81c;
-  --font-heading:  "IBM Plex Sans", system-ui;
+  --font-heading:  var(--font-brand), system-ui;
 }
 ```
 plus an optional `logo_sha256`. Set via API/MCP/admin (`set_theme`). `theme_id NULL`

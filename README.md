@@ -283,7 +283,14 @@ stops a delete-then-recreate bypass of a takedown.
 ### Flag theming
 
 `public/assets/flag/` holds the Flag design system — tokens, fonts, icons,
-logos — committed in-repo, so there is no vendoring or build step. A version
+logos — committed in-repo, so there is no vendoring or build step. Two
+self-hosted typefaces ship, and only two: **Nebula Sans** (SIL OFL 1.1) for UI,
+body and headings, and **Hack** (MIT) for code, slugs and tabular output. One
+sheet, `fonts/fonts.css`, declares both and binds them to `--font-brand` /
+`--font-code-brand`; the token sheet reads those and never names a family, so
+page CSS should use `var(--font-body)` / `var(--font-code)` rather than a face
+name. Nothing is fetched from a CDN or Google Fonts — see
+[`docs/AUTHORING.md`](docs/AUTHORING.md) for what a page may load. A version
 deploys with a render mode:
 
 - **`themed`** — Flag is injected at render time under `[data-flag-injected]`.

@@ -1,11 +1,15 @@
 {
   "font": {
-    "heading": "IBM Plex Sans",
-    "body": "IBM Plex Sans",
-    "code": "Share Tech Mono",
-    "codeUi": "VT323",
+    "brand": "Nebula Sans",
+    "codeBrand": "Hack",
+    "heading": "Nebula Sans",
+    "body": "Nebula Sans",
+    "code": "Hack",
+    "codeUi": "Hack",
     "weight": {
       "regular": 400,
+      "medium": 500,
+      "semibold": 600,
       "bold": 700
     },
     "size": {
@@ -175,7 +179,11 @@
       "rootSelector": "html[data-theme='<mode>']",
       "storageKey": "flag-theme-preference",
       "defaultMode": "system",
-      "modes": ["light", "dark", "system"],
+      "modes": [
+        "light",
+        "dark",
+        "system"
+      ],
       "legacyCompatibilitySelector": "body.theme-light"
     },
     "dark": {

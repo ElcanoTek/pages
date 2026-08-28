@@ -125,8 +125,8 @@ contentApp.use(
       // Cache-Control must be set EXPLICITLY, not left to express.static: `send`
       // only supplies its own when the header is absent, and the floor has
       // already set `no-store`. Leaving it would make every dashboard load
-      // re-download the IBM Plex Sans woff2 files and the token sheet instead of
-      // revalidating them — a real cost on a client's page, from a header nobody
+      // re-download the Nebula Sans and Hack font files and the token sheet
+      // instead of revalidating them — a real cost on a client's page, from a header nobody
       // chose. `max-age=0` is cacheable-but-revalidate: browsers keep the bytes
       // and get a 304, which is what these stable, overwritten-in-place paths
       // want. Not `immutable`: sync-flag.sh replaces them under the same URL, so

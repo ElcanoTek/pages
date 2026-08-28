@@ -733,23 +733,28 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
    it is "LIVE · GATED", and that chip does not wrap (see .badge, .status). At the
    7.5rem it used to share with the live-version column it had 96px of content box
    and needed 100px, so the label rendered outside its own pill. 8.5rem gives
-   112px: 12px of room for IBM Plex Sans, and exactly enough for the widest
-   fallback face, which is what paints during `font-display: swap`. The extra 1rem
-   comes out of the auto-width title column, where a long title takes a second
-   line instead — a column that already wraps by design. */
+   112px: 9.5px of room over the 102.5px the chip measures in Nebula Sans, and
+   exactly enough for the widest fallback face, which is what paints during
+   `font-display: swap`. The extra 1rem comes out of the auto-width title column,
+   where a long title takes a second line instead — a column that already wraps
+   by design. */
 .operation-table__status { width: 8.5rem; }
 .operation-table__page { width: auto; }
 /* Every fixed column is the width of its own heading and no more, because what
    they take, the title column loses: at 8rem and 11rem the longest page title
    wrapped over four lines and that row stood twice as tall as its neighbours.
    "LIVE VERSION" is the constraint — it broke over two lines under 7.5rem and set
-   a ragged top edge across the whole header row. */
+   a ragged top edge across the whole header row.
+   A consequence worth naming, since it is what "and no more" buys: a workspace
+   NAME longer than the 152px content box wraps to a second line. That costs no
+   row height — the page cell beside it is already two lines — and it is the
+   deliberate trade, not a bug to widen away. */
 .operation-table__live { width: 7.5rem; }
 .operation-table__updated { width: 8rem; }
 .operation-table__workspace { width: 11rem; }
 /* The other exception, for the same reason as STATUS: this column is sized by its
-   CONTENT, not its heading. The cluster is "View live ↗" and "Revise" — 174.5px in
-   IBM Plex Sans, 193px in system-ui, the widest fallback and the face that paints
+   CONTENT, not its heading. The cluster is "View live ↗" and "Revise" — 183px in
+   Nebula Sans, 193px in system-ui, the widest fallback and the face that paints
    during `font-display: swap`. At 11.5rem the content box was 160px, so the two
    buttons wrapped and every row in the table stood 72px instead of 32px. 14rem
    leaves 200px between the cell's 12px paddings: enough for the fallback, with the
