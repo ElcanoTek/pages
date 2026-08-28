@@ -1,11 +1,53 @@
 version: 2
 updates:
+  # ── npm ───────────────────────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 5
     # Production deps only; dev tooling (playwright/axe) is pinned by the
     # browser test job and bumped deliberately.
     allow:
       - dependency-type: "production"
+    groups:
+      # One branch for the routine bumps. Every open PR pays for a full CI
+      # run — unit tests, 238 browser specs, and a throwaway Postgres — and
+      # five of them at once is twenty minutes of runner time to land the
+      # kind of update nobody reads line by line.
+      #
+      # `applies-to: version-updates` keeps SECURITY updates out of the
+      # group: an advisory fix should arrive on its own branch, mergeable
+      # without waiting on whatever else happened to bump that week.
+      npm-routine:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+    # No `update-types: major` group, deliberately. Both majors in the first
+    # batch changed documented behaviour — parse5 7→8, and express-rate-limit
+    # 7→8, which now keys IPv6 clients by /56 subnet rather than by address.
+    # A major sharing a branch with four routine bumps is a major nobody
+    # reviews, so each one keeps its own PR and its own CI run.
+
+  # ── GitHub Actions ────────────────────────────────────────────────────
+  # Nothing watched these. checkout, setup-node and upload-artifact all sat
+  # at v4 until the runner itself started warning that they execute on the
+  # deprecated Node 20 — a warning printed on every CI run with no PR behind
+  # it, because the npm block above is the only thing Dependabot was told to
+  # look at. The workflow is the only thing standing between a bad commit
+  # and main, so it gets watched too.
+  #
+  # Grouped with no update-types filter, majors included: a workflow's
+  # actions are bumped together or the job runs a mix of runtimes, and the
+  # blast radius of a bad action bump is one red CI run, not a shipped bug.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
