@@ -1,50 +1,34 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
-go.work.sum
-
-# env file
+# Secrets. `.env` is the real file; `.env.example` is the tracked template that
+# documents every variable it can hold, so it has to survive the glob above it.
 .env
+.env.*
+!.env.example
 
 # Node
 node_modules/
 npm-debug.log*
 *.tgz
-playwright-report/
+
+# Playwright (`npm run test:browser`): the run's artifacts and its HTML report,
+# the two paths CI uploads when the browser suite fails. `.last-run.json` needs
+# no entry of its own — Playwright writes it inside outputDir, under
+# test-results/.
 test-results/
+playwright-report/
 
 # Local dev environment (throwaway Postgres cluster + secrets, scripts/dev.sh)
 .devdata/
-
-# Editor/IDE
-# .idea/
-# .vscode/
 
 # Claude Code working state. The harness puts agent git worktrees under
 # .claude/worktrees/, i.e. a whole second checkout inside this one — an
 # unignored `git add -A` would commit the entire duplicate tree.
 .claude/
 
-# Local screenshots
+# Ad-hoc captures taken while working on a screen. Not the README's two
+# images, which are tracked under docs/images/.
 screenshots/
+
+# macOS is a supported dev platform — scripts/dev-macos.sh, and the integration
+# suite hunts for initdb under the Homebrew kegs — so these turn up.
+.DS_Store
+*.swp
