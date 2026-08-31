@@ -794,6 +794,12 @@ test("update prompts: managed-data runs pin the slug/schema and remain caller-ow
   assert.match(prompt, /user-owned scheduler/i);
   assert.match(prompt, /never create another page, companion data page, or replacement slug/i);
   assert.match(prompt, /Never invent zeros/i);
+  // A minted ± "share adjustment" pair nets to zero margin but not to zero
+  // share: it reconciled every total while silently moving dollars between
+  // partner and house. Rows must trace to source records, and a run must not
+  // carry such rows forward just because the previous payload had them.
+  assert.match(prompt, /never mint rows the sources never contained/i);
+  assert.match(prompt, /name the gap in your report instead of patching the data/i);
   // A truncated get_page_data read must never be a reason to stop: the write's
   // expect checks are the preservation proof, not a diff against live rows.
   assert.match(prompt, /truncates that response/i);
