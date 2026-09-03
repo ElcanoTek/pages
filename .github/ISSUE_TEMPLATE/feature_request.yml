@@ -1,0 +1,21 @@
+name: Feature request
+description: Propose an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, and why does it matter for hosting client dashboards?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This touches an invariant listed in CONTRIBUTING.md (host split, pointer-is-truth, append-only versions, /raw tokens, the sandbox allow-list) and I have read docs/SECURITY.md
