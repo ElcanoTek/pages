@@ -36,6 +36,15 @@ public/assets/flag/fonts/hack/LICENSE.md.
 https://sourcefoundry.org/hack/
 
 -------------------------------------------------------------------------------
+ElcanoTek brand assets — public/assets/flag/logos/*.svg, public/shell-assets/favicon.svg
+-------------------------------------------------------------------------------
+The ElcanoTek name and the Elcano mark are trademarks of ElcanoTek, Inc. They
+are included so the admin shell and themed pages render as intended. The
+Business Source License grants no trademark rights (see LICENSE, "This License
+does not grant you any right in any trademark or logo of Licensor"); a fork or
+derivative work must replace these assets with its own branding.
+
+-------------------------------------------------------------------------------
 Runtime dependencies
 -------------------------------------------------------------------------------
 Pages depends on npm packages that are NOT vendored into this repository; they
