@@ -87,7 +87,9 @@ export PATH="/usr/lib/postgresql/16/bin:$PATH"
 ## Tests and checks
 
 There is no separate linter. CI (`.github/workflows/ci.yml`) runs exactly these,
-in this order, and a pull request needs all of them green:
+in this order, and a pull request needs all of them green. CodeQL
+(`.github/workflows/codeql.yml`) scans the JavaScript on every push and PR and
+weekly; a new alert on your branch is yours to look at.
 
 ```bash
 npm ci
