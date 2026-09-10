@@ -27,7 +27,11 @@ test("a Bento deck boots under the content host's real CSP", async ({ page }) =>
   // documents aren't allowed to show a file picker"), and Bento chooses its Save
   // path by whether the API exists — so with the API present, Save on Chrome did
   // nothing at all. Absent, Bento downloads and says so on the button.
-  await expect(page.locator("script[data-pages-deck-host]")).toHaveCount(1);
+  // Present once in what was SERVED…
+  expect(((await response.text()).match(/data-pages-deck-host/g) || []).length).toBe(1);
+  // …and gone from the DOM once it has run, because Bento serialises the live
+  // DOM on Save and a copy that leaves Pages must be pure Bento.
+  await expect(page.locator("script[data-pages-deck-host]")).toHaveCount(0);
   expect(await page.evaluate(() => typeof window.showSaveFilePicker)).toBe("undefined");
 });
 
