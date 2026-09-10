@@ -82,6 +82,36 @@ const server = app.listen(0, async () => {
     await page.waitForTimeout(3000);
     console.log(`persistence: ${(await page.title()) === before ? "an unsaved edit is gone after reload (expected: the sandbox has no storage)" : "the edit SURVIVED reload — storage is reachable; check the sandbox"}`);
   }
+  // ── the edit session, against the real app ────────────────────────────────
+  // Serve the same deck as a staff edit session with a local save stub, press
+  // Bento's own Save, and report what arrived. This is the proof the synthetic
+  // deck in the browser suite cannot give: that the intercept catches the real
+  // runtime's save path.
+  const bento = require("../../lib/bento");
+  let received = null;
+  const localOrigin = origin;
+  app.options("/raw/deck/versions", (_req, res) => { res.set({ "Access-Control-Allow-Origin": "null", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Pages-Base-Version" }); res.status(204).end(); });
+  app.post("/raw/deck/versions", express.text({ type: ["text/html", "text/plain"], limit: "5mb" }), (req, res) => {
+    received = { auth: req.headers.authorization, origin: req.headers.origin, cookie: req.headers.cookie || null, bytes: Buffer.byteLength(req.body || ""), deck: render.isBentoDeck(req.body), collab: /"collab"\s*:\s*\{/.test((req.body.match(/application\/bento\+json[^>]*>([\s\S]*?)<\/script/) || [])[1] || ""), title: (req.body.match(/"title"\s*:\s*"([^"]*)"/) || [])[1] };
+    res.set("Access-Control-Allow-Origin", "null").status(201).json({ version_id: "77", status: "draft", deduped: false });
+  });
+  app.get("/raw/deck-edit", (_req, res) => {
+    const headers = rawHeaders();
+    headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace("connect-src 'none'", `connect-src ${localOrigin}`);
+    res.set(headers).type("html").send(bento.editSession(html, { saveUrl: `${localOrigin}/raw/deck/versions`, token: "manual-edit-token", versionId: 1, contentOrigin: localOrigin }));
+  });
+  const edit = await context.newPage();
+  const editDownloads = [];
+  edit.on("download", (d) => editDownloads.push(d.suggestedFilename()));
+  await edit.goto(`${origin}/raw/deck-edit`, { waitUntil: "load" });
+  await edit.waitForTimeout(4000);
+  await edit.evaluate(() => { const t = [...document.querySelectorAll("input")].find((i) => i.value && document.title.startsWith(i.value)); if (t) { t.value = "Saved through the channel"; t.dispatchEvent(new Event("input", { bubbles: true })); t.dispatchEvent(new Event("change", { bubbles: true })); } });
+  await edit.locator('button[title^="Save"]').first().click({ timeout: 5000 }).catch(() => {});
+  await edit.waitForTimeout(2500);
+  const toast = await edit.locator("[data-pages-save-toast] p").textContent().catch(() => null);
+  console.log(`edit session: ${received ? `Save posted ${received.bytes} bytes (deck: ${received.deck}, title: ${JSON.stringify(received.title)}) with ${received.auth} from origin ${received.origin}, cookies: ${received.cookie === null ? "none" : "PRESENT"}, collab keys in body: ${received.collab}` : "Save did NOT reach the channel"}`);
+  console.log(`  toast:     ${JSON.stringify(toast)}`);
+  console.log(`  download:  ${editDownloads.length ? editDownloads.join(", ") + " (should be none when the save succeeded)" : "none (correct)"}`);
   const relevant = errors.filter((e) => !/bento\.page/.test(e));
   console.log(`console:     ${relevant.length} error(s)${errors.length !== relevant.length ? ` (+${errors.length - relevant.length} blocked update-check fetches to bento.page, expected)` : ""}`);
   relevant.slice(0, 8).forEach((e) => console.log(`  ${e}`));

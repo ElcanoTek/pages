@@ -289,6 +289,8 @@ over the compatibility names. The matching examples are in
 | `POST /api/v1/pages` | `{slug, title?, client_id?, require_approval?}` | create a page |
 | `GET  /api/v1/pages/:slug` | — | metadata + published version + `urls` |
 | `POST /api/v1/pages/:slug/versions` | `{html, render_mode?, note?, publish?, expected_version?}` | deploy/update (`deploy_page`/`update_page`) |
+| `POST /api/v1/admin/pages/:slug/edit-token` | — (admin cookie + CSRF) | mint an 8-hour **edit** token for a Bento deck page and return the editor URL on the content host; refused (`not_a_bento_deck`) for any other page |
+| `POST <content host>/raw/:slug/versions` | the serialised deck, `Authorization: Bearer <edit token>` | the deck editor's save channel: stores a **draft** version attributed to the token's actor. Refuses view/session tokens, non-deck bodies, and other pages. Not agent-facing — agents use `deploy_page_upload` |
 | `GET  /api/v1/pages/:slug/versions` | — | history |
 | `GET  /api/v1/pages/:slug/versions/:id` | — | one version (html + meta) — the REST `get_version` |
 | `GET  /api/v1/pages/:slug/preflight` | `?version_id=` | findings for a stored version — the REST `preflight_page` (defaults to the published version) |

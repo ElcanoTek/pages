@@ -388,11 +388,12 @@ test("rawtoken: rejects a tampered payload (purpose escalation)", () => {
 });
 
 test("rawtoken: mint refuses a purpose that is not in the allow-list", () => {
-  // "edit" was listed for a Phase 4 editor that never shipped, and was never
-  // minted or checked. A purpose nothing consumes is a door with no room behind
-  // it, so it is gone — and mint must say so rather than issue a token that
-  // every consuming route would silently refuse.
-  for (const bad of ["edit", "admin", "", "VIEW"]) {
+  // A purpose nothing consumes is a door with no room behind it. "edit" was once
+  // such a door and was removed; it is back now that there IS a room — the Bento
+  // deck edit session (server.js consumes it in exactly two routes). Everything
+  // not in the list is still refused at mint, rather than issued as a token every
+  // consuming route would silently refuse.
+  for (const bad of ["publish", "admin", "", "VIEW", "Edit"]) {
     assert.throws(
       () => rawtoken.mint({ pageId: 1, versionId: 1, purpose: bad, renderMode: "themed" }),
       /bad purpose/,
@@ -402,6 +403,7 @@ test("rawtoken: mint refuses a purpose that is not in the allow-list", () => {
   for (const good of ["view", "template", "session"]) {
     assert.ok(rawtoken.verify(rawtoken.mint({ pageId: 1, versionId: 1, purpose: good, renderMode: "themed" })));
   }
+  assert.ok(rawtoken.verify(rawtoken.mint({ pageId: 1, versionId: 1, purpose: "edit", renderMode: "raw", actor: "qa@elcanotek.com" })));
 });
 
 test("rawtoken: rejects expired tokens", () => {
@@ -5233,4 +5235,88 @@ test("bento: the admin's file check and the server's recogniser agree", () => {
   for (const sample of samples) {
     assert.equal(UI.looksLikeBentoDeck(sample), render.isBentoDeck(sample), sample.slice(0, 70));
   }
+});
+
+// ── Bento decks: the save channel ────────────────────────────────────────────
+// A deck opens in Bento's editor on the live page, and the content host forbids
+// every request back to Pages — so Save could only ever produce a file. The edit
+// session is the ONE response that may talk back, for a staff-minted token, and
+// every save lands as a draft. These pin the pieces that make that safe.
+
+test("bento: an edit token names its actor, and no other token may carry one", () => {
+  const rawtoken = require("../lib/rawtoken");
+  process.env.RAW_TOKEN_SECRET = process.env.RAW_TOKEN_SECRET || "unit-test-secret";
+  // rawtoken reads the secret at load; re-require through a fresh module copy.
+  delete require.cache[require.resolve("../lib/rawtoken")];
+  const fresh = require("../lib/rawtoken");
+  const token = fresh.mint({ pageId: 7, versionId: 70, purpose: "edit", renderMode: "raw", actor: "qa@elcanotek.com" }, 60);
+  const claims = fresh.verify(token);
+  assert.equal(claims.purpose, "edit");
+  assert.equal(claims.actor, "qa@elcanotek.com", "the audit row of every save names a person");
+  assert.equal(claims.pid, 7);
+  // Without an actor an edit token is refused: a save with nobody's name on it
+  // is exactly the credential this purpose must never become.
+  assert.throws(() => fresh.mint({ pageId: 7, versionId: 70, purpose: "edit", renderMode: "raw" }, 60), /actor/);
+  // And a render credential carries no identity it has no use for.
+  assert.throws(() => fresh.mint({ pageId: 7, versionId: 70, purpose: "view", renderMode: "raw", actor: "qa@elcanotek.com" }, 60), /carries no actor/);
+  void rawtoken;
+});
+
+test("bento: the edit-session header opens connect-src to this host and nothing else", () => {
+  const { rawHeaders, rawEditHeaders, CONTENT_ORIGIN, sandboxTokens } = require("../lib/csp");
+  const view = rawHeaders()["Content-Security-Policy"];
+  const edit = rawEditHeaders()["Content-Security-Policy"];
+  assert.match(view, /connect-src 'none'/, "a viewer's deck can reach nothing");
+  assert.match(edit, new RegExp(`connect-src ${CONTENT_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(;|$)`), "an editor's deck can reach Pages");
+  assert.ok(!/connect-src 'none'/.test(edit));
+  // Everything else is the same policy: the sandbox is untouched, so the document
+  // is still an opaque origin with no cookies, and the token is the only credential.
+  assert.equal(view.replace("connect-src 'none'", `connect-src ${CONTENT_ORIGIN}`), edit);
+  assert.deepEqual(sandboxTokens(), ["allow-scripts", "allow-downloads", "allow-modals"]);
+});
+
+test("bento: stripCollab removes the live-collaboration keys and nothing else", () => {
+  const bento = require("../lib/bento");
+  const doc = { format: "bento/slides", version: 1, docId: "d-1", title: "T <b>x</b>", slides: [{ id: "s1", elements: [] }], collab: { room: "wss://sync.bento.page/d/abc", key: "secret" } };
+  const html = bentoDeckHtml().replace('{"format":"bento/slides","version":1,"slides":[]}', JSON.stringify(doc).replace(/</g, "\\u003c"));
+  const { html: out, stripped } = bento.stripCollab(html);
+  assert.equal(stripped, true);
+  const after = bento.readDoc(out);
+  assert.equal("collab" in after, false);
+  assert.equal(after.docId, "d-1", "docId is the document's identity and is never regenerated");
+  assert.deepEqual(after.slides, doc.slides);
+  assert.equal(after.title, "T <b>x</b>", "content survives the round trip");
+  // The block's escaping rule: a raw `<` inside a <script> is how a document ends
+  // its own block. The re-serialised block has none.
+  const block = out.match(/<script\b[^>]*bento\+json[^>]*>([\s\S]*?)<\/script>/i)[1];
+  assert.ok(!/</.test(block), "no raw < inside the document block");
+  // Everything outside the block is byte-identical.
+  assert.equal(out.replace(block, ""), html.replace(html.match(/<script\b[^>]*bento\+json[^>]*>([\s\S]*?)<\/script>/i)[1], ""));
+  // No collab: untouched. Not JSON: left alone rather than risked.
+  assert.deepEqual(bento.stripCollab(bentoDeckHtml()), { html: bentoDeckHtml(), stripped: false });
+  const broken = bentoDeckHtml().replace('{"format":"bento/slides","version":1,"slides":[]}', "{not json");
+  assert.deepEqual(bento.stripCollab(broken), { html: broken, stripped: false });
+});
+
+test("bento: an edit session widens only the deck's own guard, and deploy restores it", () => {
+  const bento = require("../lib/bento");
+  const { CONTENT_ORIGIN } = require("../lib/csp");
+  const html = bentoDeckHtml();
+  const session = bento.editSession(html, { saveUrl: `${CONTENT_ORIGIN}/raw/team/guide/versions`, token: "T.sig", versionId: 41, contentOrigin: CONTENT_ORIGIN });
+  const meta = session.match(/<meta[^>]*Content-Security-Policy[^>]*>/)[0];
+  assert.match(meta, new RegExp(`connect-src ${CONTENT_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  assert.match(meta, /default-src 'none'/, "the rest of fleet's guard is untouched");
+  // Two tags, both Pages', both stripped at deploy — and the widened guard is
+  // restored with them, so what Bento serialises back and what gets stored is
+  // fleet's deck exactly as fleet wrote it.
+  assert.equal((session.match(/data-pages-deck-host/g) || []).length, 2);
+  assert.match(session, /Authorization[^;]*Bearer/, "the save carries the token");
+  assert.match(session, /publish it from the admin/i, "and says what a save is: a draft");
+  assert.equal(render.stripDeckHostAdaptation(session), html, "strip(edit session) is the stored bytes, byte for byte");
+  const ctx = { actor: "qa@elcanotek.com" };
+  assert.equal(versions.prepareDeploy({ slug: "team/guide", html: session }, ctx).html, html, "a save that came back through the channel stores clean");
+  // The script itself is valid JS and carries no raw `<` that could end its tag early.
+  const body = bento.editSessionScript({ saveUrl: "u", token: "t<x", versionId: 1 }).replace(/^<script[^>]*>|<\/script>$/g, "");
+  assert.doesNotThrow(() => new Function(body));
+  assert.ok(!/<\/script/i.test(body));
 });

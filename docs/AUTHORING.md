@@ -139,6 +139,31 @@ that means:
 `readonly: true` in the deck's document makes a **player** file that boots
 straight into the presentation with no editor — set it on a hand-out copy.
 
+### Saving back to Pages: the edit session
+
+Everything above is what a *reader* of the deck gets. Staff get one more thing:
+**Edit in Bento** on the page's detail screen opens the deck in an **edit
+session** — the newest version of the page (drafts included), served for a
+signed, eight-hour, page-bound token that names who opened it. In that session:
+
+- **Save saves to Pages.** Every one of Bento's save entry points (the button,
+  ⌘S, *Save a copy…*) is intercepted and the serialised deck is posted to Pages,
+  where it lands as a new **draft** version attributed to the staff member. The
+  deck says so in a small toast; you publish from the admin, as with any draft.
+  If Pages cannot be reached, the download proceeds exactly as it would have —
+  a save is never lost to a network error.
+- **The channel is the token, not the sandbox.** The session's CSP opens
+  `connect-src` to Pages' own origin and nothing else (`rawEditHeaders()`); the
+  deck's own guard is widened the same way for that response only, and restored
+  in the stored bytes on every save. Readers, partners and clients never get this
+  response — their deck stays `connect-src 'none'` and Save downloads.
+- **Only a deck can be saved through it**, only to the page the token names, and
+  only as a draft. The `collab` block Bento mints on save is removed before
+  storage (`lib/bento.js`), so the stored version carries no keys.
+
+Agents do not use this channel — `deploy_page_upload` is theirs, and it is the
+same state machine underneath.
+
 The boot mechanism is pinned by `test/browser/bento-deck.spec.js` with a
 synthetic deck. `node test/manual/bento-deck-check.js Deck.bento.html` runs the
 same probes against a real one — run it when Bento is re-vendored in fleet.

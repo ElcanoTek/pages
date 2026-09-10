@@ -182,6 +182,7 @@ function detailFor(page) {
   const published = versions.find((version) => String(version.id) === String(page.published_version_id)) || null;
   return {
     page,
+    deck: Boolean(versions[0] && render.isBentoDeck(versions[0].html)),
     versions: versions.map(({ html, ...version }) => version),
     pending: versions.filter((version) => version.status === "pending").map(({ html, ...version }) => version),
     published,
@@ -277,6 +278,22 @@ app.post("/__fixture/empty-templates", (_req, res) => { state.templates = []; re
 // unreachable with the default fixture — and that is the branch a real account
 // will live in once it passes fifty pages. This pads the list so both can be
 // pinned.
+// A page whose newest version is a Bento deck, so the detail screen has an
+// "Edit in Bento" to offer. On request, like pad-pages: the index specs pin the
+// default page count.
+app.post("/__fixture/deck-page", (_req, res) => {
+  const slug = "team/bento-guide";
+  state.pages = state.pages.filter((page) => page.slug !== slug);
+  state.pages.unshift({
+    id: 48, slug, title: "Team Bento guide", client_id: null, workspace_id: null, workspace_name: null,
+    theme_id: null, theme_name: "flag", require_approval: false, disabled: false, published_version_id: 401,
+    has_password: false, is_live: true, created_at: iso(500), updated_at: iso(5), freshness: null,
+  });
+  state.details[slug] = { versions: [
+    { id: 401, page_id: 48, status: "approved", render_mode: "raw", author: "qa-admin@elcanotek.com", source: "admin", note: "Deck, first cut", reviewed_by: null, reviewed_at: null, created_at: iso(5), html: BENTO_DECK },
+  ] };
+  res.json({ ok: true });
+});
 app.post("/__fixture/pad-pages", (req, res) => {
   const count = Math.max(0, Math.min(200, Number(req.body?.count || 40)));
   const base = state.pages.length;
@@ -930,6 +947,7 @@ app.use("/api/v1/admin", (req, res, next) => {
   record(req, page);
 
   if (suffix === "/preview-token") return res.json({ url: `http://127.0.0.1:${PORT}/preview/${req.body.version_id}` });
+  if (suffix === "/edit-token") return res.json({ url: `http://127.0.0.1:${PORT}/bento/edit` });
   const versionAction = suffix.match(/^\/versions\/(\d+)\/(approve|reject)$/);
   if (versionAction) {
     const version = versions.find((item) => String(item.id) === versionAction[1]);
@@ -1032,10 +1050,19 @@ const BENTO_BOOTSTRAP = `(async () => {
 function syntheticBentoDeck() {
   const deflate = (text) => zlib.deflateRawSync(Buffer.from(text, "utf8")).toString("base64");
   const css = "body{margin:0;background:#0D1B2E;color:#F2F0EA;font:20px/1.4 sans-serif}#booted{padding:48px}";
+  // Save mirrors Bento's own path exactly: serialise the LIVE DOM into a
+  // text/html Blob, make an <a download> for its object URL, click it. That is
+  // the one step the edit session intercepts, so this is what exercises it.
   const runtime = [
     "window.__bentoBooted = true;",
     "const s = document.getElementById('bento-splash'); if (s) s.remove();",
     "const h = document.createElement('h1'); h.id = 'booted'; h.textContent = 'Synthetic deck booted'; document.body.appendChild(h);",
+    "const b = document.createElement('button'); b.id = 'save'; b.type = 'button'; b.textContent = 'Save';",
+    "b.addEventListener('click', () => {",
+    "  const html = '<!DOCTYPE html>' + document.documentElement.outerHTML;",
+    "  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); a.download = 'Synthetic.bento.html'; a.click();",
+    "});",
+    "document.body.appendChild(b);",
   ].join("\n");
   // Same head order as a fleet-produced deck: CSP meta, guard, document, blocks.
   return `<!DOCTYPE html>
@@ -1067,6 +1094,49 @@ app.get("/bento/deck", (_req, res) =>
 // In a portal. A raw dashboard gets the Page menu here; a deck must not.
 app.get("/bento/deck-portal", (_req, res) =>
   res.set(rawHeaders()).type("html").send(render.renderVersion({ render_mode: "raw", html: BENTO_DECK, nav: FIXTURE_NAV })));
+// ── the edit session and its save channel ─────────────────────────────────
+// lib/csp.js rawEditHeaders() names CONTENT_ORIGIN, which is the production host;
+// the fixture is its own origin, so it applies the same one-directive change to
+// rawHeaders() itself. Everything else about the response is the real thing.
+const bento = require("../../lib/bento");
+const FIXTURE_ORIGIN = `http://127.0.0.1:${PORT}`;
+function fixtureEditHeaders() {
+  const headers = rawHeaders();
+  headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace("connect-src 'none'", `connect-src ${FIXTURE_ORIGIN}`);
+  return headers;
+}
+app.get("/bento/edit", (req, res) =>
+  res.set(fixtureEditHeaders()).type("html").send(bento.editSession(BENTO_DECK, {
+    saveUrl: `${FIXTURE_ORIGIN}${req.query.fail ? "/bento/save-fail" : "/bento/save"}`,
+    token: "fixture-edit-token",
+    versionId: 41,
+    contentOrigin: FIXTURE_ORIGIN,
+  })));
+// The save channel, as server.js answers it: CORS for the opaque origin so the
+// deck may read the reply, and a record of exactly what arrived — the token, the
+// Origin the browser sent, whether any cookie rode along, and whether the body
+// is a deck — so the spec can assert the channel's shape, not just its outcome.
+function saveCors(res) {
+  res.set({ "Access-Control-Allow-Origin": "null", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Pages-Base-Version", Vary: "Origin" });
+}
+app.options(["/bento/save", "/bento/save-fail"], (_req, res) => { saveCors(res); res.status(204).end(); });
+const deckBody = express.text({ type: ["text/html", "text/plain"], limit: "3mb" });
+app.post("/bento/save", deckBody, (req, res) => {
+  saveCors(res);
+  state.events.push({ method: "POST", path: "/bento/save", slug: null, body: {
+    authorization: req.headers.authorization || null,
+    origin: req.headers.origin || null,
+    cookie: req.headers.cookie || null,
+    base_version: req.headers["x-pages-base-version"] || null,
+    bytes: Buffer.byteLength(req.body || ""),
+    is_deck: render.isBentoDeck(req.body),
+    guard_widened: new RegExp(`connect-src ${FIXTURE_ORIGIN}`).test(req.body || ""),
+    tags_carried: /data-pages-deck-host/.test(req.body || ""),
+  } });
+  res.status(201).json({ version_id: "42", status: "draft", deduped: false, collab_keys_removed: false });
+});
+app.post("/bento/save-fail", deckBody, (_req, res) => { saveCors(res); res.status(500).json({ error: "fixture: Pages could not store the version" }); });
+
 // The header as it was before blob: was granted. Pinned so the grant cannot be
 // "tidied away" without this route saying exactly what breaks.
 app.get("/bento/deck-without-blob", (_req, res) => {

@@ -127,6 +127,23 @@
   single head tag that removes the native file-picker API, because the sandbox
   refuses pickers and Bento's Save silently did nothing on Chrome without it
   (`lib/render.js`, `adaptDeckToHost`). The tag is stripped again at deploy.
+- **The deck edit session is the one response on the content host that may talk
+  back to Pages — and it is a token, not a sandbox change.** `/raw/<slug>?t=<edit
+  token>` serves a Bento deck with `connect-src` opened to `CONTENT_ORIGIN` alone
+  (`rawEditHeaders()`; the deck's own guard meta is widened identically for that
+  response and restored in stored bytes on save) and a save channel that POSTs
+  the serialised deck to `/raw/<slug>/versions`. The sandbox is untouched: the
+  document is still an opaque origin, so the request arrives with `Origin: null`
+  and no cookies, and the route answers CORS for `null` **only to let the page read
+  the reply** — authorisation is the `edit` token in the Authorization header,
+  minted only by the admin (staff SSO + CSRF) for a page whose newest version IS a
+  deck, eight hours, bound to the page, naming the actor. What it buys: the right
+  to add **draft** versions of **a deck** to **that page**, attributed to that
+  person, for its TTL. Not a publish, not a read, not another page, not a
+  non-deck body. A leaked edit URL therefore yields junk drafts in one page's
+  history and nothing else. Bento's minted `collab` keys are stripped before
+  storage. Pinned in `test/browser/bento-deck.spec.js` (a save posts, a failed
+  save downloads, a viewer's deck cannot connect) and `test/unit.test.js`.
 - **One state machine, no backdoor.** REST, MCP, and the admin UI all route through
   `lib/versions.js`. Every mutation runs `SELECT … FOR UPDATE` first, honors
   optimistic concurrency (`expected_version`), and writes an `audit_log` row in the
