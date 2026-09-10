@@ -56,3 +56,71 @@ test("a deck in a portal gets no Page menu drawn over its toolbar", async ({ pag
   await expect(page.locator(".pgnav-host")).toHaveCount(0);
   await expect(page.locator("#pages-nav")).toHaveCount(0);
 });
+
+// ── the edit session ─────────────────────────────────────────────────────────
+// Everything above is what a READER of a deck gets. Staff get an edit session:
+// the same deck, served for a signed token, with connect-src opened to Pages'
+// own origin and Bento's Save intercepted into a draft version. These pin the
+// channel's shape — who may reach what — not only that a save happens.
+
+const ORIGIN_RE = (origin) => new RegExp(`connect-src ${origin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(;|$)`);
+
+test("an edit session opens connect-src to Pages alone, and Save posts a draft instead of downloading", async ({ page, request }) => {
+  const response = await page.goto("/bento/edit");
+  const origin = new URL(page.url()).origin;
+  const csp = response.headers()["content-security-policy"];
+  expect(csp).toMatch(ORIGIN_RE(origin));
+  expect(csp).not.toMatch(/connect-src 'none'/);
+  expect(csp).toMatch(/sandbox allow-scripts/, "the sandbox is untouched — the token is the credential, not the origin");
+  await expect(page.locator("#booted")).toHaveText("Synthetic deck booted");
+  // The deck's own guard is widened the same way and no further.
+  const guard = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
+  expect(guard).toContain(`connect-src ${origin}`);
+  expect(guard).toContain("default-src 'none'");
+  // Pages' tags have run and left the DOM, so what Bento serialises is the deck.
+  await expect(page.locator("script[data-pages-deck-host]")).toHaveCount(0);
+
+  const downloads = [];
+  page.on("download", (d) => downloads.push(d.suggestedFilename()));
+  await page.locator("#save").click();
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText("Saved to Pages as a new draft version");
+  expect(downloads, "a save that reached Pages does not also download").toEqual([]);
+
+  const events = (await (await request.get("/__fixture/events")).json()).events;
+  const save = events.find((event) => event.path === "/bento/save");
+  expect(save, "Pages received the save").toBeTruthy();
+  // The channel's shape: the token, from an opaque origin, with no cookie, a deck.
+  expect(save.body.authorization).toBe("Bearer fixture-edit-token");
+  expect(save.body.origin).toBe("null");
+  expect(save.body.cookie).toBeNull();
+  expect(save.body.is_deck).toBe(true);
+  expect(save.body.base_version).toBe("41");
+  // What Bento serialises carries the widened guard (prepareDeploy restores it)
+  // and none of Pages' tags (they removed themselves).
+  expect(save.body.guard_widened).toBe(true);
+  expect(save.body.tags_carried).toBe(false);
+});
+
+test("a save Pages refuses falls back to the download, and says so", async ({ page }) => {
+  await page.goto("/bento/edit?fail=1");
+  await expect(page.locator("#booted")).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.locator("#save").click();
+  // A save is never lost to a failure on our side: the file downloads exactly as
+  // it would have without the channel, and the toast says what to do with it.
+  expect((await download).suggestedFilename()).toBe("Synthetic.bento.html");
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Couldn.t save to Pages/);
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText(/downloaded instead/);
+});
+
+test("a viewer's deck has no save channel at all", async ({ page }) => {
+  const response = await page.goto("/bento/deck");
+  expect(response.headers()["content-security-policy"]).toMatch(/connect-src 'none'/);
+  await expect(page.locator("#booted")).toBeVisible();
+  // Not even to Pages: without an edit token there is nothing to talk to.
+  const outcome = await page.evaluate(async (origin) => {
+    try { await fetch(origin + "/bento/save", { method: "POST", body: "x" }); return "connected"; } catch (e) { return e.name; }
+  }, new URL(page.url()).origin);
+  expect(outcome).toBe("TypeError");
+  await expect(page.locator("[data-pages-save-toast]")).toHaveCount(0);
+});

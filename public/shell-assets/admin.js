@@ -387,6 +387,28 @@
     }
   }
 
+  async function openBentoEditor(button) {
+    // The tab is opened BEFORE the request, so the click's own user activation
+    // is what opens it — a window opened after an await is a pop-up to the
+    // browser. Not "noopener" in the call, which makes window.open return null
+    // and would leave nowhere to put the URL; the opener is severed by hand
+    // instead, before the deck — untrusted HTML — is navigated to.
+    const tab = window.open("", "_blank");
+    if (tab) tab.opener = null;
+    setBusy(button, true, "Opening…");
+    try {
+      const { url } = await post("/edit-token", {});
+      if (tab) tab.location = url;
+      else window.location.assign(url);
+      toast("Opened in Bento. Every Save there becomes a new draft version here.");
+    } catch (error) {
+      if (tab) tab.close();
+      toast(`Couldn't open the Bento editor: ${error.message}`, { kind: "error" });
+    } finally {
+      setBusy(button, false);
+    }
+  }
+
   function versionActions(version, page, data) {
     if (!version) return el("div", { class: "version-actions" });
     const actions = el("div", { class: "version-actions", role: "group", "aria-label": `Actions for ${inlineVersionLabel(version)}` });
@@ -409,7 +431,20 @@
         class: "btn btn-sm",
         type: "button",
         onclick: (event) => editVersionSource(event.currentTarget, data, version),
-      }, "Edit source")
+      }, "Edit source"),
+      // A Bento deck is its own editor. Opening it here mints an eight-hour,
+      // page-bound edit token and opens the deck on the content host with a
+      // save channel back to Pages: every Save there lands as a new draft on
+      // this page, attributed to whoever opened it, to be published from here.
+      // Offered only when the page's newest version is a deck (the server says).
+      data.deck
+        ? el("button", {
+            id: "edit-in-bento",
+            class: "btn btn-sm",
+            type: "button",
+            onclick: (event) => openBentoEditor(event.currentTarget),
+          }, "Edit in Bento", el("span", { "aria-hidden": "true" }, "\u2197"))
+        : null
     );
     if (version.status === "pending") {
       actions.append(

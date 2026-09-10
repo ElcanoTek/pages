@@ -1621,3 +1621,29 @@ test("an ordinary uploaded file leaves the render mode as it was", async ({ page
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Discard unsaved source changes?" })).toBeVisible();
 });
+
+// ── Bento decks: opening the editor from the admin ──────────────────────────
+
+test("a deck page offers Edit in Bento, and it opens the edit session in a new tab", async ({ page, request, context }) => {
+  await request.post("/__fixture/deck-page");
+  await page.goto("/admin/team/bento-guide");
+  await expect(page.getByRole("heading", { level: 1, name: /Team Bento guide/ })).toBeVisible();
+  const button = page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit in Bento" });
+  await expect(button).toBeVisible();
+  // The tab opens on the click's own activation and is then pointed at the URL
+  // the server minted — so it is never a pop-up, and never blocked.
+  const [tab] = await Promise.all([context.waitForEvent("page"), button.click()]);
+  await tab.waitForLoadState();
+  await tab.waitForURL(/\/bento\/edit/);
+  await expect(tab.locator("#booted")).toHaveText("Synthetic deck booted");
+  // The deck cannot reach back into the admin tab that opened it.
+  expect(await tab.evaluate(() => window.opener === null)).toBe(true);
+  const events = (await (await request.get("/__fixture/events")).json()).events;
+  expect(events.some((event) => event.path.endsWith("/team/bento-guide/edit-token"))).toBe(true);
+});
+
+test("an ordinary page does not offer Edit in Bento", async ({ page }) => {
+  await openDetail(page);
+  await expect(page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit in Bento" })).toHaveCount(0);
+});

@@ -20,9 +20,10 @@ const express = require("express");
 const helmet = require("helmet");
 
 const auth = require("./lib/auth");
-const { shellHelmetOptions, contentBaseHeaders, rawHeaders, CONTENT_ORIGIN } = require("./lib/csp");
+const { shellHelmetOptions, contentBaseHeaders, rawHeaders, rawEditHeaders, CONTENT_ORIGIN } = require("./lib/csp");
 const rawtoken = require("./lib/rawtoken");
 const render = require("./lib/render");
+const bento = require("./lib/bento");
 const db = require("./lib/db");
 const versions = require("./lib/versions");
 const templates = require("./lib/templates");
@@ -147,15 +148,16 @@ contentApp.get("/raw/*slug", limits.content, async (req, res) => {
   res.set(rawHeaders());
   const slug = req.params.slug.join("/");
   const claims = rawtoken.verify(req.query.t);
-  // Allow-list, not deny-list: this route renders one page version, so the only
-  // purpose it accepts is "view". A "template" token names a
-  // page_template_versions id — a different id space, which would only ever
-  // match a page version by accident — and a "session" token is a page
+  // Allow-list, not deny-list: this route renders one page version, so the
+  // purposes it accepts are "view" and — for a Bento deck — "edit". A "template"
+  // token names a page_template_versions id, a different id space which would
+  // only ever match a page version by accident, and a "session" token is a page
   // credential, not a render credential. Stating what is accepted means a
   // purpose added later is refused here by default instead of inheriting access.
-  if (!claims || claims.purpose !== "view") {
+  if (!claims || (claims.purpose !== "view" && claims.purpose !== "edit")) {
     return res.status(403).type("html").send(contentview.expiredLinkPage());
   }
+  if (claims.purpose === "edit") return serveDeckEditSession(req, res, slug, claims);
   try {
     const v = await db.getRenderable(claims.vid);
     // The token's version must match what we loaded, belong to this slug, and
@@ -170,6 +172,103 @@ contentApp.get("/raw/*slug", limits.content, async (req, res) => {
     res.status(500).type("html").send(contentview.serverErrorPage());
   }
 });
+
+// A deck edit session: the NEWEST version of the page (saves land as drafts, and
+// an editor that reopened on the live version would show the author their own
+// work undone), under the one header on this host that may talk back to Pages,
+// with the save channel wired in. Only a deck: the token was minted for one, and
+// if the page has since become something else the session is over.
+async function serveDeckEditSession(req, res, slug, claims) {
+  try {
+    const v = await db.getLatestRenderable(claims.pid);
+    if (!v || v.slug !== slug || v.disabled) {
+      return res.status(404).type("html").send(contentview.notFoundPage());
+    }
+    if (!render.isBentoDeck(v.html)) {
+      return res.status(403).type("html").send(contentview.expiredLinkPage());
+    }
+    res.set(rawEditHeaders());
+    res.type("html").send(
+      bento.editSession(v.html, {
+        saveUrl: `${CONTENT_ORIGIN}/raw/${slug}/versions`,
+        token: req.query.t,
+        versionId: v.id,
+        contentOrigin: CONTENT_ORIGIN,
+      })
+    );
+  } catch (err) {
+    console.error("edit session error:", err.message);
+    res.status(500).type("html").send(contentview.serverErrorPage());
+  }
+}
+
+// The save channel. A deck in an edit session is an opaque origin, so its
+// request arrives with `Origin: null`, no cookies, and a CORS preflight — this
+// is the one place on the content host that answers one. Authorisation is the
+// edit token in the Authorization header and nothing else: CORS decides only
+// whether the page may READ the reply, and a request without a valid token is
+// refused before anything is written. The body must itself be a deck — the
+// channel exists for one thing — and lands as a DRAFT attributed to the staff
+// member the token names. Publishing stays a human act in the admin.
+function saveChannelCors(res) {
+  res.set({
+    "Access-Control-Allow-Origin": "null",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Pages-Base-Version",
+    "Access-Control-Max-Age": "600",
+    Vary: "Origin",
+  });
+}
+contentApp.options("/raw/*slug/versions", limits.content, (_req, res) => {
+  saveChannelCors(res);
+  res.status(204).end();
+});
+contentApp.post(
+  "/raw/*slug/versions",
+  limits.content,
+  express.text({ type: ["text/html", "text/plain"], limit: process.env.MAX_HTML_BYTES || "2mb" }),
+  async (req, res) => {
+    saveChannelCors(res);
+    const slug = req.params.slug.join("/");
+    const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization || "");
+    const claims = bearer ? rawtoken.verify(bearer[1]) : null;
+    if (!claims || claims.purpose !== "edit" || !claims.actor) {
+      return res.status(403).json({ error: "this edit session has expired — reopen the deck from the admin" });
+    }
+    if (typeof req.body !== "string" || !render.isBentoDeck(req.body)) {
+      return res.status(400).json({ error: "only a Bento deck can be saved through this channel" });
+    }
+    try {
+      const { page } = await versions.getPage(slug);
+      if (Number(page.id) !== Number(claims.pid) || page.disabled) {
+        return res.status(403).json({ error: "this edit session is for a different page" });
+      }
+      const cleaned = bento.stripCollab(req.body);
+      const result = await versions.deploy(
+        {
+          slug,
+          html: cleaned.html,
+          renderMode: "raw",
+          note: "Saved from the Bento editor",
+          author: claims.actor,
+          source: "admin",
+          publish: false,
+        },
+        { actor: claims.actor, actorType: "user", ip: req.ip }
+      );
+      res.status(result.deduped ? 200 : 201).json({
+        version_id: String(result.version.id),
+        status: result.version.status,
+        deduped: Boolean(result.deduped),
+        collab_keys_removed: cleaned.stripped,
+      });
+    } catch (err) {
+      const status = err && err.status ? err.status : 500;
+      if (status >= 500) console.error("deck save error:", err.message);
+      res.status(status).json({ error: status >= 500 ? "Pages could not store the version" : err.message });
+    }
+  }
+);
 
 // /raw-template/<template_version_id> — preview a REGISTERED template revision.
 // On the content host, under the same sandbox+CSP a page gets, because a template

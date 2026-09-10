@@ -41,6 +41,10 @@ function req(method, path, opts = {}) {
       payload = new URLSearchParams(opts.form).toString();
       headers["Content-Type"] = "application/x-www-form-urlencoded";
       headers["Content-Length"] = Buffer.byteLength(payload);
+    } else if (opts.body !== undefined) {
+      payload = opts.body;
+      headers["Content-Type"] = opts.contentType || "text/html; charset=utf-8";
+      headers["Content-Length"] = Buffer.byteLength(payload);
     }
     const r = http.request({ host: "127.0.0.1", port: PORT, method, path, headers }, (res) => {
       let b = ""; res.on("data", (d) => (b += d));
@@ -864,6 +868,92 @@ function sessionCookie(res) {
       db.getPortalPages = realGetPortalPages;
     }
     console.log("✓ page switcher: scoped to the authorising portal, live, injected, and unable to break a render");
+
+    // 10. A Bento deck's edit session and save channel. The content host forbids
+    // every request back to Pages; this is the ONE response that may talk back,
+    // for a staff-minted token, and what it buys is exactly one thing: draft
+    // versions of a deck on that page, attributed to the token's actor.
+    {
+      const rawtoken = require("../lib/rawtoken");
+      const { CONTENT_ORIGIN } = require("../lib/csp");
+      const deckCtx = { actor: "admin@elcanotek.com", actorType: "user", ip: "127.0.0.1" };
+      const deckHtml = (title, extra = "") =>
+        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${title}</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; connect-src 'none'">
+<script id="fleet-offline-deck">(function(){try{localStorage.setItem("bento-offline","on")}catch(e){}})();</script>
+<script type="application/bento+json" id="bento-doc">{"format":"bento/slides","version":1,"docId":"d-vw","title":"${title}","slides":[]${extra}}</script>
+<script id="bento-rt" type="bento/deflate-b64">c8vPz1EoLSjOSczJyU9V0FIoLSktKSpJUUhJVEgQMAAA</script>
+</head><body><div id="bento-splash"></div><script>(async()=>{await import(URL.createObjectURL(new Blob([""],{type:"text/javascript"})))})()</script></body></html>`;
+
+      await versions.createPage({ slug: "vw-deck", title: "Deck" }, deckCtx);
+      const first = await versions.deploy({ slug: "vw-deck", html: deckHtml("Deck v1"), publish: true }, deckCtx);
+      assert.equal(first.version.render_mode, "raw", "a deck deploys raw without being told");
+      const { page: deckPage } = await versions.getPage("vw-deck");
+      const editToken = rawtoken.mint({ pageId: deckPage.id, versionId: first.version.id, purpose: "edit", renderMode: "raw", actor: "editor@elcanotek.com" }, 600);
+      const viewToken = rawtoken.mint({ pageId: deckPage.id, versionId: first.version.id, purpose: "view", renderMode: "raw" }, 600);
+
+      // The edit session: connect-src names Pages and nothing else; the deck's own
+      // guard is widened the same way; the save channel is wired in.
+      const session = await req("GET", `/raw/vw-deck?t=${encodeURIComponent(editToken)}`);
+      assert.equal(session.status, 200, "an edit token opens the session");
+      assert.match(session.csp, new RegExp(`connect-src ${CONTENT_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(;|$)`));
+      assert.match(session.csp, /sandbox allow-scripts/, "the sandbox is untouched");
+      assert.match(session.body, new RegExp(`Content-Security-Policy[^>]*connect-src ${CONTENT_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "the deck's own guard is widened for this response");
+      assert.match(session.body, /data-pages-deck-host/, "…and the save channel is present");
+      // A view token gets the viewer's response: no channel, connect-src 'none'.
+      const view = await req("GET", `/raw/vw-deck?t=${encodeURIComponent(viewToken)}`);
+      assert.equal(view.status, 200);
+      assert.match(view.csp, /connect-src 'none'/);
+      assert.doesNotMatch(view.body, /Authorization/, "a viewer's deck carries no save channel");
+
+      // The save channel. What Bento serialises back: the widened guard, no
+      // Pages tags (they remove themselves), and a freshly minted collab block.
+      const saved = deckHtml("Deck v2", ',"collab":{"room":"wss://sync.bento.page/d/abc","key":"k"}')
+        .replace("connect-src 'none'", `connect-src ${CONTENT_ORIGIN}`);
+      const preflight = await req("OPTIONS", "/raw/vw-deck/versions", { headers: { Origin: "null", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type" } });
+      assert.equal(preflight.status, 204, "the browser's preflight is answered");
+      assert.equal(preflight.headers["access-control-allow-origin"], "null", "…for the opaque origin the deck has");
+      assert.match(preflight.headers["access-control-allow-headers"] || "", /Authorization/);
+
+      const post = await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${editToken}`, Origin: "null" } });
+      assert.equal(post.status, 201, post.body);
+      const reply = JSON.parse(post.body);
+      assert.equal(reply.status, "draft", "a save is a DRAFT — publishing stays a human act");
+      assert.equal(reply.collab_keys_removed, true);
+      assert.equal(post.headers["access-control-allow-origin"], "null");
+      const stored = await versions.getVersion("vw-deck", Number(reply.version_id));
+      assert.equal(stored.status, "draft");
+      assert.equal(stored.render_mode, "raw");
+      assert.equal(stored.author, "editor@elcanotek.com", "the version names the person the token names");
+      assert.equal(stored.source, "admin");
+      assert.doesNotMatch(stored.html, /"collab"/, "the minted keys never reach storage");
+      assert.match(stored.html, /connect-src 'none'/, "fleet's guard is restored in the stored bytes");
+      assert.doesNotMatch(stored.html, /connect-src https?:/, "…and nothing of the widening survives");
+      assert.doesNotMatch(stored.html, /data-pages-deck-host/);
+      const { page: afterSave } = await versions.getPage("vw-deck");
+      assert.equal(Number(afterSave.published_version_id), Number(first.version.id), "what clients see did not move");
+      // The session continues from the newest version, drafts included.
+      const again = await req("GET", `/raw/vw-deck?t=${encodeURIComponent(editToken)}`);
+      assert.match(again.body, /Deck v2/, "reopening the editor shows the last save, not the live version");
+      // Saving the same bytes again is a dedupe, not a second draft.
+      const dup = await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${editToken}` } });
+      assert.equal(dup.status, 200); assert.equal(JSON.parse(dup.body).deduped, true);
+
+      // What the channel refuses.
+      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved })).status, 403, "no token");
+      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${viewToken}` } })).status, 403, "a view token is a render credential, not a write one");
+      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: "<html><body><h1>not a deck</h1></body></html>", headers: { Authorization: `Bearer ${editToken}` } })).status, 400, "only a deck");
+      const otherToken = rawtoken.mint({ pageId: deckPage.id + 1000, versionId: 1, purpose: "edit", renderMode: "raw", actor: "editor@elcanotek.com" }, 600);
+      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${otherToken}` } })).status, 403, "another page's token");
+      const expired = rawtoken.mint({ pageId: deckPage.id, versionId: 1, purpose: "edit", renderMode: "raw", actor: "editor@elcanotek.com" }, -1);
+      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${expired}` } })).status, 403, "an expired session");
+      // A session token cannot open the editor either, and neither can a template token.
+      assert.equal((await req("GET", `/raw/vw-deck?t=${encodeURIComponent(rawtoken.mint({ pageId: deckPage.id, versionId: 1, purpose: "template", renderMode: "raw" }, 600))}`)).status, 403);
+      // And once the page stops being a deck, the edit token opens nothing.
+      await versions.deploy({ slug: "vw-deck", html: "<html><body><h1>Replaced by a dashboard</h1></body></html>", renderMode: "raw", publish: false }, deckCtx);
+      assert.equal((await req("GET", `/raw/vw-deck?t=${encodeURIComponent(editToken)}`)).status, 403, "the session is over when the page is no longer a deck");
+      console.log("✓ deck edit session: one response may talk back, saves are drafts by the named person, everything else is refused");
+    }
 
     // 10. A THROWN handler. Runs last because it stubs the page lookup: with no
     // error handler on this host the rejection fell through to Express's
