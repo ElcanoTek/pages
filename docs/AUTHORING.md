@@ -94,10 +94,14 @@ deflate-compressed, that a bootstrap inflates and `import()`s from a `blob:` URL
 around one JSON block of slides. Deploy the file as it is. Pages recognises the
 `<script type="application/bento+json">` block and does three things:
 
-- **Serves it raw, byte-for-byte.** `render_mode` defaults to `raw` for a deck and
-  `themed` is refused: a deck carries a complete design of its own, and its CSP
-  `<meta>` has to stay the first thing in `<head>`. In a portal it gets no Page
-  menu either — the deck's own toolbar is exactly where the control would land.
+- **Serves it raw, with one addition.** `render_mode` defaults to `raw` for a deck
+  and `themed` is refused: a deck carries a complete design of its own. In a portal
+  it gets no Page menu either — the deck's own toolbar is exactly where the control
+  would land. The one tag Pages adds (`<script data-pages-deck-host>`) removes the
+  native file-picker API before the deck boots, because the sandbox refuses every
+  picker ("Sandboxed documents aren't allowed to show a file picker") and Bento
+  chooses its Save path by whether that API exists — without this, Save on Chrome
+  and Edge did nothing at all. It is stripped again on upload.
 - **Lets it boot.** `script-src` grants `blob:` for this. Without it a deck dies
   with *"This file could not start"* while preflight, which reads plaintext, calls
   it clean.
@@ -107,9 +111,11 @@ around one JSON block of slides. Deploy the file as it is. Pages recognises the
 What a reader gets is Bento's full editor, opened on the deck. On a served page
 that means:
 
-- **Nothing edited is saved to Pages.** *Save* opens the browser's native Save
-  dialog (Chrome, Edge) or downloads a new `.bento.html` (elsewhere); *Save as…*
-  offers a copy, a duplicate, an encrypted copy. To change the deck people see,
+- **Nothing edited is saved to Pages.** *Save* downloads a new `.bento.html` in
+  every browser — Bento labels the button "download an updated copy… this browser
+  can't rewrite the open file" — and *Save as…* offers a copy, a duplicate, an
+  encrypted copy. *Add image* and *Replace from JSON* open an ordinary file
+  chooser. To change the deck people see,
   save the edited file and make it the next version — from the page's *Edit
   source* dialog (**Upload a file**), or by having an agent stage it with
   `create_upload_ticket` and call `deploy_page_upload`. Either way it lands as a
@@ -117,7 +123,15 @@ that means:
 - **Unsaved edits are gone on reload.** The sandbox has no storage, so Bento's
   in-browser backup is off; Bento warns before the tab closes.
 - **Export PDF works** (`window.print()`, `allow-modals`). **Speaker view does
-  not** — it needs a pop-up, and Bento says so in its own words when asked.
+  not** — it needs a pop-up, and Bento says so in its own words when asked. Nor
+  do the copy-to-clipboard actions (*Copy document JSON*): clipboard write needs
+  a permission the sandbox does not grant.
+- **A file saved from the hosted editor carries live-collaboration keys.** Bento
+  mints a `collab` block (room URL, private key) into any file saved from its UI.
+  Inert here — both CSPs forbid connections — but preflight warns
+  (`bento_deck_collab_keys`) when such a file is deployed, because it is key
+  material in a shareable document. Round-tripping it through fleet's
+  `bento_doc.py` (`get`, `set`) drops the block.
 - **Size.** A deck is ~690KB before any content. The inline body cap and the
   upload-ticket cap are both 2MB, so a deck with embedded images needs the upload
   path and has to stay under it. Embedded video must be `data:` or `blob:`.

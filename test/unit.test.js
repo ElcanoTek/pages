@@ -5156,17 +5156,35 @@ test("bento: a deck deploys raw by default and is refused as themed", () => {
   assert.equal(versions.prepareDeploy({ slug: "team/guide", html: bentoDeckHtml() }, ctx).html, bentoDeckHtml());
 });
 
-test("bento: a deck is served byte-for-byte, whatever its row says and whoever is looking", () => {
+test("bento: a deck is served as stored plus one host adaptation, whatever its row says and whoever is looking", () => {
   const html = bentoDeckHtml();
   const nav = {
     portal: { slug: "p", name: "P", url: "https://x/portal/p" },
     pages: [{ slug: "a", title: "A", url: "https://x/a", current: true }, { slug: "b", title: "B", url: "https://x/b" }],
     truncated: false,
   };
-  assert.equal(render.renderVersion({ render_mode: "raw", html }), html);
-  assert.equal(render.renderVersion({ render_mode: "raw", html, nav }), html, "no Page menu over the deck's toolbar");
+  // The sandbox refuses native file pickers and Bento picks its Save path by
+  // whether the API exists, so the one tag Pages adds removes it — right after
+  // <head>, ahead of the bootstrap. Everything else is the stored bytes.
+  const served = render.renderVersion({ render_mode: "raw", html });
+  assert.equal((served.match(/data-pages-deck-host/g) || []).length, 1, "exactly one adaptation");
+  assert.ok(served.indexOf("data-pages-deck-host") < served.indexOf("bento-doc"), "ahead of the document and the bootstrap");
+  assert.match(served, /showSaveFilePicker/);
+  assert.equal(render.stripDeckHostAdaptation(served), html, "strip the tag and the stored bytes are back, exactly");
+  assert.equal(render.renderVersion({ render_mode: "raw", html, nav }), served, "no Page menu over the deck's toolbar");
   // A themed row can predate the deploy-time refusal; the render is still correct.
-  assert.equal(render.renderVersion({ render_mode: "themed", html, override_css: ":root{--x:1}", nav }), html, "no Flag head ahead of the deck's own CSP");
+  assert.equal(render.renderVersion({ render_mode: "themed", html, override_css: ":root{--x:1}", nav }), served, "no Flag head ahead of the deck's own CSP");
+  // Serving a deck that already carries the tag (a file saved from the hosted
+  // editor and re-uploaded) does not double it.
+  assert.equal(render.renderVersion({ render_mode: "raw", html: served }), served, "idempotent");
+  // And deploy strips it, so the stored bytes never carry a Pages artifact —
+  // including in the form a browser re-serialises it (`data-pages-deck-host=""`),
+  // which is what a file saved from the hosted editor actually contains.
+  const ctx = { actor: "qa@elcanotek.com" };
+  assert.equal(versions.prepareDeploy({ slug: "team/guide", html: served }, ctx).html, html, "a re-uploaded saved copy is stored without the tag");
+  const reserialised = served.replace("<script data-pages-deck-host>", '<script data-pages-deck-host="">');
+  assert.equal(render.stripDeckHostAdaptation(reserialised), html, "the browser-serialised form is stripped too");
+  assert.equal((render.renderVersion({ render_mode: "raw", html: reserialised }).match(/data-pages-deck-host/g) || []).length, 1, "never doubled");
   // …and an ordinary raw page in a portal still gets its menu, so the exception
   // is the deck, not the mode.
   assert.match(render.renderVersion({ render_mode: "raw", html: "<html><head></head><body><p>dash</p></body></html>", nav }), /pgnav/);
@@ -5185,6 +5203,13 @@ test("bento: preflight says what a deck is instead of calling a compressed appli
   const themed = pf.analyze(bentoDeckHtml(), { renderMode: "themed" });
   assert.equal(themed.ok, false);
   assert.ok(themed.errors.some((e) => e.code === "bento_deck_themed"));
+  // A file saved from Bento's own UI carries a live-collaboration block; that is
+  // key material in a shareable document, so deploying one is warned about.
+  const withKeys = bentoDeckHtml().replace('{"format":"bento/slides","version":1,"slides":[]}',
+    '{"format":"bento/slides","version":1,"slides":[],"collab":{"room":"wss://sync.bento.page/d/abc","key":"k"}}');
+  const keyed = pf.analyze(withKeys, { renderMode: "raw" });
+  assert.deepEqual(keyed.warnings.map((w) => w.code), ["bento_deck", "bento_deck_collab_keys"]);
+  assert.match(keyed.warnings[1].fix, /bento_doc\.py/);
   // An ordinary page is untouched by the rule — and the generic storage warning
   // that the deck finding replaces still fires off a deck.
   const plain = pf.analyze("<html><head></head><body><script>localStorage.getItem('x')</script></body></html>", { renderMode: "raw" });

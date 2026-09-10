@@ -23,6 +23,12 @@ test("a Bento deck boots under the content host's real CSP", async ({ page }) =>
   // The sandbox is untouched by the grant: still an opaque origin with no storage.
   const storage = await page.evaluate(() => { try { localStorage.getItem("x"); return "allowed"; } catch (e) { return e.name; } });
   expect(storage).toBe("SecurityError");
+  // The one tag Pages adds. The sandbox refuses native file pickers ("Sandboxed
+  // documents aren't allowed to show a file picker"), and Bento chooses its Save
+  // path by whether the API exists — so with the API present, Save on Chrome did
+  // nothing at all. Absent, Bento downloads and says so on the button.
+  await expect(page.locator("script[data-pages-deck-host]")).toHaveCount(1);
+  expect(await page.evaluate(() => typeof window.showSaveFilePicker)).toBe("undefined");
 });
 
 test("the blob: grant is exactly what makes it boot", async ({ page }) => {

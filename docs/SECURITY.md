@@ -123,6 +123,10 @@
   audio and video — remote media stays blocked, because a media URL is a beacon.
   Pinned by `test/browser/bento-deck.spec.js`, which also serves the pre-grant
   header to show exactly what breaks.
+  A deck is the one raw document Pages does not serve byte-for-byte: it gains a
+  single head tag that removes the native file-picker API, because the sandbox
+  refuses pickers and Bento's Save silently did nothing on Chrome without it
+  (`lib/render.js`, `adaptDeckToHost`). The tag is stripped again at deploy.
 - **One state machine, no backdoor.** REST, MCP, and the admin UI all route through
   `lib/versions.js`. Every mutation runs `SELECT … FOR UPDATE` first, honors
   optimistic concurrency (`expected_version`), and writes an `audit_log` row in the
