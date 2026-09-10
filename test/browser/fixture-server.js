@@ -987,6 +987,94 @@ app.use("/api/v1/admin", (req, res, next) => {
   return res.status(404).json({ error: "fixture action not found" });
 });
 
+// ── Bento decks (test/browser/bento-deck.spec.js) ────────────────────────────
+// A stand-in with the REAL boot mechanism and a tiny payload. A Bento deck keeps
+// its stylesheet and 650KB runtime as deflate-raw + base64 blocks that a
+// bootstrap inflates with DecompressionStream and import()s from a blob URL; the
+// bootstrap below is that code, copied from an upstream v1.0.18 deck. That
+// mechanism is the part Pages has to get right — the blob: grant in rawHeaders()
+// and the verbatim, no-switcher render — and it is testable without vendoring
+// the app. test/manual/bento-deck-check.js runs the same probes against a real
+// deck.
+const zlib = require("node:zlib");
+const BENTO_BOOTSTRAP = `(async () => {
+  var fail = function (msg) {
+    var d = document.createElement('div')
+    d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0D1B2E;color:#F2F0EA;font:16px/1.6 sans-serif;text-align:center;padding:40px;z-index:99999'
+    d.innerHTML = msg
+    document.body.appendChild(d)
+    var s = document.getElementById('bento-splash'); if (s) s.remove()
+  }
+  if (typeof DecompressionStream === 'undefined') {
+    fail('This file needs a browser from 2023 or later.')
+    return
+  }
+  var inflate = async function (id) {
+    var b64 = document.getElementById(id).textContent.trim()
+    var bytes = Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0) })
+    var ds = new DecompressionStream('deflate-raw')
+    var stream = new Blob([bytes]).stream().pipeThrough(ds)
+    return await new Response(stream).text()
+  }
+  try {
+    var css = await inflate('bento-rt-css')
+    var st = document.createElement('style')
+    st.id = 'bento-rt-style'
+    st.textContent = css
+    document.head.appendChild(st)
+    var js = await inflate('bento-rt')
+    var url = URL.createObjectURL(new Blob([js], { type: 'text/javascript' }))
+    await import(url)
+  } catch (e) {
+    fail('This file could not start: ' + (e && e.message ? e.message : e))
+  }
+})()`;
+function syntheticBentoDeck() {
+  const deflate = (text) => zlib.deflateRawSync(Buffer.from(text, "utf8")).toString("base64");
+  const css = "body{margin:0;background:#0D1B2E;color:#F2F0EA;font:20px/1.4 sans-serif}#booted{padding:48px}";
+  const runtime = [
+    "window.__bentoBooted = true;",
+    "const s = document.getElementById('bento-splash'); if (s) s.remove();",
+    "const h = document.createElement('h1'); h.id = 'booted'; h.textContent = 'Synthetic deck booted'; document.body.appendChild(h);",
+  ].join("\n");
+  // Same head order as a fleet-produced deck: CSP meta, guard, document, blocks.
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Synthetic deck</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+    <script id="fleet-offline-deck">(function () { try { localStorage.setItem("bento-offline", "on"); } catch (e) {} })();</script>
+    <script type="application/bento+json" id="bento-doc">{"format":"bento/slides","version":1,"title":"Synthetic deck","slides":[]}</script>
+    <script id="bento-rt-css" type="bento/deflate-b64">${deflate(css)}</script>
+    <script id="bento-rt" type="bento/deflate-b64">${deflate(runtime)}</script>
+  </head>
+  <body>
+    <div id="bento-splash">Loading…</div>
+    <script>${BENTO_BOOTSTRAP}</script>
+  </body>
+</html>`;
+}
+const BENTO_DECK = syntheticBentoDeck();
+// The deck's bytes as a file a human would have saved from the editor, for the
+// admin upload spec to hand to the source editor's file input.
+app.get("/bento/deck-source", (_req, res) => res.type("text/plain").send(BENTO_DECK));
+// Served exactly as the content host would: the deck's stored bytes through
+// render.renderVersion, under the real rawHeaders().
+app.get("/bento/deck", (_req, res) =>
+  res.set(rawHeaders()).type("html").send(render.renderVersion({ render_mode: "raw", html: BENTO_DECK })));
+// In a portal. A raw dashboard gets the Page menu here; a deck must not.
+app.get("/bento/deck-portal", (_req, res) =>
+  res.set(rawHeaders()).type("html").send(render.renderVersion({ render_mode: "raw", html: BENTO_DECK, nav: FIXTURE_NAV })));
+// The header as it was before blob: was granted. Pinned so the grant cannot be
+// "tidied away" without this route saying exactly what breaks.
+app.get("/bento/deck-without-blob", (_req, res) => {
+  const headers = rawHeaders();
+  headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace(" blob:;", ";").replace(/script-src ([^;]*) blob:/, "script-src $1");
+  res.set(headers).type("html").send(render.renderVersion({ render_mode: "raw", html: BENTO_DECK }));
+});
+
 app.use((_req, res) => res.status(404).type("html").send(errorShell.notFound()));
 
 app.listen(PORT, "127.0.0.1", () => process.stdout.write(`fixture server on ${PORT}\n`));

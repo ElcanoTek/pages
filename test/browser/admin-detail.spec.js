@@ -1575,3 +1575,49 @@ test("no section bar is offered when the detail itself failed to load", async ({
   // A bar whose three links all scroll nowhere is worse than no bar.
   await expect(page.locator("#detail-nav")).toHaveCount(0);
 });
+
+// ── Bento decks: the human half of the update loop ──────────────────────────
+// A deck opens in Bento's editor on the live page, and Save there writes a FILE —
+// the content host forbids any request back to Pages by design. So the way a
+// person's edit becomes the next version is: save the file, upload it here. Until
+// this control existed the only route was an agent with an upload ticket.
+
+test("a saved deck can be uploaded as the next version from the editor", async ({ page, request }) => {
+  const deck = await (await request.get("/bento/deck-source")).text();
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  await editor.getByLabel("Upload a file").setInputFiles({
+    name: "Team_Guide_v3.bento.html",
+    mimeType: "text/html",
+    buffer: Buffer.from(deck, "utf8"),
+  });
+  // The file's bytes are what will be saved — byte-for-byte, like every version.
+  await expect(editor.getByLabel("HTML source")).toHaveValue(deck);
+  // A deck is its own application and the server refuses it themed; the editor
+  // chooses Raw for the reader and says why, instead of letting the save bounce.
+  await expect(editor.getByLabel("Render mode")).toHaveValue("raw");
+  await expect(editor.getByRole("status")).toContainText(/Team_Guide_v3\.bento\.html is a Bento deck/);
+  await editor.getByLabel("Version note").fill("Team guide v3, edited in the browser");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 7");
+
+  const events = (await (await request.get("/__fixture/events")).json()).events;
+  const deploy = events.find((event) => event.path.endsWith("/deploy-source"));
+  expect(deploy.body).toEqual({ html: deck, render_mode: "raw", note: "Team guide v3, edited in the browser" });
+});
+
+test("an ordinary uploaded file leaves the render mode as it was", async ({ page }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  const before = await editor.getByLabel("Render mode").inputValue();
+  const plain = "<!doctype html><html><body><h1>Plain upload</h1></body></html>";
+  await editor.getByLabel("Upload a file").setInputFiles({ name: "plain.html", mimeType: "text/html", buffer: Buffer.from(plain, "utf8") });
+  await expect(editor.getByLabel("HTML source")).toHaveValue(plain);
+  await expect(editor.getByLabel("Render mode")).toHaveValue(before);
+  await expect(editor.getByRole("status")).toHaveText("Loaded plain.html.");
+  // Loading a file is a change: closing now must ask, exactly as a paste would.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Discard unsaved source changes?" })).toBeVisible();
+});

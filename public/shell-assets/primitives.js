@@ -778,6 +778,16 @@
   // when nothing works, fail with a sentence written for a person. Every caller
   // toasts error.message, so fixing the message here fixes all of them at once
   // without a screen having to know anything about clipboards.
+  // looksLikeBentoDeck — the browser-side twin of lib/render.js isBentoDeck: a
+  // Bento deck (.bento.html) is recognised by its document block. The admin needs
+  // this to choose Raw for a deck before the server refuses Themed; a unit test
+  // pins the two recognisers to the same answers so they cannot drift apart.
+  const BENTO_DOC_RE =
+    /<script\b[^>]*\btype\s*=\s*(?:"application\/bento\+json"|'application\/bento\+json'|application\/bento\+json(?=[\s>]))[^>]*>/i;
+  function looksLikeBentoDeck(text) {
+    return typeof text === "string" && text.includes("application/bento+json") && BENTO_DOC_RE.test(text);
+  }
+
   async function copyText(value) {
     const text = String(value);
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -821,5 +831,6 @@
     statusChip,
     statusDot,
     copyText,
+    looksLikeBentoDeck,
   };
 });

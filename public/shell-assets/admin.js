@@ -7,7 +7,7 @@
 (function () {
   const UI = window.PagesUI;
   const { el, icon, toast, makeDialog, confirmDialog, setBusy, keepingFocus, statusChip, copyText, errorState, emptyState, loadFailed, credentialDialog } = UI;
-  const { field, runAction, formatWhen, timeWhen, slugPath, loadingContent } = UI;
+  const { field, runAction, formatWhen, timeWhen, slugPath, loadingContent, looksLikeBentoDeck } = UI;
   const boot = UI.bootstrap();
   const { slug, contentOrigin } = boot;
   // page-switcher.js is still its own module (it loads first and must not depend
@@ -838,6 +838,38 @@
     mode.value = seed?.render_mode || "themed";
     const note = el("input", { id: "source-note", type: "text", maxlength: "500", placeholder: "What changed?" });
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
+    // A saved file instead of a paste. A Bento deck is 690KB of minified
+    // application that a reader edited on the live page and saved; nobody pastes
+    // that, and until now the only way back into Pages was an agent holding an
+    // upload ticket. The file lands in the textarea so dirty tracking, the save
+    // and the tests stay one path.
+    const MAX_SOURCE_FILE_BYTES = 2 * 1024 * 1024; // server.js MAX_HTML_BYTES default
+    // Visually hidden inside a text label on the source field's own label row: the
+    // editor's meta row is pinned to fit above the fold at 1440x720 with the
+    // textarea already at its floor, so a control of its own would push Render
+    // mode off the screen — the exact regression the layout test exists to catch.
+    const file = el("input", { id: "source-file", class: "sr-only", type: "file", accept: ".html,.htm,text/html" });
+    file.addEventListener("change", async () => {
+      const chosen = file.files && file.files[0];
+      if (!chosen) return;
+      if (chosen.size > MAX_SOURCE_FILE_BYTES) {
+        status.textContent = `${chosen.name} is larger than 2 MB, the most a version can hold.`;
+        file.value = "";
+        return;
+      }
+      const text = await chosen.text();
+      source.value = text;
+      source.dispatchEvent(new Event("input", { bubbles: true }));
+      if (looksLikeBentoDeck(text)) {
+        // A deck is its own application: served raw, or refused. Choose for them,
+        // and say why, rather than letting the save bounce off the server.
+        mode.value = "raw";
+        mode.dispatchEvent(new Event("input", { bubbles: true }));
+        status.textContent = `${chosen.name} is a Bento deck: it opens in Bento's editor and is served raw.`;
+      } else {
+        status.textContent = `Loaded ${chosen.name}.`;
+      }
+    });
     // One save. "Save draft" and "Save & preview" called the same function with
     // no mode argument, and render() previews the selected version either way,
     // so the pair only ever asked the reader to choose between two identical
@@ -895,7 +927,13 @@
     save.addEventListener("click", () => saveSource(save));
 
     modal.body.append(el("form", { class: "form-stack" },
-      field({ id: "source-html", label: "HTML source", control: source, wrap: "label" }),
+      el("div", { class: "field" },
+        el("div", { class: "field-row" },
+          el("label", { class: "field-label", for: "source-html" }, "HTML source"),
+          // "Upload a file" is the input's accessible name; what happens next
+          // is said in the status line, not in a help row there is no room for.
+          el("label", { class: "field-upload", for: "source-file" }, "Upload a file", file)),
+        source),
       // The note is the audit trail — it is what a reviewer reads in the version
       // queue months later — so it leads the meta row and takes its wide column,
       // where main gave that column to a two-option select. It does NOT get a row

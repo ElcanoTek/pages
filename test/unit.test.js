@@ -116,6 +116,7 @@ test("primitives: the module loads outside a browser and exports the shared surf
     "field", "runAction",
     "loadingContent", "errorState", "emptyState",
     "toast", "loadFailed", "makeDialog", "confirmDialog", "credentialDialog", "setBusy", "keepingFocus", "pageHeader", "statTile", "statusChip", "statusDot", "copyText",
+    "looksLikeBentoDeck",
   ];
   assert.deepEqual(Object.keys(UI).sort(), expected.slice().sort());
   for (const name of expected) assert.equal(typeof UI[name], "function", `${name} must be callable`);
@@ -3063,6 +3064,13 @@ test("csp: the content host keeps its opaque origin — allow-same-origin is a s
   assert.match(csp, /connect-src 'none'/);
   assert.match(csp, /img-src 'self' data: blob:/);
   assert.match(csp, /font-src 'self' data:/);
+  // blob: scripts — a Bento deck inflates its runtime and import()s it from a blob
+  // URL. With 'unsafe-inline' already granted this hands an attacker nothing new;
+  // it is what lets a legitimate document boot a module or a Worker from its own
+  // bytes. The grant lives in the CSP, not the sandbox: no token came with it.
+  assert.match(csp, /script-src 'self' 'unsafe-inline' blob:/);
+  assert.match(csp, /media-src data: blob:/);
+  assert.deepEqual(tokens, ["allow-scripts", "allow-downloads", "allow-modals"]);
 });
 
 test("page-uploads: the chunk ceiling stays inside a model's safe argument budget", () => {
@@ -5104,5 +5112,100 @@ test("content host: the two page switchers say the same things", () => {
     assert.ok(!/Dashboard pages dashboards/.test(source), `${name} still doubles the word`);
     assert.ok(!source.includes("More dashboards are available from your portal link"),
       `${name} still describes the portal instead of linking it`);
+  }
+});
+
+
+// ── Bento decks ──────────────────────────────────────────────────────────────
+// A Bento deck is one .bento.html that is its own viewer and editor; its runtime
+// is deflate-compressed and boots through a blob: module import. Pages recognises
+// it by the document block and serves it as the application it is.
+function bentoDeckHtml() {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Deck</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; connect-src 'none'">
+<script id="fleet-offline-deck">(function(){try{localStorage.setItem("bento-offline","on")}catch(e){}})();</script>
+<script type="application/bento+json" id="bento-doc">{"format":"bento/slides","version":1,"slides":[]}</script>
+<script id="bento-rt" type="bento/deflate-b64">c8vPz1EoLSjOSczJyU9V0FIoLSktKSpJUUhJVEgQMAAA</script>
+</head><body><div id="bento-splash"></div><script>(async()=>{var js="";var url=URL.createObjectURL(new Blob([js],{type:"text/javascript"}));await import(url)})()</script></body></html>`;
+}
+
+test("bento: a deck is recognised by its document block, and only by it", () => {
+  assert.equal(render.isBentoDeck(bentoDeckHtml()), true);
+  assert.equal(render.isBentoDeck(bentoDeckHtml().replace('"application/bento+json"', "'application/bento+json'")), true, "single quotes");
+  assert.equal(
+    render.isBentoDeck(bentoDeckHtml().replace('type="application/bento+json" id="bento-doc"', 'id="bento-doc" type=application/bento+json')),
+    true,
+    "unquoted, attribute order"
+  );
+  assert.equal(render.isBentoDeck("<p>a page that mentions application/bento+json in prose</p>"), false);
+  assert.equal(render.isBentoDeck('<script type="application/json" id="bento-doc">{}</script>'), false, "the type is the anchor, not the id");
+  assert.equal(render.isBentoDeck(null), false);
+});
+
+test("bento: a deck deploys raw by default and is refused as themed", () => {
+  const ctx = { actor: "qa@elcanotek.com" };
+  assert.equal(versions.prepareDeploy({ slug: "team/guide", html: bentoDeckHtml() }, ctx).renderMode, "raw");
+  assert.equal(versions.prepareDeploy({ slug: "team/guide", html: bentoDeckHtml(), renderMode: "raw" }, ctx).renderMode, "raw");
+  // An ordinary page keeps the old default.
+  assert.equal(versions.prepareDeploy({ slug: "a", html: "<p>hi</p>" }, ctx).renderMode, "themed");
+  assert.throws(
+    () => versions.prepareDeploy({ slug: "team/guide", html: bentoDeckHtml(), renderMode: "themed" }, ctx),
+    (e) => e.code === "bad_render_mode" && /Bento deck/.test(e.message) && /"raw"/.test(e.message)
+  );
+  // The bytes are stored untouched: nothing is normalised into or out of a deck.
+  assert.equal(versions.prepareDeploy({ slug: "team/guide", html: bentoDeckHtml() }, ctx).html, bentoDeckHtml());
+});
+
+test("bento: a deck is served byte-for-byte, whatever its row says and whoever is looking", () => {
+  const html = bentoDeckHtml();
+  const nav = {
+    portal: { slug: "p", name: "P", url: "https://x/portal/p" },
+    pages: [{ slug: "a", title: "A", url: "https://x/a", current: true }, { slug: "b", title: "B", url: "https://x/b" }],
+    truncated: false,
+  };
+  assert.equal(render.renderVersion({ render_mode: "raw", html }), html);
+  assert.equal(render.renderVersion({ render_mode: "raw", html, nav }), html, "no Page menu over the deck's toolbar");
+  // A themed row can predate the deploy-time refusal; the render is still correct.
+  assert.equal(render.renderVersion({ render_mode: "themed", html, override_css: ":root{--x:1}", nav }), html, "no Flag head ahead of the deck's own CSP");
+  // …and an ordinary raw page in a portal still gets its menu, so the exception
+  // is the deck, not the mode.
+  assert.match(render.renderVersion({ render_mode: "raw", html: "<html><head></head><body><p>dash</p></body></html>", nav }), /pgnav/);
+});
+
+test("bento: preflight says what a deck is instead of calling a compressed application clean", () => {
+  const pf = require("../lib/preflight");
+  const r = pf.analyze(bentoDeckHtml(), { renderMode: "raw" });
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.deepEqual(r.warnings.map((w) => w.code), ["bento_deck"], JSON.stringify(r.warnings));
+  assert.match(r.warnings[0].message, /compressed/);
+  assert.match(r.warnings[0].message, /editor/);
+  assert.match(r.warnings[0].message, /Nothing edited there is saved to Pages/);
+  assert.ok(r.checks.includes("bento_deck"));
+  // Themed is an error here for the same reason deploy refuses it.
+  const themed = pf.analyze(bentoDeckHtml(), { renderMode: "themed" });
+  assert.equal(themed.ok, false);
+  assert.ok(themed.errors.some((e) => e.code === "bento_deck_themed"));
+  // An ordinary page is untouched by the rule — and the generic storage warning
+  // that the deck finding replaces still fires off a deck.
+  const plain = pf.analyze("<html><head></head><body><script>localStorage.getItem('x')</script></body></html>", { renderMode: "raw" });
+  assert.ok(plain.warnings.some((w) => w.code === "opaque_origin_api"));
+  assert.ok(!plain.warnings.some((w) => w.code === "bento_deck"));
+});
+
+test("bento: the admin's file check and the server's recogniser agree", () => {
+  // The admin picks Raw for a deck before the server would refuse Themed. Two
+  // recognisers, one in the browser and one in lib/render.js, must never answer
+  // differently, or a file the editor calls a deck is refused by the save.
+  const samples = [
+    bentoDeckHtml(),
+    bentoDeckHtml().replace('"application/bento+json"', "'application/bento+json'"),
+    bentoDeckHtml().replace('type="application/bento+json" id="bento-doc"', 'id="bento-doc" type=application/bento+json'),
+    "<p>a page that mentions application/bento+json in prose</p>",
+    '<script type="application/json" id="bento-doc">{}</script>',
+    "<!doctype html><html><body><h1>Plain</h1></body></html>",
+    "",
+  ];
+  for (const sample of samples) {
+    assert.equal(UI.looksLikeBentoDeck(sample), render.isBentoDeck(sample), sample.slice(0, 70));
   }
 });
