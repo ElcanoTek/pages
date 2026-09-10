@@ -286,6 +286,15 @@ table, time { font-variant-numeric: tabular-nums; }
 
 .field { min-width: 0; display: grid; gap: var(--space-2); }
 .field-label { color: var(--color-text-secondary); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); }
+/* A field whose label row carries a second, quieter control (the source editor's
+   "Upload a file"). Text-sized on the label's baseline, so the row is exactly as
+   tall as a label alone: the editor's meta row is pinned to fit above the fold at
+   1440x720 with the textarea already at its floor. */
+.field-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.field-upload { position: relative; color: var(--color-accent); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); cursor: pointer; border-radius: var(--radius-sm); }
+.field-upload:hover { text-decoration: underline; }
+/* The file input inside is .sr-only, so the ring has to land on the text. */
+.field-upload:focus-within { outline: none; box-shadow: var(--focus-ring); }
 /* .note/.note--warning are the standalone twins of .field-help/.field-error — a
    warning under a table row, a dialog's inline error, a line of guidance under a
    heading. They look identical on purpose and share the declarations so they

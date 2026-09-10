@@ -112,6 +112,17 @@
   as navigation/redirect surfaces; add one only against a concrete need.
   `lib/preflight.js` reads `sandboxTokens()` directly, so authoring guidance and
   the served header cannot drift apart.
+  **`script-src` grants `blob:`** (2026-09) so a document may `import()` a module
+  or start a Worker from bytes it already holds. A Bento deck ships its runtime
+  deflate-compressed and boots exactly this way; without the grant it died with a
+  `blob:null/…` CSP violation that no static check could see, because the code is
+  compressed. Threat model: with `'unsafe-inline'` already granted, anyone who can
+  place a script tag can already run any code, so `blob:` hands that attacker
+  nothing new; `connect-src 'none'` is untouched, since a blob is manufactured,
+  never fetched. `media-src data: blob:` was added at the same time for embedded
+  audio and video — remote media stays blocked, because a media URL is a beacon.
+  Pinned by `test/browser/bento-deck.spec.js`, which also serves the pre-grant
+  header to show exactly what breaks.
 - **One state machine, no backdoor.** REST, MCP, and the admin UI all route through
   `lib/versions.js`. Every mutation runs `SELECT … FOR UPDATE` first, honors
   optimistic concurrency (`expected_version`), and writes an `audit_log` row in the

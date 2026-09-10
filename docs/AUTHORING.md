@@ -56,6 +56,8 @@ Pages are served from a separate, cookieless registrable domain under
 | Inline SVG, canvas, hand-rolled charts | ✅ | The normal way to draw here |
 | `data:` images and `data:` `@font-face` | ✅ | How you ship a brand logo or typeface |
 | `blob:` images | ✅ | For charts that rasterise before drawing |
+| `blob:` **scripts** — `import()` a module or start a Worker from bytes the page already holds | ✅ | Granted for documents that ship their runtime compressed (a Bento deck). `connect-src 'none'` still applies: a blob is built, never fetched |
+| Embedded `data:`/`blob:` video and audio | ✅ | `media-src data: blob:`. Remote media is a beacon and stays blocked |
 | Trigger a CSV/Excel download | ✅ | `allow-downloads` |
 | `window.print()` for a PDF button | ✅ | `allow-modals` |
 | Link to another page **in the same tab** | ✅ | `<a href="/other-slug">` or `location.assign(...)`. A sandboxed top-level document may navigate *itself*; `allow-top-navigation` governs a framed document navigating its parent, which is not this |
@@ -83,6 +85,49 @@ Two of these fail in a way that is much worse than "doesn't work":
   level of your script takes down *everything after it in that script*. If you
   genuinely need it, wrap every access in `try/catch`; better, keep the state in
   a module-level variable. A dashboard has no reason to persist across loads.
+
+## Bento decks
+
+A Bento deck — the `.bento.html` that fleet's `bento-slides` skill produces — is
+one self-contained file that is its own viewer **and editor**: a 650KB runtime,
+deflate-compressed, that a bootstrap inflates and `import()`s from a `blob:` URL,
+around one JSON block of slides. Deploy the file as it is. Pages recognises the
+`<script type="application/bento+json">` block and does three things:
+
+- **Serves it raw, byte-for-byte.** `render_mode` defaults to `raw` for a deck and
+  `themed` is refused: a deck carries a complete design of its own, and its CSP
+  `<meta>` has to stay the first thing in `<head>`. In a portal it gets no Page
+  menu either — the deck's own toolbar is exactly where the control would land.
+- **Lets it boot.** `script-src` grants `blob:` for this. Without it a deck dies
+  with *"This file could not start"* while preflight, which reads plaintext, calls
+  it clean.
+- **Says so in preflight.** A deck reports one `bento_deck` finding that explains
+  what follows, because the static rules cannot see inside the runtime.
+
+What a reader gets is Bento's full editor, opened on the deck. On a served page
+that means:
+
+- **Nothing edited is saved to Pages.** *Save* opens the browser's native Save
+  dialog (Chrome, Edge) or downloads a new `.bento.html` (elsewhere); *Save as…*
+  offers a copy, a duplicate, an encrypted copy. To change the deck people see,
+  save the edited file and make it the next version — from the page's *Edit
+  source* dialog (**Upload a file**), or by having an agent stage it with
+  `create_upload_ticket` and call `deploy_page_upload`. Either way it lands as a
+  draft for review, like every other version.
+- **Unsaved edits are gone on reload.** The sandbox has no storage, so Bento's
+  in-browser backup is off; Bento warns before the tab closes.
+- **Export PDF works** (`window.print()`, `allow-modals`). **Speaker view does
+  not** — it needs a pop-up, and Bento says so in its own words when asked.
+- **Size.** A deck is ~690KB before any content. The inline body cap and the
+  upload-ticket cap are both 2MB, so a deck with embedded images needs the upload
+  path and has to stay under it. Embedded video must be `data:` or `blob:`.
+
+`readonly: true` in the deck's document makes a **player** file that boots
+straight into the presentation with no editor — set it on a hand-out copy.
+
+The boot mechanism is pinned by `test/browser/bento-deck.spec.js` with a
+synthetic deck. `node test/manual/bento-deck-check.js Deck.bento.html` runs the
+same probes against a real one — run it when Bento is re-vendored in fleet.
 
 ## Giving a partner a menu of their other dashboards
 
@@ -125,7 +170,8 @@ dashboard:
    payload and (unless it reads the block itself) the built-in control — never Flag
    tokens, fonts or the theme controller. What `raw` protects is "do not restyle my
    design", and that is intact; navigation is not styling. With no portal it is
-   still byte-for-byte.
+   still byte-for-byte. A Bento deck is the one exception: it is byte-for-byte in
+   a portal too — see *Bento decks* below.
 
 `templates/nwm-campaign-dashboard/template.html` carries a working implementation
 of all five, and `test/browser/page-switcher.spec.js` drives it in a real browser.
