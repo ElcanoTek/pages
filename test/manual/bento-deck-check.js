@@ -44,13 +44,9 @@ const server = app.listen(0, async () => {
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 160)); });
   page.on("pageerror", (e) => errors.push(`uncaught: ${String(e.message).slice(0, 160)}`));
   page.on("download", (d) => downloads.push(d.suggestedFilename()));
-  // Headless Chromium cannot show a native Save dialog; record the attempt and
-  // cancel it, which is what a reader who closes the dialog does.
-  await page.addInitScript(() => {
-    window.__print = 0; window.print = () => { window.__print += 1; };
-    window.__picker = 0;
-    if (window.showSaveFilePicker) window.showSaveFilePicker = async () => { window.__picker += 1; throw new DOMException("cancelled", "AbortError"); };
-  });
+  // Nothing is stubbed: the host adaptation Pages injects removes the native
+  // file-picker API (the sandbox refuses it anyway), so Save must download.
+  await page.addInitScript(() => { window.__print = 0; window.print = () => { window.__print += 1; }; });
 
   await page.goto(`${origin}/raw/deck`, { waitUntil: "load" });
   await page.waitForTimeout(4000);
@@ -60,11 +56,19 @@ const server = app.listen(0, async () => {
   console.log(`boot:        ${failed ? "FAILED — " + (await page.locator("body").innerText()).slice(0, 140) : "ok"}`);
   console.log(`mode:        ${editor ? "editor" : player ? "player (readonly deck)" : "unknown"}`);
 
+  console.log(`picker API:  ${await page.evaluate(() => typeof window.showSaveFilePicker)} (must be undefined — Pages removes it so Bento downloads)`);
   if (editor) {
+    const dl = page.waitForEvent("download", { timeout: 6000 }).catch(() => null);
     await page.locator('button[title^="Save"]').first().click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(1500);
-    const picker = await page.evaluate(() => window.__picker);
-    console.log(`Save:        ${picker ? "opens the browser's native Save dialog (writes a new .bento.html)" : downloads.length ? `downloads ${downloads[0]}` : "did nothing observable"}`);
+    const download = await dl;
+    if (download) {
+      const saved = await download.createReadStream().then((stream) => new Promise((resolve) => { let text = ""; stream.setEncoding("utf8"); stream.on("data", (c) => (text += c)); stream.on("end", () => resolve(text)); }));
+      const block = (saved.match(/<script\b[^>]*application\/bento\+json[^>]*>([\s\S]*?)<\/script/i) || [])[1] || "";
+      console.log(`Save:        downloads ${download.suggestedFilename()} (${saved.length} bytes)`);
+      console.log(`  carries:   guard CSP ${/http-equiv="Content-Security-Policy"/.test(saved) ? "yes" : "NO"} · host tag ${/data-pages-deck-host/.test(saved) ? "yes (stripped on upload)" : "no"} · collab keys ${/"collab"\s*:\s*\{/.test(block) ? "YES — preflight will warn; bento_doc.py set drops them" : "no"}`);
+    } else {
+      console.log("Save:        did nothing observable — a regression: Bento's Save reached for a picker the sandbox refuses");
+    }
     await page.keyboard.press("Escape").catch(() => {});
     await page.locator('button[title^="Export PDF"]').first().click({ timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(1200);
