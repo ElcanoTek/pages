@@ -365,10 +365,10 @@ then ignored.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `MAX_HTML_BYTES` | `2mb` | JSON body limit for the dashboard app and `/api/v1` (an Express size string) |
+| `MAX_HTML_BYTES` | `2mb` | Whole HTTP request limit for dashboard, `/api/v1`, MCP and raw edits (an Express size string); includes RPC fields and `expect` |
 | `PAGE_UPLOAD_MAX_CHUNK_BYTES` | `49152` (48 KiB) | Max base64 chunk in a staged upload. Hard-clamped at 256 KiB by the app **and** a database CHECK |
 | `PAGE_UPLOAD_TICKET_TTL_MINUTES` | `15` | Upload-ticket lifetime |
-| `PAGES_MCP_MAX_INLINE_DATA_BYTES` | `1500000` | Largest inline data payload an MCP tool call may carry |
+| `PAGES_MCP_MAX_INLINE_DATA_BYTES` | `1500000` | Inline compact JSON transport budget only; data and escaped-envelope limits also apply |
 
 ### Managed dashboard-data bounds
 
@@ -385,6 +385,17 @@ then ignored.
 These are CPU and memory guards on agent-supplied JSON Schemas and data. Raising
 them raises the cost of a single hostile call. Leave them alone unless a real
 dashboard is hitting a limit.
+
+`PAGES_DATA_MAX_BYTES` separately bounds compact data and its stored HTML-escaped
+envelope, including timestamps. Escaping `<`, `>`, `&`, U+2028 and U+2029 can
+expand the stored bytes substantially. Staged files have a separate fixed
+2 MiB limit; staging cannot increase the data/envelope capacity. Tool descriptions
+and data-upload responses report these resolved startup limits.
+
+Byte overrides must resolve to positive safe integers; invalid or nonpositive
+values fall back to the defaults (`MAX_HTML_BYTES` uses the Express size parser).
+Changing settings requires restarting Pages. See [managed-data size measurements](API.md#managed-data-size-limits)
+for preflight checks that preserve complete datasets.
 
 ### Database bounds
 
