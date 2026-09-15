@@ -54,6 +54,20 @@ async function main() {
   const indexed = (await db.query("SELECT refreshed_at, source_as_of FROM page_versions WHERE id = $1", [moved.version.id])).rows[0];
   assert.equal(indexed.refreshed_at.toISOString(), parse(original.html).envelope.refreshed_at);
   assert.equal(indexed.source_as_of.toISOString(), new Date(parse(original.html).envelope.source_as_of).toISOString());
+  await versions.publish({ slug: "provenance-page", versionId: moved.version.id, expectedVersion: built.version.id }, actor);
+  const assertFreshness = async (expected) => {
+    const listed = (await versions.listPages()).find((page) => page.slug === "provenance-page");
+    const detail = await versions.getPageData("provenance-page");
+    assert.equal(listed.freshness.refreshed_at, expected.refreshed_at);
+    assert.equal(detail.freshness.refreshed_at, expected.refreshed_at);
+    assert.deepEqual(detail.envelope, expected);
+  };
+  await assertFreshness(parse(original.html).envelope);
+  const refreshed = await versions.updatePageData({ slug: "provenance-page", data: { count: 8 }, sourceAsOf: "2026-08-02T00:00:00Z", expectedVersion: moved.version.id, publish: true }, actor);
+  assert.ok(Date.parse(refreshed.envelope.refreshed_at) > Date.parse(moved.envelope.refreshed_at), "new supplied data advances refresh time");
+  await assertFreshness(refreshed.envelope);
+  await versions.rollback({ slug: "provenance-page", versionId: built.version.id, expectedVersion: refreshed.version.id }, actor);
+  await assertFreshness(parse(original.html).envelope);
   console.log("✓ template identity includes immutable binding and exact retries remain idempotent");
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => db.pool.end());
