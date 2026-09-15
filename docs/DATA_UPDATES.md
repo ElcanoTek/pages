@@ -54,6 +54,46 @@ before accepting the task instead of discovering it at dispatch. (Five real
 autoupdate tasks were accepted as opaque prompt blobs and dead-lettered on their
 first run with no model configured, having executed nothing.)
 
+Recurring managed-data prompts also embed that same JSON after an
+`EXECUTION REQUIREMENTS (JSON):` line, so copying the prompt retains the handoff.
+An executor can reject missing network/tools before running the model. This is
+an opt-in consumer contract, not a Pages scheduling API or permission grant.
+In Fleet, sandbox **Allow network egress** must permit HTTPS file uploads;
+working MCP downloads alone do not establish shell connectivity. A scheduler
+must select the bound servers, helper servers supplying required tools, and the
+right connected accounts. Source authentication and completeness are verified
+again during execution.
+
+Each recurring run reads the current published schema, hashes, version and
+configured registries. The schema hash returned by prompt preparation is
+informational; it is no longer an expiry condition embedded in recurring text.
+One-time managed updates still pin the generated schema hash. A scheduled run
+may follow a later compatible chat edit, but must block on changed grain,
+missing fields or ambiguous source/KPI/deal mappings. It never migrates layout,
+schema or configuration. Hashes must remain unchanged **during the run**, and
+`expected_version` protects the write against concurrent edits.
+
+A run selects exactly one branch:
+
+- **source_not_updated:** freshly retrieved, verified sources add no missing
+  coverage or requested correction. Record the check and finish successfully;
+  no upload, new version or post-publication preflight is required.
+- **blocked:** source access, completeness, mapping or transport prevents a safe
+  update. Record the exact blocker and preserve the live page. Never call this
+  source_not_updated when a required source was not retrieved.
+- **update:** rebuild and reconcile the complete payload, upload its exact bytes,
+  commit with optimistic concurrency, then verify the returned state/profile
+  and the live browser preflight.
+
+The runtime's audit protocol applies when it provides `confirm_audit`. A
+completion audit with no remaining mutations declares `critical_actions: []`;
+it must not promise publication for the other branches. Upload transport is
+bounded: one transient retry, no policy bypass, no model-emitted large base64
+payload, no repeated upload cancellation/restart. A missing transport is a
+blocker, not permission to sample the data. Existing saved prompts are not
+rewritten automatically: regenerate them after upgrading the producer and
+executor. Customer data-grain migrations are separate work.
+
 No per-dashboard server setup is required. In particular, do not create a Pages
 runner token or add `PAGES_MOC_*` / `PAGES_REFRESH_*` environment variables.
 
@@ -125,7 +165,8 @@ carrying prior totals forward. The final report must name the server and tool
 actually used per source, so a wrong binding is visible in the run output rather
 than hidden inside a plausible-looking dashboard.
 
-The result pins the current live version and, when available, managed schema:
+The result reports the current live version and managed schema. One-time
+workflows pin their baseline; recurring managed workflows read it at execution:
 
 - `mode: managed_data` — use `get_page_data` and `update_page_data`; layout and
   schema bytes cannot change.
@@ -194,17 +235,24 @@ deployments can lower them with `PAGES_DATA_SCHEMA_MAX_BYTES`,
 
 ## Safe managed update execution
 
+`get_page_data({slug, include_data:false})` returns the same contract, hashes,
+profile, live state and coverage with `envelope.data` omitted and
+`data_omitted:true`. This keeps large row payloads out of the contract read.
+Omit the option (or pass true) to retrieve the full live data for historical
+overlap checks; never treat an omitted payload as an empty dataset.
+
 `get_page_data({slug})` returns the published schema/envelope, semantic hashes,
 URLs, and truthful live-state fields. A generated managed prompt requires the
 caller to:
 
-1. read the exact slug and verify the pinned schema hash;
+1. read the exact slug and establish this run's schema/hash baseline (also
+   verify the generated schema pin for a one-time update);
 2. retrieve every required source read-only and establish identity, coverage,
    freshness, completeness, row counts, and reconciliation evidence;
-3. stop without writing if anything is missing, stale, partial, ambiguous, or
-   inconsistent;
+3. select the no-update or blocked branch when appropriate;
 4. build one complete schema-valid data object; and
-5. call `update_page_data` with the read `live_version_id` as
+5. call `update_page_data_upload` (or `update_page_data` for a small inline
+   object) with the read `live_version_id` as
    `expected_version`, the latest represented `source_as_of`, and the requested
    publish mode.
 

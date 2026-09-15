@@ -3302,6 +3302,16 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     );
     assert.equal(recurringPrompt.mode, "managed_data");
     assert.equal(recurringPrompt.recurring, true);
+    const contractOnly = toolData(await callTool("get_page_data", { slug: "mcpdata", include_data: false }));
+    const completeRead = toolData(await callTool("get_page_data", { slug: "mcpdata" }));
+    assert.equal(contractOnly.data_omitted, true);
+    assert.equal(Object.hasOwn(contractOnly.envelope, "data"), false);
+    assert.ok(Object.hasOwn(completeRead.envelope, "data"));
+    for (const field of ["schema", "schema_sha256", "template_sha256", "data_sha256", "live_version_id", "data_profile", "freshness", "urls"]) {
+      assert.deepEqual(contractOnly[field], completeRead[field], `contract-only read preserves ${field}`);
+    }
+    assert.equal(contractOnly.envelope.source_as_of, completeRead.envelope.source_as_of);
+
     assert.match(recurringPrompt.prompt, /user-owned scheduler/i);
     assert.match(recurringPrompt.next_step, /Show prompt to the user verbatim/i);
     // A partitioned source must render as enumerate-the-range, not newest-wins.
@@ -3310,6 +3320,20 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     // The scheduler-facing contract: what this run needs, before it is accepted.
     assert.deepEqual(recurringPrompt.execution_requirements.mcp_servers, ["fastio_helpers", "pages"]);
     assert.equal(recurringPrompt.execution_requirements.model_required, true);
+    assert.doesNotMatch(recurringPrompt.prompt, /EXPECTED SCHEMA SHA-256/);
+    assert.equal(recurringPrompt.schema_sha256, prepared.schema_sha256, "generation still returns the observed contract for inspection");
+    const promptLines = recurringPrompt.prompt.split("\n");
+    assert.deepEqual(
+      JSON.parse(promptLines[promptLines.indexOf("EXECUTION REQUIREMENTS (JSON):") + 1]),
+      recurringPrompt.execution_requirements,
+      "copying only the prompt retains the scheduling prerequisites"
+    );
+    assert.match(recurringPrompt.prompt, /source_not_updated: Call mcp_pages_record_refresh_check once/);
+    assert.match(recurringPrompt.prompt, /incompatible grain, required fields, source identity or mappings are blocked/);
+    assert.match(recurringPrompt.prompt, /UPDATE BRANCH ONLY/);
+    const afterPreparation = toolData(await callTool("get_page_data", { slug: "mcpdata" }));
+    assert.equal(afterPreparation.live_version_id, recurringPrompt.live_version_id, "preparing a recurring prompt never writes a version");
+
 
     const adaptive = toolData(
       await callTool("prepare_dashboard_update", {
