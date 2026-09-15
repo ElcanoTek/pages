@@ -306,6 +306,10 @@ and re-validates both against the target revision's schemas. A revision that
 tightened its contract therefore fails loudly, before anything is written,
 instead of producing a page its own schema rejects.
 
+A template name or revision change creates a new immutable page version even
+when materialized HTML is identical. Retrying the same target binding may reuse
+its existing draft; the reported binding always comes from the stored version.
+
 One page per call. There is no bulk rerender.
 
 ## Identity and hashes
