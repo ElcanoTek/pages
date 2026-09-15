@@ -411,7 +411,7 @@ contract fails, so a missing block and a broken chart control surface in one pas
 
 `PAGES_DATA_CONFIG_MAX_BYTES` (256 KiB) bounds a config;
 `PAGES_DATA_SCHEMA_MAX_BYTES` (256 KiB) each schema; `PAGES_DATA_MAX_BYTES`
-(1 MiB) the data payload and, separately, an example dataset;
+(1 MiB) each data payload, stored escaped envelope and example dataset;
 `PAGES_DATA_TEMPLATE_MAX_BYTES` (2 MiB) the stored template and the materialized
 page. An example dataset counts toward the stored template but not toward any page
 built from it, since it is deleted on materialization.
@@ -427,3 +427,8 @@ decision. A mixed request stops when an earlier edit is draft or pending, since
 subsequent managed operations read the live version. Resuming that sequence
 requires separately authorized publication and a fresh read. Design rerenders
 continue to require preview and human publication.
+
+Managed-data payloads and their HTML-escaped envelopes must each fit
+`PAGES_DATA_MAX_BYTES`; envelope metadata and escaping consume part of that
+budget. Staging changes transport only. See [managed-data size limits](API.md#managed-data-size-limits)
+for effective defaults and optional measurements before uploading.

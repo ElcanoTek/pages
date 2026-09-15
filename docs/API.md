@@ -91,8 +91,8 @@ not yet consume structured results.
 | `rename_workspace` | `workspace_id, name` | rename a workspace without changing its member pages |
 | `set_page_workspace` | `slug, workspace_id` | move a page; pass `null` for Ungrouped; page content, URL, and serving state are unchanged |
 | `list_themes` | — | list curated themes a human admin may assign; agents cannot mutate themes |
-| `create_upload_ticket` | `slug? \| template?, total_bytes, content_sha256` | **preferred for files** — open a staged upload and return a one-shot `upload_url` + `ticket` your shell PUTs the file to directly, so the bytes never pass through model output. Supply exactly one target: `slug` deploys a page, `template` registers a design |
-| `start_page_upload` | `slug? \| template?, total_bytes, content_sha256` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
+| `create_upload_ticket` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | **preferred for files** — open a staged upload and return a one-shot `upload_url` + `ticket` your shell PUTs the file to directly, so the bytes never pass through model output. Supply exactly one target: `slug` deploys a page, `template` registers a design |
+| `start_page_upload` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
 | `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default); an exact sequence replay is idempotent |
 | `cancel_page_upload` | `upload_id` | discard an uncommitted upload and free its active-upload slot; never changes a page/version |
 | `deploy_page_upload` | `upload_id, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | SHA-verify and atomically create-or-update from the staged bytes; exact commit retries preserve the original receipt and refresh current serving guidance |
@@ -112,7 +112,7 @@ not yet consume structured results.
 | `update_page_config` | `slug, config, expected_version, publish?, note?` | replace the config block only; the data block is left **byte-for-byte** unchanged and source coverage is carried across, so settings changes cannot move numbers. Replaces, does not merge |
 | `list_template_pages` | `template` | every live page whose history touches the design: who is serving which revision, which are behind the current one, and which have **drifted** off it (`drifted:true` — a later raw `deploy_page`/`patch_page` detached them, so a design fix no longer reaches them; `last_revision` is what to pull them back onto). Read-only — Pages never re-renders a page on its own |
 | `rerender_page_from_template` | `slug, template?, revision?, publish?, expected_version?, note?` | move **one** page onto a template revision, keeping its own config and data and re-validating both against the target schemas. `publish` defaults to **false** so a human previews the design first. No bulk rerender exists |
-| `update_page_data_upload` | `upload_id, slug, source_as_of, expected_version, publish?, note?, expect?` | publish a managed-data payload **staged with `create_upload_ticket` or the MCP chunk fallback (`kind:'data'`)** instead of sending it inline — the JSON never passes through the model's context, so no inline ceiling applies. Identical to `update_page_data` from the parse onward: same schema validation, monotonic `source_as_of`, mandatory `expected_version`, dedupe, `data_profile`/`data_warnings`, and `expect` reconciliation, through one write path. An upload staged as `page` is refused here and one staged as `data` is refused by `deploy_page_upload` |
+| `update_page_data_upload` | `upload_id, slug, source_as_of, expected_version, publish?, note?, expect?` | publish a managed-data payload **staged with `create_upload_ticket` or the MCP chunk fallback (`kind:'data'`)** instead of sending it inline — the JSON never passes through the model's context, bypassing the inline transport budget while retaining the data/envelope and staged-file limits. Identical to `update_page_data` from the parse onward: same schema validation, monotonic `source_as_of`, mandatory `expected_version`, dedupe, `data_profile`/`data_warnings`, and `expect` reconciliation, through one write path. An upload staged as `page` is refused here and one staged as `data` is refused by `deploy_page_upload` |
 | `configure_page_refresh` | `slug, instructions?, recurring?, update_type?, publish?, daily_at_utc?, workflow?, run_now?` | read-only compatibility alias for `prepare_dashboard_update`; legacy workflow/cadence input becomes user-owned prompt text and `run_now` never executes work |
 | `publish_page` | `slug, version_id, expected_version?` | publish a draft (open pages only) |
 | `rollback_page` | `slug, version_id?, expected_version?, note?` | move the live pointer to an approved version (omit id → previous). `note` is recorded in the audit log — a rollback republishes bytes that already exist, so the reason is not inferable from any diff |
@@ -224,6 +224,60 @@ and MCP initialization use the same preference and fallback.
 the caller must additionally provide one permitted upload transport. Its
 `network: false` means outbound file HTTP is optional because MCP chunks can
 complete the transfer. Check the chosen transport before processing data.
+
+### Managed-data size limits
+
+All limits count UTF-8 bytes and must fit independently:
+
+| Boundary | Default | Counts |
+| --- | --- | --- |
+| Data payload | 1,048,576 | Compact `JSON.stringify(data)` |
+| Stored envelope | 1,048,576 | HTML-escaped payload plus contract fields and timestamps |
+| Inline transport | 1,500,000 | Compact data argument; does not increase domain capacity |
+| Staged file | 2,097,152 | Exact uploaded file, including whitespace |
+| HTTP request | 2,097,152 | Complete JSON request, including RPC fields and `expect` |
+
+The envelope adds at least 114 bytes of metadata with normalized timestamps;
+HTML escaping may add more. Runtime overrides are reflected in tool descriptions,
+error `details.limits` and the `data_limits` field on data-upload responses.
+The HTTP limit covers JSON requests; a ticket PUT uses the staged-file limit.
+
+Before transferring a data file, callers can supply optional advisory
+`data_size: {payload_bytes, escaped_payload_bytes}` to `create_upload_ticket` or
+`start_page_upload`, with `kind: 'data'`. Compute the measurements locally from
+the parsed object (Node.js example):
+
+```js
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const file = fs.readFileSync('northwind-data.json');
+const compact = JSON.stringify(JSON.parse(file.toString('utf8')));
+const escaped = compact.replace(/[<>&\u2028\u2029]/g, (ch) =>
+  '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
+const upload = {
+  total_bytes: file.length,
+  content_sha256: crypto.createHash('sha256').update(file).digest('hex'),
+  data_size: {
+    payload_bytes: Buffer.byteLength(compact, 'utf8'),
+    escaped_payload_bytes: Buffer.byteLength(escaped, 'utf8'),
+  },
+};
+```
+
+Known-impossible measurements fail before reserving an upload. They are optional
+for existing clients and do not guarantee acceptance: the actual payload,
+schema, timestamps and stored envelope are always checked when consumed. Raw
+file size alone cannot predict compact payload size, so valid pretty-printed
+JSON remains supported. An absent or understated measurement cannot bypass
+validation.
+
+Payload/envelope overflow returns `data_validation_failed` with `size_limit`,
+`bytes`, `max_bytes`, `changing_transport_can_help: false` and all resolved
+limits. Both inline and staged updates use this contract and leave versions,
+publication and audit unchanged on failure. Only an inline transport overflow
+that fits staging recommends the file route (`data_too_large_for_inline`).
+Keep the complete source; never split, sample, summarize or truncate data to fit.
+
 
 Uploads are stored in PostgreSQL, bound to the bearer token, limited to 2 MiB
 and five active handles per token, and expire 24 hours after inactivity. Exact

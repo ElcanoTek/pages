@@ -4949,14 +4949,14 @@ test("mcp-tools: an oversized payload is refused with an actionable code", () =>
 test("mcp-tools: a realistic 978 KB payload is accepted, not refused", () => {
   const { assertInlineData } = require("../lib/mcp-tools");
   // Same order of magnitude as the payload the NWM run declined to send.
-  const rows = Array.from({ length: 14392 }, (_, i) => ({
+  const rows = Array.from({ length: 12600 }, (_, i) => ({
     date: "2026-08-16",
     deal: `deal-${i}`,
     spend: 1234.56,
     impressions: 98765,
   }));
   const bytes = Buffer.byteLength(JSON.stringify({ rows }), "utf8");
-  assert.ok(bytes > 900000, `fixture should be ~1 MB, got ${bytes}`);
+  assert.ok(bytes > 950000 && bytes < 1000000, `fixture should be ~978 KB, got ${bytes}`);
   assert.doesNotThrow(() => assertInlineData({ rows }), "the size that broke production must pass");
 });
 

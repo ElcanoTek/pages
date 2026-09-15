@@ -3132,7 +3132,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     );
     assert.equal(otherSlug.data.code, "page_upload_target_mismatch");
 
-    // And the inline refusal now points at the path that exists.
+    // A domain overflow cannot be rescued by moving the same data through staging.
     assert.match(
       toolError(
         await callTool("update_page_data", {
@@ -3142,7 +3142,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
           expected_version: inlineEcho.version.id,
         })
       ).data.error,
-      /create_upload_ticket with kind 'data'[\s\S]*update_page_data_upload/
+      /Changing upload transport cannot help/
     );
     // The chunked path can stage data too, for an environment with no outbound
     // HTTP. Its append UPDATE dropped target_kind from its RETURNING clause, so
