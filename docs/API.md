@@ -339,6 +339,9 @@ request runs. If any values change, the editor stays open after that save and
 asks you to save the remaining changes. Closing waits for an in-flight save to
 finish; a failed save keeps your entered values available for retry. An
 unchanged successful save closes the editor and selects the saved version.
+Identical HTML and render mode reuse an existing version, including its note.
+If you entered a different note, the editor keeps it open and explains that
+changing the HTML or render mode is needed to save a new version with that note.
 Saving source creates a draft (or a pending version when approval is required);
 publication remains a separate action.
 

@@ -913,9 +913,9 @@
     const save = el("button", { class: "btn btn-primary", type: "button" }, "Save as new version");
     const cancel = el("button", { class: "btn btn-ghost", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
 
-    const snapshot = () => JSON.stringify([source.value, mode.value, note.value]);
+    const snapshot = () => ({ html: source.value, render_mode: mode.value, note: note.value });
     let baseline = snapshot();
-    const isDirty = () => snapshot() !== baseline;
+    const isDirty = () => JSON.stringify(snapshot()) !== JSON.stringify(baseline);
     const markDirty = () => { clean = !isDirty(); };
     [source, mode, note].forEach((control) => control.addEventListener("input", markDirty));
     function beforeUnload(event) {
@@ -943,16 +943,22 @@
       // The controls stay editable during the request. Only this snapshot is
       // saved; anything typed afterwards must keep its dirty/close guards.
       const submitted = snapshot();
+      const submittedNote = submitted.note.trim() || "Inline edit";
       saving = true;
       setBusy(button, true, "Saving…");
       status.textContent = "Saving a new version…";
       try {
         const result = await post("/deploy-source", {
-          html: source.value,
-          render_mode: mode.value,
-          note: note.value.trim() || "Inline edit",
+          ...submitted,
+          note: submittedNote,
         });
-        baseline = submitted;
+        // Content dedupe returns the existing version, including its old note.
+        // A deliberately entered/cleared note is still unsaved if that happens;
+        // an untouched blank note does not ask to rewrite existing history.
+        const noteNotSaved = result.deduped
+          && (submitted.note !== "" || baseline.note !== "")
+          && result.version.note !== submittedNote;
+        baseline = { ...submitted, note: noteNotSaved ? result.version.note || "" : submitted.note };
         markDirty();
         selectedVersionId = result.version.id;
         reviewFilter = result.version.status === "pending" ? "pending" : "all";
@@ -964,7 +970,9 @@
           modal.setBeforeClose(null);
           modal.close("saved");
         } else {
-          status.textContent = `Saved ${savedLabel}. You have unsaved changes; save again to keep them.`;
+          status.textContent = noteNotSaved
+            ? `Selected existing ${savedLabel}. Your note was not saved because the HTML and render mode are unchanged. Change either to save a new version with this note.`
+            : `Saved ${savedLabel}. You have unsaved changes; save again to keep them.`;
         }
         toast(result.deduped ? `No source changes; selected ${savedLabel}` : `Saved ${savedLabel}`);
         await load(result.version.id);

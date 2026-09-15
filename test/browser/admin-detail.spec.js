@@ -539,10 +539,20 @@ for (const changedField of ["HTML source", "Render mode", "Version note"]) {
     let release;
     const responseGate = new Promise((resolve) => { release = resolve; });
     let held = false;
+    let savedResult;
     await page.route("**/deploy-source", async (route) => {
-      if (held) return route.continue();
+      if (held) {
+        const body = route.request().postDataJSON();
+        // The real state machine dedupes by HTML/mode, ignoring a new note.
+        // The generic fixture always appends, so reproduce this response here.
+        if (body.html === initial.html && body.render_mode === initial.render_mode) {
+          return route.fulfill({ json: { ...savedResult, deduped: true } });
+        }
+        return route.continue();
+      }
       held = true;
       const response = await route.fetch();
+      savedResult = await response.json();
       await responseGate;
       await route.fulfill({ response });
     });
@@ -579,6 +589,17 @@ for (const changedField of ["HTML source", "Render mode", "Version note"]) {
     await expect(warning).toBeVisible();
     await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
     await editor.getByRole("button", { name: "Save as new version" }).click();
+    if (changedField === "Version note") {
+      await expect(editor.getByRole("status")).toContainText("Your note was not saved because the HTML and render mode are unchanged");
+      await expect(editor.getByLabel("Version note")).toHaveValue(latest.note);
+      await expect(editor.getByRole("button", { name: "Save as new version" })).toBeEnabled();
+      await page.keyboard.press("Escape");
+      await expect(warning).toBeVisible();
+      await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+      latest.html = "<h1>New source with the newer note</h1>";
+      await editor.getByLabel("HTML source").fill(latest.html);
+      await editor.getByRole("button", { name: "Save as new version" }).click();
+    }
     await expect(editor).toBeHidden();
     await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 8");
     const events = (await (await request.get("/__fixture/events")).json()).events;
@@ -586,6 +607,19 @@ for (const changedField of ["HTML source", "Render mode", "Version note"]) {
       .toEqual([initial, latest]);
   });
 }
+
+test("an unchanged deduped source save closes without requesting a replacement note", async ({ page, request }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  const { version } = await (await request.get("/api/v1/admin/pages/long/client/q2-report/versions/106")).json();
+  expect(version.note).toBeTruthy();
+  await expect(editor.getByLabel("Version note")).toHaveValue("");
+  await page.route("**/deploy-source", (route) => route.fulfill({ json: { version, deduped: true } }));
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await expect(editor).toBeHidden();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 6");
+});
 
 test("source editor waits for a pending save before accepting any close action", async ({ page }) => {
   await openDetail(page);
