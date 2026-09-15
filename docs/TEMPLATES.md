@@ -120,6 +120,13 @@ metric on every day. Missing/partial histories and zero prior values show an
 em dash; their CSV delta fields are empty. Available CSV deltas are fractional
 changes, so `0.5` corresponds to an on-screen `50.0%` increase.
 
+Weekly KPI deltas compare each complete Monday–Sunday bucket with the preceding
+calendar week in the loaded history, under the same filters. The KPI's
+`lowerIsBetter` setting determines whether its direction is favorable. Clipped
+partial weeks, incomplete metric observations, unavailable or zero baselines,
+and the Total row have no comparable delta. Weekly CSV includes the same KPI
+values and fractional changes, with blanks wherever the table shows an em dash.
+
 Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
