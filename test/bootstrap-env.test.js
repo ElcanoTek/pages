@@ -13,7 +13,9 @@ test("bootstrap environment: preserve optional/operator values and quote managed
   const database = "postgres://pages:synthetic-$`\\\"'@localhost/pages";
   const updated = merge(original, { PORT: "4312", DATABASE_URL: database });
   assert.ok(updated.includes(original.slice(0, original.lastIndexOf('PORT="3002"'))));
-  const decoded = spawnSync("bash", ["-c", 'set -a; eval "$1"; node -e "console.log(JSON.stringify(process.env))"', "_", updated], { encoding: "utf8" });
+  const childEnv = { ...process.env };
+  delete childEnv.NODE_TEST_CONTEXT;
+  const decoded = spawnSync("bash", ["-c", 'set -a; eval "$1"; node -e "console.log(JSON.stringify(process.env))"', "_", updated], { encoding: "utf8", env: childEnv, timeout: 5000 });
   assert.equal(decoded.status, 0, decoded.stderr);
   const env = JSON.parse(decoded.stdout);
   assert.equal(env.RL_API_PER_MIN, "357");
