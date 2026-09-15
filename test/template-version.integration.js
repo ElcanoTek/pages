@@ -36,7 +36,7 @@ async function main() {
   assert.equal(moved.deduped, false, "identical materialized bytes with a different binding require a new immutable version");
   assert.notEqual(moved.version.id, built.version.id);
   const persisted = (await db.query("SELECT template_version_id FROM page_versions WHERE id = $1", [moved.version.id])).rows[0];
-  assert.equal(String(persisted.template_version_id), String(b.revision.id));
+  assert.equal(String(persisted.template_version_id), String(b.revision.version_id));
   assert.equal(moved.template_version_id, String(persisted.template_version_id));
   const retry = await templates.rerenderPage({ slug: "provenance-page", template: "provenance-b" }, actor);
   assert.equal(retry.deduped, true);
@@ -44,7 +44,7 @@ async function main() {
   const revision = await templates.register({ name: "provenance-a", html: html.replace("Northwind Spring", "Reference only") }, actor);
   const revised = await templates.rerenderPage({ slug: "provenance-page", revision: 2 }, actor);
   assert.equal(revised.deduped, false, "a revision with only reference-config changes still records provenance");
-  assert.equal(revised.template_version_id, String(revision.revision.id));
+  assert.equal(revised.template_version_id, String(revision.revision.version_id));
   assert.deepEqual(revised.config, config, "reference config is never implicitly inherited");
   const live = (await db.query("SELECT published_version_id FROM pages WHERE slug = $1", ["provenance-page"])).rows[0];
   assert.equal(String(live.published_version_id), String(built.version.id), "binding changes remain drafts");
