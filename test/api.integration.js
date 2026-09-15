@@ -255,12 +255,38 @@ function req(method, pathname, { host = DASH, token, body } = {}) {
     console.log("✓ nested slug: REST routes + /raw resolve unencoded");
 
     // 17. reserved slugs (route collisions) are rejected at creation.
-    for (const bad of ["welcome", "raw/q2", "acme/versions"]) {
+    for (const segment of require("../lib/route-namespace").RESERVED_SLUG_SEGMENTS) {
+      const bad = `northwind/${segment}/report`;
       const rr = await req("POST", "/api/v1/pages", { token, body: { slug: bad } });
       assert.equal(rr.status, 400, `reserved slug '${bad}' → 400`);
       assert.equal(rr.json.code, "reserved_slug");
     }
-    console.log("✓ reserved slugs rejected at creation");
+    const versionsForRoutes = require("../lib/versions");
+    const routeAdmin = { actor: "admin@example.test", actorType: "user", ip: "127.0.0.1" };
+    for (const segment of require("../lib/route-namespace").RESERVED_SLUG_SEGMENTS) {
+      await assert.rejects(versionsForRoutes.restorePage({ slug: `northwind/${segment}/report` }, routeAdmin),
+        (error) => error.status === 400 && error.code === "reserved_slug");
+    }
+    const collisionCheck = require("node:fs").readFileSync(require("node:path").join(__dirname,
+      "../migrations/023_reserve_application_routes.sql"), "utf8");
+    const collisionClient = await db.pool.connect();
+    try {
+      for (const segment of ["raw-template", "preflight", "edit-token", "readyz"]) {
+        await collisionClient.query("BEGIN");
+        await collisionClient.query("INSERT INTO pages (slug, title) VALUES ($1, 'Old route fixture')", [`northwind/${segment}/legacy`]);
+        await assert.rejects(collisionClient.query(collisionCheck),
+          (error) => error.code === "P0001" && /active page slugs conflict/.test(error.message) && /current release/.test(error.hint));
+        await collisionClient.query("ROLLBACK");
+      }
+      await collisionClient.query("BEGIN");
+      await collisionClient.query("INSERT INTO pages (slug, title, deleted_at) VALUES ('raw-template/retired', 'Retired fixture', now())");
+      await collisionClient.query(collisionCheck);
+      await collisionClient.query("ROLLBACK");
+    } finally {
+      await collisionClient.query("ROLLBACK");
+      collisionClient.release();
+    }
+    console.log("✓ reserved routes reject creation/restoration and existing collisions block rollout without mutation");
 
     // 18. dedupe scoping: same bytes + same mode still dedupes (idempotent),
     //     but a render_mode change is a NEW row with the REQUESTED mode, and
