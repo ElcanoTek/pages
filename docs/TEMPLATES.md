@@ -110,6 +110,16 @@ table. **By Deal** exports deal rows and the channel total; the weekly export
 uses week buckets. The filename and scope block identify that grouping and the
 selected date/deal filters.
 
+Summary and deal deltas compare the last seven displayed days (or the whole
+selected range when shorter) with the immediately preceding period of equal
+length. Comparison data comes from the full loaded history with the same
+channel and deal selection; it never expands the displayed totals. Daily rows
+compare that calendar day with the preceding calendar day, while their Total
+row uses the summary window. Both windows need an observation for the relevant
+metric on every day. Missing/partial histories and zero prior values show an
+em dash; their CSV delta fields are empty. Available CSV deltas are fractional
+changes, so `0.5` corresponds to an on-screen `50.0%` increase.
+
 Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
