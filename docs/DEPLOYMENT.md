@@ -901,3 +901,18 @@ Honest limitations of the deploy path as shipped:
 - [API.md](API.md) — REST and MCP agent surfaces
 - [LICENSING.md](LICENSING.md) — what you may and may not deploy
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — local development
+
+### Application-route collision check
+
+Migration `023_reserve_application_routes.sql` checks active pages for the newly
+reserved `raw-template`, `preflight`, `edit-token` and `readyz` segments before
+rollout. It stops with affected slugs and changes no pages or versions. Creation
+and restoration reject these namespaces consistently; ordinary nested slugs keep
+their URLs.
+
+If it reports an old conflicting slug, retain the previous release while you
+copy its source to an ordinary new slug, verify publication and client access,
+and update shared links. Soft-delete the old page only after verification, then
+retry the update. This is an explicit operator migration of a URL; Pages never
+silently renames it. Keep the old page history and previous release until the
+move is accepted so the previous installation can restore it if necessary.

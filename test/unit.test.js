@@ -770,6 +770,16 @@ test("versions.sha256: stable and content-sensitive", () => {
   assert.match(versions.sha256("x"), /^[0-9a-f]{64}$/);
 });
 
+test("page route namespaces reject newer content and action collisions", () => {
+  for (const segment of ["raw-template", "preflight", "edit-token", "readyz"]) {
+    for (const slug of [segment, `${segment}/report`, `northwind/${segment}/report`]) {
+      assert.throws(() => versions.assertSlugNotReserved(slug),
+        (error) => error.status === 400 && error.code === "reserved_slug");
+    }
+  }
+  assert.doesNotThrow(() => versions.assertSlugNotReserved("northwind/quarterly-report"));
+});
+
 test("versions.normalizeSlug: accepts flat + nested, lowercases, rejects junk", () => {
   assert.equal(versions.normalizeSlug("Northwind"), "northwind");
   assert.equal(versions.normalizeSlug("northwind/q2-report"), "northwind/q2-report");
