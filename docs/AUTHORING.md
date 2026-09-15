@@ -357,6 +357,12 @@ patch cannot land on top of a deploy you never saw.
 
 ## Before you tell the user it is done
 
+Inline classic scripts and `type="module"` scripts are syntax-checked in their
+respective grammars without running code or resolving imports. Modules support
+imports, exports and top-level `await`; a syntax pass does not prove referenced
+resources exist or that the browser will allow them. Each script retains the
+1 MiB analysis limit.
+
 1. Check the `preflight` field on your deploy result. `ok: false` means part of
    the page does not work — fix it and redeploy before sharing the link.
 2. Share `urls.live` verbatim.
