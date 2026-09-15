@@ -112,8 +112,17 @@ case "$cmd" in
       exec node scripts/template.js "$@"
     ' _ "$ENV_FILE" "$APP_DIR" "$@"
     ;;
+  backup)
+    [[ -f "$APP_DIR/scripts/backup.sh" ]] || { echo "no backup implementation at $APP_DIR; update Pages first" >&2; exit 1; }
+    exec sudo env PAGES_INSTALL_CONFIG="$PAGES_INSTALL_CONFIG" APP_DIR="$APP_DIR" APP_USER="$APP_USER" \
+      PAGES_ENV_FILE="$ENV_FILE" PAGES_SRC_DIR="$SRC_DIR" bash "$APP_DIR/scripts/backup.sh" "$@"
+    ;;
+  check-integrity)
+    [[ -f "$APP_DIR/scripts/backup.js" ]] || { echo "no integrity implementation at $APP_DIR; update Pages first" >&2; exit 1; }
+    exec sudo node "$APP_DIR/scripts/backup.js" check "$@"
+    ;;
   # ── Phase 1+ subcommands (stubs today; wired as the app grows) ──────────
-  page|theme|backup|check-integrity)
+  page|theme)
     echo "'pages $cmd' arrives with Phase ${PAGES_PHASE_HINT:-1+}. See PLAN.md §9." >&2
     exit 2
     ;;
@@ -139,11 +148,13 @@ pages — Elcano Pages operator CLI
   pages template sync [dir]            register every templates/<name>/template.html
                                        (deploy runs this; idempotent, moves no page)
 
+  pages backup [dest]                  capture and rehearse a complete backup
+                                       (default destination: /var/backups/pages)
+  pages check-integrity <backup-dir>    verify files and repeat an isolated restore
+
   Planned (PLAN.md §9):
   pages page list|passwd|disable|enable
   pages theme set|list
-  pages backup [dest]                  pg_dump THEN tar assets/
-  pages check-integrity                refs ↔ files, pointer sanity
 EOF
     ;;
   *)
