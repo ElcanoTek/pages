@@ -7,6 +7,12 @@ through the same version state machine (no privileged backdoor):
 - **REST** — `POST/GET/DELETE https://pages.elcanotek.com/api/v1/*` (PLAN.md §10)
 - **MCP-over-HTTP** — `POST https://pages.elcanotek.com/mcp` (PLAN.md §11)
 
+Generated update workflows honor the caller's configured approval and completion
+process. Pages does not require a client-specific approval tool or audit payload.
+The returned `execution_requirements` identifies Pages/source capabilities; host
+approval rules are supplied by that host and remain in force. Pages' own review
+and publication gates apply regardless of the MCP client.
+
 The managed-data execution tools and the read-only dashboard-update prompt
 preparer are MCP-only. Pages does not run a scheduler or dispatch agent tasks;
 broad deploy/version operations remain available over both transports.
