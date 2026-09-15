@@ -25,6 +25,7 @@ const rawtoken = require("./lib/rawtoken");
 const render = require("./lib/render");
 const bento = require("./lib/bento");
 const db = require("./lib/db");
+const readiness = require("./lib/readiness");
 const versions = require("./lib/versions");
 const templates = require("./lib/templates");
 const contentview = require("./lib/contentview");
@@ -108,6 +109,7 @@ contentApp.use((_req, res, next) => {
 });
 
 contentApp.get("/healthz", (_req, res) => res.type("text").send("ok"));
+contentApp.get("/readyz", readiness.handler);
 
 // Vendored Flag tokens/fonts/icons live under public/assets and are served from
 // the content host so /raw pages can reference them CSP-clean.
@@ -396,6 +398,7 @@ dashboardApp.use(express.urlencoded({ extended: false, limit: "64kb" }));
 dashboardApp.use(express.json({ limit: process.env.MAX_HTML_BYTES || "2mb" }));
 
 dashboardApp.get("/healthz", (_req, res) => res.type("text").send("ok"));
+dashboardApp.get("/readyz", readiness.handler);
 
 // Public shell assets (CSS/JS for the trusted /view + /admin UI).
 dashboardApp.use(
@@ -563,7 +566,7 @@ if (require.main === module) {
     console.log(`Elcano Pages on :${PORT}  (dashboard=${DASHBOARD_HOST}  content=${CONTENT_HOST})`);
   });
   const shutdown = () => {
-    server.close(() => db.pool.end().finally(() => process.exit(0)));
+    server.close(() => Promise.all([db.pool.end(), readiness.close()]).finally(() => process.exit(0)));
   };
   process.once("SIGTERM", shutdown);
   process.once("SIGINT", shutdown);
