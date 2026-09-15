@@ -527,6 +527,169 @@ test("source editor warns on unsaved close and saves lossless source with mode a
   expect(deploy.body).toEqual({ html: exactSource, render_mode: "raw", note: "Preserve chart source exactly" });
 });
 
+for (const changedField of ["HTML source", "Render mode", "Version note"]) {
+  test(`source save preserves ${changedField} changed while the response is pending`, async ({ page, request }) => {
+    await openDetail(page);
+    await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+    const editor = page.getByRole("dialog", { name: "Edit source" });
+    const initial = { html: "<h1>Submitted source</h1>", render_mode: "themed", note: "Submitted note" };
+    await editor.getByLabel("HTML source").fill(initial.html);
+    await editor.getByLabel("Version note").fill(initial.note);
+
+    let release;
+    const responseGate = new Promise((resolve) => { release = resolve; });
+    let held = false;
+    let savedResult;
+    await page.route("**/deploy-source", async (route) => {
+      if (held) {
+        const body = route.request().postDataJSON();
+        // The real state machine dedupes by HTML/mode, ignoring a new note.
+        // The generic fixture always appends, so reproduce this response here.
+        if (body.html === initial.html && body.render_mode === initial.render_mode) {
+          return route.fulfill({ json: { ...savedResult, deduped: true } });
+        }
+        return route.continue();
+      }
+      held = true;
+      const response = await route.fetch();
+      savedResult = await response.json();
+      await responseGate;
+      await route.fulfill({ response });
+    });
+    const sent = page.waitForRequest("**/deploy-source");
+    await editor.getByRole("button", { name: "Save as new version" }).click();
+    await sent;
+    const latest = { ...initial };
+    if (changedField === "HTML source") {
+      latest.html = "<h1>Typed during save</h1>";
+      await editor.getByLabel(changedField).fill(latest.html);
+    } else if (changedField === "Render mode") {
+      latest.render_mode = "raw";
+      await editor.getByLabel(changedField).selectOption(latest.render_mode);
+    } else {
+      latest.note = "Typed during save";
+      await editor.getByLabel(changedField).fill(latest.note);
+    }
+    release();
+
+    await expect(editor.getByRole("status")).toContainText("Saved version 7. You have unsaved changes");
+    await expect(editor).toBeVisible();
+    await expect(editor.getByLabel("HTML source")).toHaveValue(latest.html);
+    await expect(editor.getByLabel("Render mode")).toHaveValue(latest.render_mode);
+    await expect(editor.getByLabel("Version note")).toHaveValue(latest.note);
+    await expect(editor.getByRole("button", { name: "Save as new version" })).toBeEnabled();
+    const preventsUnload = await page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(preventsUnload).toBe(true);
+    await page.keyboard.press("Escape");
+    const warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
+    await expect(warning).toBeVisible();
+    await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+    await editor.getByRole("button", { name: "Save as new version" }).click();
+    if (changedField === "Version note") {
+      await expect(editor.getByRole("status")).toContainText("Your note was not saved because the HTML and render mode are unchanged");
+      await expect(editor.getByLabel("Version note")).toHaveValue(latest.note);
+      await expect(editor.getByRole("button", { name: "Save as new version" })).toBeEnabled();
+      await page.keyboard.press("Escape");
+      await expect(warning).toBeVisible();
+      await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+      latest.html = "<h1>New source with the newer note</h1>";
+      await editor.getByLabel("HTML source").fill(latest.html);
+      await editor.getByRole("button", { name: "Save as new version" }).click();
+    }
+    await expect(editor).toBeHidden();
+    await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 8");
+    const events = (await (await request.get("/__fixture/events")).json()).events;
+    expect(events.filter((event) => event.path.endsWith("/deploy-source")).map((event) => event.body))
+      .toEqual([initial, latest]);
+  });
+}
+
+test("an unchanged deduped source save closes without requesting a replacement note", async ({ page, request }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  const { version } = await (await request.get("/api/v1/admin/pages/long/client/q2-report/versions/106")).json();
+  expect(version.note).toBeTruthy();
+  await expect(editor.getByLabel("Version note")).toHaveValue("");
+  await page.route("**/deploy-source", (route) => route.fulfill({ json: { version, deduped: true } }));
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await expect(editor).toBeHidden();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 6");
+});
+
+test("source editor waits for a pending save before accepting any close action", async ({ page }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  let release;
+  const responseGate = new Promise((resolve) => { release = resolve; });
+  await page.route("**/deploy-source", async (route) => {
+    const response = await route.fetch();
+    await responseGate;
+    await route.fulfill({ response });
+  });
+  // Even an unchanged editor has an in-flight write once Save is clicked.
+  const sent = page.waitForRequest("**/deploy-source");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await sent;
+  await expect(editor.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  const preventsUnload = await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(preventsUnload).toBe(true);
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(editor.getByRole("status")).toHaveText("Wait for the current save to finish before closing.");
+  await page.keyboard.press("Escape");
+  await editor.getByRole("button", { name: "Close dialog" }).click();
+  await expect(editor).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Discard unsaved source changes?" })).toHaveCount(0);
+  release();
+  await expect(editor).toBeHidden();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 7");
+});
+
+test("failed source saves keep newer values and dirty guards available for retry", async ({ page, request }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  await editor.getByLabel("HTML source").fill("<h1>First attempt</h1>");
+  let release;
+  const responseGate = new Promise((resolve) => { release = resolve; });
+  await page.route("**/deploy-source", async (route) => {
+    await responseGate;
+    await route.fulfill({ status: 503, json: { error: "Source storage is unavailable" } });
+  });
+  const sent = page.waitForRequest("**/deploy-source");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await sent;
+  const latest = { html: "<h1>Keep this for retry</h1>", render_mode: "raw", note: "Newer note" };
+  await editor.getByLabel("HTML source").fill(latest.html);
+  await editor.getByLabel("Render mode").selectOption(latest.render_mode);
+  await editor.getByLabel("Version note").fill(latest.note);
+  release();
+  await expect(editor.getByRole("status")).toHaveText("Source storage is unavailable");
+  await expect(editor.getByRole("button", { name: "Save as new version" })).toBeEnabled();
+  await expect(editor.getByLabel("HTML source")).toHaveValue(latest.html);
+  await expect(editor.getByLabel("Render mode")).toHaveValue(latest.render_mode);
+  await expect(editor.getByLabel("Version note")).toHaveValue(latest.note);
+  await page.keyboard.press("Escape");
+  const warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
+  await expect(warning).toBeVisible();
+  await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+  await page.unroute("**/deploy-source");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await expect(editor).toBeHidden();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 7");
+  const events = (await (await request.get("/__fixture/events")).json()).events;
+  expect(events.find((event) => event.path.endsWith("/deploy-source")).body).toEqual(latest);
+});
+
 // ── #167: editing the version under review ─────────────────────────────────
 
 test("the review workspace edits the selected version, and Settings edits what is live", async ({ page }) => {

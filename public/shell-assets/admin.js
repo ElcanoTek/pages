@@ -855,6 +855,7 @@
     const seed = options.seed || null;
     const copy = editorCopy(options);
     let clean = true;
+    let saving = false;
     const modal = makeDialog({
       title: copy.title,
       kicker: "New version",
@@ -912,16 +913,20 @@
     const save = el("button", { class: "btn btn-primary", type: "button" }, "Save as new version");
     const cancel = el("button", { class: "btn btn-ghost", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
 
-    const snapshot = () => JSON.stringify([source.value, mode.value, note.value]);
+    const snapshot = () => ({ html: source.value, render_mode: mode.value, note: note.value });
     let baseline = snapshot();
-    const isDirty = () => snapshot() !== baseline;
+    const isDirty = () => JSON.stringify(snapshot()) !== JSON.stringify(baseline);
     const markDirty = () => { clean = !isDirty(); };
     [source, mode, note].forEach((control) => control.addEventListener("input", markDirty));
     function beforeUnload(event) {
-      if (!clean && isDirty()) { event.preventDefault(); event.returnValue = ""; }
+      if (saving || (!clean && isDirty())) { event.preventDefault(); event.returnValue = ""; }
     }
     window.addEventListener("beforeunload", beforeUnload);
     modal.setBeforeClose(async () => {
+      if (saving) {
+        status.textContent = "Wait for the current save to finish before closing.";
+        return false;
+      }
       if (clean || !isDirty()) return true;
       return confirmDialog({
         trigger: modal.closeButton,
@@ -933,30 +938,49 @@
     });
 
     async function saveSource(button) {
+      if (saving) return;
       if (!source.value.trim()) { status.textContent = "HTML source cannot be empty."; source.focus(); return; }
+      // The controls stay editable during the request. Only this snapshot is
+      // saved; anything typed afterwards must keep its dirty/close guards.
+      const submitted = snapshot();
+      const submittedNote = submitted.note.trim() || "Inline edit";
+      saving = true;
       setBusy(button, true, "Saving…");
       status.textContent = "Saving a new version…";
       try {
         const result = await post("/deploy-source", {
-          html: source.value,
-          render_mode: mode.value,
-          note: note.value.trim() || "Inline edit",
+          ...submitted,
+          note: submittedNote,
         });
-        baseline = snapshot();
-        clean = true;
-        modal.setBeforeClose(null);
-        modal.close("saved");
+        // Content dedupe returns the existing version, including its old note.
+        // A deliberately entered/cleared note is still unsaved if that happens;
+        // an untouched blank note does not ask to rewrite existing history.
+        const noteNotSaved = result.deduped
+          && (submitted.note !== "" || baseline.note !== "")
+          && result.version.note !== submittedNote;
+        baseline = { ...submitted, note: noteNotSaved ? result.version.note || "" : submitted.note };
+        markDirty();
         selectedVersionId = result.version.id;
         reviewFilter = result.version.status === "pending" ? "pending" : "all";
         const savedNumber = result.deduped
           ? versionNumber(result.version)
           : (pageData?.versions?.length || 0) + 1;
         const savedLabel = savedNumber ? `version ${savedNumber}` : "version";
+        if (clean) {
+          modal.setBeforeClose(null);
+          modal.close("saved");
+        } else {
+          status.textContent = noteNotSaved
+            ? `Selected existing ${savedLabel}. Your note was not saved because the HTML and render mode are unchanged. Change either to save a new version with this note.`
+            : `Saved ${savedLabel}. You have unsaved changes; save again to keep them.`;
+        }
         toast(result.deduped ? `No source changes; selected ${savedLabel}` : `Saved ${savedLabel}`);
         await load(result.version.id);
       } catch (error) {
         status.textContent = error.message;
-        setBusy(button, false);
+      } finally {
+        saving = false;
+        if (button.isConnected) setBusy(button, false);
       }
     }
     save.addEventListener("click", () => saveSource(save));
