@@ -63,7 +63,11 @@ for (const resource of cases) {
       await expect.poll(() => page.evaluate(() => globalThis.resourceLoaded)).toBe(true);
       expect(await page.evaluate(() => globalThis.violations)).toEqual([]);
     } else {
-      await expect.poll(() => page.evaluate(() => globalThis.violations)).toContain(resource.directive);
+      // Chromium reports the effective element directive even when it falls
+      // back to the script-src/style-src source list in the served policy.
+      const effective = resource.tag === "script" || resource.tag === "link"
+        ? `${resource.directive}-elem` : resource.directive;
+      await expect.poll(() => page.evaluate(() => globalThis.violations)).toContain(effective);
     }
   });
 }
