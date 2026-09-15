@@ -96,3 +96,14 @@ test("channel-only conversions reconcile totals and CPA without leaking into dea
   await expect(page.locator("#tracking")).toContainText("Excluded from these totals because the deal filter selects only part of this channel");
   expect((await exportCampaign(page)).text).not.toContain("Channel-only conversions");
 });
+
+test("campaign labels remain text and the channel export button keeps its binding", async ({ page }) => {
+  await openCampaign(page, { rows: [metricRow("2026-06-01")], config: { channels: [
+    { id: "display", name: "Northwind <Q3> & partners", kpi: "cpm", kpiLabel: "CPM", target: 3, yellow: 4,
+      lowerIsBetter: true, unit: "$", decimals: 2 },
+  ] } });
+  await expect(page.locator("#hero .hcard").last().locator(".lab")).toHaveText("Northwind <Q3> & partners CPM");
+  const pending = page.waitForEvent("download");
+  await page.locator("#tracking").getByRole("button", { name: "Export Excel" }).click();
+  expect((await pending).suggestedFilename()).toBe("TEST001_display_deal_2026-06-01_to_2026-06-01.csv");
+});
