@@ -477,10 +477,56 @@ function unallocatedBlock(c){
 }
 function weekStart(d){const x=new Date(d);const w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return x;}
 function weekBuckets(){if(!STATE.start||!STATE.end) return [];const out=[]; let cur=weekStart(parseISO(STATE.start));const end=parseISO(STATE.end);while(cur<=end){const ws=new Date(cur), we=new Date(cur); we.setDate(we.getDate()+6);const s=iso(ws)<STATE.start?STATE.start:iso(ws);const e=iso(we)>STATE.end?STATE.end:iso(we);out.push({label:md(s)+"\u2013"+md(e),start:s,end:e,partial:(iso(ws)<STATE.start||iso(we)>STATE.end)});cur.setDate(cur.getDate()+7);}return out;}
-function renderWow(){const chan=CONFIG.channels;const head=["Week","DSP Spend","WoW Spend \u0394","DSP Impressions"].concat([].concat.apply([],chan.map(c=>[c.name+" "+c.kpiLabel,c.name+" WoW \u0394"]))).concat(["Clicks","CTR",CONFIG.conversionEvent,"CPA"]);if(!hasData()){$("#wowTable").innerHTML='<div class="empty">Week buckets build from the selected date range once data is ingested. Partial weeks will be labeled "(partial)".</div>';$("#weeklySpend").innerHTML='<div class="empty">Weekly spend chart \u2014 awaiting first data load.</div>';return;}const rows=scopedRows(), wks=weekBuckets(); let prevSpend=null, body="";wks.forEach(w=>{const wr=rows.filter(r=>r.date>=w.start&&r.date<=w.end), a=agg(wr);let d=DASH;if(prevSpend!=null&&prevSpend!==0){const ch=(a.dspSpend-prevSpend)/Math.abs(prevSpend), up=ch>=0;d='<span class="delta" style="color:'+(up?"var(--tier-green)":"var(--tier-red)")+'">'+(up?"\u25B2 ":"\u25BC ")+Math.abs(ch*100).toFixed(1)+"%</span>";}prevSpend=a.dspSpend;const cells=[usd(a.dspSpend),d,num(a.dspImpressions)];chan.forEach(c=>{const cr=wr.filter(r=>rowChannel(r)===c.id);const v=kpiValue(c,cr), t=tier(c,v);cells.push(kpiFmt(c,v)+'<span class="tierdot" style="background:'+tierColor(t)+'" title="'+tierName(t)+'"></span>');cells.push(DASH);});cells.push(num(a.clicks),pctf(safeDiv(a.clicks,a.dspImpressions)),num(a.conversions),usd(safeDiv(a.dspSpend,a.conversions)));body+="<tr><td class='l'>"+w.label+(w.partial?" (partial)":"")+"</td>"+cells.map(x=>"<td>"+x+"</td>").join("")+"</tr>";});const a=agg(rows), tc=[usd(a.dspSpend),DASH,num(a.dspImpressions)];chan.forEach(c=>{const cr=rows.filter(r=>rowChannel(r)===c.id);const v=kpiValue(c,cr),t=tier(c,v);tc.push(kpiFmt(c,v)+'<span class="tierdot" style="background:'+tierColor(t)+'"></span>');tc.push(DASH);});tc.push(num(a.clicks),pctf(safeDiv(a.clicks,a.dspImpressions)),num(a.conversions),usd(safeDiv(a.dspSpend,a.conversions)));body+="<tr class='total'><td class='l'>Total</td>"+tc.map(x=>"<td>"+x+"</td>").join("")+"</tr>";$("#wowTable").innerHTML="<div class='tblwrap'><table><thead><tr>"+head.map((h,i)=>"<th"+(i===0?" class='l'":"")+">"+esc(h)+"</th>").join("")+"</tr></thead><tbody>"+body+"</tbody></table></div>";renderWeeklySpend(wks,rows);}
+function weeklyMetrics(week,rows,history){
+  const selected=week?rows.filter(row=>row.date>=week.start&&row.date<=week.end):rows;
+  // A clipped displayed week is not comparable. For a complete week, reuse
+  // the history-aware metric checks so missing dates and zero baselines stay N/A.
+  const window=week&&!week.partial?deltaWindows(week.end,7):null;
+  const compare=(scope,fn,goodUp)=>window?deltaOn(scope,fn,goodUp,window):null;
+  return {week,totals:agg(selected),spendDelta:compare(history,rs=>metricSum(rs,"dspSpend"),true),
+    channels:CONFIG.channels.map(channel=>({channel,value:kpiValue(channel,selected.filter(row=>rowChannel(row)===channel.id)),
+      delta:compare(history.filter(row=>rowChannel(row)===channel.id),rs=>kpiValue(channel,rs),!channel.lowerIsBetter)}))};
+}
+function renderWow(){
+  const head=["Week","DSP Spend","WoW Spend \u0394","DSP Impressions"]
+    .concat(CONFIG.channels.flatMap(c=>[c.name+" "+c.kpiLabel,c.name+" WoW \u0394"]))
+    .concat(["Clicks","CTR",CONFIG.conversionEvent,"CPA"]);
+  if(!hasData()){
+    $("#wowTable").innerHTML='<div class="empty">Week buckets build from the selected date range once data is ingested. Partial weeks will be labeled "(partial)".</div>';
+    $("#weeklySpend").innerHTML='<div class="empty">Weekly spend chart \u2014 awaiting first data load.</div>';
+    return;
+  }
+  const rows=scopedRows(),history=scopedRows({start:null,end:null}),weeks=weekBuckets();
+  const renderRow=metrics=>{
+    const {week,totals:a,channels,spendDelta}=metrics;
+    const cells=[usd(a.dspSpend),deltaTd(spendDelta),num(a.dspImpressions)];
+    channels.forEach(({channel,value,delta})=>{
+      const t=tier(channel,value);
+      cells.push(kpiFmt(channel,value)+'<span class="tierdot" style="background:'+tierColor(t)+'" title="'+tierName(t)+'"></span>',deltaTd(delta));
+    });
+    cells.push(num(a.clicks),pctf(safeDiv(a.clicks,a.dspImpressions)),num(a.conversions),usd(safeDiv(a.dspSpend,a.conversions)));
+    const label=week?week.label+(week.partial?" (partial)":""):"Total";
+    return "<tr"+(week?"":" class='total'")+"><td class='l'>"+esc(label)+"</td>"+cells.map(cell=>"<td>"+cell+"</td>").join("")+"</tr>";
+  };
+  const body=weeks.map(week=>renderRow(weeklyMetrics(week,rows,history))).join("")+renderRow(weeklyMetrics(null,rows,history));
+  $("#wowTable").innerHTML="<div class='tblwrap'><table><thead><tr>"+head.map((label,index)=>"<th"+(index===0?" class='l'":"")+">"+esc(label)+"</th>").join("")+"</tr></thead><tbody>"+body+"</tbody></table></div>"
+    +"<div class='chnote'>Week-over-week changes compare complete Monday–Sunday weeks. Partial weeks, missing observations, zero baselines and the Total row have no comparable delta.</div>";
+  renderWeeklySpend(weeks,rows);
+}
 function renderDiag(){const u=CONFIG.unmapped;let s;if(!u){s="<b>Unmapped diagnostic.</b> No ingest has run yet, so there is nothing to reconcile. On the first refresh this strip reports the real count of SSP and DSP rows that failed to join (and how each was resolved) \u2014 it is never hardcoded to zero. Deals in scope with no rows in either source are listed here rather than silently dropped.";}else{s="<b>Unmapped diagnostic.</b> SSP rows unmatched: "+num(u.sspRows)+" \u00B7 DSP rows unmatched: "+num(u.dspRows)+(u.notes&&u.notes.length?"<br>"+u.notes.map(esc).join("<br>"):"");}$("#diag").innerHTML=s;}
 function csvEsc(v){const s=String(v==null?"":v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
-function exportCsv(which){const scope=[["Campaign",CONFIG.campaign],["Account code",CONFIG.accountCode],["View",which==="wow"?"Week over Week":(STATE.dim==="deal"?"By Deal":"Daily")],["Channel",which==="wow"?"all":which],["Date range",(STATE.start||"n/a")+" to "+(STATE.end||"n/a")],["Deal filter",STATE.deals.length===CONFIG.deals.length?"all":STATE.deals.join(" + ")],["Delta window",(function(){const w=deltaWindows();return w?(STATE.dim==="daily"&&which!=="wow"?"Daily rows: previous calendar day; Total: ":"")+w.curStart+" to "+w.curEnd+" vs "+w.priorStart+" to "+w.priorEnd:"n/a";})()],["Exported",new Date().toISOString()]];let out=scope.map(r=>r.map(csvEsc).join(",")).join("\n")+"\n\n";if(!hasData()){out+="No data ingested yet. This export carries the Scope block only; rows appear after the first refresh.\n";}else if(which==="wow"){out+=["Week","Partial","DSP Spend","DSP Impressions","Clicks","Conversions"].join(",")+"\n";weekBuckets().forEach(w=>{const a=agg(scopedRows().filter(r=>r.date>=w.start&&r.date<=w.end));out+=[w.label,w.partial,a.dspSpend,a.dspImpressions,a.clicks,a.conversions].map(csvEsc).join(",")+"\n";});}else if(STATE.dim==="daily"){
+function exportCsv(which){const scope=[["Campaign",CONFIG.campaign],["Account code",CONFIG.accountCode],["View",which==="wow"?"Week over Week":(STATE.dim==="deal"?"By Deal":"Daily")],["Channel",which==="wow"?"all":which],["Date range",(STATE.start||"n/a")+" to "+(STATE.end||"n/a")],["Deal filter",STATE.deals.length===CONFIG.deals.length?"all":STATE.deals.join(" + ")],["Delta window",(function(){const w=deltaWindows();if(which==="wow") return "Complete Monday-Sunday week vs previous calendar week; partial or missing periods unavailable";return w?(STATE.dim==="daily"&&which!=="wow"?"Daily rows: previous calendar day; Total: ":"")+w.curStart+" to "+w.curEnd+" vs "+w.priorStart+" to "+w.priorEnd:"n/a";})()],["Exported",new Date().toISOString()]];let out=scope.map(r=>r.map(csvEsc).join(",")).join("\n")+"\n\n";if(!hasData()){out+="No data ingested yet. This export carries the Scope block only; rows appear after the first refresh.\n";}else if(which==="wow"){
+  out+=["Week","Partial","DSP Spend","DSP Impressions","Clicks","Conversions","Spend delta"]
+    .concat(CONFIG.channels.flatMap(channel=>[channel.name+" "+channel.kpiLabel,channel.name+" KPI delta"]))
+    .concat(["CTR","CPA"]).map(csvEsc).join(",")+"\n";
+  const rows=scopedRows(),history=scopedRows({start:null,end:null});
+  const records=weekBuckets().map(week=>weeklyMetrics(week,rows,history)).concat(weeklyMetrics(null,rows,history));
+  records.forEach(({week,totals:a,channels,spendDelta})=>{
+    out+=[week?week.label:"Total",week?week.partial:"",a.dspSpend,a.dspImpressions,a.clicks,a.conversions,spendDelta?.raw]
+      .concat(channels.flatMap(result=>[result.value,result.delta?.raw]))
+      .concat([safeDiv(a.clicks,a.dspImpressions),safeDiv(a.dspSpend,a.conversions)]).map(csvEsc).join(",")+"\n";
+  });
+}else if(STATE.dim==="daily"){
   const c=CONFIG.channels.find(channel=>channel.id===which);
   out+=["Date","Revenue","DSP Spend","NWM Margin","DSP Impressions","SSP Impressions","Clicks","CTR","KPI","KPI Tier",CONFIG.conversionEvent,"Viewability","Spend delta","KPI delta"].map(csvEsc).join(",")+"\n";
   const history=scopedRows({start:null,end:null}).filter(row=>rowChannel(row)===c.id);
