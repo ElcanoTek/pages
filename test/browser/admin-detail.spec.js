@@ -587,6 +587,75 @@ for (const changedField of ["HTML source", "Render mode", "Version note"]) {
   });
 }
 
+test("source editor waits for a pending save before accepting any close action", async ({ page }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  let release;
+  const responseGate = new Promise((resolve) => { release = resolve; });
+  await page.route("**/deploy-source", async (route) => {
+    const response = await route.fetch();
+    await responseGate;
+    await route.fulfill({ response });
+  });
+  // Even an unchanged editor has an in-flight write once Save is clicked.
+  const sent = page.waitForRequest("**/deploy-source");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await sent;
+  await expect(editor.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  const preventsUnload = await page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(preventsUnload).toBe(true);
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(editor.getByRole("status")).toHaveText("Wait for the current save to finish before closing.");
+  await page.keyboard.press("Escape");
+  await editor.getByRole("button", { name: "Close dialog" }).click();
+  await expect(editor).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Discard unsaved source changes?" })).toHaveCount(0);
+  release();
+  await expect(editor).toBeHidden();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 7");
+});
+
+test("failed source saves keep newer values and dirty guards available for retry", async ({ page, request }) => {
+  await openDetail(page);
+  await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit source" });
+  await editor.getByLabel("HTML source").fill("<h1>First attempt</h1>");
+  let release;
+  const responseGate = new Promise((resolve) => { release = resolve; });
+  await page.route("**/deploy-source", async (route) => {
+    await responseGate;
+    await route.fulfill({ status: 503, json: { error: "Source storage is unavailable" } });
+  });
+  const sent = page.waitForRequest("**/deploy-source");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await sent;
+  const latest = { html: "<h1>Keep this for retry</h1>", render_mode: "raw", note: "Newer note" };
+  await editor.getByLabel("HTML source").fill(latest.html);
+  await editor.getByLabel("Render mode").selectOption(latest.render_mode);
+  await editor.getByLabel("Version note").fill(latest.note);
+  release();
+  await expect(editor.getByRole("status")).toHaveText("Source storage is unavailable");
+  await expect(editor.getByRole("button", { name: "Save as new version" })).toBeEnabled();
+  await expect(editor.getByLabel("HTML source")).toHaveValue(latest.html);
+  await expect(editor.getByLabel("Render mode")).toHaveValue(latest.render_mode);
+  await expect(editor.getByLabel("Version note")).toHaveValue(latest.note);
+  await page.keyboard.press("Escape");
+  const warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
+  await expect(warning).toBeVisible();
+  await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+  await page.unroute("**/deploy-source");
+  await editor.getByRole("button", { name: "Save as new version" }).click();
+  await expect(editor).toBeHidden();
+  await expect(page.locator('.version-option[aria-current="true"]')).toContainText("Version 7");
+  const events = (await (await request.get("/__fixture/events")).json()).events;
+  expect(events.find((event) => event.path.endsWith("/deploy-source")).body).toEqual(latest);
+});
+
 // ── #167: editing the version under review ─────────────────────────────────
 
 test("the review workspace edits the selected version, and Settings edits what is live", async ({ page }) => {
