@@ -603,3 +603,11 @@ delete a page an admin has **disabled** (taken down).
 
 See `PLAN.md` for the full design and `docs/SECURITY.md` for the auth model and
 known follow-ups.
+
+`rerender_page_from_template` accepts optional complete target `config` and
+`data` for an atomic schema migration. Supplying either requires
+`expected_version`; supplying data also requires `source_as_of`. Omitted blocks
+come from the live page. New config/data validate against the selected target
+revision, publication defaults to false, and existing approval gates apply.
+Omitted data retains its envelope and freshness; replacement data records a new
+refresh time with explicit, non-regressing source coverage.

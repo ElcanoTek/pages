@@ -5483,6 +5483,21 @@ test("no-update and blocked branches never require publishing or a fictitious au
 });
 
 
+test("template rerender accepts explicit target-shaped config and data migration inputs", () => {
+  assert.doesNotThrow(() => TOOLS.rerender_page_from_template.inputSchema.parse({
+    slug: "northwind", revision: 2, config: { campaign: "Northwind", region: "North" },
+    data: { total: 7 }, source_as_of: "2026-08-01T00:00:00Z", expected_version: "41", publish: false,
+  }));
+});
+
+
+test("prepared template migrations use target-shaped values in one reviewed rerender", () => {
+  const prompt = updatePrompts.templatePrompt({ slug: "northwind", template: "northwind-design", revision: 1, liveVersionId: "41", publish: false, instructions: "Migrate the schema" });
+  assert.match(prompt, /complete target-valid config and\/or data in that SAME rerender call/);
+  assert.match(prompt, /Never try to stage target-only fields through update_page_config/);
+  assert.match(prompt, /combine settings that require the target schema with the reviewed rerender/);
+});
+
 test("unpublished template and migration prompts carry their decision through every write", () => {
   const opts = { slug: "northwind", instructions: "Update settings, design and numbers", liveVersionId: "41", publish: false, recurring: false };
   const template = updatePrompts.templatePrompt({ ...opts, template: "northwind-design", revision: 1, configSchemaSha256: "a".repeat(64) });
@@ -5500,5 +5515,3 @@ test("unpublished template and migration prompts carry their decision through ev
   assert.match(publishing, /5\. After the verified migration is live/);
   assert.doesNotMatch(publishing, /separately authorized migration publication/);
 });
-
-
