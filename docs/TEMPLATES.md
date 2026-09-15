@@ -340,3 +340,9 @@ contract fails, so a missing block and a broken chart control surface in one pas
 `PAGES_DATA_TEMPLATE_MAX_BYTES` (2 MiB) the stored template and the materialized
 page. An example dataset counts toward the stored template but not toward any page
 built from it, since it is deleted on materialization.
+
+Registration deduplicates immutable HTML revisions independently of mutable
+titles and descriptions. `deduped: true` means the revision was reused;
+`metadata_updated: true` means its library metadata changed and was audited in
+the same transaction. An identical retry changes neither the revision, metadata,
+update time, nor audit log.
