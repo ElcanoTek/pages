@@ -147,6 +147,45 @@ for (const failure of ["response", "network"]) {
   });
 }
 
+for (const failing of [false, true]) {
+  test(`repeated ${failing ? "failed" : "successful"} saves release their HTML object URLs`, async ({ page }) => {
+    await page.addInitScript(() => {
+      window.htmlUrls = { created: [], revoked: [] };
+      const create = URL.createObjectURL, revoke = URL.revokeObjectURL;
+      URL.createObjectURL = function(blob) {
+        const url = create.call(this, blob);
+        if (blob.type === "text/html") window.htmlUrls.created.push(url);
+        return url;
+      };
+      URL.revokeObjectURL = function(url) { window.htmlUrls.revoked.push(url); return revoke.call(this, url); };
+    });
+    await page.goto(failing ? "/bento/edit?fail=1" : "/bento/edit");
+    await expect(page.locator("#booted")).toBeVisible();
+    for (let i = 0; i < 3; i += 1) {
+      const response = page.waitForResponse(r => r.request().method() === "POST" && r.url().includes("/bento/save"));
+      await page.locator("#save").click(); await response;
+    }
+    await expect.poll(() => page.evaluate(() => window.htmlUrls.created.length)).toBe(failing ? 6 : 3);
+    await expect.poll(() => page.evaluate(() => window.htmlUrls.created.every(url => window.htmlUrls.revoked.includes(url)))).toBe(true);
+  });
+}
+
+test("a fallback that cannot start tells the editor to keep its unsaved work open", async ({ page }) => {
+  await page.goto("/bento/edit?fail=1");
+  await expect(page.locator("#booted")).toBeVisible();
+  await page.evaluate(() => {
+    const append = document.body.appendChild;
+    document.body.appendChild = function(node) {
+      if (node.tagName === "A") throw new Error("fixture: download could not start");
+      return append.call(this, node);
+    };
+  });
+  await page.locator("#save").click();
+  const toast = page.locator("[data-pages-save-toast] p");
+  await expect(toast).toContainText("Couldn’t start the download. Keep this editor open and try Save again.");
+  await expect(toast).not.toContainText("Starting a download");
+});
+
 test("a viewer's deck has no save channel at all", async ({ page }) => {
   const response = await page.goto("/bento/deck");
   expect(response.headers()["content-security-policy"]).toMatch(/connect-src 'none'/);
