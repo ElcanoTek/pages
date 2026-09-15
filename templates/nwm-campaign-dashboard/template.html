@@ -98,6 +98,8 @@ body{background:var(--surface-alt);color:var(--text-primary);
 .dpop-field{border:1px solid var(--divider);border-radius:8px;font-size:13px;font-family:inherit;
   padding:7px 10px;width:110px;text-align:center;color:var(--text-primary)}
 .dpop-field:focus{outline:none;border-color:var(--navy-700);box-shadow:0 0 0 2px rgba(30,58,99,.15)}
+.dpop-field[aria-invalid="true"]{border-color:var(--tier-red)}
+.dpop-error{margin:0;font-size:12px;color:var(--tier-red);max-width:48rem}
 .dpop-dash{color:var(--text-secondary);font-size:15px}
 .dpop-nav{display:flex;gap:4px;margin-left:auto}
 .dpop-nav button{width:32px;height:32px;border:1px solid var(--divider);background:#fff;border-radius:8px;
@@ -245,9 +247,9 @@ tbody tr.total td{border-top:2px solid var(--navy-700);background:var(--navy-100
         <div class="dpop-rail" id="presetRail"></div>
         <div class="dpop-main">
           <div class="dpop-inputs">
-            <input class="dpop-field" id="draftStart" placeholder="MM/DD/YYYY">
+            <input class="dpop-field" id="draftStart" placeholder="MM/DD/YYYY" aria-label="Start date" aria-describedby="dateError">
             <span class="dpop-dash">—</span>
-            <input class="dpop-field" id="draftEnd" placeholder="MM/DD/YYYY">
+            <input class="dpop-field" id="draftEnd" placeholder="MM/DD/YYYY" aria-label="End date" aria-describedby="dateError">
             <div class="dpop-nav">
               <button type="button" data-nav="-12" title="Back 1 year">«</button>
               <button type="button" data-nav="-1" title="Back 1 month">‹</button>
@@ -255,6 +257,7 @@ tbody tr.total td{border-top:2px solid var(--navy-700);background:var(--navy-100
               <button type="button" data-nav="12" title="Forward 1 year">»</button>
             </div>
           </div>
+          <p class="dpop-error" id="dateError" role="alert" hidden></p>
           <div class="dpop-calendars" id="dpopMonths"></div>
           <div class="dpop-foot">
             <button class="btn btn-sm btn-cancel" id="dateCancel" type="button">Cancel</button>
@@ -553,12 +556,60 @@ let calMonth=(function(){const s=dataSpan().start;return s?parseISO(s):new Date(
 calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth(),1);
 function presets(){const span=dataSpan();const ref=span.end?parseISO(span.end):new Date();const mk=(a,b)=>({s:iso(a),e:iso(b)});const d=n=>{const x=new Date(ref);x.setDate(x.getDate()-n);return x;};const y=new Date(ref); y.setDate(y.getDate()-1);const ws=(function(){const x=new Date(ref);x.setDate(x.getDate()-((x.getDay()+6)%7));return x;})();const lws=new Date(ws); lws.setDate(lws.getDate()-7);const lwe=new Date(ws); lwe.setDate(lwe.getDate()-1);const ms=new Date(ref.getFullYear(),ref.getMonth(),1);const lms=new Date(ref.getFullYear(),ref.getMonth()-1,1), lme=new Date(ref.getFullYear(),ref.getMonth(),0);const q=Math.floor(ref.getMonth()/3), qs=new Date(ref.getFullYear(),q*3,1);const lqs=new Date(ref.getFullYear(),q*3-3,1), lqe=new Date(ref.getFullYear(),q*3,0);const ys=new Date(ref.getFullYear(),0,1);const lys=new Date(ref.getFullYear()-1,0,1), lye=new Date(ref.getFullYear()-1,11,31);return [["Entire flight", span.start&&span.end?{s:span.start,e:span.end}:null],["Yesterday",mk(y,y)],["Previous 7 days",mk(d(6),ref)],["Previous 30 days",mk(d(29),ref)],["Previous 90 days",mk(d(89),ref)],["This week",mk(ws,ref)],["Last week",mk(lws,lwe)],["This month",mk(ms,ref)],["Last month",mk(lms,lme)],["This quarter",mk(qs,ref)],["Last quarter",mk(lqs,lqe)],["This year",mk(ys,ref)],["Last year",mk(lys,lye)]];}
 function clamp(p){const span=dataSpan();if(!p||!span.start||!span.end) return null;const s=p.s<span.start?span.start:p.s, e=p.e>span.end?span.end:p.e;if(s>span.end||e<span.start||s>e) return null;return {s:s,e:e};}
-function renderRail(){const ps=presets();$("#presetRail").innerHTML=ps.map((p,i)=>{const c=clamp(p[1]);const isActive=c&&DRAFT.start===c.s&&DRAFT.end===c.e;return '<button type="button" data-p="'+i+'"'+(c?"":" disabled")+(isActive?' class="active"':'')+'>'+p[0]+'</button>';}).join("");$("#presetRail").querySelectorAll("button").forEach(b=>{if(b.disabled) return;b.onclick=()=>{const c=clamp(ps[+b.dataset.p][1]); if(!c) return;DRAFT.start=c.s;DRAFT.end=c.e;DRAFT.anchor=null;calMonth=new Date(parseISO(c.s).getFullYear(),parseISO(c.s).getMonth(),1);renderCal();};});}
+function renderRail(){const ps=presets();$("#presetRail").innerHTML=ps.map((p,i)=>{const c=clamp(p[1]);const isActive=c&&DRAFT.start===c.s&&DRAFT.end===c.e;return '<button type="button" data-p="'+i+'"'+(c?"":" disabled")+(isActive?' class="active"':'')+'>'+p[0]+'</button>';}).join("");$("#presetRail").querySelectorAll("button").forEach(b=>{if(b.disabled) return;b.onclick=()=>{const c=clamp(ps[+b.dataset.p][1]); if(!c) return;DRAFT.start=c.s;DRAFT.end=c.e;DRAFT.anchor=null;calMonth=new Date(parseISO(c.s).getFullYear(),parseISO(c.s).getMonth(),1);syncDraftInputs();renderCal();};});}
 function monthGrid(base){const span=dataSpan();const first=new Date(base.getFullYear(),base.getMonth(),1);const off=(first.getDay()+6)%7, dim=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();let h='<div class="dpop-month"><div class="dpop-mtitle">'+first.toLocaleDateString("en-US",{month:"long",year:"numeric"})+'</div><div class="dpop-grid">';["M","T","W","T","F","S","S"].forEach(w=>{h+='<div class="dpop-wd">'+w+'</div>';});for(let i=0;i<off;i++) h+='<div></div>';for(let dnum=1;dnum<=dim;dnum++){const ds=iso(new Date(base.getFullYear(),base.getMonth(),dnum));const out=!span.start||!span.end||ds<span.start||ds>span.end;let cls="dpop-day";if(!out){if(ds===DRAFT.start||ds===DRAFT.end) cls+=" endpoint";else if(DRAFT.start&&DRAFT.end&&ds>DRAFT.start&&ds<DRAFT.end) cls+=" inrange";}else{cls+=" out";}h+='<button type="button" class="'+cls+'" data-d="'+ds+'"'+(out?" disabled":"")+'>'+dnum+'</button>';}return h+'</div></div>';}
-function renderCal(){const nxt=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);$("#dpopMonths").innerHTML=monthGrid(calMonth)+monthGrid(nxt);$("#draftStart").value=DRAFT.start?mdy(DRAFT.start):"";$("#draftEnd").value=DRAFT.end?mdy(DRAFT.end):"";$("#dpopMonths").querySelectorAll(".dpop-day").forEach(b=>{if(b.disabled) return;b.onclick=()=>{const ds=b.dataset.d;if(!DRAFT.start||DRAFT.anchor==="done"||(DRAFT.start&&DRAFT.end)){DRAFT.start=ds;DRAFT.end=null;DRAFT.anchor="open";}else if(ds<DRAFT.start){DRAFT.start=ds;}else {DRAFT.end=ds;DRAFT.anchor="done";}renderCal();};});renderRail();}
+function renderCal(){const nxt=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1);$("#dpopMonths").innerHTML=monthGrid(calMonth)+monthGrid(nxt);$("#dpopMonths").querySelectorAll(".dpop-day").forEach(b=>{if(b.disabled) return;b.onclick=()=>{const ds=b.dataset.d;if(!DRAFT.start||DRAFT.anchor==="done"||(DRAFT.start&&DRAFT.end)){DRAFT.start=ds;DRAFT.end=null;DRAFT.anchor="open";}else if(ds<DRAFT.start){DRAFT.start=ds;}else {DRAFT.end=ds;DRAFT.anchor="done";}syncDraftInputs();renderCal();};});renderRail();}
 function syncDateTrigger(){$("#dateTriggerLabel").textContent=(STATE.start&&STATE.end)?prettyRange(STATE.start,STATE.end):"No data loaded";}
-function initDate(){$("#dateTrigger").onclick=e=>{e.stopPropagation();const p=$("#datePop"); const open=p.classList.contains("open");closeAll(); if(!open){DRAFT.start=STATE.start;DRAFT.end=STATE.end;DRAFT.anchor=null;renderCal();p.classList.add("open");}};$("#datePop").onclick=e=>e.stopPropagation();$("#dateCancel").onclick=()=>{DRAFT.start=STATE.start;DRAFT.end=STATE.end;$("#datePop").classList.remove("open");};$("#dateApply").onclick=()=>{let s=DRAFT.start,e=DRAFT.end||DRAFT.start;if(s&&e){ if(s>e){const t=s;s=e;e=t;} STATE.start=s;STATE.end=e;}$("#datePop").classList.remove("open"); renderAll();};document.querySelectorAll(".dpop-nav button").forEach(b=>{b.onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+ +b.dataset.nav,1);renderCal();};});$("#draftStart").addEventListener("change",function(){const v=this.value.trim();if(v){const d=parseMDY(v); if(d){DRAFT.start=iso(d);renderCal();}}});$("#draftEnd").addEventListener("change",function(){const v=this.value.trim();if(v){const d=parseMDY(v); if(d){DRAFT.end=iso(d);renderCal();}}});renderCal();}
-function parseMDY(s){const p=s.split("/");if(p.length!==3)return null;const m=parseInt(p[0])-1,d=parseInt(p[1]),y=parseInt(p[2]);if(isNaN(m)||isNaN(d)||isNaN(y))return null;return new Date(y,m,d);}
+function parseMDY(value){
+  const parts=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+  if(!parts)return null;
+  const month=Number(parts[1])-1,day=Number(parts[2]),year=Number(parts[3]);
+  const date=new Date(0);date.setFullYear(year,month,day);date.setHours(0,0,0,0);
+  return date.getFullYear()===year&&date.getMonth()===month&&date.getDate()===day?date:null;
+}
+function showDateErrors(errors){
+  $("#draftStart").setAttribute("aria-invalid",String(Boolean(errors.start)));
+  $("#draftEnd").setAttribute("aria-invalid",String(Boolean(errors.end)));
+  $("#dateError").textContent=Object.values(errors).join(" ");
+  $("#dateError").hidden=Object.keys(errors).length===0;
+}
+function syncDraftInputs(){
+  $("#draftStart").value=DRAFT.start?mdy(DRAFT.start):"";
+  // One selected calendar day is a complete single-day range until another is chosen.
+  $("#draftEnd").value=DRAFT.end||DRAFT.start?mdy(DRAFT.end||DRAFT.start):"";
+  showDateErrors({});
+}
+function readDraftDates(){
+  const span=dataSpan(),errors={},range={};
+  for(const [key,label,id] of [["start","Start date","#draftStart"],["end","End date","#draftEnd"]]){
+    const date=parseMDY($(id).value);
+    if(!date){errors[key]=label+": enter a valid date in MM/DD/YYYY.";continue;}
+    const value=iso(date);
+    if(!span.start||!span.end){errors[key]="No reporting dates are available.";continue;}
+    if(value<span.start||value>span.end){errors[key]=label+": choose a date from "+mdy(span.start)+" through "+mdy(span.end)+".";continue;}
+    range[key]=value;
+  }
+  if(range.start&&range.end&&range.start>range.end)errors.end="End date must be on or after start date.";
+  showDateErrors(errors);
+  return Object.keys(errors).length?null:range;
+}
+function initDate(){
+  $("#dateTrigger").onclick=e=>{e.stopPropagation();const p=$("#datePop"),open=p.classList.contains("open");closeAll();if(!open){DRAFT.start=STATE.start;DRAFT.end=STATE.end;DRAFT.anchor=null;syncDraftInputs();renderCal();p.classList.add("open");}};
+  $("#datePop").onclick=e=>e.stopPropagation();
+  $("#dateCancel").onclick=()=>{DRAFT.start=STATE.start;DRAFT.end=STATE.end;$("#datePop").classList.remove("open");};
+  $("#dateApply").onclick=()=>{
+    // Read the actual text again: an invalid edit must never apply stale draft dates.
+    const range=readDraftDates();if(!range)return;
+    STATE.start=range.start;STATE.end=range.end;
+    $("#datePop").classList.remove("open");renderAll();
+  };
+  document.querySelectorAll(".dpop-nav button").forEach(b=>{b.onclick=()=>{calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+ +b.dataset.nav,1);renderCal();};});
+  for(const id of ["#draftStart","#draftEnd"])$(id).addEventListener("input",()=>{
+    const range=readDraftDates();if(!range)return;
+    DRAFT.start=range.start;DRAFT.end=range.end;DRAFT.anchor=null;renderCal();
+  });
+  syncDraftInputs();renderCal();
+}
 let DEAL_DRAFT=STATE.deals.slice();
 function renderDealList(){$("#dealCount").textContent=DEAL_DRAFT.length+" of "+CONFIG.deals.length+" selected";$("#dealList").innerHTML=CONFIG.deals.map(d=>{const on=DEAL_DRAFT.indexOf(d.id)>=0;return '<label class="dealitem'+(on?" on":"")+'"><input type="checkbox" data-id="'+d.id+'"'+(on?" checked":"")+'>'+'<span><span class="sn">'+esc(d.short)+'</span><div class="fn">'+esc(d.full)+'</div></span></label>';}).join("");$("#dealList").querySelectorAll("input").forEach(cb=>{cb.onchange=()=>{const id=cb.dataset.id;if(cb.checked){if(DEAL_DRAFT.indexOf(id)<0)DEAL_DRAFT.push(id);}else DEAL_DRAFT=DEAL_DRAFT.filter(x=>x!==id);renderDealList();};});}
 function syncDealTrigger(){const sel=CONFIG.deals.filter(d=>STATE.deals.indexOf(d.id)>=0);$("#dealTriggerLabel").textContent=(sel.length===CONFIG.deals.length)?"All deals":(sel.length<=2?sel.map(d=>d.short).join(" + "):sel.length+" deals");$("#scopeNote").textContent="Showing: "+((sel.length===CONFIG.deals.length)?"all deals":sel.length+" of "+CONFIG.deals.length+" deals")+" \u00B7 one table per channel";}
