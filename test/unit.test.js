@@ -5404,4 +5404,6 @@ test("unpublished template and migration prompts carry their decision through ev
   const publishing = updatePrompts.migrationPrompt({ ...opts, publish: true });
   assert.match(publishing, /publish=false FIRST/);
   assert.match(publishing, /publish_page[^\n]*expected_version/);
+  assert.match(publishing, /5\. After the verified migration is live/);
+  assert.doesNotMatch(publishing, /separately authorized migration publication/);
 });
