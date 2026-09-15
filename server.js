@@ -239,20 +239,13 @@ contentApp.post(
       return res.status(400).json({ error: "only a Bento deck can be saved through this channel" });
     }
     try {
-      const { page } = await versions.getPage(slug);
-      if (Number(page.id) !== Number(claims.pid) || page.disabled) {
-        return res.status(403).json({ error: "this edit session is for a different page" });
-      }
       const cleaned = bento.stripCollab(req.body);
-      const result = await versions.deploy(
+      const result = await versions.saveDeck(
         {
           slug,
+          pageId: claims.pid,
+          baseVersion: req.get("X-Pages-Base-Version"),
           html: cleaned.html,
-          renderMode: "raw",
-          note: "Saved from the Bento editor",
-          author: claims.actor,
-          source: "admin",
-          publish: false,
         },
         { actor: claims.actor, actorType: "user", ip: req.ip }
       );
@@ -265,7 +258,10 @@ contentApp.post(
     } catch (err) {
       const status = err && err.status ? err.status : 500;
       if (status >= 500) console.error("deck save error:", err.message);
-      res.status(status).json({ error: status >= 500 ? "Pages could not store the version" : err.message });
+      res.status(status).json({
+        error: status >= 500 ? "Pages could not store the version" : err.message,
+        ...(status < 500 && err.code ? { code: err.code, details: err.details } : {}),
+      });
     }
   }
 );
