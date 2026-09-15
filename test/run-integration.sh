@@ -179,6 +179,9 @@ done
 echo "▸ mcp integration"
 node "$ROOT/test/mcp.integration.js"
 
+echo "▸ upload replay integration"
+node "$ROOT/test/upload-replay.integration.js"
+
 echo "▸ admin integration"
 node "$ROOT/test/admin.integration.js"
 
