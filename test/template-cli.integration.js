@@ -28,7 +28,7 @@ function run(...args) {
     encoding: "utf8",
     env: process.env,
   });
-  return { status: result.status, out: `${result.stdout}${result.stderr}` };
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr, out: `${result.stdout}${result.stderr}` };
 }
 
 const CONFIG_SCHEMA = {
@@ -98,7 +98,10 @@ function templateHtml(marker) {
   // show pins the exact revision, and omits HTML by default.
   const shown = run("show", "cli-smoke");
   assert.equal(shown.status, 0, shown.out);
-  const parsed = JSON.parse(shown.out);
+  // stdout is the machine-readable contract. Keep stderr in assertion
+  // diagnostics above: Node 22.12 emits its require(ESM) warning there, and
+  // appending that warning to JSON fabricates a CLI output failure.
+  const parsed = JSON.parse(shown.stdout);
   assert.equal(parsed.template.current_revision, 2);
   assert.equal(parsed.html, undefined, "show must not dump the design");
   assert.deepEqual(parsed.reference_config, { campaign: "Reference" });
