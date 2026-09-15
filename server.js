@@ -35,6 +35,7 @@ const templateShell = require("./lib/templateshell");
 const portalShell = require("./lib/portalshell");
 const welcomeShell = require("./lib/welcomeshell");
 const errorShell = require("./lib/errorshell");
+const { ApiError, fromDbError } = require("./lib/apierror");
 const compose = require("./lib/compose"); // DEV-only "compose with Cutlass" panel (gated)
 const csrf = require("./lib/csrf");
 const mcp = require("./lib/mcp");
@@ -551,6 +552,29 @@ dashboardApp.all("/logout", (_req, res) => res.redirect(303, `${auth.AUTH_LOGIN_
 dashboardApp.get("/", (_req, res) => res.redirect(302, "/admin"));
 
 dashboardApp.use((_req, res) => res.status(404).type("html").send(errorShell.notFound()));
+
+// Body parsers run before the API routers, so their errors need the same
+// machine-readable boundary as route failures. MCP and ticket uploads own
+// their protocol-specific error handlers before this dashboard fallback.
+dashboardApp.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  let mapped = err instanceof ApiError ? err : fromDbError(err);
+  if (err && err.type === "entity.parse.failed") {
+    mapped = new ApiError(400, "invalid JSON request body", "bad_json");
+  } else if (err && err.type === "entity.too.large") {
+    mapped = new ApiError(413, "request body too large", "body_too_large");
+  } else if (!mapped && Number(err && err.status) >= 400 && Number(err.status) < 500) {
+    mapped = new ApiError(Number(err.status), "invalid request", "bad_request");
+  }
+  if (!mapped) {
+    console.error("dashboard error:", err && (err.stack || err.message));
+    mapped = new ApiError(500, "internal error", "internal_error");
+  }
+  if (/^\/api\/v1(?:\/|$)/i.test(req.path)) {
+    return res.status(mapped.status).json({ error: mapped.message, code: mapped.code });
+  }
+  res.status(mapped.status).type("html").send(errorShell.requestError(mapped.status));
+});
 
 // ── Top-level vhost split ──────────────────────────────────────────────────
 app.use((req, res, next) => {
