@@ -289,8 +289,9 @@
 - **Deploy-time preflight is advisory, never a gate.** `lib/preflight.js`
   statically checks each deployed document against the exact CSP/sandbox it will
   be served under and returns findings on the deploy result. It parses with
-  `parse5` and syntax-checks inline scripts with `node:vm`'s **compile-only**
-  path (no evaluation, bounded to 1 MiB per script). It cannot block a publish —
+  `parse5` and syntax-checks inline classic scripts with `node:vm`'s **compile-only**
+  path and modules with Acorn (no evaluation or import resolution, bounded to
+  1 MiB per script). It cannot block a publish —
   humans own that, and a false positive must never be able to wedge an agent.
 
 ## Known follow-ups (ranked)
