@@ -167,7 +167,7 @@ async function main() {
   assert.deepEqual(ticket.data_limits, limits);
   const sent = await request("PUT", new URL(ticket.upload_url).pathname, ticketText, ticket.ticket, "application/octet-stream");
   assert.equal(sent.status, 200);
-  TOOLS.start_page_upload.outputSchema.parse(sent.json);
+  TOOLS.append_page_upload.outputSchema.parse(sent.json);
   assert.equal(sent.json.complete, true);
   assert.equal(sent.json.bytes_received, utf8(ticketText));
   assert.deepEqual(sent.json.data_limits, limits);
