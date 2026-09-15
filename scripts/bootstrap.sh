@@ -99,7 +99,7 @@ else
     --exclude='/.git' --exclude='/node_modules' --exclude='/assets' --exclude='/.env' \
     "$INSTALL_SRC_DIR/" "$APP_DIR/"
   chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-  
+
   step "3/6  npm ci (production)"
   runuser -u "$APP_USER" -- bash -c "cd '$APP_DIR' && npm ci --omit=dev --no-audit --no-fund --loglevel=warn" \
     || die "npm ci failed"

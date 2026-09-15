@@ -226,7 +226,7 @@ fatal error, which is what you want in automation.
 | Path | What |
 | --- | --- |
 | `/opt/pages-src` | The git checkout. `pages update` pulls here |
-| `/opt/pages` | The running install (rsync of the checkout + `node_modules`) |
+| `/opt/pages` | Active release symlink after the first retained-release update |
 | `/opt/pages/assets` | Writable asset directory (the only `ReadWritePaths`) |
 | `/etc/default/pages` | Environment file, mode `0640`, `root:pages` |
 | `/etc/default/pages-install` | Non-secret installation defaults shared by bootstrap, updater and CLI |
@@ -514,8 +514,9 @@ by hand in production.
 
 `migrations/*.sql`, applied in filename order by `lib/migrate.js`, tracked in a
 `schema_migrations` table by filename. Idempotent: already-applied files are
-skipped. Additive by design, so they can run against a schema the still-running
-old code is using — which is exactly what `pages update` does.
+skipped. Per-file transactions protect partial changes, but do not imply that
+every migration is compatible with running predecessor code. Automatic updates
+require explicit classifications in `migrations/compatibility.json` (§10).
 
 Bootstrap and `pages update` both run them. To run them by hand:
 
@@ -595,67 +596,74 @@ pages update            # prompts before the swap
 PAGES_UPDATE_YES=1 pages update
 ```
 
-`scripts/update.sh` runs as root and, in order:
+`scripts/update.sh` serializes updates to one installation with a file lock,
+fetches/fast-forwards the source checkout, and builds a complete candidate under
+`/opt/pages.releases`. It runs a clean production install and loads the real
+application dependency/configuration graph before stopping the active service.
+Only pending migrations explicitly marked backward-compatible in
+`migrations/compatibility.json` are allowed automatically.
 
-1. `git -C /opt/pages-src fetch` then **`merge --ff-only origin/<branch>`**. It
-   dies on a non-fast-forward — local commits in `/opt/pages-src` block the
-   update. Keep that checkout pristine.
-2. If `scripts/update.sh` itself changed, re-execs the new version.
-3. Prompts (unless `PAGES_UPDATE_YES=1` or stdin is not a TTY).
-4. Builds in a `mktemp -d` staging directory: rsync the source, copy the live
-   `node_modules` as a warm cache, `npm ci --omit=dev`, and `node --check
-   server.js`.
-5. **Runs pending migrations from staging.** They are additive, so the live old
-   code is unaffected.
-6. `systemctl stop`, rsync staging over `/opt/pages`, reinstall the unit and the
-   CLI, `daemon-reload`, `systemctl start`.
-7. Polls `http://127.0.0.1:$PORT/readyz` for up to ten attempts (four-second request timeout each) and dies if it
-   never answers.
-8. Runs `pages template sync` against the now-healthy service.
+After successful preflight and migration, the updater retains the existing
+release and installed service/CLI files, stops Pages, and atomically switches
+`/opt/pages` to a symlink pointing at the new release. It starts Pages and
+requires `/readyz` on the configured port. A failed activation, service start or
+readiness check switches back to the predecessor, restores the service/CLI
+files and restarts it. The update still exits nonzero so automation records the
+failure. If the machine cannot restart even the predecessor, the error names
+the retained release and configuration backup for manual recovery.
 
-**Anything that fails before step 6 leaves the live service running the old code
-untouched.** `/etc/default/pages`, `/opt/pages/assets` and `/opt/pages/.env` are
-excluded from every rsync and survive.
+The first update converts a legacy `/opt/pages` directory into a retained
+release. Writable assets move to `/opt/pages.assets`; an existing local `.env`
+moves to `/opt/pages.env`. Every release links to those shared paths; the service
+environment file stays in `/etc/default/pages`. Releases and failed candidates
+are retained for inspection, not pruned automatically. The last successful
+predecessor is also linked at `/opt/pages.releases/previous`. Backups must keep
+the shared assets/environment and database, not only the active release link.
+Paths follow the configured application directory for non-default installs.
 
-There is a short outage at step 6 — `stop`, rsync, `start`. Not zero-downtime.
-For a fleet, update one host at a time behind a load balancer.
-
-Template sync deliberately does not fail the update: a template is design data,
-so a broken one reports and leaves the previous revision current rather than
-failing a deploy that already proved the service healthy. Skip it with
-`PAGES_SKIP_TEMPLATE_SYNC=1`.
-
----
+There is a brief stop/start outage at activation. Template sync happens only
+after readiness and remains nonfatal (`PAGES_SKIP_TEMPLATE_SYNC=1` skips it).
+Rerunning bootstrap on this release layout refreshes instance configuration,
+service/CLI and Caddy settings while preserving the active code release; use
+`pages update` or `pages rebuild` to change code.
 
 ## 11. Rollback
 
-Code rollback is checkout-plus-rebuild:
+Automatic rollback restores code and installed control files; it does **not**
+undo database migrations, uploaded assets, template registrations or authored
+page data. The automatic update path requires the already-applied
+`022_page_upload_attempts.sql` baseline and a reviewed backward-compatible
+classification for every pending later migration. Unknown or incompatible
+migrations stop the updater before it changes the service.
+
+For an older installation or an incompatible migration, take a database dump,
+back up assets and environment, and perform a planned manual upgrade with the
+service stopped. Its recovery boundary is restoration of that matching database
+backup and predecessor code together. Do not start predecessor code against an
+unreviewed newer schema; no down-migration is inferred or attempted.
+
+After a successful compatible update, the retained predecessor can also be
+restored manually. First verify that no later manual migration has changed its
+compatibility boundary. Using the default paths:
 
 ```bash
-cd /opt/pages-src
-git log --oneline -20
-sudo git checkout <good-sha>
-pages rebuild                # = PAGES_UPDATE_NO_PULL=1 PAGES_UPDATE_YES=1 update.sh
+pages stop
+sudo ln -s "$(readlink -f /opt/pages.releases/previous)" /opt/pages.restore
+sudo mv -Tf /opt/pages.restore /opt/pages
+pages start
+curl -fsS http://127.0.0.1:3002/readyz
 ```
 
-`pages rebuild` skips the fetch and rebuilds whatever is checked out, so it does
-not undo your `git checkout`. To get back onto the branch afterwards:
+For a predecessor from before `/readyz` existed, its liveness endpoint is
+`/healthz`; confirm database connectivity/schema separately. Automatic recovery
+handles this legacy case with the old HTTP liveness endpoint plus the new
+release's bounded database readiness probe. If installation settings changed,
+restore the corresponding service/CLI files from the `.recovery.*` directory
+reported by the updater before starting, and run `systemctl daemon-reload`.
 
-```bash
-cd /opt/pages-src && sudo git checkout main && pages update
-```
-
-**Migrations do not roll back.** There are no down-migrations. Rolling code back
-across a migration leaves the newer schema in place. Because migrations are
-additive this is usually fine — the older code ignores columns it does not know
-— but verify the specific migration before relying on it. If it is not
-backward-compatible, restore the database (§14) instead.
-
-**Content rollback is a different thing entirely, and it is a first-class
-feature.** Page versions are append-only and "live" is a pointer, so reverting a
-dashboard is a pointer move, not a deploy: `pages`' own rollback in the admin
-UI, `POST /api/v1/pages/<slug>/rollback`, or the `rollback_page` MCP tool. That
-needs no operator involvement.
+`pages rebuild` still builds the current source checkout without fetching. It
+uses the same preflight, compatibility checks, retained releases and rollback
+behavior; it is not a database downgrade command.
 
 ---
 
