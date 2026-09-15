@@ -9,6 +9,7 @@
 // called it clean. These run the real boot mechanism under the real headers.
 
 const { test, expect } = require("@playwright/test");
+const fs = require("node:fs/promises");
 
 test("a Bento deck boots under the content host's real CSP", async ({ page }) => {
   const errors = [];
@@ -112,6 +113,39 @@ test("a save Pages refuses falls back to the download, and says so", async ({ pa
   await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Couldn.t save to Pages/);
   await expect(page.locator("[data-pages-save-toast] p")).toContainText(/downloaded instead/);
 });
+
+for (const failure of ["response", "network"]) {
+  test(`a ${failure} failure downloads the saved bytes after Bento revokes its URL`, async ({ page }) => {
+    if (failure === "network") {
+      await page.route("**/bento/save", route => route.request().method() === "POST" ? route.abort() : route.continue());
+    }
+    await page.goto(failure === "response" ? "/bento/edit?fail=1" : "/bento/edit");
+    await expect(page.locator("#booted")).toBeVisible();
+    const exact = "<!doctype html><html><body>Northwind’s unsaved deck — exact bytes</body></html>";
+    await page.evaluate(html => {
+      const button = document.createElement("button");
+      button.id = "save-revoked"; button.textContent = "Save and release file";
+      button.onclick = () => {
+        const anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+        anchor.download = "Northwind.bento.html";
+        document.body.appendChild(anchor);
+        anchor.click();
+        URL.revokeObjectURL(anchor.href);
+        anchor.href = "#"; anchor.download = "Changed-after-save.html";
+        anchor.remove();
+      };
+      document.body.appendChild(button);
+    }, exact);
+    const started = page.waitForEvent("download", { timeout: 5000 });
+    await page.locator("#save-revoked").click();
+    const download = await started;
+    expect(download.suggestedFilename()).toBe("Northwind.bento.html");
+    expect(await download.failure()).toBeNull();
+    expect(await fs.readFile(await download.path(), "utf8")).toBe(exact);
+    await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Couldn.t save to Pages/);
+  });
+}
 
 test("a viewer's deck has no save channel at all", async ({ page }) => {
   const response = await page.goto("/bento/deck");
