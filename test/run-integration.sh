@@ -185,4 +185,7 @@ node "$ROOT/test/template-cli.integration.js"
 echo "▸ concurrent template creation integration"
 node "$ROOT/test/template-create.integration.js"
 
+echo "▸ template metadata integration"
+node "$ROOT/test/template-metadata.integration.js"
+
 echo "✓ integration passed"
