@@ -165,6 +165,9 @@ VID_NORTHWIND="$VID_NORTHWIND" VID_DOWN="$VID_DOWN" node "$ROOT/test/integration
 echo "▸ api integration"
 node "$ROOT/test/api.integration.js"
 
+echo "▸ database readiness integration"
+node "$ROOT/test/readiness.integration.js"
+
 echo "▸ ratelimit integration"
 node "$ROOT/test/ratelimit.integration.js"
 

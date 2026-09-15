@@ -88,7 +88,7 @@ systemctl start "$SERVICE"
 step "Health check"
 healthy=0
 for _ in $(seq 1 10); do
-  if curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1; then healthy=1; break; fi
+  if curl --max-time 4 -fsS "http://127.0.0.1:$PORT/readyz" >/dev/null 2>&1; then healthy=1; break; fi
   sleep 1
 done
 [[ "$healthy" == "1" ]] && ok "pages healthy on :$PORT" || die "pages did not become healthy — check: pages logs"
