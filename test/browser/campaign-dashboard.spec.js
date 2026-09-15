@@ -107,3 +107,37 @@ test("campaign labels remain text and the channel export button keeps its bindin
   await page.locator("#tracking").getByRole("button", { name: "Export Excel" }).click();
   expect((await pending).suggestedFilename()).toBe("TEST001_display_deal_2026-06-01_to_2026-06-01.csv");
 });
+
+test("daily CSV groups the visible dates and honors channel and deal scope", async ({ page }) => {
+  await openCampaign(page, { kpi: "cpa", rows: [
+    metricRow("2026-06-01"), metricRow("2026-06-02", { dspSpend: 50, conversions: 5 }),
+    metricRow("2026-06-01", { dealId: "northwind-b", dspSpend: 40, conversions: 4 }),
+    metricRow("2026-06-02", { dealId: "northwind-b", dspSpend: 30, conversions: 3 }),
+  ], unallocated: [{ channel: "display", date: "2026-06-02", conversions: 2 }], config: { deals: [
+    { id: "northwind-a", channel: "display", short: "Alpha", full: "Northwind Alpha", code: "A" },
+    { id: "northwind-b", channel: "display", short: "Beta", full: "Northwind Beta", code: "A" },
+  ] } });
+  await page.evaluate(() => { STATE.dim = "daily"; renderAll(); });
+  const daily = await exportCampaign(page);
+  expect(daily.filename).toBe("TEST001_display_daily_2026-06-01_to_2026-06-02.csv");
+  expect(daily.text).toContain("View,Daily");
+  const lines = daily.text.split("\n\n")[1].trim().split("\n").map(line => line.split(","));
+  expect(lines[0][0]).toBe("Date");
+  expect(lines[0]).not.toContain("Deal ID");
+  expect(lines.slice(1).map(row => [row[0], Number(row[2]), Number(row[10])]))
+    .toEqual([["2026-06-01", 140, 14], ["2026-06-02", 80, 10], ["Total - Display", 220, 24]]);
+  expect(Number(lines[2][8])).toBe(8);
+  const table = page.locator("#tracking tbody tr");
+  await expect(table.nth(1).locator("td").nth(9)).toHaveText("$8.00");
+  await expect(table.nth(1).locator("td").nth(11)).toHaveText("10");
+  await expect(table.last().locator("td").nth(11)).toHaveText("24");
+
+  await page.evaluate(() => { STATE.start = "2026-06-02"; STATE.deals = ["northwind-a"]; renderAll(); });
+  const filtered = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n").map(line => line.split(","));
+  expect(filtered.slice(1).map(row => [row[0], Number(row[2]), Number(row[10])]))
+    .toEqual([["2026-06-02", 50, 5], ["Total - Display", 50, 5]]);
+  await expect(table.first().locator("td").nth(11)).toHaveText("5");
+  await page.evaluate(() => { STATE.dim = "deal"; renderAll(); });
+  expect((await exportCampaign(page)).text.split("\n\n")[1]).toMatch(/^Deal Name,Deal ID/);
+  expect((await exportCampaign(page, "wow")).text.split("\n\n")[1]).toMatch(/^Week,Partial/);
+});
