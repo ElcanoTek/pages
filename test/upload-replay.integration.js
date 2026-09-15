@@ -102,7 +102,7 @@ async function main() {
   await replay("update_page_data_upload", dataArgs, data, { version_is_live: false, page_is_live: true, live_version_id: base.version.id });
   await versions.setDisabled({ slug: dataSlug, disabled: true }, admin);
   await replay("update_page_data_upload", dataArgs, data, { version_is_live: false, page_is_live: false, live_version_id: base.version.id });
-  await versions.deletePage({ slug: dataSlug }, actor);
+  await versions.deletePage({ slug: dataSlug }, admin);
   result = await replay("update_page_data_upload", dataArgs, data, { version_is_live: false, page_is_live: false, live_version_id: null });
   assert.match(result.next_step, /deleted/);
   await assert.rejects(call("update_page_data_upload", { ...dataArgs, source_as_of: "2026-08-03T00:00:00.000Z" }), { code: "page_upload_commit_conflict" });
