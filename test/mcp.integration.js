@@ -273,7 +273,8 @@ async function postEnvelope(body, opts = {}) {
     assert.equal(init.json.result.serverInfo.name, "pages");
     assert.equal(init.json.result.serverInfo.title, "Elcano Pages");
     assert.match(init.json.result.instructions || "", /list_workspaces/);
-    assert.match(init.json.result.instructions || "", /start_page_upload/);
+    assert.match(init.json.result.instructions || "", /Prefer create_upload_ticket/);
+    assert.match(init.json.result.instructions || "", /If outbound HTTP is unavailable, use start_page_upload/);
     assert.match(init.json.result.instructions || "", /never pass a path, \$\(cat/i);
     assert.match(init.json.result.instructions || "", /update <slug> dashboard with/i);
     assert.match(init.json.result.instructions || "", /prepare_dashboard_update/);

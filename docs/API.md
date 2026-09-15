@@ -112,7 +112,7 @@ not yet consume structured results.
 | `update_page_config` | `slug, config, expected_version, publish?, note?` | replace the config block only; the data block is left **byte-for-byte** unchanged and source coverage is carried across, so settings changes cannot move numbers. Replaces, does not merge |
 | `list_template_pages` | `template` | every live page whose history touches the design: who is serving which revision, which are behind the current one, and which have **drifted** off it (`drifted:true` — a later raw `deploy_page`/`patch_page` detached them, so a design fix no longer reaches them; `last_revision` is what to pull them back onto). Read-only — Pages never re-renders a page on its own |
 | `rerender_page_from_template` | `slug, template?, revision?, publish?, expected_version?, note?` | move **one** page onto a template revision, keeping its own config and data and re-validating both against the target schemas. `publish` defaults to **false** so a human previews the design first. No bulk rerender exists |
-| `update_page_data_upload` | `upload_id, slug, source_as_of, expected_version, publish?, note?, expect?` | publish a managed-data payload **staged with `create_upload_ticket` (`kind:'data'`)** instead of sending it inline — the JSON never passes through the model's context, so no inline ceiling applies. Identical to `update_page_data` from the parse onward: same schema validation, monotonic `source_as_of`, mandatory `expected_version`, dedupe, `data_profile`/`data_warnings`, and `expect` reconciliation, through one write path. An upload staged as `page` is refused here and one staged as `data` is refused by `deploy_page_upload` |
+| `update_page_data_upload` | `upload_id, slug, source_as_of, expected_version, publish?, note?, expect?` | publish a managed-data payload **staged with `create_upload_ticket` or the MCP chunk fallback (`kind:'data'`)** instead of sending it inline — the JSON never passes through the model's context, so no inline ceiling applies. Identical to `update_page_data` from the parse onward: same schema validation, monotonic `source_as_of`, mandatory `expected_version`, dedupe, `data_profile`/`data_warnings`, and `expect` reconciliation, through one write path. An upload staged as `page` is refused here and one staged as `data` is refused by `deploy_page_upload` |
 | `configure_page_refresh` | `slug, instructions?, recurring?, update_type?, publish?, daily_at_utc?, workflow?, run_now?` | read-only compatibility alias for `prepare_dashboard_update`; legacy workflow/cadence input becomes user-owned prompt text and `run_now` never executes work |
 | `publish_page` | `slug, version_id, expected_version?` | publish a draft (open pages only) |
 | `rollback_page` | `slug, version_id?, expected_version?, note?` | move the live pointer to an approved version (omit id → previous). `note` is recorded in the audit log — a rollback republishes bytes that already exist, so the reason is not inferable from any diff |
@@ -216,6 +216,14 @@ ticket:
 
 Call `cancel_page_upload` if the local file changes mid-upload or an upload is
 abandoned, then start again with the new byte count/hash.
+
+Both transports also accept managed-data JSON files: set `kind: 'data'` and
+consume the completed upload with `update_page_data_upload`. Prepared workflows
+and MCP initialization use the same preference and fallback.
+`execution_requirements.required_tools` lists common workflow capabilities;
+the caller must additionally provide one permitted upload transport. Its
+`network: false` means outbound file HTTP is optional because MCP chunks can
+complete the transfer. Check the chosen transport before processing data.
 
 Uploads are stored in PostgreSQL, bound to the bearer token, limited to 2 MiB
 and five active handles per token, and expire 24 hours after inactivity. Exact
