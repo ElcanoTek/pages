@@ -48,6 +48,12 @@ async function main() {
   assert.deepEqual(revised.config, config, "reference config is never implicitly inherited");
   const live = (await db.query("SELECT published_version_id FROM pages WHERE slug = $1", ["provenance-page"])).rows[0];
   assert.equal(String(live.published_version_id), String(built.version.id), "binding changes remain drafts");
+  const original = (await db.query("SELECT html FROM page_versions WHERE id = $1", [built.version.id])).rows[0];
+  const parse = (source) => require("../lib/page-data").parseManaged(source, require("../lib/page-data").TEMPLATE_SPEC);
+  assert.deepEqual(parse(moved.html).envelope, parse(original.html).envelope, "layout rerender preserves the complete published data envelope");
+  const indexed = (await db.query("SELECT refreshed_at, source_as_of FROM page_versions WHERE id = $1", [moved.version.id])).rows[0];
+  assert.equal(indexed.refreshed_at.toISOString(), parse(original.html).envelope.refreshed_at);
+  assert.equal(indexed.source_as_of.toISOString(), new Date(parse(original.html).envelope.source_as_of).toISOString());
   console.log("✓ template identity includes immutable binding and exact retries remain idempotent");
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => db.pool.end());

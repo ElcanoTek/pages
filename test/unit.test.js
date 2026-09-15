@@ -1497,6 +1497,15 @@ test("page-data: the config pair is optional on pages but travels whole or not a
   assert.doesNotThrow(() => pageData.parseManaged(templateHtml(), pageData.TEMPLATE_SPEC));
 });
 
+test("page-data: moving an envelope to another layout preserves freshness and validates the target", () => {
+  const target = pageData.parseManaged(templateHtml(), pageData.TEMPLATE_SPEC);
+  const envelope = { ...target.envelope, refreshed_at: "2026-07-01T10:00:00.000Z", source_as_of: "2026-07-01T00:00:00.000Z", data: { count: 9, label: "Northwind" } };
+  const moved = pageData.materializeBlocks(target, { config: { campaign: "Contoso" }, envelope });
+  assert.deepEqual(pageData.parseManaged(moved.html, pageData.TEMPLATE_SPEC).envelope, envelope);
+  assert.equal(moved.data_sha256, pageData.semanticHash(envelope.data));
+  assert.throws(() => pageData.materializeBlocks(target, { envelope: { ...envelope, data: { count: "bad" } } }), (error) => error.code === "data_validation_failed");
+});
+
 test("page-data: a config write leaves the data block byte-identical, and the reverse", () => {
   for (const configFirst of [false, true]) {
     const html = templateHtml({ configFirst });
@@ -5462,3 +5471,5 @@ test("unpublished template and migration prompts carry their decision through ev
   assert.match(publishing, /5\. After the verified migration is live/);
   assert.doesNotMatch(publishing, /separately authorized migration publication/);
 });
+
+
