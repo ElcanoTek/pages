@@ -283,6 +283,11 @@ over the compatibility names. The matching examples are in
 
 ## REST (equivalent)
 
+REST and admin JSON endpoints return `{error, code}` for request parsing failures:
+malformed JSON is `400 bad_json`, and oversized bodies are
+`413 body_too_large`. These responses are bounded and never echo the submitted
+document. MCP retains its JSON-RPC error contract; browser routes return HTML.
+
 | Method & path | Body | Purpose |
 |---------------|------|---------|
 | `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`) |
