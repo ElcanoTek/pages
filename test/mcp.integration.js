@@ -468,12 +468,18 @@ async function postEnvelope(body, opts = {}) {
     const fixedDeploy = toolData(
       await callTool("update_page", {
         slug: "mcp-preflight",
-        html: brokenHtml.replace(/togglePopover/g, "drTogglePopover").replace(/<img[^>]*>/, ""),
+        html: brokenHtml.replace(/togglePopover/g, "drTogglePopover").replace(/<img[^>]*>/, "")
+          .replace("</body>", '<script>const nav = document.getElementById("pages-nav"); if (nav) JSON.parse(nav.textContent);</script></body>'),
         render_mode: "raw",
         publish: true,
       })
     );
     assert.equal(fixedDeploy.preflight.ok, true, JSON.stringify(fixedDeploy.preflight.errors));
+    assert.equal(fixedDeploy.version.render_mode, "raw", "a supported navigation reader keeps its design mode");
+    assert.equal(fixedDeploy.preflight.warnings.some((w) => w.code.startsWith("nav_block_")), false);
+    const checkedNav = toolData(await callTool("preflight_page", { slug: "mcp-preflight" }));
+    assert.equal(checkedNav.preflight.warnings.some((w) => w.code.startsWith("nav_block_")), false,
+      "stored-version preflight agrees with the deploy response even without a portal context");
     console.log("✓ preflight catches shadowed inline handlers and blocked subresources without returning HTML");
 
     // ── patch_page ──────────────────────────────────────────────────────────
