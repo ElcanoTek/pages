@@ -13,7 +13,8 @@ const admin = { actor: "replay-admin", actorType: "user", transport: "admin" };
 let actor;
 async function call(name, args) {
   const tool = TOOLS[name];
-  return tool.outputSchema.parse(await tool.handler(tool.inputSchema.parse(args), actor));
+  const result = await tool.handler(tool.inputSchema.parse(args), actor);
+  return tool.outputSchema.parse(JSON.parse(JSON.stringify(result)));
 }
 async function stage(target, content) {
   const bytes = Buffer.from(content);

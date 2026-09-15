@@ -755,7 +755,10 @@ async function postEnvelope(body, opts = {}) {
     assert.equal(staged.page_is_live, true);
     assert.equal(staged.version.content_sha256, largeSha);
     const stagedReplay = toolData(await callTool("deploy_page_upload", stagedDeployArgs));
-    assert.deepEqual(stagedReplay, staged, "committed upload retries return the original result");
+    assert.equal(stagedReplay.replayed, true);
+    assert.deepEqual(stagedReplay.version, staged.version, "committed upload retries preserve the original version receipt");
+    assert.equal(stagedReplay.version_is_live, true);
+    assert.match(stagedReplay.next_step, /did not republish/);
     const changedCommit = toolError(
       await callTool("deploy_page_upload", { ...stagedDeployArgs, render_mode: "themed" })
     );
