@@ -86,6 +86,12 @@ async function main() {
   const plain = await tool("deploy_page", { slug: "plain-source-metadata", html: "<!doctype html><html><body><h1>Plain</h1></body></html>" });
   assert.equal((await db.query("SELECT data_sha256 FROM page_versions WHERE id=$1", [plain.version.id])).rows[0].data_sha256, null);
   assert.equal((await versions.listPages()).find((row) => row.slug === "plain-source-metadata").freshness, null);
+  await templates.register({ name: "source-detachment-design", html }, ctx);
+  const bound = await templates.createPage({ template: "source-detachment-design", slug: "source-detachment-page", config, data: { count: 0 }, sourceAsOf: "2026-08-01T00:00:00Z" }, ctx);
+  const boundHtml = (await db.query("SELECT html FROM page_versions WHERE id=$1", [bound.version.id])).rows[0].html;
+  const detached = await versions.deploy({ slug: "source-detachment-page", html: boundHtml, publish: false }, ctx);
+  assert.notEqual(detached.version.id, bound.version.id, "indexed full source must not dedupe into an old template binding");
+  await indexed(detached.version.id);
   console.log("✓ inline, staged, patched and legacy full-source pages report indexed, truthful metadata");
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => db.pool.end());
