@@ -22,3 +22,12 @@ render_install() {
     PAGES_INSTALL_CONFIG="$PAGES_INSTALL_CONFIG" \
     node "$PAGES_SCRIPT_ROOT/scripts/render-install.js" "$@"
 }
+
+install_rendered() {
+  local kind="$1" target="$2" mode="$3" temporary
+  mkdir -p "$(dirname "$target")"
+  temporary="$(mktemp "${target}.XXXXXX")"
+  if ! render_install "$kind" > "$temporary"; then rm -f "$temporary"; return 1; fi
+  chmod "$mode" "$temporary"
+  mv -f "$temporary" "$target"
+}

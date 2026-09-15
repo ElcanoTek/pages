@@ -4,10 +4,12 @@
 # /usr/local/bin/pages — operator entry point for Elcano Pages.
 set -euo pipefail
 
+PAGES_INSTALL_CONFIG="${PAGES_INSTALL_CONFIG:-/etc/default/pages-install}"
+if [[ -f "$PAGES_INSTALL_CONFIG" ]]; then . "$PAGES_INSTALL_CONFIG"; fi
 SRC_DIR="${PAGES_SRC_DIR:-/opt/pages-src}"
-APP_DIR="${PAGES_APP_DIR:-/opt/pages}"
-APP_USER="${PAGES_APP_USER:-pages}"
-ENV_FILE="/etc/default/pages"
+APP_DIR="${APP_DIR:-${PAGES_APP_DIR:-/opt/pages}}"
+APP_USER="${APP_USER:-${PAGES_APP_USER:-pages}}"
+ENV_FILE="${PAGES_ENV_FILE:-/etc/default/pages}"
 SERVICE="pages.service"
 
 cmd="${1:-}"; shift || true
@@ -23,11 +25,14 @@ case "$cmd" in
     ;;
   update)
     [[ -d "$SRC_DIR/.git" ]] || { echo "no source checkout at $SRC_DIR" >&2; exit 1; }
-    exec sudo bash "$SRC_DIR/scripts/update.sh" "$@"
+    exec sudo env PAGES_INSTALL_CONFIG="$PAGES_INSTALL_CONFIG" APP_DIR="$APP_DIR" APP_USER="$APP_USER" \
+      PAGES_SRC_DIR="$SRC_DIR" PAGES_ENV_FILE="$ENV_FILE" PAGES_PORT="${PAGES_PORT:-}" bash "$SRC_DIR/scripts/update.sh" "$@"
     ;;
   rebuild)
     [[ -d "$SRC_DIR/.git" ]] || { echo "no source checkout at $SRC_DIR" >&2; exit 1; }
-    exec sudo env PAGES_UPDATE_NO_PULL=1 PAGES_UPDATE_YES=1 bash "$SRC_DIR/scripts/update.sh"
+    exec sudo env PAGES_UPDATE_NO_PULL=1 PAGES_UPDATE_YES=1 PAGES_INSTALL_CONFIG="$PAGES_INSTALL_CONFIG" \
+      APP_DIR="$APP_DIR" APP_USER="$APP_USER" PAGES_SRC_DIR="$SRC_DIR" PAGES_ENV_FILE="$ENV_FILE" \
+      PAGES_PORT="${PAGES_PORT:-}" bash "$SRC_DIR/scripts/update.sh"
     ;;
   env)
     [[ -f "$ENV_FILE" ]] || { echo "$ENV_FILE missing — run bootstrap.sh" >&2; exit 1; }
