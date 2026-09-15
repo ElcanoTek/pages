@@ -91,8 +91,17 @@ and derivatives** (Rocky, Alma). It uses `dnf`, `postgresql-setup --initdb`,
 to Debian or Ubuntu as written — see [§13 Known gaps](#13-known-gaps).
 
 **What bootstrap installs for you:** `git`, `curl`, `jq`, `rsync`, `openssl`,
-`postgresql`, `postgresql-server`, Node 20 (from `dnf`, or NodeSource if the
-distro package is older than 20), and optionally `caddy`.
+`postgresql`, `postgresql-server`, a supported Node runtime (20.19+ on 20.x, 22.12+ on 22.x, or newer).
+Bootstrap installs Node 22 from NodeSource if the installed version is unsupported, and optionally `caddy`.
+
+Pages loads the locked `parse5` ES module synchronously from CommonJS. This
+requires Node 20.19+ on the 20.x line, 22.12+ on the 22.x line, or a newer major;
+Node 18, Node 21 and early Node 22 releases are unsupported. CI runs a clean
+`npm ci` and all suites on 20.19.0, 22.12.0 and current 24.x. See Node's
+[module loading history](https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require).
+Upgrade an unsupported runtime before `pages update` or `pages rebuild`. Those
+commands refuse it before stopping the installed service. Existing supported
+Node 20 installations do not need a runtime upgrade for this change.
 
 **What you must have before you start:**
 

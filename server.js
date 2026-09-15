@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 "use strict";
+require("./scripts/check-node").assertSupported();
 // server.js — Elcano Pages. ONE Express process, TWO registrable domains
 // (see PLAN.md §3, §7):
 //

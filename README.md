@@ -47,7 +47,7 @@ not trust the generated HTML.
 
 ## Quick start
 
-You need **Node 18+** (CI runs 20) and PostgreSQL **server** tools — `initdb`
+You need **Node 20.19+ (20.x), 22.12+ (22.x), or newer** and PostgreSQL **server** tools — `initdb`
 and `pg_ctl`, not just `psql`.
 
 ```bash

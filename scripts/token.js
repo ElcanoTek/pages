@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 "use strict";
+require("./check-node").assertSupported();
 // scripts/token.js — mint / list / revoke agent API tokens for local dev
 // (PLAN.md §9 `pages token …`). The production `pages` CLI shells out to the
 // same lib. Requires DATABASE_URL (or PG* env) and API_TOKEN_PEPPER to match

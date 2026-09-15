@@ -24,6 +24,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+node "$ROOT/scripts/check-node.js"
 DEV="$ROOT/.devdata"                       # secrets + saved token (in-repo, gitignored)
 PGROOT="${PAGES_DEV_DIR:-/var/tmp/pages-dev}"  # cluster + socket (postgres-accessible)
 PGDATA="$PGROOT/pg"

@@ -35,7 +35,7 @@ see [`SECURITY.md`](SECURITY.md).
 
 ## Getting set up
 
-You need Node 18+ (Node 20 is what CI runs) and PostgreSQL **server** tools —
+You need Node 20.19+ (20.x), 22.12+ (22.x), or newer and PostgreSQL **server** tools —
 `initdb` and `pg_ctl`, not just `psql`. Everything else is npm.
 
 ```bash

@@ -49,6 +49,8 @@ if [[ "${PAGES_UPDATE_YES:-0}" != "1" && -t 0 ]]; then
   read -rp "Proceed with rebuild + restart? [y/N] " a; [[ "${a,,}" =~ ^(y|yes)$ ]] || die "aborted"
 fi
 
+node "$SRC_DIR/scripts/check-node.js" || die "unsupported Node runtime — live service untouched"
+
 step "Building in staging"
 STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
