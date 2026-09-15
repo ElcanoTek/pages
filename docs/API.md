@@ -283,6 +283,11 @@ over the compatibility names. The matching examples are in
 
 ## REST (equivalent)
 
+Boolean request fields accept JSON `true` or `false`, not strings, numbers, or
+`null`. Invalid values return HTTP `400` with code `bad_boolean` before any
+mutation. Omitting `publish` on REST version creation keeps its `false` default;
+omitting `require_approval` on page creation also defaults to `false`.
+
 | Method & path | Body | Purpose |
 |---------------|------|---------|
 | `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`) |
