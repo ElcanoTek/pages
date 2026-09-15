@@ -141,3 +141,45 @@ test("daily CSV groups the visible dates and honors channel and deal scope", asy
   expect((await exportCampaign(page)).text.split("\n\n")[1]).toMatch(/^Deal Name,Deal ID/);
   expect((await exportCampaign(page, "wow")).text.split("\n\n")[1]).toMatch(/^Week,Partial/);
 });
+
+test("selected-week and daily deltas use scoped history outside the visible dates", async ({ page }) => {
+  const rows = Array.from({ length: 14 }, (_, index) => metricRow(`2026-06-${String(index + 1).padStart(2, "0")}`, {
+    dspSpend: index < 7 ? 100 : index === 13 ? 300 : 200,
+  }));
+  await openCampaign(page, { rows: rows.concat(rows.map(row => ({ ...row, dealId: "northwind-b", dspSpend: 999 }))), config: { deals: [
+    { id: "northwind-a", channel: "display", short: "Alpha", full: "Northwind Alpha", code: "A" },
+    { id: "northwind-b", channel: "display", short: "Beta", full: "Northwind Beta", code: "A" },
+  ] } });
+  await page.evaluate(() => { STATE.start = "2026-06-08"; STATE.end = "2026-06-14"; STATE.deals = ["northwind-a"]; renderAll(); });
+  // Visible spend = 6*200 + 300 = 1500; preceding week = 7*100 = 700.
+  const spend = page.locator("#hero .hcard").nth(2);
+  await expect(spend.locator(".val")).toHaveText("$1,500.00");
+  await expect(spend.locator(".delta")).toHaveText("▲ 114.3%");
+  await expect(page.locator("#hero .hcard").last().locator(".delta")).toHaveClass(/down/);
+  const dealCsv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
+  expect(Number(dealCsv[1].split(",").at(-2))).toBeCloseTo(1500 / 700 - 1, 10);
+  expect(Number(dealCsv[1].split(",").at(-1))).toBeCloseTo(1500 / 700 - 1, 10);
+
+  await page.evaluate(() => { STATE.dim = "daily"; renderAll(); });
+  const dailyRows = page.locator("#tracking tbody tr:not(.total)");
+  await expect(dailyRows.first().locator("td").nth(3)).toHaveText("▲ 100.0%");
+  await expect(dailyRows.last().locator("td").nth(3)).toHaveText("▲ 50.0%");
+  await expect(dailyRows.last().locator("td").nth(10)).toHaveText("▲ 50.0%");
+  await expect(dailyRows.last().locator("td").nth(10).locator(".delta")).toHaveAttribute("style", /tier-red/);
+  await expect(page.locator("#tracking")).toContainText("Daily deltas compare each date with the previous calendar day");
+  const dailyCsv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
+  expect(Number(dailyCsv.at(-2).split(",").at(-1))).toBe(0.5);
+  expect(Number(dailyCsv.at(-1).split(",").at(-1))).toBeCloseTo(1500 / 700 - 1, 10);
+
+  // A missing observation inside an otherwise populated prior week is partial,
+  // not a valid six-day denominator to compare with seven current days.
+  await page.evaluate(() => { delete ROWS.find(row => row.dealId === "northwind-a" && row.date === "2026-06-03").dspSpend; renderAll(); });
+  await expect(spend.locator(".delta")).toHaveText("—");
+  await expect(page.locator("#hero .hcard").last().locator(".delta")).toHaveText("—");
+  // A genuinely zero prior-day spend also has no relative delta.
+  await page.evaluate(() => { ROWS.find(row => row.dealId === "northwind-a" && row.date === "2026-06-13").dspSpend = 0; renderAll(); });
+  await expect(dailyRows.last().locator("td").nth(3)).toHaveText("—");
+  const missingCsv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
+  expect(missingCsv.at(-2).split(",").at(-2)).toBe("");
+  expect(missingCsv.at(-1).split(",").at(-2)).toBe("");
+});
