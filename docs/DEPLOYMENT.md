@@ -266,6 +266,21 @@ re-run will not give you a new one — use `pages token add` (§9).
 `/etc/default/pages`, read by systemd via `EnvironmentFile`. Restart the service
 after editing: `pages restart`.
 
+Bootstrap merges its core host/auth/database fields into the existing file.
+Other settings (including `RL_*`, database timeouts, `PAGES_DATA_*`, custom
+entries and comments) survive reruns unchanged. Existing values win over
+defaults; explicit `PAGES_BOOTSTRAP_*` prompt overrides update the corresponding
+managed values. Origins follow a changed hostname only when they used the old
+default `https://<host>`; an explicit custom origin stays intact.
+
+Generation validates the complete candidate before replacing the environment
+file atomically. The prior contents remain at `/etc/default/pages.previous`
+with the same ownership and permissions. This backup contains the same
+credentials as the original environment; restore it only as an intentional
+configuration rollback. A generation or staging failure leaves the active
+environment file intact. Bootstrap-managed values must be single-line text;
+operator additions may retain quoted multiline values.
+
 ### Required in production
 
 | Variable | Default | What it does |
