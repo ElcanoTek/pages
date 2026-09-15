@@ -9,6 +9,7 @@
 // called it clean. These run the real boot mechanism under the real headers.
 
 const { test, expect } = require("@playwright/test");
+const fs = require("node:fs/promises");
 
 test("a Bento deck boots under the content host's real CSP", async ({ page }) => {
   const errors = [];
@@ -110,7 +111,119 @@ test("a save Pages refuses falls back to the download, and says so", async ({ pa
   // it would have without the channel, and the toast says what to do with it.
   expect((await download).suggestedFilename()).toBe("Synthetic.bento.html");
   await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Couldn.t save to Pages/);
-  await expect(page.locator("[data-pages-save-toast] p")).toContainText(/downloaded instead/);
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Starting a download/);
+});
+
+for (const failure of ["response", "network"]) {
+  test(`a ${failure} failure downloads the saved bytes after Bento revokes its URL`, async ({ page }) => {
+    if (failure === "network") {
+      await page.route("**/bento/save", route => route.request().method() === "POST" ? route.abort() : route.continue());
+    }
+    await page.goto(failure === "response" ? "/bento/edit?fail=1" : "/bento/edit");
+    await expect(page.locator("#booted")).toBeVisible();
+    const exact = "<!doctype html><html><body>Northwind’s unsaved deck — exact bytes</body></html>";
+    await page.evaluate(html => {
+      const button = document.createElement("button");
+      button.id = "save-revoked"; button.textContent = "Save and release file";
+      button.onclick = () => {
+        const anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+        anchor.download = "Northwind.bento.html";
+        document.body.appendChild(anchor);
+        anchor.click();
+        URL.revokeObjectURL(anchor.href);
+        anchor.href = "#"; anchor.download = "Changed-after-save.html";
+        anchor.remove();
+      };
+      document.body.appendChild(button);
+    }, exact);
+    const started = page.waitForEvent("download", { timeout: 5000 });
+    await page.locator("#save-revoked").click();
+    const download = await started;
+    expect(download.suggestedFilename()).toBe("Northwind.bento.html");
+    expect(await download.failure()).toBeNull();
+    expect(await fs.readFile(await download.path(), "utf8")).toBe(exact);
+    await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Couldn.t save to Pages/);
+  });
+}
+
+for (const failing of [false, true]) {
+  test(`repeated ${failing ? "failed" : "successful"} saves release their HTML object URLs`, async ({ page }) => {
+    await page.addInitScript(() => {
+      window.htmlUrls = { created: [], revoked: [] };
+      const create = URL.createObjectURL, revoke = URL.revokeObjectURL;
+      URL.createObjectURL = function(blob) {
+        const url = create.call(this, blob);
+        if (blob.type === "text/html") window.htmlUrls.created.push(url);
+        return url;
+      };
+      URL.revokeObjectURL = function(url) { window.htmlUrls.revoked.push(url); return revoke.call(this, url); };
+    });
+    await page.goto(failing ? "/bento/edit?fail=1" : "/bento/edit");
+    await expect(page.locator("#booted")).toBeVisible();
+    for (let i = 0; i < 3; i += 1) {
+      const response = page.waitForResponse(r => r.request().method() === "POST" && r.url().includes("/bento/save"));
+      await page.locator("#save").click(); await response;
+    }
+    await expect.poll(() => page.evaluate(() => window.htmlUrls.created.length)).toBe(failing ? 6 : 3);
+    await expect.poll(() => page.evaluate(() => window.htmlUrls.created.every(url => window.htmlUrls.revoked.includes(url)))).toBe(true);
+  });
+}
+
+test("a fallback that cannot start tells the editor to keep its unsaved work open", async ({ page }) => {
+  await page.goto("/bento/edit?fail=1");
+  await expect(page.locator("#booted")).toBeVisible();
+  await page.evaluate(() => {
+    const append = document.body.appendChild;
+    document.body.appendChild = function(node) {
+      if (node.tagName === "A") throw new Error("fixture: download could not start");
+      return append.call(this, node);
+    };
+  });
+  await page.locator("#save").click();
+  const toast = page.locator("[data-pages-save-toast] p");
+  await expect(toast).toContainText("Couldn’t start the download. Keep this editor open and try Save again.");
+  await expect(toast).not.toContainText("Starting a download");
+});
+
+test("overlapping rejected saves retain each file after the producer revokes both URLs", async ({ page }) => {
+  await page.goto("/bento/edit");
+  await expect(page.locator("#booted")).toBeVisible();
+  let release, arrived;
+  const reply = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { arrived = resolve; });
+  await page.route("**/bento/save", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    arrived(); await reply;
+    await route.fulfill({ status: 409, headers: { "Access-Control-Allow-Origin": "null" },
+      json: { error: "A newer version exists. Reopen the editor from the admin.", code: "stale_deck_version" } });
+  });
+  const downloads = [];
+  page.on("download", download => downloads.push(download));
+  await page.evaluate(() => {
+    let count = 0;
+    const button = document.createElement("button"); button.id = "save-overlap"; button.textContent = "Save another snapshot";
+    button.onclick = () => {
+      count += 1;
+      const anchor = document.createElement("a");
+      anchor.href = URL.createObjectURL(new Blob([`<html><body>Snapshot ${count}</body></html>`], { type: "text/html" }));
+      anchor.download = `Northwind-${count}.bento.html`;
+      anchor.click(); URL.revokeObjectURL(anchor.href);
+    };
+    document.body.appendChild(button);
+  });
+  await page.locator("#save-overlap").click(); await started;
+  await page.locator("#save-overlap").click(); release();
+  await expect.poll(() => downloads.length).toBe(2);
+  const contents = {};
+  for (const download of downloads) {
+    expect(await download.failure()).toBeNull();
+    contents[download.suggestedFilename()] = await fs.readFile(await download.path(), "utf8");
+  }
+  expect(contents).toEqual({
+    "Northwind-1.bento.html": "<html><body>Snapshot 1</body></html>",
+    "Northwind-2.bento.html": "<html><body>Snapshot 2</body></html>",
+  });
 });
 
 test("rapid deck saves keep their snapshots ordered and advance the acknowledged base", async ({ page }) => {

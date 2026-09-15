@@ -150,8 +150,11 @@ signed, eight-hour, page-bound token that names who opened it. In that session:
   ⌘S, *Save a copy…*) is intercepted and the serialised deck is posted to Pages,
   where it lands as a new **draft** version attributed to the staff member. The
   deck says so in a small toast; you publish from the admin, as with any draft.
-  If Pages cannot be reached, the download proceeds exactly as it would have —
-  a save is never lost to a network error.
+  If Pages cannot be reached or refuses the save, Pages starts a download from
+  the exact bytes and filename captured at Save, even if Bento has already
+  released its original download URL. Confirm your browser kept that file
+  before closing the editor, then upload it as a new version. If the download
+  cannot start, the message tells you to keep the editor open and try Save again.
 - **The channel is the token, not the sandbox.** The session's CSP opens
   `connect-src` to Pages' own origin and nothing else (`rawEditHeaders()`); the
   deck's own guard is widened the same way for that response only, and restored
