@@ -59,3 +59,51 @@ test("KPI inputs distinguish missing observations from measured zeroes", async (
   });
   expect(actual).toEqual({ missing: null, mixed: null, zero: 0, unrelated: 0.8 });
 });
+
+test("channel-only conversions reconcile totals and CPA without leaking into deal rows", async ({ page }) => {
+  await openCampaign(page, { kpi: "cpa", rows: [
+    metricRow("2026-06-01"), metricRow("2026-06-02", { dspSpend: 50, conversions: 5 }),
+    metricRow("2026-06-01", { dealId: "northwind-b", dspSpend: 80, conversions: 8 }),
+  ], unallocated: [
+    { channel: "display", date: "2026-06-01", conversions: 2 },
+    { channel: "display", date: "2026-06-02", conversions: 3 },
+    { channel: "display", date: "2026-05-31", conversions: 999 },
+  ], config: { deals: [
+    { id: "northwind-a", channel: "display", short: "Alpha", full: "Northwind Alpha", code: "A" },
+    { id: "northwind-b", channel: "display", short: "Beta", full: "Northwind Beta", code: "A" },
+  ] } });
+  // Allocated = 23, channel-only = 5, spend = 230, total CPA = 230/28.
+  const table = page.locator("#tracking tbody");
+  await expect(table.locator("tr").first().locator("td").nth(12)).toHaveText("15");
+  await expect(table.locator("tr").nth(1).locator("td").nth(12)).toHaveText("8");
+  await expect(table.locator("tr.total td").nth(12)).toHaveText("28");
+  await expect(table.locator("tr.total td").nth(10)).toHaveText("$8.21");
+  await expect(page.locator("#hero .hcard").last().locator(".val")).toHaveText("$8.21");
+  await expect(page.locator("#tracking")).toContainText("5 purchases in the selected date range. Included once");
+  const weekly = await exportCampaign(page, "wow");
+  expect(weekly.text.split("\n\n")[1]).toContain("230,3000,60,28");
+  const deals = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
+  expect(deals.map(line => line.split(",")[16])).toEqual(["Purchases", "15", "8", "5", "28"]);
+  expect(Number(deals.at(-1).split(",")[14])).toBeCloseTo(230 / 28, 10);
+
+  await page.evaluate(() => { STATE.start = STATE.end = "2026-06-02"; renderAll(); });
+  await expect(table.locator("tr.total td").nth(12)).toHaveText("8");
+  await expect(table.locator("tr.total td").nth(10)).toHaveText("$6.25");
+  await expect(page.locator("#tracking")).toContainText("3 purchases in the selected date range");
+  await page.evaluate(() => { STATE.deals = ["northwind-a"]; renderAll(); });
+  await expect(table.locator("tr.total td").nth(12)).toHaveText("5");
+  await expect(table.locator("tr.total td").nth(10)).toHaveText("$10.00");
+  await expect(page.locator("#tracking")).toContainText("Excluded from these totals because the deal filter selects only part of this channel");
+  expect((await exportCampaign(page)).text).not.toContain("Channel-only conversions");
+});
+
+test("campaign labels remain text and the channel export button keeps its binding", async ({ page }) => {
+  await openCampaign(page, { rows: [metricRow("2026-06-01")], config: { channels: [
+    { id: "display", name: "Northwind <Q3> & partners", kpi: "cpm", kpiLabel: "CPM", target: 3, yellow: 4,
+      lowerIsBetter: true, unit: "$", decimals: 2 },
+  ] } });
+  await expect(page.locator("#hero .hcard").last().locator(".lab")).toHaveText("Northwind <Q3> & partners CPM");
+  const pending = page.waitForEvent("download");
+  await page.locator("#tracking").getByRole("button", { name: "Export Excel" }).click();
+  expect((await pending).suggestedFilename()).toBe("TEST001_display_deal_2026-06-01_to_2026-06-01.csv");
+});
