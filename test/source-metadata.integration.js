@@ -45,7 +45,7 @@ async function main() {
   const ctx = { ...actor, tokenId: token.id };
   const tool = async (name, args) => {
     const definition = TOOLS[name];
-    const result = await definition.handler(definition.inputSchema.parse(args), ctx);
+    const result = JSON.parse(JSON.stringify(await definition.handler(definition.inputSchema.parse(args), ctx)));
     definition.outputSchema.parse(result);
     return result;
   };
