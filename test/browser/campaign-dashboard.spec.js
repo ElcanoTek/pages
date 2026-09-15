@@ -183,3 +183,14 @@ test("selected-week and daily deltas use scoped history outside the visible date
   expect(missingCsv.at(-2).split(",").at(-2)).toBe("");
   expect(missingCsv.at(-1).split(",").at(-2)).toBe("");
 });
+
+test("a measured zero-denominator day does not invalidate a computable period KPI", async ({ page }) => {
+  await openCampaign(page, { kpi: "cpc", rows: Array.from({ length: 14 }, (_, index) =>
+    metricRow(`2026-06-${String(index + 1).padStart(2, "0")}`, { clicks: index === 0 ? 0 : 10 })) });
+  await page.evaluate(() => { STATE.start = "2026-06-08"; renderAll(); });
+  // Prior CPC = 700/60; current CPC = 700/70. All dates were observed.
+  await expect(page.locator("#hero .hcard").last().locator(".val")).toHaveText("$10.00");
+  await expect(page.locator("#hero .hcard").last().locator(".delta")).toHaveText("▼ 14.3%");
+  const csv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
+  expect(Number(csv[1].split(",").at(-1))).toBeCloseTo(-1 / 7, 10);
+});
