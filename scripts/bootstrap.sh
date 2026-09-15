@@ -13,7 +13,7 @@
 #      migrations, and mints the initial agent API token (first run only).
 #      Flag design-system assets are committed in-repo — no vendoring step.
 #   5. Installs systemd unit + /usr/local/bin/pages CLI; enables + starts
-#   6. Caddy + auto-TLS for BOTH hostnames; health-checks /healthz
+#   6. Caddy + auto-TLS for BOTH hostnames; health-checks /readyz
 #
 # Idempotent: re-runs preserve existing secrets, the DB role/password, and data.
 #
@@ -220,12 +220,12 @@ systemctl restart pages.service
 
 healthy=0
 for _ in $(seq 1 15); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/healthz" 2>/dev/null || echo 000)
+  code=$(curl --max-time 4 -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/readyz" 2>/dev/null || echo 000)
   if [[ "$code" == "200" ]]; then healthy=1; break; fi
   sleep 1
 done
-if [[ "$healthy" == "1" ]]; then ok "/healthz → 200 (server up)"
-else warn "pages didn't answer /healthz in 15s — check: pages logs"; fi
+if [[ "$healthy" == "1" ]]; then ok "/readyz → 200 (server up)"
+else die "pages did not become ready — check: pages logs"; fi
 
 step "6/6  Reverse proxy / TLS (both hostnames)"
 SETUP_CADDY_ANS="$(prompt PAGES_BOOTSTRAP_SETUP_CADDY "Set up Caddy + auto-TLS for $DASHBOARD_HOST and $CONTENT_HOST? (Y/n)" Y)"
