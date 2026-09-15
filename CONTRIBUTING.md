@@ -200,3 +200,7 @@ these at length. Read it before touching the security surface.
 - If you change behaviour that `docs/` describes, update the doc in the same
   pull request.
 - Do not add badges to the README.
+- Classify new migrations in `migrations/compatibility.json`: use
+  `backward-compatible` only when the predecessor can keep running and be
+  restored after the migration. Other/unknown migrations require a planned
+  manual upgrade; automatic code rollback never reverses database changes.
