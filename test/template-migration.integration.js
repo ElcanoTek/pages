@@ -74,6 +74,18 @@ async function main() {
   assert.equal(gated.version.status, "pending");
   assert.equal(gated.published, false);
   assert.equal((await state()).published_version_id, built.version.id);
+  // Pre-index full-source drafts also reserve source coverage. A schema change
+  // cannot bypass the history floor merely because its older row has null indexes.
+  const legacyHtml = html.replaceAll("2026-08-01", "2026-08-05");
+  await db.query(`INSERT INTO page_versions(page_id,html,content_sha256,status,render_mode,author,source)
+    SELECT id,$1,$2,'draft','themed','source-fixture','mcp' FROM pages WHERE slug=$3`,
+    [legacyHtml, versions.sha256(legacyHtml), args.slug]);
+  const beforeLegacyRegression = await state();
+  await assert.rejects(
+    templates.rerenderPage({ ...args, data: { total: 10 }, sourceAsOf: "2026-08-04T00:00:00Z" }, actor),
+    (e) => e.code === "source_regression"
+  );
+  assert.deepEqual(await state(), beforeLegacyRegression, "legacy coverage rejection is atomic");
   // A config-schema migration supplies no new data, so it retains freshness.
   await templates.register({ name: "config-migration-design", html }, actor);
   const configBuilt = await templates.createPage({ template: "config-migration-design", slug: "config-migration-page", config, data: { count: 11 }, sourceAsOf: "2026-08-01T00:00:00Z" }, actor);
