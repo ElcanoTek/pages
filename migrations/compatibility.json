@@ -1,0 +1,4 @@
+{
+  "minimum_previous_schema": "022_page_upload_attempts.sql",
+  "migrations": {}
+}
