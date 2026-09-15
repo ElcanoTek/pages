@@ -206,4 +206,7 @@ node "$ROOT/test/data-limits.integration.js"
 echo "▸ template migration integration"
 node "$ROOT/test/template-migration.integration.js"
 
+echo "▸ backup and isolated restore integration"
+node "$ROOT/test/backup.integration.js"
+
 echo "✓ integration passed"

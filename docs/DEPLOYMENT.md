@@ -507,6 +507,8 @@ the system re-invokes through `sudo`.
 | `pages token list` | List tokens: prefix, label, scope, state, last use |
 | `pages token revoke <id>` | Revoke; the server 401s it immediately |
 | `pages template list` \| `show` \| `register` \| `sync` | Page templates. See [TEMPLATES.md](TEMPLATES.md) |
+| `pages backup [dest]` | Capture recovery inputs and rehearse a restore before completion |
+| `pages check-integrity <backup-dir>` | Verify checksums and repeat an isolated restore/application check |
 | `pages help` | Usage |
 
 `pages token` and `pages template` both run the installed app's script as the
@@ -515,9 +517,8 @@ load-bearing: a token minted with a different `API_TOKEN_PEPPER` than the server
 verifies with is a token the server rejects. Do not run `node scripts/token.js`
 by hand in production.
 
-`pages page`, `pages theme`, `pages backup` and `pages check-integrity` are
-**stubs**. They print a notice and exit 2. In particular there is no working
-`pages backup` — use §14.
+`pages page` and `pages theme` remain **stubs** that exit 2.
+`pages backup` and `pages check-integrity` are implemented; see §14.
 
 ---
 
@@ -742,65 +743,112 @@ curl -s -o /dev/null -w '%{http_code}\n' https://pages.example.com/some-slug  # 
 
 ## 14. Backup and restore
 
-`pages backup` is a stub. Do it yourself. Two things need backing up: the
-Postgres database (pages, versions, passwords, tokens, portals, audit log) and
-the directory reached through `/opt/pages/assets`. After the first managed
-update, that path links to `/opt/pages.assets`; archive the directory contents,
-not the link.
+`pages backup [dest]` captures a complete recovery set and rehearses a restore
+before reporting success. `pages check-integrity <backup-dir>` verifies every
+captured file and repeats the same restore check. Both commands work with the
+persisted installation paths, including the shared assets and local `.env`
+symlinks used by managed releases.
 
-### Backup
-
-```bash
-sudo install -d -m 0700 /var/backups/pages
-sudo runuser -u postgres -- pg_dump -Fc pages \
-  > /var/backups/pages/pages-$(date -u +%Y%m%dT%H%M%SZ).dump
-sudo tar czf /var/backups/pages/assets-$(date -u +%Y%m%dT%H%M%SZ).tar.gz \
-  -C "$(readlink -f /opt/pages/assets)" .
-```
-
-Dump the database **before** the assets, so a referenced asset can never be
-missing from the pair.
-
-Also back up **`/etc/default/pages`**, separately and encrypted. It holds the
-three HMAC secrets and the database password. Without `API_TOKEN_PEPPER` a
-restored database has unusable tokens; without `PAGE_COOKIE_SECRET` every client
-session is void. A database backup alone is not a recoverable backup.
-
-Keep `/etc/default/pages-install` with the recovery instructions so custom
-paths, service account, and port can be restored. Release code and
-`/opt/pages-src` are reproducible from git plus `npm ci`; shared assets and any
-local environment file are persistent data and need their own backups.
-
-A nightly cron:
-
-```
-0 3 * * * root /usr/local/sbin/pages-backup.sh
-```
-
-with retention you actually enforce, and at least one copy off-box.
-
-### Restore
+### Backup and verification
 
 ```bash
-pages stop
-sudo runuser -u postgres -- dropdb pages
-sudo runuser -u postgres -- createdb -O pages pages
-sudo runuser -u postgres -- pg_restore -d pages /var/backups/pages/pages-<ts>.dump
-sudo tar xzf /var/backups/pages/assets-<ts>.tar.gz \
-  -C "$(readlink -f /opt/pages/assets)"
-sudo chown -R pages:pages "$(readlink -f /opt/pages/assets)"
-# restore /etc/default/pages if lost — mode 0640, root:pages
-sudo runuser -u pages -- bash -c \
-  'set -a; . /etc/default/pages; set +a; cd /opt/pages && node lib/migrate.js'
-pages start
-curl -fsS http://127.0.0.1:3002/readyz
+pages backup /var/backups/pages
+# JSON result: {"backup_dir":"/var/backups/pages/pages-backup-..."}
+pages check-integrity /var/backups/pages/pages-backup-...
+# JSON result: {"status":"verified","backup_dir":"...","restored":{...}}
 ```
 
-`pg_restore` will emit ownership warnings if the role names differ; harmless as
-long as role `pages` exists and owns the database.
+Omitting the destination uses `/var/backups/pages`. Each success creates a new
+private directory with these inputs:
 
-Test a restore into a scratch database before you need it. An untested backup is
-not a backup.
+| Input | Captured contents |
+| --- | --- |
+| `database.dump` | PostgreSQL custom-format dump: all tables, immutable versions, templates, tokens, portals, audit and sequences; ownership/ACLs omitted for explicit assignment on recovery |
+| `assets/` | Contents of the resolved writable assets directory, including files referenced by `assets.sha256` |
+| `application/` | Actual installed release, including `public/assets`, migrations and `package-lock.json`; excludes dependencies, git metadata, mutable paths and development/test output |
+| `config/service.env` | Required service environment, preserved byte for byte |
+| `config/install.env`, `config/local.env` | Installation settings and resolved local `.env`, when present; absence is recorded |
+| `manifest.json` | Format/version, capture interval, runtime limits, file lengths/SHA-256, database counts/migrations and restore-probe results |
+
+The command takes a shared lock against `pages update`, snapshots configuration,
+dumps the database **before** copying assets, and checks that configuration did
+not change during capture. It does not stop Pages or mutate live database rows.
+Normal PostgreSQL dump reads still use database/storage resources; schedule
+accordingly. Do not run manual migrations, asset garbage collection or external
+configuration changes during capture. Source checkout HEAD is not treated as
+proof of the installed revision: the actual release files are retained.
+
+Files are written under `.pages-partial-*`, checked, flushed and renamed only
+after successful verification. Failure exits nonzero and removes its incomplete
+capture. The destination must be outside the application and assets directories.
+Only the documented top-level assets/local-env symlinks are resolved; nested
+symlinks and special files fail explicitly instead of creating incomplete copies.
+An abrupt machine loss may leave a hidden partial directory; it is never a
+completed backup and can be removed after checking that no capture is running.
+
+The restore rehearsal requires PostgreSQL server/client tools (`initdb`,
+`pg_ctl`, `createdb`, `pg_dump`, `pg_restore`) compatible with the source database,
+and enough local disk for an additional restored database and release copy.
+Root delegates its temporary server to the `postgres` account; an unprivileged
+operator runs it as their own account. It uses a private short `/tmp` Unix socket,
+no TCP listener, a new database and synthetic application secrets. It never
+loads the archived environment or accepts a destination database URL. The probe
+uses the **captured application code**, with installed dependencies only when
+`package-lock.json` matches; otherwise use the matching release and `npm ci`.
+No migrations are applied to the restored database.
+
+Verification checks every page/template source hash, referenced asset bytes,
+page/version and template/revision ownership, schema readiness, and representative
+HTTP page, version, template-preview and portal/member requests. Active content
+is preferred in the bounded HTTP sample; hashes cover all immutable source rows.
+Retired/disabled content, published drafts and a portal home outside its membership
+remain valid states. Browser JavaScript is not executed by this recovery check.
+The returned counts and migration inventory come from the restored snapshot,
+so concurrent authoring cannot make them disagree with the dump.
+
+The recovery directory contains credentials and is created with mode `0700`.
+Keep encrypted off-host copies, retention and scheduling under operator control;
+no remote destination or cron entry is installed automatically. For example:
+
+```cron
+0 3 * * * root /usr/local/bin/pages backup /var/backups/pages
+```
+
+The service environment must define `RAW_TOKEN_SECRET`, `API_TOKEN_PEPPER` and
+`PAGE_COOKIE_SECRET`; an incomplete file is refused even when the calling shell
+has values. Preserve these values when restoring, so token hashes and client
+sessions keep working. Configuration files are literal copies: any external
+files they source, TLS/proxy configuration and remote services remain separate
+operator recovery inputs.
+
+### Production recovery
+
+First run `pages check-integrity` on the selected backup. Provision the matching
+Node/PostgreSQL versions and application role, and restore into a **new** database
+so the previous database remains available until the recovery is accepted:
+
+```bash
+sudo runuser -u postgres -- createdb -O pages pages_recovered
+sudo cat /path/to/database.dump | sudo runuser -u postgres -- pg_restore \
+  --exit-on-error --single-transaction --no-owner --no-acl --role=pages --dbname=pages_recovered
+```
+
+The pipeline streams the private dump through standard input without opening
+the recovery directory to the PostgreSQL account. Use the configured application
+role for a non-default installation.
+
+Stage `application/` as a new release and run `npm ci --omit=dev` there. Stop Pages
+before switching the active release, assets and environment together. Restore
+`assets/` into the configured shared assets directory, link the staged release
+to it, restore the optional shared `.env`, and restore installation/service
+configuration with its original ownership and permissions (normally service env
+`0640`, `root:pages`). Change only the recovered database target as needed; retain
+the original HMAC secrets. Reinstall the captured release's service/CLI settings
+if those changed, then switch the application link and restart.
+
+Verify `/readyz` and representative page/portal reads before retiring the previous
+release or database. Recovery does not automatically upgrade or downgrade schema;
+perform any later migration through the separately reviewed update procedure.
 
 ---
 
@@ -939,8 +987,8 @@ Honest limitations of the deploy path as shipped:
 2. **No signing service.** `AUTH_SIGNING_PUBKEY` is mandatory for the admin UI
    and nothing in this repository can produce a matching cookie for production.
    Plan for that before you deploy.
-3. **`pages backup`, `pages check-integrity`, `pages page` and `pages theme` are
-   stubs** that exit 2. Use §14 for backups.
+3. **`pages page` and `pages theme` remain stubs** that exit 2.
+   Backup and isolated restore verification are implemented; see §14.
 4. **No token rotation verb.** Mint, cut over, revoke (§9).
 5. **`pages update` has a brief outage** at the swap. Not zero-downtime.
 6. **No down-migrations.** Code rollback across a migration is not always safe
