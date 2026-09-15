@@ -5422,7 +5422,7 @@ test("bento: an edit session widens only the deck's own guard, and deploy restor
   const ctx = { actor: "qa@elcanotek.com" };
   assert.equal(versions.prepareDeploy({ slug: "team/guide", html: session }, ctx).html, html, "a save that came back through the channel stores clean");
   // The script itself is valid JS and carries no raw `<` that could end its tag early.
-  const body = bento.editSessionScript({ saveUrl: "u", token: "t<x", versionId: 1 }).replace(/^<script[^>]*>|<\/script>$/g, "");
+  const body = bento.editSessionScript({ saveUrl: "u", token: "t<x", versionId: 1 }).replace(/^<script[^>]*>|<\/script>$/gi, "");
   assert.doesNotThrow(() => new Function(body));
   assert.ok(!/<\/script/i.test(body));
 });
