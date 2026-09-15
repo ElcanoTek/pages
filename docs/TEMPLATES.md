@@ -374,3 +374,9 @@ titles and descriptions. `deduped: true` means the revision was reused;
 `metadata_updated: true` means its library metadata changed and was audited in
 the same transaction. An identical retry changes neither the revision, metadata,
 update time, nor audit log.
+
+Prepared settings and data workflows explicitly carry the requested `publish`
+decision. A mixed request stops when an earlier edit is draft or pending, since
+subsequent managed operations read the live version. Resuming that sequence
+requires separately authorized publication and a fresh read. Design rerenders
+continue to require preview and human publication.

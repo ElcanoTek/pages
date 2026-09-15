@@ -5443,3 +5443,22 @@ test("no-update and blocked branches never require publishing or a fictitious au
   assert.match(prompt, /If no mutations remain, report that without inventing actions/);
   assert.match(prompt, /stop on an explicit policy, authentication or DNS failure/);
 });
+
+
+test("unpublished template and migration prompts carry their decision through every write", () => {
+  const opts = { slug: "northwind", instructions: "Update settings, design and numbers", liveVersionId: "41", publish: false, recurring: false };
+  const template = updatePrompts.templatePrompt({ ...opts, template: "northwind-design", revision: 1, configSchemaSha256: "a".repeat(64) });
+  assert.match(template, /update_page_config[^\n]*publish=false/);
+  assert.match(template, /prepare_dashboard_update[^\n]*publish=false/);
+  assert.match(template, /If a preceding change remains draft[^\n]*stop/);
+  const migration = updatePrompts.migrationPrompt(opts);
+  assert.match(migration, /PUBLISH: false/);
+  assert.match(migration, /deploy[^\n]*publish=false/);
+  assert.match(migration, /leave it unpublished/);
+  assert.doesNotMatch(migration, /wait for the migrated version to be approved and live/);
+  const publishing = updatePrompts.migrationPrompt({ ...opts, publish: true });
+  assert.match(publishing, /publish=false FIRST/);
+  assert.match(publishing, /publish_page[^\n]*expected_version/);
+  assert.match(publishing, /5\. After the verified migration is live/);
+  assert.doesNotMatch(publishing, /separately authorized migration publication/);
+});
