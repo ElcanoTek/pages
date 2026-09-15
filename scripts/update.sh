@@ -33,8 +33,12 @@ pages_update() (
     mv -Tf "${APP_DIR}.next.$$" "$APP_DIR"
   }
   ready() {
+    local probe_dir="${1:-$APP_DIR}" endpoint=readyz
+    [[ -f "$probe_dir/lib/readiness.js" ]] || endpoint=healthz
     for ((attempt=0; attempt<10; attempt++)); do
-      if curl --max-time 4 -fsS "http://127.0.0.1:$PORT/readyz" >/dev/null 2>&1; then return 0; fi
+      if curl --max-time 4 -fsS "http://127.0.0.1:$PORT/$endpoint" >/dev/null 2>&1; then
+        if [[ "$endpoint" == readyz ]] || app_command "$release" node -e 'require("./lib/readiness").check().then(ok=>{process.exitCode=ok?0:1}).finally(()=>require("./lib/readiness").close())'; then return 0; fi
+      fi
       sleep 1
     done
     return 1
@@ -149,9 +153,9 @@ pages_update() (
   systemctl daemon-reload
   systemctl start "$SERVICE"
   ready || die "new release failed readiness"
-  switching=0
   ln -s "$previous" "$RELEASE_ROOT/.previous.$$"
   mv -Tf "$RELEASE_ROOT/.previous.$$" "$RELEASE_ROOT/previous"
+  switching=0
   info "Pages ready on :$PORT; previous release retained at $previous"
 
   if [[ "${PAGES_SKIP_TEMPLATE_SYNC:-0}" != 1 && -f "$APP_DIR/scripts/template.js" && -d "$APP_DIR/templates" ]]; then

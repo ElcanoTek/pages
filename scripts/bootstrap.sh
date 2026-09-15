@@ -28,6 +28,8 @@ PAGES_SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$PAGES_SCRIPT_ROOT/scripts/install-config.sh"
 SRC_DIR="${SRC_DIR:-$PAGES_SCRIPT_ROOT}"
 RESOLVED_PORT="$PORT"
+RELEASE_MANAGED=0
+if [[ -L "$APP_DIR" && "$(readlink -f "$APP_DIR")" == "${APP_DIR}.releases/"* ]]; then RELEASE_MANAGED=1; fi
 
 if [[ -t 1 && "${TERM:-}" != "dumb" ]]; then
   c_reset=$'\033[0m' c_dim=$'\033[2m' c_red=$'\033[0;31m'
@@ -90,15 +92,19 @@ if [[ ! -d "$INSTALL_SRC_DIR/.git" ]]; then
   mkdir -p "$INSTALL_SRC_DIR"
   rsync -a --exclude='/node_modules' "$SRC_DIR/" "$INSTALL_SRC_DIR/"
 fi
-rsync -a --delete \
-  --exclude='/.git' --exclude='/node_modules' --exclude='/assets' --exclude='/.env' \
-  "$INSTALL_SRC_DIR/" "$APP_DIR/"
-chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-
-step "3/6  npm ci (production)"
-runuser -u "$APP_USER" -- bash -c "cd '$APP_DIR' && npm ci --omit=dev --no-audit --no-fund --loglevel=warn" \
-  || die "npm ci failed"
-ok "node_modules installed"
+if [[ "$RELEASE_MANAGED" == 1 ]]; then
+  info "release-managed installation: preserving active release; use pages update to change code"
+else
+  rsync -a --delete \
+    --exclude='/.git' --exclude='/node_modules' --exclude='/assets' --exclude='/.env' \
+    "$INSTALL_SRC_DIR/" "$APP_DIR/"
+  chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+  
+  step "3/6  npm ci (production)"
+  runuser -u "$APP_USER" -- bash -c "cd '$APP_DIR' && npm ci --omit=dev --no-audit --no-fund --loglevel=warn" \
+    || die "npm ci failed"
+  ok "node_modules installed"
+fi
 
 step "4/6  Database + instance configuration"
 if [[ -f "$ENV_FILE" ]]; then

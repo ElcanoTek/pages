@@ -18,12 +18,13 @@ function fixture(failure) {
   for (const name of ["scripts/preflight-install.js", "scripts/check-migration-compatibility.js", "scripts/render-install.js", "deploy/pages.service", "deploy/pages-cli", "migrations/compatibility.json"]) write(path.join(source, name), fs.readFileSync(path.join(root, name)));
   write(path.join(source, "scripts/check-node.js"), '"use strict";\n');
   write(path.join(source, "server.js"), failure === "module" ? "require('./lib/missing-dependency');" : "module.exports = {};\n");
-  write(path.join(source, "lib/readiness.js"), "exports.close=()=>Promise.resolve();\n");
+  write(path.join(source, "lib/readiness.js"), "exports.close=()=>Promise.resolve(); exports.check=()=>Promise.resolve(true);\n");
   write(path.join(source, "lib/db.js"), 'exports.pool={end:()=>Promise.resolve()}; exports.query=async()=>({rows:[{filename:"022_page_upload_attempts.sql"}]});\n');
   write(path.join(source, "lib/migrate.js"), 'require("node:fs").appendFileSync(process.env.UPDATE_TEST_LOG,"migrated\\n");\n');
   if (failure === "compatibility") write(path.join(source, "migrations/999_unknown.sql"), "SELECT 1;");
   write(path.join(source, "release-marker"), "candidate");
   write(path.join(app, "release-marker"), "original");
+  if (failure !== "legacy-start") write(path.join(app, "lib/readiness.js"), "");
   write(path.join(app, "assets/chart.txt"), "Northwind asset bytes");
   write(path.join(app, ".env"), "LOCAL_SETTING=preserved\n");
   write(path.join(dir, "pages.env"), "PORT=4312\nOPERATOR_SETTING=preserved\n");
@@ -37,8 +38,8 @@ function fixture(failure) {
   executable("sleep", "exit 0");
   executable("rsync", '[[ "$UPDATE_TEST_FAILURE" != copy ]] || exit 1; exec /usr/bin/rsync "$@"');
   executable("mv", 'if [[ "$UPDATE_TEST_FAILURE" == activate && "${@: -1}" == "$APP_DIR" ]] && [[ "$(readlink "${@: -2:1}" || true)" == *"/abcdef0-"* ]]; then exit 1; fi; exec /usr/bin/mv "$@"');
-  executable("systemctl", 'marker="$(cat "$APP_DIR/release-marker" 2>/dev/null || true)"; printf "%s %s\\n" "$1" "$marker" >> "$UPDATE_TEST_LOG"; [[ "$1" != start || "$UPDATE_TEST_FAILURE" != start || "$marker" != candidate ]]');
-  executable("curl", '[[ "$*" == *":4312/readyz"* ]] || exit 4; [[ "$UPDATE_TEST_FAILURE" != readiness || "$(cat "$APP_DIR/release-marker")" != candidate ]]');
+  executable("systemctl", 'marker="$(cat "$APP_DIR/release-marker" 2>/dev/null || true)"; printf "%s %s\\n" "$1" "$marker" >> "$UPDATE_TEST_LOG"; [[ "$1" != start || "$UPDATE_TEST_FAILURE" != *start || "$marker" != candidate ]]');
+  executable("curl", '[[ "$*" == *":4312/"* ]] || exit 4; [[ "$UPDATE_TEST_FAILURE" != readiness || "$(cat "$APP_DIR/release-marker")" != candidate ]]');
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, APP_DIR: app, APP_USER: os.userInfo().username,
     PAGES_SRC_DIR: source, PAGES_ENV_FILE: path.join(dir, "pages.env"), PAGES_CLI_TARGET: path.join(dir, "pages-cli"),
     PAGES_INSTALL_CONFIG: path.join(dir, "install"), PAGES_SERVICE_FILE: path.join(dir, "pages.service"),
@@ -51,7 +52,7 @@ function fixture(failure) {
   return { dir, app, result };
 }
 
-for (const failure of ["copy", "npm", "module", "compatibility", "activate", "start", "readiness", "none"]) {
+for (const failure of ["copy", "npm", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "none"]) {
   test(`release update: ${failure === "none" ? "success retains predecessor" : failure + " failure keeps original service recoverable"}`, () => {
     const { dir, app, result } = fixture(failure);
     try {
@@ -64,7 +65,7 @@ for (const failure of ["copy", "npm", "module", "compatibility", "activate", "st
         assert.equal(fs.readFileSync(path.join(dir, "pages.service"), "utf8"), "original service\n");
         assert.equal(fs.readFileSync(path.join(dir, "pages-cli"), "utf8"), "original CLI\n");
       }
-      if (["activate", "start", "readiness"].includes(failure)) {
+      if (["activate", "start", "legacy-start", "readiness"].includes(failure)) {
         assert.match(result.stderr, /previous release is ready again/);
         assert.match(fs.readFileSync(path.join(dir, "actions.log"), "utf8"), /start original/);
       }
