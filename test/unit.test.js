@@ -5392,6 +5392,18 @@ test("bento: stripCollab removes the live-collaboration keys and nothing else", 
   assert.deepEqual(bento.stripCollab(broken), { html: broken, stripped: false });
 });
 
+test("full-source preparation indexes managed metadata from the final normalized bytes", () => {
+  const prepared = versions.prepareDeploy({ slug: "northwind", html: templateHtml().replace("</body>", '<nav id="pages-nav">Old navigation</nav></body>') }, { actor: "source-test", actorType: "agent" });
+  const managed = pageData.parseManagedHtml(prepared.html);
+  assert.deepEqual(prepared.dataMetadata, {
+    action: "deploy", dataSha: managed.data_sha256, schemaSha: managed.schema_sha256,
+    templateSha: managed.template_sha256, sourceAsOf: managed.envelope.source_as_of,
+    refreshedAt: managed.envelope.refreshed_at,
+  });
+  assert.equal(prepared.templateBinding, null, "freshness does not invent template provenance");
+  assert.equal(versions.prepareDeploy({ slug: "plain", html: "<p>Plain HTML</p>" }, { actor: "source-test" }).dataMetadata, null);
+});
+
 test("bento: an edit session widens only the deck's own guard, and deploy restores it", () => {
   const bento = require("../lib/bento");
   const { CONTENT_ORIGIN } = require("../lib/csp");
@@ -5462,3 +5474,5 @@ test("unpublished template and migration prompts carry their decision through ev
   assert.match(publishing, /5\. After the verified migration is live/);
   assert.doesNotMatch(publishing, /separately authorized migration publication/);
 });
+
+
