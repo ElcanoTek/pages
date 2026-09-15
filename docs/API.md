@@ -333,6 +333,15 @@ automatically.
 | `POST /api/v1/admin/workspaces/:id/delete` | `{}` | remove a workspace and move every member to Ungrouped; pages are never deleted |
 | `POST /api/v1/admin/pages/:slug/workspace` | `{workspace_id}` | assign/move a page; pass `null` for Ungrouped |
 
+The admin source editor's **Save as new version** saves the HTML, render mode
+and note present when the button is clicked. You can keep editing while the
+request runs. If any values change, the editor stays open after that save and
+asks you to save the remaining changes. Closing waits for an in-flight save to
+finish; a failed save keeps your entered values available for retry. An
+unchanged successful save closes the editor and selects the saved version.
+Saving source creates a draft (or a pending version when approval is required);
+publication remains a separate action.
+
 Every admin mutation requires the normal `X-CSRF-Token` and same-origin
 `Origin` headers and is written to `audit_log` in the same transaction.
 MCP agents have the reversible `list_workspaces`, `create_workspace`,
