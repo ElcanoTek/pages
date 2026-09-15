@@ -48,25 +48,43 @@ const DASHBOARD_HOST = (process.env.DASHBOARD_HOST || "pages.elcanotek.com").toL
 const CONTENT_HOST = (process.env.CONTENT_HOST || "elcano-pages.com").toLowerCase();
 
 const app = express();
-app.set("trust proxy", 1);
+// Caddy is one local hop in the supported deployment. Compile explicit peer
+// addresses/CIDRs with Express, then bound trust to that immediate hop: even a
+// loopback client behind Caddy must not make earlier forwarded values trusted.
+// "false" supports direct access with no proxy; blanket booleans/hop counts are
+// intentionally refused rather than interpreted as proxy addresses.
+const proxyPeers = (process.env.PAGES_TRUST_PROXY || "loopback").trim();
+if (proxyPeers.split(",").some((peer) => /^(?:true|\d+)$/i.test(peer.trim()))) {
+  throw new Error('PAGES_TRUST_PROXY must contain proxy IPs/CIDRs, "loopback", or "false"; booleans and hop counts are unsupported');
+}
+app.set("trust proxy", proxyPeers === "false" ? false : proxyPeers);
+const trustPeer = app.get("trust proxy fn");
+const trustProxy = proxyPeers === "false" ? false : (address, hop) => hop === 0 && trustPeer(address, hop);
+app.set("trust proxy", trustProxy);
 app.disable("x-powered-by");
 
 // ── Host classification ─────────────────────────────────────────────────
-// req.hostname is derived from the Host header (trust proxy set). In local
-// dev both names may resolve to localhost; CONTENT_HOST_ALSO lets you treat
-// an extra hostname (e.g. "localhost") as the content host for testing.
+// Use Host itself: req.hostname also accepts X-Forwarded-Host when a proxy is
+// trusted, but client attribution must not change the two-host route split.
+// In local dev CONTENT_HOST_ALSO permits an extra content hostname.
 const CONTENT_ALIASES = new Set(
   [CONTENT_HOST, process.env.CONTENT_HOST_ALSO]
     .filter(Boolean)
     .map((h) => h.toLowerCase())
 );
 function isContentHost(req) {
-  return CONTENT_ALIASES.has(String(req.hostname || "").toLowerCase());
+  const hostname = String(req.headers.host || "").replace(/:\d+$/, "").toLowerCase();
+  return CONTENT_ALIASES.has(hostname);
 }
 
 // ── Routers ───────────────────────────────────────────────────────────────
 const contentApp = express();
 const dashboardApp = express();
+// These apps are called manually, not mounted, so Express does not inherit the
+// dispatcher's settings. Both limiter keys and mutation audit contexts read IP
+// through the current inner app and need the identical attribution policy.
+contentApp.set("trust proxy", trustProxy);
+dashboardApp.set("trust proxy", trustProxy);
 
 // ===========================================================================
 // CONTENT HOST (cookieless, untrusted render zone)
@@ -239,20 +257,13 @@ contentApp.post(
       return res.status(400).json({ error: "only a Bento deck can be saved through this channel" });
     }
     try {
-      const { page } = await versions.getPage(slug);
-      if (Number(page.id) !== Number(claims.pid) || page.disabled) {
-        return res.status(403).json({ error: "this edit session is for a different page" });
-      }
       const cleaned = bento.stripCollab(req.body);
-      const result = await versions.deploy(
+      const result = await versions.saveDeck(
         {
           slug,
+          pageId: claims.pid,
+          baseVersion: req.get("X-Pages-Base-Version"),
           html: cleaned.html,
-          renderMode: "raw",
-          note: "Saved from the Bento editor",
-          author: claims.actor,
-          source: "admin",
-          publish: false,
         },
         { actor: claims.actor, actorType: "user", ip: req.ip }
       );
@@ -265,7 +276,10 @@ contentApp.post(
     } catch (err) {
       const status = err && err.status ? err.status : 500;
       if (status >= 500) console.error("deck save error:", err.message);
-      res.status(status).json({ error: status >= 500 ? "Pages could not store the version" : err.message });
+      res.status(status).json({
+        error: status >= 500 ? "Pages could not store the version" : err.message,
+        ...(status < 500 && err.code ? { code: err.code, details: err.details } : {}),
+      });
     }
   }
 );
