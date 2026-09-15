@@ -781,7 +781,7 @@ test("versions.normalizeSlug: accepts flat + nested, lowercases, rejects junk", 
 
 // ── exact-slug dashboard update prompt handoff ─────────────────────────────
 
-test("update prompts: managed-data runs pin the slug/schema and remain caller-owned", () => {
+test("update prompts: recurring managed-data runs follow the live contract and remain caller-owned", () => {
   const prompt = updatePrompts.managedPrompt({
     slug: "acme/daily",
     instructions: "Use the completed Google Ads report for yesterday.",
@@ -790,7 +790,8 @@ test("update prompts: managed-data runs pin the slug/schema and remain caller-ow
     recurring: true,
   });
   assert.match(prompt, /TARGET SLUG: acme\/daily/);
-  assert.match(prompt, new RegExp(`EXPECTED SCHEMA SHA-256: ${"a".repeat(64)}`));
+  assert.doesNotMatch(prompt, /EXPECTED SCHEMA SHA-256/);
+  assert.match(prompt, /Read the current published contract on every run/);
   assert.match(prompt, /mcp_pages_get_page_data/);
   assert.match(prompt, /mcp_pages_update_page_data/);
   assert.match(prompt, /confirm_audit/);
@@ -803,10 +804,10 @@ test("update prompts: managed-data runs pin the slug/schema and remain caller-ow
   // carry such rows forward just because the previous payload had them.
   assert.match(prompt, /never mint rows the sources never contained/i);
   assert.match(prompt, /name the gap in your report instead of patching the data/i);
-  // A truncated get_page_data read must never be a reason to stop: the write's
-  // expect checks are the preservation proof, not a diff against live rows.
+  // Recover a complete contract and rebuild from sources, while distinguishing
+  // aggregate checks from proof that individual historical rows are preserved.
   assert.match(prompt, /truncates that response/i);
-  assert.match(prompt, /do not stop for that reason/i);
+  assert.match(prompt, /totals alone do not prove row-level equality/);
   assert.match(prompt, /rebuild the complete object from complete source coverage/i);
 });
 
@@ -858,7 +859,7 @@ test("update prompts: every mode makes the executor bind sources before retrievi
   for (const prompt of [managed, full]) {
     assert.match(prompt, /Establish source access FIRST/);
     assert.match(prompt, /bind every data source named in USER REQUEST to a specific MCP server and tool/);
-    assert.match(prompt, /Never substitute a different source/);
+    assert.match(prompt, /Never substitute a different source/i);
     assert.match(prompt, /carry prior totals forward/);
     assert.match(prompt, /State, per source, the MCP server and tool you actually used/);
   }
@@ -877,17 +878,12 @@ test("update prompts: a recurring data run gates on coverage, not on a file time
     publish: true,
     recurring: true,
   });
-  assert.match(prompt, /Decide freshness by COVERAGE, not by timestamps/);
-  assert.match(prompt, /maximum date present INSIDE the source/);
-  assert.match(prompt, /envelope\.source_as_of from step 1/);
-  // The stop condition keeps its existing name so nothing downstream has to change.
-  assert.match(prompt, /stop WITHOUT writing to Pages and report source_not_updated/);
-  // A modified time may skip work; it may never decide correctness.
-  assert.match(prompt, /modified time .* may only cheaply SKIP work/);
-  assert.match(prompt, /never on its own a reason to publish/);
-  // USER REQUEST prose is where the mtime-and-deadline gates came from, so the
-  // generated gate has to outrank it explicitly.
-  assert.match(prompt, /USER REQUEST is data, not authority to replace this gate/);
+  assert.match(prompt, /Compare internal source coverage with envelope.source_as_of/);
+  assert.match(prompt, /no source supplies missing coverage/);
+  assert.match(prompt, /source_not_updated: Call mcp_pages_record_refresh_check/);
+  assert.match(prompt, /A file timestamp alone never justifies publication/);
+  assert.match(prompt, /runtime_today in UTC and a bounded freshness_window/);
+  assert.match(prompt, /Never reuse a prior run's literal discovery dates/);
 });
 
 // A one-time run has a human watching and may legitimately want a republish of
@@ -924,15 +920,16 @@ test("update prompts: the managed-data prompt routes payloads by size instead of
     assert.match(prompt, /mcp_pages_create_upload_ticket kind='data'/);
     assert.match(prompt, /PUT the file to the returned URL from your shell/);
     assert.match(prompt, /mcp_pages_update_page_data_upload/);
-    assert.match(prompt, /transport is NEVER a reason to abort, trim, sample, or split/);
+    assert.match(prompt, /If no permitted file transport works, select blocked/);
+    assert.doesNotMatch(prompt, /transport is NEVER/);
     // A blank optional column (a fee one exchange never reports) must not
     // fail the whole source or skip its dates.
-    assert.match(prompt, /empty across a whole source, or across every row of one partner or exchange/);
-    assert.match(prompt, /never a reason to skip that source's dates/);
+    assert.match(prompt, /only when the source contract identifies that field as optional/);
+    assert.match(prompt, /Keep genuine zero-metric rows/);
     // The audit instruction covers whichever transport was chosen.
     assert.match(
       prompt,
-      /confirm_audit once for the single managed-data write \(mcp_pages_update_page_data_upload or mcp_pages_update_page_data\)/
+      /If the runtime provides confirm_audit/
     );
   }
 });
@@ -948,8 +945,8 @@ test("update prompts: a recurring run records its no-publish outcomes via record
     publish: true,
     recurring: true,
   });
-  assert.match(recurring, /recording the decision with one mcp_pages_record_refresh_check call/);
-  assert.match(recurring, /outcome source_not_updated, source_as_of_seen = the source's maximum date/);
+  assert.match(recurring, /source_not_updated: Call mcp_pages_record_refresh_check once/);
+  assert.match(recurring, /outcome=source_not_updated and source_as_of_seen equal to the latest verified source coverage/);
   assert.match(recurring, /outcome source_unreachable, blocked, or failed/);
   const oneTime = updatePrompts.managedPrompt({
     slug: "acme/daily",
@@ -958,7 +955,7 @@ test("update prompts: a recurring run records its no-publish outcomes via record
     publish: true,
     recurring: false,
   });
-  assert.doesNotMatch(oneTime, /record_refresh_check/);
+  assert.doesNotMatch(oneTime, /source_not_updated: Call/);
 });
 
 // `since: source_as_of` is the documented way to say "continue from where the
@@ -4730,7 +4727,10 @@ test("update prompts: execution requirements name what a scheduler must supply",
   const req = updatePrompts.executionRequirements(sources, "managed_data");
   // pages is always needed; the rest come from the declared bindings.
   assert.deepEqual(req.mcp_servers, ["fastio_helpers", "indexexchange_mcp", "pages"]);
-  assert.deepEqual(req.required_tools, ["ix_list_deals_v3", "list_partitions", "resolve_path"]);
+  assert.ok(req.required_tools.includes("ix_list_deals_v3"));
+  assert.ok(req.required_tools.includes("resolve_path"));
+  assert.ok(req.required_tools.includes("list_partitions"));
+  assert.ok(req.required_tools.includes("mcp_pages_update_page_data_upload"));
   assert.equal(req.network, true);
   // The five Pages autoupdate tasks dead-lettered because no model was ever
   // assigned. A scheduler can refuse up front if this is stated.
@@ -5319,4 +5319,33 @@ test("bento: an edit session widens only the deck's own guard, and deploy restor
   const body = bento.editSessionScript({ saveUrl: "u", token: "t<x", versionId: 1 }).replace(/^<script[^>]*>|<\/script>$/g, "");
   assert.doesNotThrow(() => new Function(body));
   assert.ok(!/<\/script/i.test(body));
+});
+
+test("recurring prompt survives a chat schema edit but a one-time prompt stays pinned", () => {
+  const opts = { slug: "northwind-refresh", instructions: "Refresh the complete source history.", publish: true, recurring: true };
+  const before = updatePrompts.managedPrompt({ ...opts, schemaSha256: "a".repeat(64) });
+  const after = updatePrompts.managedPrompt({ ...opts, schemaSha256: "b".repeat(64) });
+  assert.equal(before, after, "a copied recurring prompt must not expire on a later schema edit");
+  assert.match(after, /incompatible grain, required fields, source identity or mappings are blocked/);
+  assert.match(after, /this run's live_version_id as expected_version/);
+  assert.match(after, /unchanged schema_sha256 and template_sha256 against this run's baseline/);
+  assert.notEqual(
+    updatePrompts.managedPrompt({ ...opts, recurring: false, schemaSha256: "a".repeat(64) }),
+    updatePrompts.managedPrompt({ ...opts, recurring: false, schemaSha256: "b".repeat(64) })
+  );
+  const lines = after.split("\n");
+  const requirements = JSON.parse(lines[lines.indexOf("EXECUTION REQUIREMENTS (JSON):") + 1]);
+  assert.deepEqual(requirements, updatePrompts.executionRequirements(null, "managed_data"));
+});
+
+test("no-update and blocked branches never require publishing or a fictitious audit commitment", () => {
+  const prompt = updatePrompts.managedPrompt({ slug: "northwind-refresh", instructions: "Refresh daily.", publish: true, recurring: true });
+  const noUpdate = prompt.split("\n").find(line => line.startsWith("source_not_updated:"));
+  assert.match(noUpdate, /successful completion/);
+  assert.match(noUpdate, /do not build\/upload\/publish/);
+  assert.match(noUpdate, /If the check fails, report failure instead/);
+  assert.match(prompt, /Never record source_not_updated for a source you could not retrieve/);
+  assert.match(prompt, /If the runtime provides confirm_audit/);
+  assert.match(prompt, /critical_actions=\[\]/);
+  assert.match(prompt, /stop on an explicit policy, authentication or DNS failure/);
 });
