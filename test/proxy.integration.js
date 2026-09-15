@@ -109,6 +109,16 @@ function request(port, localAddress, { method = "GET", path, host = "dashboard.t
     assert.equal(trust("198.51.100.9", 0), mode === "custom", "an explicit remote CIDR is supported");
     assert.equal(trust("203.0.113.9", 0), false, "an unconfigured peer is not a proxy");
 
+    if (mode === "custom") {
+      for (const [index, expected] of [403, 403, 429].entries()) {
+        const direct = await request(serverPort, "127.0.0.6", {
+          path: "/raw/northwind", host: "content.test",
+          headers: { "X-Forwarded-For": `192.0.2.${20 + index}` },
+        });
+        assert.equal(direct.status, expected, "a direct peer outside the proxy CIDRs cannot change client attribution");
+      }
+    }
+
     // The same attribution reaches the domain audit context, not only a custom
     // limiter key generator that would leave mutations attributed to the proxy.
     const { token } = await tokens.mint({ label: `northwind-proxy-${mode}`, scope: "deploy" });
