@@ -7,11 +7,12 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/unit.test.js test/theme.test.js test/install-config.test.js test/bootstrap-env.test.js",
-    "test:browser": "playwright test"
+    "test": "node --test test/unit.test.js test/theme.test.js test/install-config.test.js test/bootstrap-env.test.js test/runtime.test.js",
+    "test:browser": "playwright test",
+    "preinstall": "node scripts/check-node.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

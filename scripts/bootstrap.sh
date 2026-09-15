@@ -4,7 +4,7 @@
 # scripts/bootstrap.sh — interactive installer for Elcano Pages (Phase 0).
 #
 # What this does (Phase 0 skeleton + Phase 1 database):
-#   1. Installs Node 20+ and PostgreSQL (dnf, or NodeSource if Fedora's too old)
+#   1. Installs Node 20.19+ / 22.12+ and PostgreSQL (dnf, or NodeSource if Fedora's too old)
 #   2. Creates the 'pages' system user + /opt/pages
 #   3. Syncs source to /opt/pages-src and /opt/pages; npm ci (production)
 #   4. Provisions PostgreSQL (initdb, loopback scram-sha-256, role+db 'pages'),
@@ -62,18 +62,19 @@ prompt() {
 
 cat <<EOF
 ${c_bold}Elcano Pages — bootstrap (Phase 0)${c_reset}
-${c_dim}Fedora / RHEL 9+  •  systemd  •  Node 20+  •  two-vhost skeleton${c_reset}
+${c_dim}Fedora / RHEL 9+  •  systemd  •  Node 20.19+ / 22.12+  •  two-vhost skeleton${c_reset}
 
 Safe to re-run: existing env is preserved; only missing values are prompted.
 EOF
 
 step "1/6  Installing Node + PostgreSQL + system dependencies"
 dnf install -y git curl jq rsync openssl postgresql postgresql-server >/dev/null
-if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | cut -dv -f2 | cut -d. -f1)" -lt 20 ]]; then
-  info "installing Node 20 via NodeSource"
-  curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >/dev/null
+if ! command -v node >/dev/null 2>&1 || ! node "$SRC_DIR/scripts/check-node.js" >/dev/null 2>&1; then
+  info "installing Node 22 via NodeSource"
+  curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - >/dev/null
   dnf install -y nodejs >/dev/null
 fi
+node "$SRC_DIR/scripts/check-node.js" || die "unsupported Node runtime"
 render_install check || die "invalid installation settings"
 ok "node $(node -v)  •  $(postgres --version 2>/dev/null || echo postgresql installed)"
 

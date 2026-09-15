@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 "use strict";
+require("./check-node").assertSupported();
 // scripts/template.js — register page templates from FILES, without an agent.
 //
 //   node scripts/template.js list

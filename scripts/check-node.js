@@ -3,12 +3,12 @@
 "use strict";
 // Keep this dependency-free and parseable on old Node so install/startup can
 // explain an unsupported runtime before loading ESM-only dependencies.
-const SUPPORTED = "Node.js 22.13+ (22.x) or 24.x";
+const SUPPORTED = "Node.js 20.19+ (20.x), 22.12+ (22.x), or newer than 22";
 function assertSupported(version = process.versions.node) {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
   const major = match && Number(match[1]);
   const minor = match && Number(match[2]);
-  if (!match || !((major === 22 && minor >= 13) || major === 24)) {
+  if (!match || !((major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major > 22)) {
     throw new Error(`Pages requires ${SUPPORTED}; found Node.js ${version}. Upgrade Node before installing or starting Pages.`);
   }
 }
