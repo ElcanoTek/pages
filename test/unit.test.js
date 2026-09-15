@@ -1135,6 +1135,23 @@ test("update prompts: instructions are bounded and reject credential values", ()
   );
 });
 
+test("prepared workflows expose direct-file and MCP-only upload paths consistently", () => {
+  const args = { slug: "northwind/report", instructions: "Update the report.", liveVersionId: "42", publish: false };
+  for (const prompt of [updatePrompts.fullPagePrompt(args), updatePrompts.managedPrompt(args)]) {
+    assert.match(prompt, /Prefer mcp_pages_create_upload_ticket/);
+    assert.match(prompt, /If outbound HTTP is unavailable, use mcp_pages_start_page_upload/);
+    assert.match(prompt, /mcp_pages_append_page_upload/);
+    assert.ok(prompt.indexOf("Prefer mcp_pages_create_upload_ticket") < prompt.indexOf("If outbound HTTP is unavailable"));
+  }
+  const dataDescription = TOOLS.update_page_data.inputSchema.shape.data.description;
+  assert.match(dataDescription, /create_upload_ticket kind='data'/);
+  assert.match(dataDescription, /update_page_data_upload/);
+  assert.match(dataDescription, /If outbound HTTP is unavailable/);
+  const requirements = updatePrompts.executionRequirements(null, "managed_data");
+  assert.equal(requirements.network, false);
+  for (const tool of requirements.required_tools) assert.ok(TOOLS[tool.replace(/^mcp_pages_/, "")]);
+});
+
 test("Pages MCP registry exposes prompt preparation and durable large-content tools", () => {
   assert.ok(TOOLS.prepare_dashboard_update, "prepare_dashboard_update must be registered");
   assert.ok(TOOLS.get_page_refresh, "deployed static clients retain read-only scheduling guidance");
@@ -4731,7 +4748,7 @@ test("update prompts: execution requirements name what a scheduler must supply",
   assert.ok(req.required_tools.includes("resolve_path"));
   assert.ok(req.required_tools.includes("list_partitions"));
   assert.ok(req.required_tools.includes("mcp_pages_update_page_data_upload"));
-  assert.equal(req.network, true);
+  assert.equal(req.network, false, "MCP chunk transport does not require outbound file HTTP");
   // The five Pages autoupdate tasks dead-lettered because no model was ever
   // assigned. A scheduler can refuse up front if this is stated.
   assert.equal(req.model_required, true);
