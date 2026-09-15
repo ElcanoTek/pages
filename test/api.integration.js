@@ -79,6 +79,45 @@ function req(method, pathname, { host = DASH, token, body, rawBody } = {}) {
     assert.equal(noAuth.status, 401, "missing bearer → 401");
     console.log("✓ unauthenticated request → 401");
 
+    // Boolean intent must survive JSON transport. Rejected inputs may not
+    // create a page/version or write a mutation audit row.
+    const db = require("../lib/db");
+    const mutationCounts = async () => (await db.query(
+      `SELECT (SELECT count(*) FROM pages) AS pages,
+              (SELECT count(*) FROM page_versions) AS versions,
+              (SELECT count(*) FROM audit_log) AS audit`
+    )).rows[0];
+    const beforeInvalid = await mutationCounts();
+    for (const invalid of ["false", "true", 0, 1, null, {}, []]) {
+      const createBad = await req("POST", "/api/v1/pages", {
+        token, body: { slug: "northwind/bool-invalid", require_approval: invalid },
+      });
+      assert.equal(createBad.status, 400, `reject require_approval=${JSON.stringify(invalid)}`);
+      assert.equal(createBad.json.code, "bad_boolean");
+      const deployBad = await req("POST", "/api/v1/pages/northwind/bool-invalid/versions", {
+        token, body: { html: PAGE_HTML(81), publish: invalid },
+      });
+      assert.equal(deployBad.status, 400, `reject publish=${JSON.stringify(invalid)}`);
+      assert.equal(deployBad.json.code, "bad_boolean");
+    }
+    assert.deepEqual(await mutationCounts(), beforeInvalid, "invalid booleans have no mutation side effects");
+    const boolPage = await req("POST", "/api/v1/pages", {
+      token, body: { slug: "northwind/bools", require_approval: false },
+    });
+    assert.equal(boolPage.status, 201);
+    assert.equal(boolPage.json.page.require_approval, false);
+    for (const publish of [undefined, false]) {
+      const draft = await req("POST", "/api/v1/pages/northwind/bools/versions", {
+        token, body: { html: PAGE_HTML(publish === false ? 83 : 82), publish },
+      });
+      assert.equal(draft.status, 201);
+      assert.equal(draft.json.published, false);
+      assert.equal(draft.json.version.status, "draft");
+    }
+    const boolLive = await req("GET", "/api/v1/pages/northwind/bools", { token });
+    assert.equal(boolLive.json.page.published_version_id, null);
+    console.log("✓ strict boolean intent and omitted false defaults preserve drafts without invalid-input mutations");
+
     // 1. Create an open page.
     const create = await req("POST", "/api/v1/pages", { token, body: { slug: "acme", title: "Acme" } });
     assert.equal(create.status, 201, "create page → 201");

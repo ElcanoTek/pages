@@ -75,6 +75,30 @@ why titles need `textContent`, is in
 [AUTHORING.md](AUTHORING.md#giving-a-partner-a-menu-of-their-other-dashboards);
 `templates/nwm-campaign-dashboard/template.html` is a working implementation.
 
+The campaign dashboard uses the same KPI ratios for cards, tables, chart
+tooltips, comparisons and CSV values:
+
+| KPI | Calculation | Display unit |
+| --- | --- | --- |
+| CPM | DSP spend / DSP impressions × 1,000 | USD |
+| CPC | DSP spend / clicks | USD |
+| CPA | DSP spend / conversions | USD |
+| CPCV | DSP spend / completed views | USD |
+| CTR | Clicks / DSP impressions | Percent |
+| VCR | Completed views / DSP impressions | Percent |
+| Viewability | Viewable impressions / DSP impressions | Percent |
+
+VCR uses impressions because the data contract does not provide video starts.
+Rates and their target thresholds are fractions internally and in CSV (for
+example, `0.8` displays as `80.00%`). Ratios use summed inputs rather than
+averaging daily ratios. A missing required input or zero denominator renders
+`N/A`; an observed zero numerator remains a real zero. Rows from a different
+feed that supply neither KPI input do not contribute to that ratio.
+
+Updating the shipped template registers a new immutable revision on the next
+template sync. Existing pages keep their pinned revision until a reviewed
+`rerender_page_from_template` update; updating Pages alone does not rewrite them.
+
 One limit worth knowing before promising a client a menu: a template deployed
 `render_mode: "raw"` never receives the block, because raw is served byte-for-byte.
 
@@ -340,3 +364,9 @@ contract fails, so a missing block and a broken chart control surface in one pas
 `PAGES_DATA_TEMPLATE_MAX_BYTES` (2 MiB) the stored template and the materialized
 page. An example dataset counts toward the stored template but not toward any page
 built from it, since it is deleted on materialization.
+
+Registration deduplicates immutable HTML revisions independently of mutable
+titles and descriptions. `deduped: true` means the revision was reused;
+`metadata_updated: true` means its library metadata changed and was audited in
+the same transaction. An identical retry changes neither the revision, metadata,
+update time, nor audit log.

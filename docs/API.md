@@ -288,6 +288,11 @@ malformed JSON is `400 bad_json`, and oversized bodies are
 `413 body_too_large`. These responses are bounded and never echo the submitted
 document. MCP retains its JSON-RPC error contract; browser routes return HTML.
 
+Boolean request fields accept JSON `true` or `false`, not strings, numbers, or
+`null`. Invalid values return HTTP `400` with code `bad_boolean` before any
+mutation. Omitting `publish` on REST version creation keeps its `false` default;
+omitting `require_approval` on page creation also defaults to `false`.
+
 | Method & path | Body | Purpose |
 |---------------|------|---------|
 | `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`) |
