@@ -740,26 +740,52 @@ test("render: injecting the switcher into a 2 MiB document stays far inside a fr
   assert.ok(ms < 100, `2 MiB themed render with a switcher took ${ms.toFixed(1)}ms`);
 });
 
-test("preflight: switcher code in a raw page is flagged, because raw is served verbatim", () => {
+test("preflight: switcher readers keep their render mode and treat the portal payload as optional", () => {
   const html = `<!doctype html><html><head></head><body><script>
     const nav = document.getElementById("pages-nav");
     if (nav) render(JSON.parse(nav.textContent));
   </script></body></html>`;
-  const raw = preflight.analyze(html, { renderMode: "raw" });
-  const warned = raw.warnings.find((w) => w.code === "nav_block_ignored");
-  assert.ok(warned, "a raw page that reads the block will never receive it");
-  assert.match(warned.fix, /themed/, "…and is told the way out");
-  assert.equal(raw.ok, true, "advisory: preflight never blocks a deploy");
-  assert.equal(
-    preflight.analyze(html, { renderMode: "themed" }).warnings.some((w) => w.code === "nav_block_ignored"),
-    false,
-    "a themed page gets the payload, so there is nothing to warn about"
-  );
-  assert.equal(
-    preflight.analyze("<html><body><p>no switcher here</p></body></html>", { renderMode: "raw" }).warnings.some((w) => w.code === "nav_block_ignored"),
-    false,
-    "and a page with no switcher code is not nagged"
-  );
+  for (const renderMode of ["raw", "themed"]) {
+    const result = preflight.analyze(html, { renderMode });
+    assert.equal(result.ok, true, "advisory: preflight never blocks a deploy");
+    assert.equal(result.render_mode, renderMode);
+    assert.equal(result.warnings.some((w) => w.code.startsWith("nav_block_")), false,
+      "source checks cannot know which portal will authorise a future request; a supported reader is not a defect");
+
+    const served = render.renderVersion({ html, render_mode: renderMode, nav: NAV_FIXTURE });
+    assert.match(served, /id="pages-nav"/, "a portal-authorised page really receives the payload");
+    const withoutPortal = render.renderVersion({ html, render_mode: renderMode });
+    assert.doesNotMatch(withoutPortal, /id="pages-nav"/, "without a portal the block really is absent");
+    if (renderMode === "raw") {
+      assert.equal(withoutPortal, html);
+      assert.doesNotMatch(served, /design-tokens\.css|fonts\/fonts\.css|theme-controller/);
+    }
+  }
+});
+
+test("preflight: a deck's switcher reader is told why its navigation payload is absent", () => {
+  const html = bentoDeckHtml().replace("</body>", '<script>document.querySelector("#pages-nav");</script></body>');
+  const result = preflight.analyze(html, { renderMode: "raw" });
+  const guidance = result.warnings.find((w) => w.code === "nav_block_ignored");
+  assert.ok(guidance);
+  assert.match(guidance.message, /Bento deck/);
+  assert.match(guidance.message, /even (?:in a portal|when a portal)/);
+  assert.match(guidance.fix, /raw/);
+  assert.doesNotMatch(guidance.fix, /themed/);
+  assert.equal(result.ok, true);
+  assert.doesNotMatch(render.renderVersion({ html, render_mode: "raw", nav: NAV_FIXTURE }), /id="pages-nav"/);
+});
+
+test("preflight: navigation prose and pages without a reader do not receive switcher warnings", () => {
+  for (const html of [
+    "<html><body><p>no switcher here</p></body></html>",
+    "<html><head><style>/* Pages injects #pages-nav in a portal. */</style></head><body></body></html>",
+    "<html><body><p>Our handbook explains pages-nav.</p></body></html>",
+  ]) {
+    for (const renderMode of ["raw", "themed"]) {
+      assert.equal(preflight.analyze(html, { renderMode }).warnings.some((w) => w.code.startsWith("nav_block_")), false);
+    }
+  }
 });
 
 // ── version state machine: pure helpers (no DB) ──────────────────────────────
