@@ -52,8 +52,11 @@ const app = express();
 // addresses/CIDRs with Express, then bound trust to that immediate hop: even a
 // loopback client behind Caddy must not make earlier forwarded values trusted.
 // "false" supports direct access with no proxy; blanket booleans/hop counts are
-// intentionally not accepted as proxy addresses by Express's compiler.
+// intentionally refused rather than interpreted as proxy addresses.
 const proxyPeers = (process.env.PAGES_TRUST_PROXY || "loopback").trim();
+if (proxyPeers.split(",").some((peer) => /^(?:true|\d+)$/i.test(peer.trim()))) {
+  throw new Error('PAGES_TRUST_PROXY must contain proxy IPs/CIDRs, "loopback", or "false"; booleans and hop counts are unsupported');
+}
 app.set("trust proxy", proxyPeers === "false" ? false : proxyPeers);
 const trustPeer = app.get("trust proxy fn");
 const trustProxy = proxyPeers === "false" ? false : (address, hop) => hop === 0 && trustPeer(address, hop);

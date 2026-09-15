@@ -17,6 +17,7 @@ for (const name of ["RL_API_PER_MIN", "RL_MCP_PER_MIN", "RL_CONTENT_PER_MIN", "R
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const { once } = require("node:events");
+const { spawnSync } = require("node:child_process");
 const { app } = require("../server");
 const db = require("../lib/db");
 const tokens = require("../lib/tokens");
@@ -108,6 +109,16 @@ function request(port, localAddress, { method = "GET", path, host = "dashboard.t
     }
     assert.equal(trust("198.51.100.9", 0), mode === "custom", "an explicit remote CIDR is supported");
     assert.equal(trust("203.0.113.9", 0), false, "an unconfigured peer is not a proxy");
+
+    if (mode === "default") {
+      for (const setting of ["true", "1", "loopback,2"]) {
+        const invalid = spawnSync(process.execPath, ["-e", `require(${JSON.stringify(require.resolve("../server"))})`], {
+          encoding: "utf8", timeout: 10_000, env: { ...process.env, PAGES_TRUST_PROXY: setting },
+        });
+        assert.equal(invalid.status, 1, `${setting} fails at startup`);
+        assert.match(invalid.stderr, /PAGES_TRUST_PROXY.*hop counts are unsupported/);
+      }
+    }
 
     if (mode === "custom") {
       for (const [index, expected] of [403, 403, 429].entries()) {
