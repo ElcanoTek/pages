@@ -139,8 +139,11 @@ Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
 
-One limit worth knowing before promising a client a menu: a template deployed
-`render_mode: "raw"` never receives the block, because raw is served byte-for-byte.
+Pages built from a template receive the navigation block in either `raw` or
+`themed` mode when a portal authorises the view; keep the page's existing mode.
+Guard the block lookup and render no menu when it is absent, including staff and
+page-password views. Bento decks deliberately receive neither the block nor the
+menu, even in a portal.
 
 ### A fifth, optional block: example data for previews
 

@@ -230,8 +230,13 @@ dashboard:
    payload and (unless it reads the block itself) the built-in control — never Flag
    tokens, fonts or the theme controller. What `raw` protects is "do not restyle my
    design", and that is intact; navigation is not styling. With no portal it is
-   still byte-for-byte. A Bento deck is the one exception: it is byte-for-byte in
-   a portal too — see *Bento decks* below.
+   still byte-for-byte. A Bento deck is the navigation exception: it receives
+   neither the payload nor the menu, even in a portal — see *Bento decks* above.
+
+Keep the existing render mode when adding navigation. Preflight does not warn
+merely because a raw or themed page reads the optional block; portal access is
+decided on each request. A deck that reads it receives `nav_block_ignored` with
+guidance to remove or guard that reader and keep the deck raw.
 
 `templates/nwm-campaign-dashboard/template.html` carries a working implementation
 of all five, and `test/browser/page-switcher.spec.js` drives it in a real browser.
