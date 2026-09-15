@@ -193,6 +193,9 @@ test("a measured zero-denominator day does not invalidate a computable period KP
   await expect(page.locator("#hero .hcard").last().locator(".delta")).toHaveText("▼ 14.3%");
   const csv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
   expect(Number(csv[1].split(",").at(-1))).toBeCloseTo(-1 / 7, 10);
+  await expect(page.locator("#wowTable tbody tr:not(.total)").first().locator("td").nth(5)).toHaveText("▼ 14.3%");
+  const weeklyCsv = (await exportCampaign(page, "wow")).text.split("\n\n")[1].trim().split("\n");
+  expect(Number(weeklyCsv[1].split(",")[8])).toBeCloseTo(-1 / 7, 10);
 });
 
 test("weekly KPI deltas compare complete prior weeks with metric-specific direction", async ({ page }) => {

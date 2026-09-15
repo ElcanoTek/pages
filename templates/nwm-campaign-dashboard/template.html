@@ -485,7 +485,7 @@ function weeklyMetrics(week,rows,history){
   const compare=(scope,fn,goodUp)=>window?deltaOn(scope,fn,goodUp,window):null;
   return {week,totals:agg(selected),spendDelta:compare(history,rs=>metricSum(rs,"dspSpend"),true),
     channels:CONFIG.channels.map(channel=>({channel,value:kpiValue(channel,selected.filter(row=>rowChannel(row)===channel.id)),
-      delta:compare(history.filter(row=>rowChannel(row)===channel.id),rs=>kpiValue(channel,rs),!channel.lowerIsBetter)}))};
+      delta:window?kpiDelta(channel,history.filter(row=>rowChannel(row)===channel.id),window):null}))};
 }
 function renderWow(){
   const head=["Week","DSP Spend","WoW Spend \u0394","DSP Impressions"]
