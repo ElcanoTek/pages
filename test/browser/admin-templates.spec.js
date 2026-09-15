@@ -394,6 +394,8 @@ test("open full size leaves the document rather than rendering here", async ({ p
   await page.locator("#tpl-preview-tab").click();
   const popup = await popupPromise;
   await expect.poll(() => popup.url()).toContain("/preview/tpl-nwm-campaign-dashboard");
+  await expect(page.getByText("Your browser blocked the preview window.", { exact: false })).toHaveCount(0);
+  expect(await popup.evaluate(() => window.opener)).toBeNull();
   await popup.close();
 });
 
@@ -461,3 +463,37 @@ for (const width of [1100, 900, 390]) {
     await expectNoHorizontalOverflow(page);
   });
 }
+
+
+test("full-size preview opens a placeholder before a slow token and closes it on failure", async ({ page, context }) => {
+  await page.goto("/admin/templates");
+  await page.getByRole("button", { name: "Inspect" }).click();
+  await expect(page.locator("#tpl-preview-status")).toContainText("Revision 2");
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route("**/templates/*/preview-token", async (route) => {
+    await gate;
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Synthetic token failure" }) });
+  });
+  const popupPromise = context.waitForEvent("page");
+  await page.locator("#tpl-preview-tab").click();
+  const popup = await popupPromise;
+  expect(popup.url()).toBe("about:blank");
+  expect(await popup.evaluate(() => window.opener)).toBeNull();
+  release();
+  await expect.poll(() => popup.isClosed()).toBe(true);
+  await expect(page.getByText(/Preview failed/)).toBeVisible();
+  await expect(page.locator("#tpl-preview-tab")).toBeEnabled();
+});
+
+test("a blocked full-size preview reports the blocked opening without requesting a token", async ({ page }) => {
+  await page.goto("/admin/templates");
+  await page.getByRole("button", { name: "Inspect" }).click();
+  await expect(page.locator("#tpl-preview-status")).toContainText("Revision 2");
+  let calls = 0;
+  await page.route("**/templates/*/preview-token", (route) => { calls += 1; return route.continue(); });
+  await page.evaluate(() => { window.open = () => null; });
+  await page.locator("#tpl-preview-tab").click();
+  await expect(page.getByText(/Your browser blocked the preview window/)).toBeVisible();
+  expect(calls).toBe(0);
+});
