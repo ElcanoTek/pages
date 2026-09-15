@@ -3023,6 +3023,13 @@ test("preflight: module syntax failures remain actionable and bounded", () => {
   assert.equal(r.errors[0].script_index, 1);
 });
 
+test("preflight: module parser limits are not reported as browser syntax errors", () => {
+  const nested = "(".repeat(3000) + "1" + ")".repeat(3000);
+  const r = preflight.analyze(`<script type="module">${nested}</script>`);
+  assert.equal(r.errors.filter((e) => e.code === "script_syntax_error").length, 0);
+  assert.equal(r.errors[0].code, "script_analysis_limit");
+});
+
 test("preflight: parsing modules never executes authored statements or imports", () => {
   const r = preflight.analyze(`<script type="module">
     import './does-not-exist.js';
