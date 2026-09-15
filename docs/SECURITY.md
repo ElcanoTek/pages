@@ -347,7 +347,7 @@ Actions written to `audit_log`:
   `publish`, `rollback`, `approve`, `reject`, `disable`/`enable`, `set_approval`,
   `set_theme`, `set_password`/`clear_password`, `set_title`, `delete_page`,
   `restore_page`, `record_refresh_check`.
-- **Templates** — `create_template`, `register_template`, `delete_template`,
+- **Templates** — `create_template`, `register_template`, `update_template_metadata`, `delete_template`,
   `template_build`, `template_rerender`.
 - **Workspaces** — `create_workspace`, `rename_workspace`, `delete_workspace`,
   `set_workspace`.
