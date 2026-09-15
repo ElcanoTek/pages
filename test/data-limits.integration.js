@@ -7,11 +7,39 @@
 process.env.PAGES_DATA_MAX_BYTES = "2048";
 process.env.PAGES_MCP_MAX_INLINE_DATA_BYTES = "1024";
 process.env.MAX_HTML_BYTES = "4kb";
+process.env.DASHBOARD_HOST = "localhost";
+process.env.CONTENT_HOST = "content.localhost";
+process.env.DASHBOARD_ORIGIN = "http://localhost";
+process.env.CONTENT_ORIGIN = "http://content.localhost";
 
 const assert = require("node:assert/strict");
+const http = require("node:http");
 const db = require("../lib/db");
 const versions = require("../lib/versions");
 const { TOOLS } = require("../lib/mcp-tools");
+let server;
+
+function request(method, path, body, token, contentType = "application/json") {
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: "127.0.0.1", port: server.address().port, method, path, agent: false,
+      headers: {
+        Host: "localhost", Accept: "application/json, text/event-stream",
+        Authorization: `Bearer ${token}`, "Content-Type": contentType,
+        "Content-Length": Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let response = "";
+      res.on("data", (chunk) => { response += chunk; });
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode, json: JSON.parse(response) }); }
+        catch (error) { reject(error); }
+      });
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
 
 const slug = "data-size-contract";
 const sourceAsOf = "2026-08-01T00:00:00.000Z";
@@ -81,6 +109,10 @@ function domainError(boundary, bytes) {
 }
 
 async function main() {
+  await new Promise((resolve, reject) => {
+    server = require("../server").app.listen(0, "127.0.0.1", resolve);
+    server.once("error", reject);
+  });
   const token = await require("../lib/tokens").mint({ label: "data-limit-fixture", scope: "deploy" });
   const ctx = { actor: "data-limit-fixture", actorType: "agent", transport: "mcp", tokenId: token.id };
   const tool = async (name, args) => {
@@ -111,10 +143,36 @@ async function main() {
     upload_id: upload.upload_id, slug, source_as_of: sourceAsOf, expected_version: liveVersion,
   });
 
-  const ticketText = JSON.stringify({ value: "ticket capacity discovery" });
-  const ticket = await tool("create_upload_ticket", startArgs(ticketText, measure(JSON.parse(ticketText))));
+  // The configured request cap counts the entire HTTP JSON document, including
+  // insignificant whitespace. Verify the boundary through the real MCP route.
+  const readRequest = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_page", arguments: { slug } } });
+  const exactRequest = readRequest + " ".repeat(4096 - utf8(readRequest));
+  const accepted = await request("POST", "/mcp", exactRequest, token.token);
+  assert.equal(accepted.status, 200);
+  assert.notEqual(accepted.json.result.isError, true);
+  TOOLS.get_page.outputSchema.parse(accepted.json.result.structuredContent);
+  const beforeOversizedRequest = await snapshot();
+  const refused = await request("POST", "/mcp", exactRequest + " ", token.token);
+  assert.equal(refused.status, 413);
+  assert.equal(refused.json.error.code, -32000);
+  assert.match(refused.json.error.message, /body too large/i);
+  assert.deepEqual(await snapshot(), beforeOversizedRequest);
+
+  // Direct PUT has the staged-file limit, independently of the smaller JSON
+  // request limit. Whitespace-heavy data also keeps its compact domain size.
+  const ticketData = { value: "Northwind direct file upload" };
+  const ticketText = " ".repeat(5000) + JSON.stringify(ticketData, null, 2) + "\n";
+  assert.ok(utf8(ticketText) > limits.max_request_bytes);
+  const ticket = await tool("create_upload_ticket", startArgs(ticketText, measure(ticketData)));
   assert.deepEqual(ticket.data_limits, limits);
-  await tool("cancel_page_upload", { upload_id: ticket.upload_id });
+  const sent = await request("PUT", new URL(ticket.upload_url).pathname, ticketText, ticket.ticket, "application/octet-stream");
+  assert.equal(sent.status, 200);
+  TOOLS.start_page_upload.outputSchema.parse(sent.json);
+  assert.equal(sent.json.complete, true);
+  assert.equal(sent.json.bytes_received, utf8(ticketText));
+  assert.deepEqual(sent.json.data_limits, limits);
+  liveVersion = (await consume(ticket)).version.id;
+  assert.deepEqual((await versions.getPageData(slug)).envelope.data, ticketData);
 
   const tooMuchPayload = payloadOfBytes(2049);
   const tooMuchEnvelope = payloadOfBytes(2048 - envelopeOverhead + 1);
@@ -190,4 +248,7 @@ async function main() {
   console.log("✓ managed-data limits distinguish payload, escaped envelope and transport, with atomic rejection");
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => db.pool.end());
+main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => {
+  if (server) await new Promise((resolve) => server.close(resolve));
+  await Promise.all([db.pool.end(), require("../lib/readiness").close()]);
+});

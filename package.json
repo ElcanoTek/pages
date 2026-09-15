@@ -1,7 +1,7 @@
 {
   "name": "elcano-pages",
   "version": "0.1.0",
-  "description": "Quick client pages and dashboards — versioned, Flag-themed, password-protected HTML served on one server.",
+  "description": "Quick client pages and dashboards \u2014 versioned, Flag-themed, password-protected HTML served on one server.",
   "license": "BUSL-1.1",
   "main": "server.js",
   "type": "commonjs",
