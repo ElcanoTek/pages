@@ -309,7 +309,8 @@ rerender_page_from_template  slug=…        → publish defaults to FALSE: a ca
 publish_page                 slug=… version_id=…
 ```
 
-A rerender keeps the page's own config and data, taken from its published HTML —
+A layout-only rerender keeps the page's complete data envelope, including
+`refreshed_at` and `source_as_of`, and its config, taken from its published HTML —
 not from a stored copy that could have drifted from what is actually serving —
 and re-validates both against the target revision's schemas. A revision that
 tightened its contract therefore fails loudly, before anything is written,
