@@ -73,6 +73,9 @@ export RL_API_PER_MIN=600
 echo "▸ migrate"
 node "$ROOT/lib/migrate.js"
 
+echo "▸ concurrent migration runners"
+node "$ROOT/test/migrate.integration.js"
+
 test -f "$ROOT/public/assets/flag/tokens/design-tokens.css" && echo "  flag tokens present" \
   || { echo "  flag tokens missing — public/assets/flag/ not committed?" >&2; exit 1; }
 
