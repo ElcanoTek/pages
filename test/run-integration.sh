@@ -198,5 +198,7 @@ node "$ROOT/test/template-version.integration.js"
 
 echo "▸ full-source metadata integration"
 node "$ROOT/test/source-metadata.integration.js"
+echo "▸ template migration integration"
+node "$ROOT/test/template-migration.integration.js"
 
 echo "✓ integration passed"
