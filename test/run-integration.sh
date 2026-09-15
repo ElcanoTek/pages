@@ -190,5 +190,7 @@ node "$ROOT/test/template-create.integration.js"
 
 echo "▸ template metadata integration"
 node "$ROOT/test/template-metadata.integration.js"
+echo "▸ template version integration"
+node "$ROOT/test/template-version.integration.js"
 
 echo "✓ integration passed"
