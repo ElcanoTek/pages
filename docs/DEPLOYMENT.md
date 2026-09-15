@@ -585,7 +585,7 @@ PAGES_UPDATE_YES=1 pages update
    code is unaffected.
 6. `systemctl stop`, rsync staging over `/opt/pages`, reinstall the unit and the
    CLI, `daemon-reload`, `systemctl start`.
-7. Polls `http://127.0.0.1:$PORT/healthz` for up to 10 seconds and dies if it
+7. Polls `http://127.0.0.1:$PORT/readyz` for up to ten attempts (four-second request timeout each) and dies if it
    never answers.
 8. Runs `pages template sync` against the now-healthy service.
 
@@ -658,10 +658,20 @@ Both hosts answer `GET /healthz` with `200` and the body `ok`. It is a liveness
 check on the HTTP listener, **not** a database check — Pages can answer
 `/healthz` with Postgres down.
 
+Both hosts also answer `GET /readyz`: `200 {"status":"ready"}` after PostgreSQL
+connects, core rendering tables can be read and every migration shipped with
+this release is recorded. A failed database or incomplete schema returns
+`503 {"status":"not_ready"}` without database details. Responses are not cached.
+Probes share one separate database connection, coalesce simultaneous requests,
+and bound connection/query waits to one second each (up to three seconds total).
+Bootstrap and update require readiness before reporting deployment success;
+liveness remains appropriate for detecting whether the HTTP process is running.
+
 ```bash
 curl -fsS http://127.0.0.1:3002/healthz                      # local
 curl -fsS https://pages.example.com/healthz                  # through Caddy
 curl -fsS https://example-pages.com/healthz
+curl -fsS http://127.0.0.1:3002/readyz                      # database/schema ready
 ```
 
 For a monitor that actually proves the app is serving, add an authenticated
@@ -887,8 +897,9 @@ Honest limitations of the deploy path as shipped:
 5. **`pages update` has a brief outage** at the swap. Not zero-downtime.
 6. **No down-migrations.** Code rollback across a migration is not always safe
    (§11).
-7. **`/healthz` does not check the database.** It can return `200` with Postgres
-   down (§13).
+7. **Readiness does not exercise every application operation.** `/readyz`
+   checks connectivity and schema; monitor specific read/write flows separately
+   when needed (§13).
 8. **The `assets` table has no upload API.** `ReadWritePaths=/opt/pages/assets`
    exists for a feature that is not finished.
 
