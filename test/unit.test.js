@@ -5502,3 +5502,9 @@ test("unpublished template and migration prompts carry their decision through ev
 });
 
 
+test("template rerender accepts explicit target-shaped config and data migration inputs", () => {
+  assert.doesNotThrow(() => TOOLS.rerender_page_from_template.inputSchema.parse({
+    slug: "northwind", revision: 2, config: { campaign: "Northwind", region: "North" },
+    data: { total: 7 }, source_as_of: "2026-08-01T00:00:00Z", expected_version: "41", publish: false,
+  }));
+});
