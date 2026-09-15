@@ -160,6 +160,15 @@ signed, eight-hour, page-bound token that names who opened it. In that session:
 - **Only a deck can be saved through it**, only to the page the token names, and
   only as a draft. The `collab` block Bento mints on save is removed before
   storage (`lib/bento.js`), so the stored version carries no keys.
+- **Saves follow the latest draft.** Each request names the version the editor
+  started from in `X-Pages-Base-Version`. Saves from one tab run in order and
+  advance that base only when acknowledged. If another editor or source update
+  has saved a newer version, Pages refuses the stale save without adding a
+  draft. Keep the fallback file, reopen **Edit in Bento**, and reconcile the
+  changes before saving again. Queued saves from the old tab also fall back to
+  files; they never adopt the conflicting version automatically. Repeating a
+  save whose exact contents are already the latest version creates no duplicate.
+  A page requiring approval still receives a pending version for review.
 
 Agents do not use this channel — `deploy_page_upload` is theirs, and it is the
 same state machine underneath.

@@ -915,7 +915,8 @@ function sessionCookie(res) {
       assert.equal(preflight.headers["access-control-allow-origin"], "null", "…for the opaque origin the deck has");
       assert.match(preflight.headers["access-control-allow-headers"] || "", /Authorization/);
 
-      const post = await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${editToken}`, Origin: "null" } });
+      const saveHeaders = { Authorization: `Bearer ${editToken}`, "X-Pages-Base-Version": String(first.version.id) };
+      const post = await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { ...saveHeaders, Origin: "null" } });
       assert.equal(post.status, 201, post.body);
       const reply = JSON.parse(post.body);
       assert.equal(reply.status, "draft", "a save is a DRAFT — publishing stays a human act");
@@ -936,22 +937,72 @@ function sessionCookie(res) {
       const again = await req("GET", `/raw/vw-deck?t=${encodeURIComponent(editToken)}`);
       assert.match(again.body, /Deck v2/, "reopening the editor shows the last save, not the live version");
       // Saving the same bytes again is a dedupe, not a second draft.
-      const dup = await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${editToken}` } });
+      const dup = await req("POST", "/raw/vw-deck/versions", { body: saved, headers: saveHeaders });
       assert.equal(dup.status, 200); assert.equal(JSON.parse(dup.body).deduped, true);
+
+      const stale = await req("POST", "/raw/vw-deck/versions", { body: deckHtml("Older tab's edits"), headers: saveHeaders });
+      assert.equal(stale.status, 409, "an older tab cannot supersede the latest draft");
+      assert.equal(JSON.parse(stale.body).code, "stale_deck_version");
+      assert.equal(JSON.parse(stale.body).details.latest_version_id, reply.version_id);
+      assert.equal((await versions.listVersions("vw-deck")).length, 2, "a conflict adds no version");
+
+      for (const base of [undefined, "0", "not-a-version", "9223372036854775808"]) {
+        const headers = { Authorization: `Bearer ${editToken}` };
+        if (base !== undefined) headers["X-Pages-Base-Version"] = base;
+        const invalid = await req("POST", "/raw/vw-deck/versions", { body: saved, headers });
+        assert.equal(invalid.status, 400, `invalid base ${base} must not write`);
+        assert.equal(JSON.parse(invalid.body).code, "deck_base_version_required");
+      }
+
+      // A deliberate edit back to historical bytes is a NEW latest draft.
+      // Global content dedupe would return v1 and leave the editor opening v2.
+      const reverted = await req("POST", "/raw/vw-deck/versions", {
+        body: deckHtml("Deck v1"), headers: { ...saveHeaders, "X-Pages-Base-Version": reply.version_id },
+      });
+      assert.equal(reverted.status, 201, reverted.body);
+      const revertedId = JSON.parse(reverted.body).version_id;
+      assert.notEqual(revertedId, String(first.version.id));
+      assert.equal(String((await db.getLatestRenderable(deckPage.id)).id), revertedId);
+
+      const racing = await Promise.all(["First concurrent edit", "Second concurrent edit"].map(title =>
+        req("POST", "/raw/vw-deck/versions", {
+          body: deckHtml(title), headers: { ...saveHeaders, "X-Pages-Base-Version": revertedId },
+        })));
+      assert.deepEqual(racing.map(r => r.status).sort(), [201, 409], "one writer wins under the page lock");
+      const winningId = JSON.parse(racing.find(r => r.status === 201).body).version_id;
+      assert.equal((await versions.listVersions("vw-deck")).length, 4);
+      const retries = await Promise.all([1, 2].map(() => req("POST", "/raw/vw-deck/versions", {
+        body: deckHtml("An identical retry"), headers: { ...saveHeaders, "X-Pages-Base-Version": winningId },
+      })));
+      assert.deepEqual(retries.map(r => r.status).sort(), [200, 201]);
+      assert.equal(JSON.parse(retries[0].body).version_id, JSON.parse(retries[1].body).version_id);
+      assert.equal((await versions.listVersions("vw-deck")).length, 5, "retry adds no second draft");
+      assert.equal(String((await versions.getPage("vw-deck")).page.published_version_id), String(first.version.id));
+
+      await versions.setApproval({ slug: "vw-deck", requireApproval: true }, deckCtx);
+      const gated = await req("POST", "/raw/vw-deck/versions", {
+        body: deckHtml("A gated edit"), headers: { ...saveHeaders, "X-Pages-Base-Version": JSON.parse(retries[0].body).version_id },
+      });
+      assert.equal(gated.status, 201, gated.body);
+      assert.equal(JSON.parse(gated.body).status, "pending", "the approval gate stays in force");
+      assert.equal(String((await versions.getPage("vw-deck")).page.published_version_id), String(first.version.id));
 
       // What the channel refuses.
       assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved })).status, 403, "no token");
       assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${viewToken}` } })).status, 403, "a view token is a render credential, not a write one");
       assert.equal((await req("POST", "/raw/vw-deck/versions", { body: "<html><body><h1>not a deck</h1></body></html>", headers: { Authorization: `Bearer ${editToken}` } })).status, 400, "only a deck");
       const otherToken = rawtoken.mint({ pageId: deckPage.id + 1000, versionId: 1, purpose: "edit", renderMode: "raw", actor: "editor@elcanotek.com" }, 600);
-      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${otherToken}` } })).status, 403, "another page's token");
+      assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { ...saveHeaders, Authorization: `Bearer ${otherToken}` } })).status, 403, "another page's token");
       const expired = rawtoken.mint({ pageId: deckPage.id, versionId: 1, purpose: "edit", renderMode: "raw", actor: "editor@elcanotek.com" }, -1);
       assert.equal((await req("POST", "/raw/vw-deck/versions", { body: saved, headers: { Authorization: `Bearer ${expired}` } })).status, 403, "an expired session");
       // A session token cannot open the editor either, and neither can a template token.
       assert.equal((await req("GET", `/raw/vw-deck?t=${encodeURIComponent(rawtoken.mint({ pageId: deckPage.id, versionId: 1, purpose: "template", renderMode: "raw" }, 600))}`)).status, 403);
       // And once the page stops being a deck, the edit token opens nothing.
-      await versions.deploy({ slug: "vw-deck", html: "<html><body><h1>Replaced by a dashboard</h1></body></html>", renderMode: "raw", publish: false }, deckCtx);
+      const plain = await versions.deploy({ slug: "vw-deck", html: "<html><body><h1>Replaced by a dashboard</h1></body></html>", renderMode: "raw", publish: false }, deckCtx);
       assert.equal((await req("GET", `/raw/vw-deck?t=${encodeURIComponent(editToken)}`)).status, 403, "the session is over when the page is no longer a deck");
+      assert.equal((await req("POST", "/raw/vw-deck/versions", {
+        body: saved, headers: { ...saveHeaders, "X-Pages-Base-Version": String(plain.version.id) },
+      })).status, 403, "a stale deck session cannot overwrite the new document kind");
       console.log("✓ deck edit session: one response may talk back, saves are drafts by the named person, everything else is refused");
     }
 

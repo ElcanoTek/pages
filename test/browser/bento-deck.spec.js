@@ -113,6 +113,61 @@ test("a save Pages refuses falls back to the download, and says so", async ({ pa
   await expect(page.locator("[data-pages-save-toast] p")).toContainText(/downloaded instead/);
 });
 
+test("rapid deck saves keep their snapshots ordered and advance the acknowledged base", async ({ page }) => {
+  await page.goto("/bento/edit");
+  await expect(page.locator("#booted")).toBeVisible();
+  let releaseFirst;
+  const firstResponse = new Promise(resolve => { releaseFirst = resolve; });
+  let sawFirst;
+  const firstRequest = new Promise(resolve => { sawFirst = resolve; });
+  const requests = [];
+  await page.route("**/bento/save", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    const index = requests.length;
+    requests.push({ base: route.request().headers()["x-pages-base-version"], body: route.request().postData() });
+    if (index === 0) { sawFirst(); await firstResponse; }
+    await route.fulfill({ status: 201, headers: { "Access-Control-Allow-Origin": "null" },
+      json: { version_id: String(42 + index), status: "draft", deduped: false } });
+  });
+  await page.evaluate(() => { document.getElementById("bento-doc").textContent = '{"title":"First snapshot"}'; });
+  await page.locator("#save").click();
+  await firstRequest;
+  await page.evaluate(() => { document.getElementById("bento-doc").textContent = '{"title":"Second snapshot"}'; });
+  await page.locator("#save").click();
+  releaseFirst();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests.map(r => r.base)).toEqual(["41", "42"]);
+  expect(requests[0].body).toContain('"title":"First snapshot"');
+  expect(requests[1].body).toContain('"title":"Second snapshot"');
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText("Saved to Pages");
+});
+
+test("a conflicting deck save stops queued writes until the editor is reopened", async ({ page }) => {
+  await page.goto("/bento/edit");
+  await expect(page.locator("#booted")).toBeVisible();
+  let release;
+  const reply = new Promise(resolve => { release = resolve; });
+  let arrived;
+  const started = new Promise(resolve => { arrived = resolve; });
+  let posts = 0;
+  await page.route("**/bento/save", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    posts += 1; arrived(); await reply;
+    await route.fulfill({ status: 409, headers: { "Access-Control-Allow-Origin": "null" },
+      json: { code: "stale_deck_version", error: "A newer deck was saved. Reopen the editor from the admin." } });
+  });
+  const downloads = [];
+  page.on("download", download => downloads.push(download));
+  await page.locator("#save").click(); await started;
+  await page.locator("#save").click(); release();
+  await expect.poll(() => downloads.length).toBe(2);
+  expect(posts).toBe(1);
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText("Reopen the editor");
+  await page.locator("#save").click();
+  await expect.poll(() => downloads.length).toBe(3);
+  expect(posts).toBe(1, "later clicks cannot blindly advance the base after conflict");
+});
+
 test("a viewer's deck has no save channel at all", async ({ page }) => {
   const response = await page.goto("/bento/deck");
   expect(response.headers()["content-security-policy"]).toMatch(/connect-src 'none'/);
