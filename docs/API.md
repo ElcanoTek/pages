@@ -574,7 +574,10 @@ password.
 
 #### The in-page page switcher (`#pages-nav`)
 
-Every **themed** render that a portal authorised carries one extra `<head>` tag:
+Both **raw and themed** pages receive the navigation payload when a portal
+authorises the render. Bento decks are the exception: they receive neither the
+payload nor the Page menu, preserving the deck's own toolbar. The payload is a
+`<head>` tag (appended to the body for a raw document without a head):
 
 ```html
 <script type="application/json" id="pages-nav" data-flag-injected>
@@ -606,8 +609,10 @@ Every **themed** render that a portal authorised carries one extra `<head>` tag:
   nest, so on `/a/b/c` a relative `d` resolves to `/a/b/d`, and `base-uri 'none'`
   means a `<base>` tag cannot correct it.
 - **Read it defensively and render titles with `textContent`.** The block is
-  optional by design, so `JSON.parse(document.getElementById("pages-nav")…)` with
-  no null guard is a `TypeError` that halts your whole script. And a sibling's
+  absent when no portal authorises the view, including staff and page-password
+  views. Guard the lookup and render nothing when it is null, in either render
+  mode: `JSON.parse(document.getElementById("pages-nav").textContent)` with no
+  guard is a `TypeError` that halts your whole script. And a sibling's
   title is set by whoever owns that page — `escapedJson` guarantees it cannot
   break out of the block, but `innerHTML = title` would execute it inside your
   dashboard.
@@ -617,13 +622,16 @@ Every **themed** render that a portal authorised carries one extra `<head>` tag:
   portal receives the payload and the built-in control, but never Flag tokens,
   fonts or the theme controller: what `raw` guarantees is that Pages will not
   restyle the design, and that is untouched. With no portal authorising the view it
-  is byte-for-byte as before. (This matters more than it sounds: 18 of 31 live
-  dashboards are raw, so the earlier "deploy it themed instead" advice would have
-  restyled more than half the fleet to add a menu.) Preflight warns
-  (`nav_block_ignored`) when a raw page reads the block, and
-  `GET /api/v1/admin/portals/:id` reports `shows_switcher` (does this member show a
-  menu at all — false only for `raw`) and `switcher_is_own` (does the design render
-  its own, rather than using the built-in control) per member.
+  is byte-for-byte as before. Keep the page's existing render mode when adding
+  navigation. Static preflight cannot know which portal will authorise a future
+  request, so it does not warn merely because a raw or themed page reads the
+  optional block. `nav_block_ignored` applies only to a Bento deck that reads it:
+  decks deliberately receive no navigation, and the advice is to keep them raw
+  and remove or guard the reader.
+- `GET /api/v1/admin/portals/:id` reports `shows_switcher` (whether the member has
+  a published version) and `switcher_is_own` (whether that version reads the
+  navigation block). These source/publication indicators do not override the
+  runtime's deck exception or the need for a portal-authorised request.
 - Returning from a sibling is a **full reload**: `Cache-Control: no-store`
   suppresses bfcache, so a template's date range and filter selections reset.
   There is no fix without storage, and storage throws in the sandbox.
