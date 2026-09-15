@@ -104,6 +104,12 @@ totals and the explanatory count. Deal CSV exports contain a separate
 channel-only row and a reconciled total; neither assigns those conversions to a
 deal.
 
+CSV grouping follows the selected tracking view. **Daily** exports one ISO-date
+row per visible day plus the channel total, using the same date groups as the
+table. **By Deal** exports deal rows and the channel total; the weekly export
+uses week buckets. The filename and scope block identify that grouping and the
+selected date/deal filters.
+
 Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
