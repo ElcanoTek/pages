@@ -74,6 +74,17 @@ async function main() {
   assert.equal(gated.version.status, "pending");
   assert.equal(gated.published, false);
   assert.equal((await state()).published_version_id, built.version.id);
+  // A config-schema migration supplies no new data, so it retains freshness.
+  await templates.register({ name: "config-migration-design", html }, actor);
+  const configBuilt = await templates.createPage({ template: "config-migration-design", slug: "config-migration-page", config, data: { count: 11 }, sourceAsOf: "2026-08-01T00:00:00Z" }, actor);
+  const configTargetHtml = html
+    .replace(block("pages-config-schema", schema({ campaign: { type: "string" } }), "application/schema+json"), block("pages-config-schema", schema({ campaign: { type: "string" }, region: { type: "string" } }), "application/schema+json"))
+    .replace(block("pages-config", config), block("pages-config", targetConfig));
+  await templates.register({ name: "config-migration-design", html: configTargetHtml }, actor);
+  const configMigrated = await templates.rerenderPage({ slug: "config-migration-page", config: targetConfig, expectedVersion: configBuilt.version.id }, actor);
+  const initialHtml = (await db.query("SELECT html FROM page_versions WHERE id = $1", [configBuilt.version.id])).rows[0].html;
+  const pageData = require("../lib/page-data");
+  assert.deepEqual(configMigrated.envelope, pageData.parseManaged(initialHtml, pageData.TEMPLATE_SPEC).envelope);
   console.log("✓ target-shaped template migrations are atomic drafts with truthful provenance and freshness");
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => db.pool.end());
