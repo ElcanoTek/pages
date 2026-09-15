@@ -804,7 +804,8 @@ test("update prompts: recurring managed-data runs follow the live contract and r
   assert.match(prompt, /Read the current published contract on every run/);
   assert.match(prompt, /mcp_pages_get_page_data/);
   assert.match(prompt, /mcp_pages_update_page_data/);
-  assert.match(prompt, /confirm_audit/);
+  assert.doesNotMatch(prompt, /confirm_audit|critical_actions/);
+  assert.match(prompt, /Pages does not require an additional host approval tool/);
   assert.match(prompt, /user-owned scheduler/i);
   assert.match(prompt, /never create another page, companion data page, or replacement slug/i);
   assert.match(prompt, /Never invent zeros/i);
@@ -939,7 +940,7 @@ test("update prompts: the managed-data prompt routes payloads by size instead of
     // The audit instruction covers whichever transport was chosen.
     assert.match(
       prompt,
-      /If the runtime provides confirm_audit/
+      /Follow the caller's configured approval workflow/
     );
   }
 });
@@ -5394,7 +5395,7 @@ test("no-update and blocked branches never require publishing or a fictitious au
   assert.match(noUpdate, /do not build\/upload\/publish/);
   assert.match(noUpdate, /If the check fails, report failure instead/);
   assert.match(prompt, /Never record source_not_updated for a source you could not retrieve/);
-  assert.match(prompt, /If the runtime provides confirm_audit/);
-  assert.match(prompt, /critical_actions=\[\]/);
+  assert.match(prompt, /Follow the caller's configured approval workflow/);
+  assert.match(prompt, /If no mutations remain, report that without inventing actions/);
   assert.match(prompt, /stop on an explicit policy, authentication or DNS failure/);
 });
