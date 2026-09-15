@@ -46,7 +46,7 @@ async function main() {
   const revision = await templates.register({ name: "migration-design", html: targetHtml }, actor);
   const args = { slug: "migration-page", revision: 2, config: targetConfig, data: { total: 7 }, sourceAsOf: "2026-08-01T00:00:00Z", expectedVersion: built.version.id };
   const before = await state();
-  await assert.rejects(templates.rerenderPage({ slug: args.slug, revision: 2 }, actor), (e) => e.code === "config_validation_failed");
+  await assert.rejects(templates.rerenderPage({ slug: args.slug, revision: 2 }, actor), (e) => e.code === "data_validation_failed");
   await assert.rejects(versions.updatePageConfig({ slug: args.slug, config: targetConfig, expectedVersion: built.version.id }, actor), (e) => e.code === "config_validation_failed");
   await assert.rejects(templates.rerenderPage({ ...args, data: { total: "bad" } }, actor), (e) => e.code === "data_validation_failed");
   await assert.rejects(templates.rerenderPage({ ...args, expectedVersion: "1" }, actor), (e) => e.code === "stale_version");
