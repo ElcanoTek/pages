@@ -95,7 +95,7 @@ not yet consume structured results.
 | `start_page_upload` | `slug? \| template?, total_bytes, content_sha256` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
 | `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default); an exact sequence replay is idempotent |
 | `cancel_page_upload` | `upload_id` | discard an uncommitted upload and free its active-upload slot; never changes a page/version |
-| `deploy_page_upload` | `upload_id, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | SHA-verify and atomically create-or-update from the staged bytes; exact commit retries return the original result |
+| `deploy_page_upload` | `upload_id, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | SHA-verify and atomically create-or-update from the staged bytes; exact commit retries preserve the original receipt and refresh current serving guidance |
 | `deploy_page` | `slug, html, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | **create-or-update** from small inline HTML. Publishes by default on open pages; gated pages land pending. Creation-only fields are ignored for an existing page. A Bento deck (`.bento.html`) is recognised by its document block, defaults to `render_mode: raw`, and is refused as `themed` — see AUTHORING.md → *Bento decks* |
 | `update_page` | `slug, html, render_mode?, note?, publish?, expected_version?` | deploy small inline HTML to an existing page (fails if missing); same publish default and concurrency check |
 | `update_page_data` | `slug, data, source_as_of, expected_version, publish?, note?, expect?` | validate and replace only the managed data block; source coverage is monotonic, publish defaults true, and exact retries dedupe. Returns **`data_profile`** (row counts, date extents, numeric totals, distinct values of low-cardinality keys) and **`data_warnings`** (coverage that starts later or ends earlier than what is already published, rows that dropped, dimension values that disappeared, a first payload with no baseline and no `expect` to check it against, or a refresh whose numbers did not move at all). `expect` states what you computed from the source and the write is **refused** (`data_reconciliation_failed`) if the payload disagrees |
@@ -229,7 +229,30 @@ Uploads are stored in PostgreSQL, bound to the bearer token, limited to 2 MiB
 and five active handles per token, and expire 24 hours after inactivity. Exact
 chunk retries are deduplicated. Byte count, SHA-256, and UTF-8 are verified
 before the version, publish pointer, audit row, and upload commit are written in
-one transaction. An exact `deploy_page_upload` retry returns its saved result.
+one transaction. Exact retries of `deploy_page_upload`, `update_page_data_upload`
+and `register_template_upload` never execute the committed mutation again,
+change the saved receipt, or extend its expiry. Different commit options still
+fail with `page_upload_commit_conflict`.
+
+A committed retry adds `replayed: true`. Its version or template revision,
+`published`, `gated`, `deduped`, and any data envelope, profile and warnings are
+receipts of the **original operation**. In particular, `published: true` says
+that operation published; it does not say its version is still live. Page and
+data retries refresh `version_is_live`, `page_is_live`, `live_version_id`, the
+compatibility `live` field where present, and `next_step` from the original
+page's current state. A disabled or deleted page is never reported as serving.
+Deleting a page and reusing its slug does not attach the old receipt to the
+replacement page. If another version is live, replay guidance calls for a
+current read before any new publication decision; it never republishes the
+old upload automatically. These fields describe the state read for this reply,
+which a later publication can change.
+
+Template retries likewise preserve the original registration receipt while
+refreshing `next_step`: a newer current revision is identified, and retirement
+is reported even if the name has been reused. Retrying never revives a retired
+template. Retiring the design behind a data upload does not retire its page:
+page/data replay still reports that original page's actual serving state,
+since materialized pages keep serving independently of template availability.
 
 ### Try it (curl)
 

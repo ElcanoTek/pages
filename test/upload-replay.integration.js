@@ -28,7 +28,7 @@ async function stage(target, content) {
   return upload.upload_id;
 }
 const html = (label) => `<!doctype html><html><head><title>Northwind</title></head><body>${label}</body></html>`;
-const schema = (properties) => ({ type: "object", additionalProperties: false, required: Object.keys(properties), properties });
+const schema = (properties) => ({ $schema: "https://json-schema.org/draft/2020-12/schema", type: "object", additionalProperties: false, required: Object.keys(properties), properties });
 const block = (id, data, type = "application/json") => `<script id="${id}" type="${type}">${JSON.stringify(data)}</script>`;
 const managedHtml = html("Northwind").replace("</body>",
   block("pages-config-schema", schema({ title: { type: "string" } }), "application/schema+json") +
@@ -89,9 +89,15 @@ async function main() {
   console.log("✓ page replay follows publication, rollback, disable and deletion without reusing a replacement page");
 
   const dataSlug = "replay-data";
-  const base = await call("deploy_page", { slug: dataSlug, html: managedHtml, render_mode: "raw", publish: true });
+  await templates.register({ name: "replay-data-design", html: managedHtml }, actor);
+  const base = await call("create_page_from_template", { template: "replay-data-design", slug: dataSlug, config: { title: "Northwind" }, render_mode: "raw", publish: true });
   const dataArgs = { upload_id: await stage({ slug: dataSlug, kind: "data" }, JSON.stringify({ count: 1 })), slug: dataSlug, source_as_of: "2026-08-02T00:00:00.000Z", expected_version: base.version.id };
   const data = await call("update_page_data_upload", dataArgs);
+  await templates.remove({ template: "replay-data-design", force: true }, actor);
+  await replay("update_page_data_upload", dataArgs, data, { version_is_live: true, page_is_live: true, live_version_id: data.version.id });
+  const newerData = await call("update_page_data", { slug: dataSlug, data: { count: 2 }, source_as_of: "2026-08-03T00:00:00.000Z", expected_version: data.version.id });
+  result = await replay("update_page_data_upload", dataArgs, data, { version_is_live: false, page_is_live: true, live_version_id: newerData.version.id });
+  assert.match(result.next_step, /get_page_data/);
   await versions.rollback({ slug: dataSlug, versionId: base.version.id }, actor);
   await replay("update_page_data_upload", dataArgs, data, { version_is_live: false, page_is_live: true, live_version_id: base.version.id });
   await versions.setDisabled({ slug: dataSlug, disabled: true }, admin);
@@ -105,7 +111,7 @@ async function main() {
   const template = "replay-template";
   const templateArgs = { upload_id: await stage({ template }, managedHtml) };
   const registered = await call("register_template_upload", templateArgs);
-  await templates.register({ name: template, html: managedHtml.replace("Northwind</body>", "Contoso</body>").replace("<title>Northwind</title>", "<title>Contoso</title>") }, actor);
+  await templates.register({ name: template, html: managedHtml.replace("<title>Northwind</title>", "<title>Contoso</title>") }, actor);
   result = await replay("register_template_upload", templateArgs, registered, {});
   assert.match(result.next_step, /current revision is 2/);
   await templates.remove({ template }, actor);
