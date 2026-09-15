@@ -34,7 +34,7 @@ test("invalid typed dates retain their text and leave the applied range unchange
 test("calendar navigation and editing the other endpoint preserve an invalid typed date", async ({ page }) => {
   await openDates(page);
   await page.locator("#draftStart").fill("06/31/2026");
-  await page.getByRole("button", { name: "Forward 1 month", exact: true }).click();
+  await page.getByTitle("Forward 1 month", { exact: true }).click();
   await expect(page.locator("#draftStart")).toHaveValue("06/31/2026");
   await page.locator("#draftEnd").fill("06/19/2026");
   await page.locator("#dateApply").click();

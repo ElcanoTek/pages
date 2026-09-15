@@ -110,6 +110,14 @@ table. **By Deal** exports deal rows and the channel total; the weekly export
 uses week buckets. The filename and scope block identify that grouping and the
 selected date/deal filters.
 
+The date picker accepts complete `MM/DD/YYYY` dates and rejects impossible
+calendar dates, empty endpoints, and an end date before the start date. Typed
+dates must fall inside the available reporting span, including its endpoints;
+the calendar disables dates outside that same span and presets intersect it.
+An invalid edit stays visible with an inline error and leaves the applied
+filter unchanged. Choosing a calendar day or preset replaces the edit, while
+Cancel restores the applied range when the picker is reopened.
+
 Summary and deal deltas compare the last seven displayed days (or the whole
 selected range when shorter) with the immediately preceding period of equal
 length. Comparison data comes from the full loaded history with the same
