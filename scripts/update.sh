@@ -140,6 +140,7 @@ pages_update() (
   fi
   ln -s "$SHARED_ASSETS" "$release/assets"
   [[ ! -e "$SHARED_ENV" ]] || ln -s "$SHARED_ENV" "$release/.env"
+  chown "$APP_USER:$APP_USER" "$SHARED_ASSETS"
   chown -h "$APP_USER:$APP_USER" "$release/assets"
   switch_link "$release"
   PAGES_SCRIPT_ROOT="$release"
