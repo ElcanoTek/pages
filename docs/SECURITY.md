@@ -220,7 +220,11 @@
   strict brute-force guard on the password form, backed by a **progressive
   per-page backoff** (one shared failure counter per page across all source
   IPs, delaying only the 401 — never a lockout attackers could turn on real
-  viewers). The MCP boundary validates Host,
+  viewers). Client attribution is configured identically on the dispatcher and
+  both serving apps: exactly one loopback proxy hop by default, explicit proxy
+  addresses/CIDRs with `PAGES_TRUST_PROXY`, or `false` for direct access. Earlier
+  forwarded hops are never trusted; host dispatch reads `Host` itself. This same
+  attribution reaches mutation audit records. The MCP boundary validates Host,
   validates any supplied Origin, rate-limits, and authenticates **before** parsing
   the HTML-sized JSON body. JSON-RPC batches are rejected, so one HTTP request
   cannot fan out into many database operations.

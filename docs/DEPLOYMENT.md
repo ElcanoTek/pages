@@ -274,6 +274,7 @@ every agent integration at once.
 | `CONTENT_ORIGIN` | `https://$CONTENT_HOST` | Set only to override the scheme |
 | `CONTENT_HOST_ALSO` | unset | An extra hostname treated as the content host. **Local dev only** |
 | `PORT` | `3002` | Listen port, loopback behind Caddy |
+| `PAGES_TRUST_PROXY` | `loopback` | Trusted immediate proxy IPs/CIDRs, comma-separated; `false` disables forwarded client attribution |
 | `NODE_ENV` | unset | Set to `production`. Enables the fail-closed secret checks and suppresses stack traces in error pages |
 
 The defaults are ElcanoTek's own deployment. Nothing host-specific is compiled
@@ -310,6 +311,13 @@ widens a boundary that is checked before the body is parsed.
 
 These sit on top of a per-page progressive backoff that is not configurable and
 deliberately delays rather than locks out.
+
+Both serving applications use the same client attribution for these limits and
+mutation audit records. By default, Pages trusts exactly one loopback proxy hop,
+matching the supplied Caddy deployment. Direct local requests without forwarded
+headers continue to use their connecting address. Set `PAGES_TRUST_PROXY=false`
+when accessing Pages directly without a proxy; forwarded client addresses are
+then ignored.
 
 ### Payload and upload bounds
 
@@ -397,7 +405,17 @@ pages tls reload
 Fronting with nginx, HAProxy or an ALB instead is fine — proxy both hostnames to
 `127.0.0.1:3002`, preserve the `Host` header (the app branches on it; get this
 wrong and every request lands in the wrong zone), and reproduce the header
-blocks above. Answer `n` to the Caddy prompt.
+blocks above. Answer `n` to the Caddy prompt. A proxy connecting from outside
+loopback also needs its actual connecting IP or CIDR in `PAGES_TRUST_PROXY`, for
+example `192.0.2.10/32,2001:db8::10/128`. Use only the proxy's addresses, not a
+blanket trusted network.
+
+The immediate proxy must replace `X-Forwarded-For` with the connecting client's
+address, or append that address as its last entry. Pages uses that last entry
+only when the socket peer is trusted, and never walks earlier forwarded hops.
+For a chain of proxies, the immediate proxy must normalize this value to the
+verified original client; adding more trusted hops in Pages is unsupported.
+`X-Forwarded-Host` does not select the serving zone: preserve the original `Host`.
 
 `firewalld`, if active, gets `http` and `https` opened permanently.
 
