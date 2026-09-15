@@ -4918,7 +4918,8 @@ test("mcp-tools: update_page_data states the supported payload size in its schem
   const described = shape.data.description || "";
   // The number is what stops the guessing; "do not split" is what stops the
   // other failure mode, where a cautious caller publishes a partial payload.
-  assert.match(described, /1\.5 MB|1500000/i);
+  assert.match(described, /compact payload 1048576/);
+  assert.match(described, /stored HTML-escaped envelope 1048576/);
   assert.match(described, /whole|not split/i);
 });
 
@@ -4928,7 +4929,6 @@ test("mcp-tools: an oversized payload is refused with an actionable code", () =>
   assert.equal(typeof assertInlineData, "function", "assertInlineData must be exported");
 
   // Just under a small cap passes; just over is refused.
-  const prev = process.env.PAGES_MCP_MAX_INLINE_DATA_BYTES;
   assert.doesNotThrow(() => assertInlineData({ rows: [] }));
 
   const big = { rows: Array.from({ length: 20000 }, (_, i) => ({ i, pad: "x".repeat(200) })) };
@@ -4939,11 +4939,11 @@ test("mcp-tools: an oversized payload is refused with an actionable code", () =>
     err = e;
   }
   assert.ok(err, "a payload past the cap must be refused");
-  assert.equal(err.code, "data_too_large_for_inline");
+  assert.equal(err.code, "data_validation_failed");
+  assert.equal(err.details.changing_transport_can_help, false);
   // The refusal must forbid the dangerous workaround explicitly.
   assert.match(err.message, /not split, sample or summarize/i);
   assert.ok(err.details && err.details.bytes > err.details.max_bytes);
-  process.env.PAGES_MCP_MAX_INLINE_DATA_BYTES = prev;
 });
 
 test("mcp-tools: a realistic 978 KB payload is accepted, not refused", () => {

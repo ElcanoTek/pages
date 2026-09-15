@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 "use strict";
+
 require("./scripts/check-node").assertSupported();
+const { MAX_REQUEST_BYTES } = require("./lib/data-limits");
 // server.js — Elcano Pages. ONE Express process, TWO registrable domains
 // (see PLAN.md §3, §7):
 //
@@ -248,7 +250,7 @@ contentApp.options("/raw/*slug/versions", limits.content, (_req, res) => {
 contentApp.post(
   "/raw/*slug/versions",
   limits.content,
-  express.text({ type: ["text/html", "text/plain"], limit: process.env.MAX_HTML_BYTES || "2mb" }),
+  express.text({ type: ["text/html", "text/plain"], limit: MAX_REQUEST_BYTES }),
   async (req, res) => {
     saveChannelCors(res);
     const slug = req.params.slug.join("/");
@@ -397,7 +399,7 @@ dashboardApp.use("/upload", limits.api, uploadTicket.router);
 
 dashboardApp.use(express.urlencoded({ extended: false, limit: "64kb" }));
 // JSON body cap = the per-version HTML ceiling (PLAN §7: HTML ≤ ~1–2 MB).
-dashboardApp.use(express.json({ limit: process.env.MAX_HTML_BYTES || "2mb" }));
+dashboardApp.use(express.json({ limit: MAX_REQUEST_BYTES }));
 
 dashboardApp.get("/healthz", (_req, res) => res.type("text").send("ok"));
 dashboardApp.get("/readyz", readiness.handler);
