@@ -119,7 +119,7 @@ function request(port, localAddress, { method = "GET", path, host = "dashboard.t
     });
     assert.equal(created.status, 201, created.text);
     const pageId = JSON.parse(created.text).page.id;
-    const audit = await db.query("SELECT host(ip) AS ip FROM audit_log WHERE page_id=$1 ORDER BY id DESC LIMIT 1", [pageId]);
+    const audit = await db.query("SELECT ip FROM audit_log WHERE page_id=$1 ORDER BY id DESC LIMIT 1", [pageId]);
     assert.equal(audit.rows[0].ip, "127.0.0.5", "mutations record the connecting client");
     console.log(`✓ ${mode}: proxy hops, raw Host dispatch and audit attribution`);
   } catch (err) {
