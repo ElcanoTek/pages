@@ -186,6 +186,46 @@ test("a fallback that cannot start tells the editor to keep its unsaved work ope
   await expect(toast).not.toContainText("Starting a download");
 });
 
+test("overlapping rejected saves retain each file after the producer revokes both URLs", async ({ page }) => {
+  await page.goto("/bento/edit");
+  await expect(page.locator("#booted")).toBeVisible();
+  let release, arrived;
+  const reply = new Promise(resolve => { release = resolve; });
+  const started = new Promise(resolve => { arrived = resolve; });
+  await page.route("**/bento/save", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    arrived(); await reply;
+    await route.fulfill({ status: 409, headers: { "Access-Control-Allow-Origin": "null" },
+      json: { error: "A newer version exists. Reopen the editor from the admin.", code: "stale_deck_version" } });
+  });
+  const downloads = [];
+  page.on("download", download => downloads.push(download));
+  await page.evaluate(() => {
+    let count = 0;
+    const button = document.createElement("button"); button.id = "save-overlap"; button.textContent = "Save another snapshot";
+    button.onclick = () => {
+      count += 1;
+      const anchor = document.createElement("a");
+      anchor.href = URL.createObjectURL(new Blob([`<html><body>Snapshot ${count}</body></html>`], { type: "text/html" }));
+      anchor.download = `Northwind-${count}.bento.html`;
+      anchor.click(); URL.revokeObjectURL(anchor.href);
+    };
+    document.body.appendChild(button);
+  });
+  await page.locator("#save-overlap").click(); await started;
+  await page.locator("#save-overlap").click(); release();
+  await expect.poll(() => downloads.length).toBe(2);
+  const contents = {};
+  for (const download of downloads) {
+    expect(await download.failure()).toBeNull();
+    contents[download.suggestedFilename()] = await fs.readFile(await download.path(), "utf8");
+  }
+  expect(contents).toEqual({
+    "Northwind-1.bento.html": "<html><body>Snapshot 1</body></html>",
+    "Northwind-2.bento.html": "<html><body>Snapshot 2</body></html>",
+  });
+});
+
 test("a viewer's deck has no save channel at all", async ({ page }) => {
   const response = await page.goto("/bento/deck");
   expect(response.headers()["content-security-policy"]).toMatch(/connect-src 'none'/);
