@@ -95,6 +95,15 @@ averaging daily ratios. A missing required input or zero denominator renders
 `N/A`; an observed zero numerator remains a real zero. Rows from a different
 feed that supply neither KPI input do not contribute to that ratio.
 
+Channel-only conversions in `unallocated` are included once in channel,
+campaign, daily and weekly totals, including CPA denominators, when every deal
+in that channel is selected. They never appear as conversions for an individual
+deal. A partial deal selection excludes that channel's unallocated conversions
+and explains the exclusion beneath the table. Date filters apply to both the
+totals and the explanatory count. Deal CSV exports contain a separate
+channel-only row and a reconciled total; neither assigns those conversions to a
+deal.
+
 Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
