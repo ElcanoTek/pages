@@ -733,7 +733,9 @@ curl -s -o /dev/null -w '%{http_code}\n' https://pages.example.com/some-slug  # 
 
 `pages backup` is a stub. Do it yourself. Two things need backing up: the
 Postgres database (pages, versions, passwords, tokens, portals, audit log) and
-`/opt/pages/assets`.
+the directory reached through `/opt/pages/assets`. After the first managed
+update, that path links to `/opt/pages.assets`; archive the directory contents,
+not the link.
 
 ### Backup
 
@@ -742,7 +744,7 @@ sudo install -d -m 0700 /var/backups/pages
 sudo runuser -u postgres -- pg_dump -Fc pages \
   > /var/backups/pages/pages-$(date -u +%Y%m%dT%H%M%SZ).dump
 sudo tar czf /var/backups/pages/assets-$(date -u +%Y%m%dT%H%M%SZ).tar.gz \
-  -C /opt/pages assets
+  -C "$(readlink -f /opt/pages/assets)" .
 ```
 
 Dump the database **before** the assets, so a referenced asset can never be
@@ -753,8 +755,10 @@ three HMAC secrets and the database password. Without `API_TOKEN_PEPPER` a
 restored database has unusable tokens; without `PAGE_COOKIE_SECRET` every client
 session is void. A database backup alone is not a recoverable backup.
 
-`/opt/pages` and `/opt/pages-src` need no backup — they are reproducible from
-git plus `npm ci`.
+Keep `/etc/default/pages-install` with the recovery instructions so custom
+paths, service account, and port can be restored. Release code and
+`/opt/pages-src` are reproducible from git plus `npm ci`; shared assets and any
+local environment file are persistent data and need their own backups.
 
 A nightly cron:
 
@@ -771,13 +775,14 @@ pages stop
 sudo runuser -u postgres -- dropdb pages
 sudo runuser -u postgres -- createdb -O pages pages
 sudo runuser -u postgres -- pg_restore -d pages /var/backups/pages/pages-<ts>.dump
-sudo tar xzf /var/backups/pages/assets-<ts>.tar.gz -C /opt/pages
-sudo chown -R pages:pages /opt/pages/assets
+sudo tar xzf /var/backups/pages/assets-<ts>.tar.gz \
+  -C "$(readlink -f /opt/pages/assets)"
+sudo chown -R pages:pages "$(readlink -f /opt/pages/assets)"
 # restore /etc/default/pages if lost — mode 0640, root:pages
 sudo runuser -u pages -- bash -c \
   'set -a; . /etc/default/pages; set +a; cd /opt/pages && node lib/migrate.js'
 pages start
-curl -fsS http://127.0.0.1:3002/healthz
+curl -fsS http://127.0.0.1:3002/readyz
 ```
 
 `pg_restore` will emit ownership warnings if the role names differ; harmless as
