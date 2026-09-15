@@ -492,18 +492,29 @@
     }
   }
 
-  // Full size, for reading a dense dashboard. Still the signed content-host URL;
-  // noopener so it cannot reach back into this trusted document.
+  // Open synchronously while the click owns user activation, then sever the
+  // opener before any content-host document can be loaded into the tab.
   async function openPreviewTab(name, revision, trigger) {
+    const tab = window.open("", "_blank");
+    if (!tab) {
+      toast("Your browser blocked the preview window. Allow pop-ups for this site.", { tone: "error" });
+      return;
+    }
+    tab.opener = null;
     await runAction({
       button: trigger,
       busyLabel: "Opening…",
       idleLabel: "Open full size",
       failure: "Preview failed",
       run: async () => {
-        const result = await previewToken(name, revision);
-        const opened = window.open(result.url, "_blank", "noopener");
-        if (!opened) toast("Your browser blocked the preview window. Allow pop-ups for this site.", { tone: "error" });
+        try {
+          const result = await previewToken(name, revision);
+          if (tab.closed) throw new Error("The preview tab was closed. Open full size to try again.");
+          tab.location = result.url;
+        } catch (error) {
+          tab.close();
+          throw error;
+        }
       },
     });
   }
