@@ -885,10 +885,10 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
 
     await adminPost("/api/v1/admin/pages", { slug: "admin-source-metadata", title: "Northwind metadata" });
     const metadataHtml = '<!doctype html><html><body><h1>Northwind</h1>' +
-      '<script id="pages-data-schema" type="application/schema+json">{"type":"object"}</script>' +
+      '<script id="pages-data-schema" type="application/schema+json">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}</script>' +
       '<script id="pages-data" type="application/json">' + JSON.stringify({ contract_version: 1, refreshed_at: "2026-08-01T01:00:00Z", source_as_of: "2026-08-01T00:00:00Z", data: { count: 7 } }) + '</script></body></html>';
     const metadataDraft = await adminPost("/api/v1/admin/pages/admin-source-metadata/deploy-source", { html: metadataHtml });
-    assert.equal(metadataDraft.status, 200);
+    assert.equal(metadataDraft.status, 200, JSON.stringify(metadataDraft.json));
     const indexedMetadata = (await db.query("SELECT data_sha256, data_template_sha256, refreshed_at, source_as_of, template_version_id FROM page_versions WHERE id=$1", [metadataDraft.json.version.id])).rows[0];
     const parsedMetadata = require("../lib/page-data").parseManagedHtml(metadataHtml);
     assert.equal(indexedMetadata.data_sha256, parsedMetadata.data_sha256);
