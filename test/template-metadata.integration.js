@@ -36,7 +36,7 @@ async function main() {
   assert.equal(await count(), before + 1, "a title-only change is a transactionally audited mutation");
   assert.equal(title.deduped, true);
   assert.equal(title.metadata_updated, true);
-  assert.equal(title.revision.id, initial.revision.id);
+  assert.equal(title.revision.version_id, initial.revision.version_id);
   const description = await templates.register({ name: "metadata-test", html, description: "Revised" }, actor);
   assert.equal(await count(), before + 2, "a description-only change is audited once");
   const retry = await templates.register({ name: "metadata-test", html, title: "Contoso", description: "Revised" }, actor);
