@@ -497,3 +497,49 @@ test("a blocked full-size preview reports the blocked opening without requesting
   await expect(page.getByText(/Your browser blocked the preview window/)).toBeVisible();
   expect(calls).toBe(0);
 });
+
+for (const lateFailure of [false, true]) {
+  test(`template detail ignores a superseded ${lateFailure ? "error" : "response"}`, async ({ page, request }) => {
+    await request.post("/api/v1/admin/templates", { data: { name: "contoso-design", html: TEMPLATE_HTML } });
+    await page.goto("/admin/templates");
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    await page.route("**/api/v1/admin/templates/nwm-campaign-dashboard", async (route) => {
+      const response = await route.fetch();
+      await gate;
+      if (lateFailure) await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Obsolete detail failure" }) });
+      else await route.fulfill({ response });
+    });
+    const first = page.waitForRequest("**/api/v1/admin/templates/nwm-campaign-dashboard");
+    await page.locator("#template-list tr", { hasText: "nwm-campaign-dashboard" }).getByRole("button", { name: "Inspect" }).click();
+    await first;
+    await page.locator("#template-list tr", { hasText: "contoso-design" }).getByRole("button", { name: "Inspect" }).click();
+    await expect(page.locator("#detail")).toContainText("contoso-design");
+    const resolved = page.waitForResponse("**/api/v1/admin/templates/nwm-campaign-dashboard");
+    release();
+    await resolved;
+    await page.waitForTimeout(100);
+    await expect(page.locator("#detail")).toContainText("contoso-design");
+    await expect(page.locator("#tpl-preview-frame")).toHaveAttribute("src", /contoso-design/);
+    await expect(page.getByText(/Obsolete detail failure/)).toHaveCount(0);
+  });
+}
+
+test("closing detail invalidates a pending selection", async ({ page, request }) => {
+  await request.post("/api/v1/admin/templates", { data: { name: "contoso-design", html: TEMPLATE_HTML } });
+  await page.goto("/admin/templates");
+  await page.locator("#template-list tr", { hasText: "nwm-campaign-dashboard" }).getByRole("button", { name: "Inspect" }).click();
+  await expect(page.locator("#detail")).toBeVisible();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route("**/api/v1/admin/templates/contoso-design", async (route) => {
+    const response = await route.fetch(); await gate; await route.fulfill({ response });
+  });
+  const started = page.waitForRequest("**/api/v1/admin/templates/contoso-design");
+  await page.locator("#template-list tr", { hasText: "contoso-design" }).getByRole("button", { name: "Inspect" }).click();
+  await started;
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  const resolved = page.waitForResponse("**/api/v1/admin/templates/contoso-design");
+  release(); await resolved; await page.waitForTimeout(100);
+  await expect(page.locator("#detail")).toHaveCount(0);
+});
