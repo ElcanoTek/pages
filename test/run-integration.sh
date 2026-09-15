@@ -165,6 +165,11 @@ node "$ROOT/test/api.integration.js"
 echo "▸ ratelimit integration"
 node "$ROOT/test/ratelimit.integration.js"
 
+echo "▸ proxy attribution integration"
+for mode in default direct custom; do
+  node "$ROOT/test/proxy.integration.js" "$mode"
+done
+
 echo "▸ mcp integration"
 node "$ROOT/test/mcp.integration.js"
 
