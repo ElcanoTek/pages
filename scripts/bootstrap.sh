@@ -24,13 +24,10 @@
 set -euo pipefail
 if [[ ! -t 0 && -t 1 ]]; then exec </dev/tty; fi
 
-APP_DIR="${APP_DIR:-/opt/pages}"
-APP_USER="${APP_USER:-pages}"
-SRC_DIR="${SRC_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-INSTALL_SRC_DIR="${PAGES_SRC_DIR:-/opt/pages-src}"
-ENV_FILE="/etc/default/pages"
-CLI_TARGET="/usr/local/bin/pages"
-PORT="${PAGES_PORT:-3002}"
+PAGES_SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$PAGES_SCRIPT_ROOT/scripts/install-config.sh"
+SRC_DIR="${SRC_DIR:-$PAGES_SCRIPT_ROOT}"
+RESOLVED_PORT="$PORT"
 
 if [[ -t 1 && "${TERM:-}" != "dumb" ]]; then
   c_reset=$'\033[0m' c_dim=$'\033[2m' c_red=$'\033[0;31m'
@@ -77,6 +74,7 @@ if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | cut -dv -f2 | cut -d. -f
   curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >/dev/null
   dnf install -y nodejs >/dev/null
 fi
+render_install check || die "invalid installation settings"
 ok "node $(node -v)  •  $(postgres --version 2>/dev/null || echo postgresql installed)"
 
 step "2/6  Preparing $APP_DIR + '$APP_USER' user"
@@ -107,6 +105,7 @@ if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090
   set -a; . "$ENV_FILE"; set +a
 fi
+PORT="$RESOLVED_PORT"
 
 AUTH_SIGNING_PUBKEY="$(prompt AUTH_SIGNING_PUBKEY "Auth service public signing key (AUTH_SIGNING_PUBKEY from the auth host)" "${AUTH_SIGNING_PUBKEY:-}")"
 _pub_bytes="$(printf '%s' "$AUTH_SIGNING_PUBKEY" | base64 -d 2>/dev/null | wc -c | tr -d ' ')"
@@ -212,8 +211,9 @@ elif [[ -n "$TOKEN_COUNT" ]]; then
 fi
 
 step "5/6  Installing systemd unit + CLI + starting"
-install -m 0644 "$APP_DIR/deploy/pages.service" /etc/systemd/system/
-install -m 0755 "$APP_DIR/deploy/pages-cli" "$CLI_TARGET"
+install_rendered config "$PAGES_INSTALL_CONFIG" 0644
+install_rendered service /etc/systemd/system/pages.service 0644
+install_rendered cli "$CLI_TARGET" 0755
 systemctl daemon-reload
 systemctl enable pages.service >/dev/null 2>&1 || true
 systemctl restart pages.service
@@ -246,8 +246,7 @@ if [[ "${SETUP_CADDY_ANS,,}" =~ ^(y|yes)$ ]]; then
   fi
 
   tmp=$(mktemp)
-  sed -e "s/{{DASHBOARD_HOST}}/$DASHBOARD_HOST/g" -e "s/{{CONTENT_HOST}}/$CONTENT_HOST/g" \
-    "$APP_DIR/deploy/pages.caddy" > "$tmp"
+  DASHBOARD_HOST="$DASHBOARD_HOST" CONTENT_HOST="$CONTENT_HOST" render_install caddy > "$tmp"
   if [[ "$USE_LE" != "y" ]]; then
     awk '/^[^[:space:]{}#].*\{$/ { print; print "\ttls internal"; next } { print }' "$tmp" > "$tmp.2" && mv "$tmp.2" "$tmp"
   fi
