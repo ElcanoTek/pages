@@ -477,6 +477,14 @@ old code is using — which is exactly what `pages update` does.
 
 Bootstrap and `pages update` both run them. To run them by hand:
 
+One database-wide advisory lock serializes migration runners before they read
+or create the tracking table, and stays held across each file's transaction.
+A concurrent runner waits up to 30 seconds, then exits with `MIGRATION_BUSY`
+and a retry instruction. Set `PAGES_MIGRATION_LOCK_TIMEOUT_MS` to adjust this
+wait (`0` means fail immediately). Ordinary page reads and writes do not take
+this lock. A failed file rolls back and releases the lock; already committed
+files remain applied and are skipped on retry.
+
 ```bash
 sudo runuser -u pages -- bash -c \
   'set -a; . /etc/default/pages; set +a; cd /opt/pages && node lib/migrate.js'
