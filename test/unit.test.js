@@ -3005,6 +3005,50 @@ test("preflight: data:, blob: and relative URLs are same-origin-safe and not fla
   assert.equal(r.errors.filter((e) => e.code === "remote_subresource_blocked").length, 0);
 });
 
+test("preflight: URL classification follows each resource directive on the configured content origin", () => {
+  const { CONTENT_ORIGIN, rawHeaders } = require("../lib/csp");
+  const before = rawHeaders();
+  const own = new URL(CONTENT_ORIGIN);
+  const cases = [
+    { html: url => `<script src="${url}"></script>`, directive: "script-src", relative: true, data: false, blob: true },
+    { html: url => `<link rel="stylesheet" href="${url}">`, directive: "style-src", relative: true, data: false, blob: false },
+    { html: url => `<img src="${url}">`, directive: "img-src", relative: true, data: true, blob: true },
+    { html: url => `<link rel="preload" as="font" href="${url}">`, directive: "font-src", relative: true, data: true, blob: false },
+    { html: url => `<video src="${url}"></video>`, directive: "media-src", relative: false, data: true, blob: true },
+    { html: url => `<iframe src="${url}"></iframe>`, directive: "frame-src", relative: false, data: false, blob: false },
+    { html: url => `<object data="${url}"></object>`, directive: "object-src", relative: false, data: false, blob: false },
+  ];
+  for (const resource of cases) {
+    for (const [url, allowed] of [
+      ["/assets/example", resource.relative], ["../assets/example", resource.relative],
+      [`${own.origin}/assets/example`, resource.relative], [`//${own.host}/assets/example`, resource.relative],
+      ["//northwind.invalid/asset", false], ["https://northwind.invalid/asset", false],
+      ["data:application/octet-stream;base64,AA==", resource.data], ["blob:null/fixture", resource.blob],
+    ]) {
+      const result = preflight.analyze(wrapPage(resource.html(url)));
+      const findings = result.errors.filter(error => error.code === "remote_subresource_blocked");
+      assert.equal(findings.length, allowed ? 0 : 1, `${resource.directive}: ${url}`);
+      if (!allowed) assert.equal(findings[0].directive, resource.directive);
+    }
+  }
+  assert.deepEqual(rawHeaders(), before, "diagnostics must not change the served policy");
+});
+
+test("preflight: CSS imports, font sources and media child URLs use their own resource policy", () => {
+  const result = preflight.analyze(wrapPage(`
+    <style>
+      @import url('//northwind.invalid/style.css');
+      @font-face { font-family: Northwind; src: url('blob:null/font'); }
+      .logo { background: url('data:image/svg+xml;base64,AA=='); }
+    </style>
+    <video poster="data:image/png;base64,AA=="><source src="/movie.mp4"></video>
+    <link rel="modulepreload" href="//northwind.invalid/code.js">
+    <link rel="preload" as="fetch" href="/data.json">
+  `));
+  assert.deepEqual(result.errors.filter(error => error.code === "remote_subresource_blocked").map(error => error.directive).sort(),
+    ["connect-src", "font-src", "media-src", "script-src", "style-src"]);
+});
+
 test("preflight: a script that does not parse is reported — every control it wires is dead", () => {
   const r = preflight.analyze(wrapPage("<div></div>", "function broken({ oops"), { renderMode: "raw" });
   const hit = r.errors.find((e) => e.code === "script_syntax_error");

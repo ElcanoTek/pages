@@ -10,6 +10,15 @@ findings in its `preflight` field. **Read that field.** It is the only thing in
 the loop that can actually see whether your page works — the authoring sandbox
 has no browser, and the live page is not anonymously fetchable.
 
+Subresource checks resolve relative, protocol-relative (`//host/path`) and
+absolute URLs against the configured content origin, then use the same
+per-resource CSP directives as rendered pages. An absolute URL on that origin
+is permitted where `'self'` is allowed. Scheme support depends on the resource:
+for example, blob scripts and data/blob images are permitted, data scripts are
+blocked, and media permits embedded data/blob URLs but not same-origin files.
+These findings describe CSP permission, not whether an asset exists or has the
+right MIME type; they do not change the served policy.
+
 ## The one that keeps happening: inline handlers do not see your globals
 
 ```html
