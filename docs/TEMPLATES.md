@@ -326,6 +326,20 @@ A template name or revision change creates a new immutable page version even
 when materialized HTML is identical. Retrying the same target binding may reuse
 its existing draft; the reported binding always comes from the stored version.
 
+A schema revision may need complete replacement `config` and/or `data` in the
+same `rerender_page_from_template` call. These values validate against the target
+revision, never merge with reference config, and require `expected_version` from
+a fresh live read. Replacement data also requires explicit `source_as_of`, must
+not regress source coverage (including unpublished canaries), and records a new
+`refreshed_at` because new data was supplied. Omitting data preserves its entire
+published envelope. Config-only migration therefore cannot freshen old numbers.
+
+The migration defaults to draft, or pending on approval-gated pages. Inspect the
+returned version before publication. Validation and stale-version failures write
+nothing: old history and the live URL keep serving as before. For a closed-schema
+revision, pass the new required fields directly to rerender instead of attempting
+to write them through the old revision's config/data tools first.
+
 One page per call. There is no bulk rerender.
 
 ## Identity and hashes

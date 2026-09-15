@@ -5508,3 +5508,11 @@ test("template rerender accepts explicit target-shaped config and data migration
     data: { total: 7 }, source_as_of: "2026-08-01T00:00:00Z", expected_version: "41", publish: false,
   }));
 });
+
+
+test("prepared template migrations use target-shaped values in one reviewed rerender", () => {
+  const prompt = updatePrompts.templatePrompt({ slug: "northwind", template: "northwind-design", revision: 1, liveVersionId: "41", publish: false, instructions: "Migrate the schema" });
+  assert.match(prompt, /complete target-valid config and\/or data in that SAME rerender call/);
+  assert.match(prompt, /Never try to stage target-only fields through update_page_config/);
+  assert.match(prompt, /combine settings that require the target schema with the reviewed rerender/);
+});
