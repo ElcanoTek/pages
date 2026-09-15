@@ -193,4 +193,49 @@ test("a measured zero-denominator day does not invalidate a computable period KP
   await expect(page.locator("#hero .hcard").last().locator(".delta")).toHaveText("▼ 14.3%");
   const csv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n");
   expect(Number(csv[1].split(",").at(-1))).toBeCloseTo(-1 / 7, 10);
+  await expect(page.locator("#wowTable tbody tr:not(.total)").first().locator("td").nth(5)).toHaveText("▼ 14.3%");
+  const weeklyCsv = (await exportCampaign(page, "wow")).text.split("\n\n")[1].trim().split("\n");
+  expect(Number(weeklyCsv[1].split(",")[8])).toBeCloseTo(-1 / 7, 10);
+});
+
+test("weekly KPI deltas compare complete prior weeks with metric-specific direction", async ({ page }) => {
+  const rows = Array.from({ length: 14 }, (_, index) => {
+    const date = `2026-06-${String(index + 1).padStart(2, "0")}`;
+    return [metricRow(date, { dspSpend: index < 7 ? 100 : 80, clicks: index < 7 ? 10 : 20 }),
+      metricRow(date, { dealId: "northwind-b", clicks: index < 7 ? 10 : 20 })];
+  }).flat();
+  await openCampaign(page, { rows, config: { channels: [
+    { id: "display", name: "Display", kpi: "cpc", kpiLabel: "CPC", target: 5, yellow: 8, lowerIsBetter: true, unit: "$", decimals: 2 },
+    { id: "video", name: "Video", kpi: "ctr", kpiLabel: "CTR", target: 0.02, yellow: 0.01, lowerIsBetter: false, unit: "%", decimals: 2 },
+  ], deals: [
+    { id: "northwind-a", channel: "display", short: "Alpha", full: "Northwind Alpha", code: "A" },
+    { id: "northwind-b", channel: "video", short: "Beta", full: "Northwind Beta", code: "A" },
+  ] } });
+  const weeks = page.locator("#wowTable tbody tr:not(.total)");
+  await expect(weeks.first().locator("td").nth(5)).toHaveText("—");
+  // CPC 700/70 = 10 -> 560/140 = 4 (-60%, favorable).
+  await expect(weeks.nth(1).locator("td").nth(4)).toHaveText("$4.00");
+  await expect(weeks.nth(1).locator("td").nth(5)).toHaveText("▼ 60.0%");
+  await expect(weeks.nth(1).locator("td").nth(5).locator(".delta")).toHaveAttribute("style", /tier-green/);
+  // CTR 70/7000 = 1% -> 140/7000 = 2% (+100%, favorable).
+  await expect(weeks.nth(1).locator("td").nth(6)).toHaveText("2.00%");
+  await expect(weeks.nth(1).locator("td").nth(7)).toHaveText("▲ 100.0%");
+  await expect(weeks.nth(1).locator("td").nth(7).locator(".delta")).toHaveAttribute("style", /tier-green/);
+  await expect(page.locator("#wowTable tr.total td").nth(5)).toHaveText("—");
+  const csv = (await exportCampaign(page, "wow")).text.split("\n\n")[1].trim().split("\n").map(line => line.split(","));
+  expect(csv[2].slice(7, 11).map(Number)).toEqual([4, -0.6, 0.02, 1]);
+  expect(csv.at(-1)[8]).toBe("");
+  expect(csv.at(-1)[10]).toBe("");
+
+  await page.evaluate(() => { STATE.start = "2026-06-09"; renderAll(); });
+  await expect(weeks.first().locator("td").first()).toContainText("(partial)");
+  await expect(weeks.first().locator("td").nth(5)).toHaveText("—");
+  await expect(weeks.first().locator("td").nth(7)).toHaveText("—");
+  await page.evaluate(() => { STATE.start = "2026-06-08"; renderAll(); });
+  await expect(weeks.first().locator("td").nth(5)).toHaveText("▼ 60.0%");
+  await page.evaluate(() => { delete ROWS.find(row => row.dealId === "northwind-b" && row.date === "2026-06-03").clicks; renderAll(); });
+  await expect(weeks.first().locator("td").nth(7)).toHaveText("—");
+  await expect(weeks.first().locator("td").nth(5)).toHaveText("▼ 60.0%");
+  await page.evaluate(() => { ROWS.filter(row => row.dealId === "northwind-a" && row.date < "2026-06-08").forEach(row => { row.clicks = 0; }); renderAll(); });
+  await expect(weeks.first().locator("td").nth(5)).toHaveText("—");
 });
