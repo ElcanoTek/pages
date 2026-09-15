@@ -169,6 +169,9 @@ async function create(destination, application, environment, installConfig) {
   try {
     await fs.mkdir(path.join(temporary, "config"), { mode: 0o700 });
     await fs.copyFile(environment, path.join(temporary, "config/service.env"));
+    if (process.env.PAGES_BACKUP_ENV_DIGEST && await digest(path.join(temporary, "config/service.env")) !== process.env.PAGES_BACKUP_ENV_DIGEST) {
+      throw new Error("service environment changed while loading configuration; retry after configuration changes finish");
+    }
     const optional = {}, configurationSources = [["service.env", environment]];
     for (const [name, source] of [["install.env", installConfig], ["local.env", path.join(application, ".env")]]) {
       try {

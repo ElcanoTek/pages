@@ -120,6 +120,28 @@ async function main() {
     Object.assign(env, { APP_DIR: app, APP_USER: os.userInfo().username, PAGES_APP_DIR: app,
       PAGES_ENV_FILE: serviceEnv, PAGES_INSTALL_CONFIG: installEnv, PAGES_SRC_DIR: ROOT });
     const before = databaseSnapshot(env);
+    const rejectedDestination = path.join(dir, "rejected-backups");
+    fs.mkdirSync(rejectedDestination);
+    const originalServiceEnv = fs.readFileSync(serviceEnv, "utf8");
+    for (const secret of ["RAW_TOKEN_SECRET", "API_TOKEN_PEPPER", "PAGE_COOKIE_SECRET"]) {
+      try {
+        fs.writeFileSync(serviceEnv, originalServiceEnv.split("\n").filter((line) => !line.startsWith(`${secret}=`)).join("\n"));
+        const rejected = run("bash", [path.join(ROOT, "scripts/backup.sh"), rejectedDestination],
+          { ...env, [secret]: "inherited-northwind-fixture-must-not-mask-missing-config" });
+        assert.notEqual(rejected.status, 0, `missing ${secret} must reject an unrecoverable backup`);
+        assert.equal(rejected.error, undefined, rejected.out);
+        assert.match(rejected.stderr, new RegExp(`service environment must define ${secret}`));
+        assert.deepEqual(fs.readdirSync(rejectedDestination), [], "configuration rejection leaves no backup artifact");
+      } finally { fs.writeFileSync(serviceEnv, originalServiceEnv); }
+    }
+    // The wrapper owns the same exclusive lock as an active managed update.
+    // Backup must decline its shared lock before reaching any capture work.
+    const locked = run("flock", ["-xn", `${app}.update.lock`, "bash", path.join(ROOT, "scripts/backup.sh"), rejectedDestination], env);
+    assert.notEqual(locked.status, 0, "a managed update prevents an inconsistent concurrent capture");
+    assert.equal(locked.error, undefined, locked.out);
+    assert.match(locked.stderr, /a Pages update is running/);
+    assert.deepEqual(fs.readdirSync(rejectedDestination), [], "lock conflict leaves no backup artifact");
+    assert.equal(databaseSnapshot(env), before, "configuration and lock rejections leave source state unchanged");
     const created = JSON.parse(good(run("bash", [path.join(ROOT, "scripts/backup.sh"), destination], env)));
     const backup = created.backup_dir;
     assert.equal(path.dirname(backup), destination);
@@ -146,6 +168,25 @@ async function main() {
     assert.deepEqual(verified.restored, manifest.restored, "new rehearsal reproduces capture-time verification");
     assert.equal(databaseSnapshot(env), before, "capture and rehearsal preserve all source rows, pointers and sequences");
 
+    const sql = (statement) => good(run("psql", ["-X", "-At", "-v", "ON_ERROR_STOP=1", "-c", statement], env));
+    const originalPointer = sql("SELECT published_version_id FROM pages WHERE slug='northwind-report'");
+    assert.match(originalPointer, /^[0-9]+$/);
+    try {
+      // The existing FK permits a version belonging to another page. Restore
+      // verification must detect this without trying to repair source content.
+      sql("UPDATE pages SET published_version_id=(SELECT published_version_id FROM pages WHERE slug='fabrikam-disabled') WHERE slug='northwind-report'");
+      const invalidSource = databaseSnapshot(env);
+      const invalid = run("bash", [path.join(ROOT, "scripts/backup.sh"), rejectedDestination], env);
+      assert.notEqual(invalid.status, 0, "cross-page publication pointers fail restore verification");
+      assert.equal(invalid.error, undefined, invalid.out);
+      assert.match(invalid.stderr, /restored pointers cross page or template ownership/);
+      assert.deepEqual(fs.readdirSync(rejectedDestination), [], "failed restore verification publishes no artifact");
+      assert.equal(databaseSnapshot(env), invalidSource, "verification leaves the invalid source pointer for an explicit repair");
+    } finally {
+      sql(`UPDATE pages SET published_version_id=${originalPointer} WHERE slug='northwind-report'`);
+    }
+    assert.equal(databaseSnapshot(env), before, "test cleanup restores the original fixture pointer");
+
     const bin = path.join(dir, "bin");
     fs.mkdirSync(bin);
     fs.writeFileSync(path.join(bin, "pg_dump"), "#!/bin/sh\nprintf 'injected dump failure\\n' >&2\nexit 27\n", { mode: 0o755 });
@@ -162,6 +203,7 @@ async function main() {
     assert.equal(databaseSnapshot(env), before, "failed backups and verification preserve live content");
     console.log("✓ backup restores pages, immutable versions, pinned templates and portals without changing source state");
     console.log("✓ symlinked persistent inputs survive capture; failures and changed artifact bytes never verify");
+    console.log("✓ missing service secrets and an active update reject backup without artifacts or source mutations");
   } finally {
     run("dropdb", ["--if-exists", database], outerEnv);
     fs.rmSync(dir, { recursive: true, force: true });

@@ -829,13 +829,13 @@ so the previous database remains available until the recovery is accepted:
 
 ```bash
 sudo runuser -u postgres -- createdb -O pages pages_recovered
-sudo runuser -u postgres -- pg_restore --exit-on-error --single-transaction \
-  --no-owner --no-acl --role=pages --dbname=pages_recovered /path/to/database.dump
+sudo cat /path/to/database.dump | sudo runuser -u postgres -- pg_restore \
+  --exit-on-error --single-transaction --no-owner --no-acl --role=pages --dbname=pages_recovered
 ```
 
-The database dump is private to the backup operator; provide the PostgreSQL
-restore process access to that single file, or stream it through standard input.
-Use the configured application role for a non-default installation.
+The pipeline streams the private dump through standard input without opening
+the recovery directory to the PostgreSQL account. Use the configured application
+role for a non-default installation.
 
 Stage `application/` as a new release and run `npm ci --omit=dev` there. Stop Pages
 before switching the active release, assets and environment together. Restore
