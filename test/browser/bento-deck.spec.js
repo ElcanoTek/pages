@@ -111,7 +111,7 @@ test("a save Pages refuses falls back to the download, and says so", async ({ pa
   // it would have without the channel, and the toast says what to do with it.
   expect((await download).suggestedFilename()).toBe("Synthetic.bento.html");
   await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Couldn.t save to Pages/);
-  await expect(page.locator("[data-pages-save-toast] p")).toContainText(/downloaded instead/);
+  await expect(page.locator("[data-pages-save-toast] p")).toContainText(/Starting a download/);
 });
 
 for (const failure of ["response", "network"]) {
