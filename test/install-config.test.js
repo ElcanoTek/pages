@@ -4,7 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
-const { mkdtempSync, writeFileSync, rmSync } = require("node:fs");
+const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require("node:fs");
 const path = require("node:path");
 const { render } = require("../scripts/render-install");
 
@@ -27,6 +27,27 @@ test("installation: service, proxy, CLI and rerun share custom settings", () => 
     assert.deepEqual(read().stdout.trim().split("\n"), [values.APP_DIR, "northwind", values.INSTALL_SRC_DIR, values.ENV_FILE, values.CLI_TARGET, "4517"]);
     assert.equal(read({ PAGES_PORT: "4618" }).stdout.trim().split("\n").at(-1), "4618");
     assert.equal(read({ APP_DIR: `${dir}/override` }).stdout.split("\n")[0], `${dir}/override`);
+
+    mkdirSync(`${dir}/bin`);
+    mkdirSync(`${values.INSTALL_SRC_DIR}/.git`, { recursive: true });
+    mkdirSync(`${values.APP_DIR}/scripts`, { recursive: true });
+    writeFileSync(`${values.APP_DIR}/scripts/template.js`, "");
+    writeFileSync(values.CLI_TARGET, render("cli", values), { mode: 0o755 });
+    // Capture the real CLI's sudo boundary without starting or altering any
+    // system service. Config path must survive sudo's environment filtering.
+    writeFileSync(`${dir}/bin/sudo`, '#!/usr/bin/env bash\nprintf "%s\\n" "$@"\n', { mode: 0o755 });
+    const invoke = (...args) => spawnSync("bash", [values.CLI_TARGET, ...args], {
+      encoding: "utf8", env: { PATH: `${dir}/bin:${process.env.PATH}` },
+    });
+    for (const command of ["update", "rebuild"]) {
+      const call = invoke(command);
+      assert.equal(call.status, 0, call.stderr);
+      for (const value of [`PAGES_INSTALL_CONFIG=${values.PAGES_INSTALL_CONFIG}`, `APP_DIR=${values.APP_DIR}`, "APP_USER=northwind", `PAGES_ENV_FILE=${values.ENV_FILE}`, `${values.INSTALL_SRC_DIR}/scripts/update.sh`]) assert.ok(call.stdout.includes(value));
+    }
+    const template = invoke("template", "list");
+    assert.equal(template.status, 0, template.stderr);
+    assert.ok(template.stdout.includes(`northwind\n--\nbash`));
+    assert.ok(template.stdout.includes(`${values.ENV_FILE}\n${values.APP_DIR}\nlist`));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
