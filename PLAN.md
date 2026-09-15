@@ -649,8 +649,8 @@ pages update                      # git pull + rebuild + restart
 pages token add <label> | list | revoke <id>
 pages page list | passwd <slug> | disable <slug> | enable <slug>
 pages theme set <slug> <theme> | theme list
-pages backup [dest]               # pg_dump THEN tar assets/
-pages check-integrity             # verify refs ↔ files, pointer sanity
+pages backup [dest]               # capture recovery inputs and rehearse a restore
+pages check-integrity <backup-dir> # verify files, restore and serving in isolation
 pages env show|edit
 ```
 

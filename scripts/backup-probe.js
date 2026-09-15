@@ -74,7 +74,9 @@ async function probe() {
   ensure((await get("/readyz", { host: "localhost" })).status === 200, "captured release is not ready against the restored schema; no migrations were applied");
   ensure((await get("/assets/flag/tokens/design-tokens.css")).status === 200, "captured public assets cannot be served");
 
-  const pages = (await db.query("SELECT id,slug,disabled,deleted_at,password_hash,published_version_id FROM pages ORDER BY id LIMIT 5")).rows;
+  const pages = (await db.query(`SELECT p.id,p.slug,p.disabled,p.deleted_at,p.password_hash,p.published_version_id FROM pages p
+    WHERE p.deleted_at IS NULL OR NOT EXISTS (SELECT 1 FROM pages live WHERE live.slug=p.slug AND live.deleted_at IS NULL)
+    ORDER BY (p.deleted_at IS NULL AND NOT p.disabled AND p.published_version_id IS NOT NULL) DESC,p.id LIMIT 5`)).rows;
   for (const row of pages) {
     const expected = row.disabled || row.deleted_at || !row.published_version_id ? 404 : row.password_hash ? 200 : 403;
     const cookie = row.password_hash ? `${pagecookie.cookieName(row.id)}=${pagecookie.mintSession(row.id, 60, row.password_hash)}` : undefined;
@@ -83,7 +85,8 @@ async function probe() {
     probes.pages++;
   }
   for (const row of (await db.query(`SELECT v.id,v.page_id,v.render_mode,p.slug,p.disabled,p.deleted_at
-    FROM page_versions v JOIN pages p ON p.id=v.page_id ORDER BY v.id LIMIT 5`)).rows) {
+    FROM page_versions v JOIN pages p ON p.id=v.page_id
+    ORDER BY (p.deleted_at IS NULL AND NOT p.disabled) DESC,(v.id=p.published_version_id) DESC NULLS LAST,v.id LIMIT 5`)).rows) {
     const token = rawtoken.mint({ pageId: row.page_id, versionId: row.id, purpose: "view", renderMode: row.render_mode });
     const response = await get(`/raw/${row.slug}?t=${encodeURIComponent(token)}`);
     const expected = row.disabled || row.deleted_at ? 404 : 200;
@@ -91,13 +94,16 @@ async function probe() {
     probes.versions++;
   }
   for (const row of (await db.query(`SELECT v.id,t.deleted_at FROM page_template_versions v
-    JOIN page_templates t ON t.id=v.template_id ORDER BY v.id LIMIT 5`)).rows) {
+    JOIN page_templates t ON t.id=v.template_id
+    ORDER BY (t.deleted_at IS NULL) DESC,(v.id=t.current_version_id) DESC NULLS LAST,v.id LIMIT 5`)).rows) {
     const token = rawtoken.mint({ pageId: 0, versionId: row.id, purpose: "template", renderMode: "themed" });
     const response = await get(`/raw-template/${row.id}?t=${encodeURIComponent(token)}`);
     ensure(response.status === (row.deleted_at ? 404 : 200), `restored template revision ${row.id} cannot be previewed (${response.status})`);
     probes.templates++;
   }
-  for (const row of (await db.query("SELECT id,slug,password_hash,deleted_at FROM page_portals ORDER BY id LIMIT 5")).rows) {
+  for (const row of (await db.query(`SELECT p.id,p.slug,p.password_hash,p.deleted_at FROM page_portals p
+    WHERE p.deleted_at IS NULL OR NOT EXISTS (SELECT 1 FROM page_portals live WHERE live.slug=p.slug AND live.deleted_at IS NULL)
+    ORDER BY (p.deleted_at IS NULL) DESC,p.id LIMIT 5`)).rows) {
     const cookie = `${pagecookie.portalCookieName(row.id)}=${pagecookie.mintPortalSession(row.id, 60, row.password_hash)}`;
     const response = await get(`/portal/${row.slug}`, { cookie });
     ensure(response.status === (row.deleted_at ? 404 : 200), `restored portal ${row.id} cannot be served (${response.status})`);
