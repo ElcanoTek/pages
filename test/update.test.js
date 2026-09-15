@@ -24,6 +24,7 @@ function fixture(failure) {
   write(path.join(source, "lib/readiness.js"), "exports.close=()=>Promise.resolve(); exports.check=()=>Promise.resolve(true);\n");
   write(path.join(source, "lib/db.js"), 'exports.pool={end:()=>Promise.resolve()}; exports.query=async()=>({rows:[{filename:"022_page_upload_attempts.sql"}]});\n');
   write(path.join(source, "lib/migrate.js"), 'require("node:fs").appendFileSync(process.env.UPDATE_TEST_LOG,"migrated\\n");\n');
+  write(path.join(source, "migrations/022_page_upload_attempts.sql"), "SELECT 1;\n");
   if (failure === "compatibility") write(path.join(source, "migrations/999_unknown.sql"), "SELECT 1;");
   write(path.join(source, "release-marker"), "candidate");
   write(path.join(app, "release-marker"), "original");
