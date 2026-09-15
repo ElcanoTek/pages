@@ -229,10 +229,16 @@ create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-aller
   the data it covers.
 - Supplying `data` requires `source_as_of`.
 - Creating onto an existing slug fails with `page_exists` and points at the tool
-  that does what you actually meant. An identical retry is a safe no-op in
+  that does what you actually meant. This also holds when two callers create
+  the same missing slug concurrently: one different build wins, and the other
+  receives `page_exists` without changing its content or publication state.
+  An identical retry matches the config, data, source coverage, render mode and
+  exact template revision, ignoring the server-generated refresh timestamp.
+  It is a safe no-op in
   exactly the two states a died-mid-turn retry can leave behind: that build is
-  still what the page serves, or the page has published nothing at all (a gated
-  build waiting for a human, or a create that died before publishing). Once the
+  still what the page serves, or it is the newest non-rejected version while
+  the page has no published version (a gated build waiting for a human, or an
+  unpublished draft). Once the
   page has moved on — a data refresh, a config edit, any deploy — replaying the
   original create is `page_exists` too: it would otherwise dedupe onto the first
   version and drag the live pointer *backward*, reverting the client's dashboard

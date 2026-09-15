@@ -128,6 +128,37 @@ async function main() {
     console.log(`✓ concurrent identical ${mode} template creates reuse one version and preserve publication gates`);
   }
 
+  // The already-existing path enforces the same identity, including fields
+  // that do not necessarily change the materialized config/data hashes.
+  const identityArgs = {
+    template: "create-race-template", slug: "template-create-identity", config, renderMode: "raw",
+    data: { count: 10 }, sourceAsOf: "2026-08-01T00:00:00Z",
+  };
+  await templates.createPage(identityArgs, actor);
+  const identityState = await state(identityArgs.slug);
+  await templates.register({ name: "create-race-other-template", html }, actor);
+  for (const difference of [
+    { config: { campaign: "Contoso Summer" } },
+    { data: { count: 11 } },
+    { sourceAsOf: "2026-08-02T00:00:00Z" },
+    { renderMode: "themed" },
+    { template: "create-race-other-template" },
+  ]) {
+    await assert.rejects(() => templates.createPage({ ...identityArgs, ...difference }, actor), { code: "page_exists" });
+    assert.deepEqual(await state(identityArgs.slug), identityState, "different build identity makes no mutation");
+  }
+  // Preview-only sample data changes the template revision while leaving the
+  // materialized page bytes unchanged. It is still a different requested build.
+  await templates.register({
+    name: identityArgs.template,
+    html: html.replace("</body>", block("pages-data-example", { count: 7 }) + "</body>"),
+  }, actor);
+  await assert.rejects(() => templates.createPage(identityArgs, actor), { code: "page_exists" });
+  const pinnedRetry = await templates.createPage({ ...identityArgs, revision: 1 }, actor);
+  assert.equal(pinnedRetry.deduped, true, "an explicit retry of the original revision remains safe");
+  assert.deepEqual(await state(identityArgs.slug), identityState);
+  console.log("✓ config, data, source coverage, render mode and template revision define an exact create retry");
+
   const slug = "template-create-ordinary-upsert";
   const writes = await raceMissingSlug(slug, [1, 2].map((number) => () => versions.createAndDeploy({
     slug,
