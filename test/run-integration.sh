@@ -182,4 +182,7 @@ node "$ROOT/test/view.integration.js"
 echo "▸ template CLI integration"
 node "$ROOT/test/template-cli.integration.js"
 
+echo "▸ concurrent template creation integration"
+node "$ROOT/test/template-create.integration.js"
+
 echo "✓ integration passed"
