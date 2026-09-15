@@ -381,3 +381,18 @@ resources exist or that the browser will allow them. Each script retains the
 Preflight is advisory and never blocks a deploy: a false positive must not be
 able to wedge an agent, and humans own publish. But an error is almost always
 real, and it is real *in the browser the client is about to open*.
+
+Full-source writes through inline deployment, staged uploads, patches and the
+admin source editor index managed hashes and freshness from their final stored
+HTML. The timestamps come from the document's validated envelope; a layout edit
+does not manufacture a new refresh time. This does not attach source to a
+template. Full-source retries retain byte-based dedupe, while managed data/config
+operations keep their semantic dedupe against the same indexed metadata.
+
+Older immutable versions are not rewritten. When indexed metadata is absent,
+page lists and refresh-check responses read a valid managed envelope from the
+stored HTML. Data-update source-coverage checks also include such historical
+versions, including unpublished canaries. Plain or malformed historical HTML
+contributes no invented data timestamps. A new source version stores the index;
+an exact retry may reuse the old immutable row and continues using the read
+fallback. No backfill command or database migration is required.
