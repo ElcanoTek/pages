@@ -51,6 +51,7 @@
   // Guards against a slower earlier preview-token request landing after a newer
   // one and pointing the frame at the wrong revision.
   let previewRequest = 0;
+  let detailRequest = 0;
 
   // ── rendering ───────────────────────────────────────────────────────────────
 
@@ -342,6 +343,8 @@
       const { templates } = await api("/templates");
       state.templates = templates;
       if (state.selected && !templates.some((t) => t.name === state.selected)) {
+        detailRequest += 1;
+        previewRequest += 1;
         state.selected = null;
         state.detail = null;
       }
@@ -352,8 +355,12 @@
   }
 
   async function openTemplate(name) {
+    const requestId = ++detailRequest;
+    previewRequest += 1;
     try {
-      state.detail = await api(`/templates/${pathSegment(name)}`);
+      const detail = await api(`/templates/${pathSegment(name)}`);
+      if (requestId !== detailRequest) return;
+      state.detail = detail;
       state.selected = name;
       state.contractView = "config";
       state.preview = null;
@@ -371,11 +378,13 @@
       // readable while the frame fetches its token.
       loadPreview(name, state.detail.revision.revision, null);
     } catch (error) {
+      if (requestId !== detailRequest) return;
       toast(`Couldn't open ${name}: ${error.message}`, { tone: "error" });
     }
   }
 
   function closeTemplate() {
+    detailRequest += 1;
     state.detail = null;
     state.selected = null;
     state.preview = null;
@@ -419,6 +428,7 @@
         await api(`/templates/${pathSegment(d.template.name)}${built > 0 ? "?force=true" : ""}`, {
           method: "DELETE",
         });
+        detailRequest += 1;
         state.detail = null;
         state.selected = null;
         state.preview = null;

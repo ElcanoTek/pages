@@ -220,13 +220,31 @@ fatal error, which is what you want in automation.
 | `/opt/pages` | The running install (rsync of the checkout + `node_modules`) |
 | `/opt/pages/assets` | Writable asset directory (the only `ReadWritePaths`) |
 | `/etc/default/pages` | Environment file, mode `0640`, `root:pages` |
+| `/etc/default/pages-install` | Non-secret installation defaults shared by bootstrap, updater and CLI |
 | `/etc/systemd/system/pages.service` | From `deploy/pages.service` |
 | `/usr/local/bin/pages` | From `deploy/pages-cli` |
 | `/etc/caddy/conf.d/pages.caddy` | From `deploy/pages.caddy`, hostnames substituted |
 | user `pages` | System user, `nologin`, home `/opt/pages` |
 
 The default port is **3002** (`PAGES_PORT` to change it at bootstrap; `PORT` in
-the env file thereafter). Caddy proxies both hostnames to `127.0.0.1:3002`.
+the env file thereafter). The generated Caddy configuration proxies both
+hostnames to that port. The systemd unit uses the resolved application directory,
+account and environment file; the CLI uses the same saved values.
+
+For a custom installation, set `PAGES_APP_DIR`, `PAGES_APP_USER`, `PAGES_SRC_DIR`
+and `PAGES_PORT` when bootstrapping. Legacy `APP_DIR`/`APP_USER` overrides remain
+accepted. `PAGES_ENV_FILE`, `PAGES_CLI_TARGET` and `PAGES_INSTALL_CONFIG` may also
+override the corresponding paths above. Paths must be absolute and contain
+letters, digits, `/`, `_`, `.` or `-`; invalid paths/accounts/ports fail before
+installing application files.
+
+The generated installation file contains only defaults, so explicit overrides
+take precedence on a rerun; legacy `APP_DIR`/`APP_USER` override their `PAGES_*`
+equivalents. Without overrides, bootstrap, `pages update`, `pages rebuild`, token
+and template commands all reuse the saved installation. `PORT` in the service
+environment supplies update readiness checks unless `PAGES_PORT` was explicitly
+set. Rerun bootstrap when changing the port so the Caddy configuration is
+regenerated too. Existing default installations work before this file exists.
 
 ### The initial agent token
 
@@ -883,3 +901,18 @@ Honest limitations of the deploy path as shipped:
 - [API.md](API.md) — REST and MCP agent surfaces
 - [LICENSING.md](LICENSING.md) — what you may and may not deploy
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — local development
+
+### Application-route collision check
+
+Migration `023_reserve_application_routes.sql` checks active pages for the newly
+reserved `raw-template`, `preflight`, `edit-token` and `readyz` segments before
+rollout. It stops with affected slugs and changes no pages or versions. Creation
+and restoration reject these namespaces consistently; ordinary nested slugs keep
+their URLs.
+
+If it reports an old conflicting slug, retain the previous release while you
+copy its source to an ordinary new slug, verify publication and client access,
+and update shared links. Soft-delete the old page only after verification, then
+retry the update. This is an explicit operator migration of a URL; Pages never
+silently renames it. Keep the old page history and previous release until the
+move is accepted so the previous installation can restore it if necessary.

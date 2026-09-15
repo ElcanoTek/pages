@@ -13,11 +13,10 @@
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/opt/pages}"
-APP_USER="${APP_USER:-pages}"
-SRC_DIR="${PAGES_SRC_DIR:-/opt/pages-src}"
+PAGES_SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$PAGES_SCRIPT_ROOT/scripts/install-config.sh"
+SRC_DIR="$INSTALL_SRC_DIR"
 SERVICE="pages.service"
-PORT="${PAGES_PORT:-3002}"
 
 c_dim=$'\033[2m'; c_green=$'\033[0;32m'; c_yellow=$'\033[0;33m'; c_red=$'\033[0;31m'; c_bold=$'\033[1m'; c_reset=$'\033[0m'
 step() { printf '\n%s▸ %s%s\n' "$c_bold" "$*" "$c_reset"; }
@@ -27,6 +26,7 @@ die()  { printf '%s✗ %s%s\n' "$c_red" "$*" "$c_reset" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run as root (use: pages update)"
 [[ -d "$SRC_DIR/.git" ]] || die "no source checkout at $SRC_DIR"
+render_install check || die "invalid installation settings"
 
 git config --global --add safe.directory "$SRC_DIR" 2>/dev/null || true
 
@@ -64,7 +64,6 @@ runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && npm ci --omit=dev --no-audit
 runuser -u "$APP_USER" -- node --check "$STAGING/server.js" || die "server.js failed syntax check"
 # Run pending DB migrations before the swap. They're idempotent (tracked in
 # schema_migrations) and additive, so the still-running old code is unaffected.
-ENV_FILE="/etc/default/pages"
 if [[ -f "$ENV_FILE" ]] && grep -q '^DATABASE_URL=' "$ENV_FILE"; then
   DB_URL="$(. "$ENV_FILE" >/dev/null 2>&1; printf '%s' "$DATABASE_URL")"
   runuser -u "$APP_USER" -- bash -c "cd '$STAGING' && DATABASE_URL='$DB_URL' node lib/migrate.js" \
@@ -81,8 +80,8 @@ rsync -a --delete \
   --exclude='/.git' --exclude='/assets' --exclude='/.env' \
   "$STAGING/" "$APP_DIR/"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-install -m 0644 "$APP_DIR/deploy/pages.service" /etc/systemd/system/
-install -m 0755 "$APP_DIR/deploy/pages-cli" /usr/local/bin/pages
+install_rendered service /etc/systemd/system/pages.service 0644
+install_rendered cli "$CLI_TARGET" 0755
 systemctl daemon-reload
 systemctl start "$SERVICE"
 
