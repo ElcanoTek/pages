@@ -17,6 +17,9 @@ function fixture(failure) {
   fs.mkdirSync(bin);
   for (const name of ["scripts/preflight-install.js", "scripts/check-migration-compatibility.js", "scripts/render-install.js", "deploy/pages.service", "deploy/pages-cli", "migrations/compatibility.json"]) write(path.join(source, name), fs.readFileSync(path.join(root, name)));
   write(path.join(source, "scripts/check-node.js"), '"use strict";\n');
+  // The fixture reexecutes the real update function without privileged service
+  // calls; the production entrypoint's root gate remains unchanged.
+  write(path.join(source, "scripts/update.sh"), `. ${JSON.stringify(path.join(root, "scripts/update.sh"))}\npages_update "$@"\n`);
   write(path.join(source, "server.js"), failure === "module" ? "require('./lib/missing-dependency');" : "module.exports = {};\n");
   write(path.join(source, "lib/readiness.js"), "exports.close=()=>Promise.resolve(); exports.check=()=>Promise.resolve(true);\n");
   write(path.join(source, "lib/db.js"), 'exports.pool={end:()=>Promise.resolve()}; exports.query=async()=>({rows:[{filename:"022_page_upload_attempts.sql"}]});\n');
@@ -34,7 +37,7 @@ function fixture(failure) {
   executable("runuser", 'shift 2; [[ "$1" == -- ]] && shift; exec "$@"');
   executable("chown", "exit 0");
   executable("npm", '[[ "$UPDATE_TEST_FAILURE" != npm ]]');
-  executable("git", "echo abcdef0");
+  executable("git", 'if [[ "$*" == *"diff --quiet"* ]]; then exit 1; elif [[ "$*" == *"--abbrev-ref"* ]]; then echo main; else echo abcdef0; fi');
   executable("sleep", "exit 0");
   executable("rsync", '[[ "$UPDATE_TEST_FAILURE" != copy ]] || exit 1; exec /usr/bin/rsync "$@"');
   executable("mv", 'if [[ "$UPDATE_TEST_FAILURE" == activate && "${@: -1}" == "$APP_DIR" ]] && [[ "$(readlink "${@: -2:1}" || true)" == *"/abcdef0-"* ]]; then exit 1; fi; exec /usr/bin/mv "$@"');
@@ -43,25 +46,30 @@ function fixture(failure) {
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, APP_DIR: app, APP_USER: os.userInfo().username,
     PAGES_SRC_DIR: source, PAGES_ENV_FILE: path.join(dir, "pages.env"), PAGES_CLI_TARGET: path.join(dir, "pages-cli"),
     PAGES_INSTALL_CONFIG: path.join(dir, "install"), PAGES_SERVICE_FILE: path.join(dir, "pages.service"),
-    PAGES_UPDATE_NO_PULL: "1", PAGES_UPDATE_YES: "1", PAGES_SKIP_TEMPLATE_SYNC: "1",
+    PAGES_UPDATE_NO_PULL: failure === "self-update" ? "0" : "1", PAGES_UPDATE_YES: "1", PAGES_SKIP_TEMPLATE_SYNC: "1",
     UPDATE_TEST_FAILURE: failure, UPDATE_TEST_LOG: path.join(dir, "actions.log"),
   };
   delete env.NODE_TEST_CONTEXT;
   delete env.PAGES_PORT;
+  if (failure === "unmanaged-link") {
+    fs.renameSync(app, `${app}-external`);
+    fs.symlinkSync(`${app}-external`, app);
+  }
   const result = spawnSync("bash", ["-c", '. "$1"; pages_update', "_", path.join(root, "scripts/update.sh")], { env, encoding: "utf8", timeout: 20000 });
   return { dir, app, result };
 }
 
-for (const failure of ["copy", "npm", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "none"]) {
+for (const failure of ["copy", "npm", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "unmanaged-link", "self-update", "none"]) {
   test(`release update: ${failure === "none" ? "success retains predecessor" : failure + " failure keeps original service recoverable"}`, () => {
     const { dir, app, result } = fixture(failure);
     try {
-      assert.equal(result.status, failure === "none" ? 0 : 1, result.stdout + result.stderr);
-      assert.equal(fs.readFileSync(path.join(app, "release-marker"), "utf8"), failure === "none" ? "candidate" : "original");
+      const succeeds = failure === "none" || failure === "self-update";
+      assert.equal(result.status, succeeds ? 0 : 1, result.stdout + result.stderr);
+      assert.equal(fs.readFileSync(path.join(app, "release-marker"), "utf8"), succeeds ? "candidate" : "original");
       assert.equal(fs.readFileSync(path.join(app, "assets/chart.txt"), "utf8"), "Northwind asset bytes");
       assert.equal(fs.readFileSync(path.join(app, ".env"), "utf8"), "LOCAL_SETTING=preserved\n");
       assert.equal(fs.readFileSync(path.join(dir, "pages.env"), "utf8"), "PORT=4312\nOPERATOR_SETTING=preserved\n");
-      if (failure !== "none") {
+      if (!succeeds) {
         assert.equal(fs.readFileSync(path.join(dir, "pages.service"), "utf8"), "original service\n");
         assert.equal(fs.readFileSync(path.join(dir, "pages-cli"), "utf8"), "original CLI\n");
       }
@@ -69,7 +77,7 @@ for (const failure of ["copy", "npm", "module", "compatibility", "activate", "st
         assert.match(result.stderr, /previous release is ready again/);
         assert.match(fs.readFileSync(path.join(dir, "actions.log"), "utf8"), /start original/);
       }
-      if (failure === "none") {
+      if (succeeds) {
         assert.ok(fs.lstatSync(app).isSymbolicLink());
         assert.equal(fs.readFileSync(path.join(app + ".releases", "previous", "release-marker"), "utf8"), "original");
       }

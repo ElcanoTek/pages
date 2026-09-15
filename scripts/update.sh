@@ -24,6 +24,10 @@ pages_update() (
   [[ -d "$SRC_DIR/.git" || -f "$SRC_DIR/.git" ]] || die "no source checkout at $SRC_DIR"
   [[ -d "$APP_DIR" ]] || die "no installed application at $APP_DIR — run bootstrap first"
   [[ -f "$ENV_FILE" ]] || die "missing environment file $ENV_FILE"
+  if [[ -L "$APP_DIR" ]]; then
+    [[ "$(readlink -f "$APP_DIR")" == "$(readlink -m "$RELEASE_ROOT")/"* && -d "$SHARED_ASSETS" ]] \
+      || die "unmanaged or incomplete application symlink at $APP_DIR; reconcile its release/assets layout before updating"
+  fi
   mkdir -p "$RELEASE_ROOT"
   exec 9>"${APP_DIR}.update.lock"
   flock -n 9 || die "another Pages update is running for $APP_DIR"
@@ -97,6 +101,10 @@ pages_update() (
     git -C "$SRC_DIR" merge --ff-only "origin/$branch" || die "fast-forward failed — resolve the source checkout first"
     after_sha="$(git -C "$SRC_DIR" rev-parse HEAD)"
     if ! git -C "$SRC_DIR" diff --quiet "$before_sha" "$after_sha" -- scripts/update.sh; then
+      # The next script creates a subshell for pages_update. Do not leave its
+      # parent holding this descriptor while that subshell opens a new lock.
+      flock -u 9
+      exec 9>&-
       exec env PAGES_UPDATE_NO_PULL=1 PAGES_UPDATE_YES="${PAGES_UPDATE_YES:-0}" bash "$SRC_DIR/scripts/update.sh"
     fi
   fi
@@ -112,7 +120,9 @@ pages_update() (
   rsync -a --delete --exclude='/.git' --exclude='/node_modules' --exclude='/assets' --exclude='/.env' \
     --exclude='/.devdata' --exclude='/test-results' --exclude='/playwright-report' "$SRC_DIR/" "$candidate/"
   chown -R "$APP_USER:$APP_USER" "$candidate"
-  app_command "$candidate" npm ci --omit=dev --no-audit --no-fund --loglevel=warn
+  mkdir -p "$RELEASE_ROOT/.npm-cache"
+  chown "$APP_USER:$APP_USER" "$RELEASE_ROOT/.npm-cache"
+  app_command "$candidate" npm ci --cache "$RELEASE_ROOT/.npm-cache" --omit=dev --no-audit --no-fund --loglevel=warn
   app_command "$candidate" node scripts/preflight-install.js
   app_command "$candidate" node scripts/check-migration-compatibility.js
   app_command "$candidate" node lib/migrate.js
@@ -157,6 +167,7 @@ pages_update() (
   mv -Tf "$RELEASE_ROOT/.previous.$$" "$RELEASE_ROOT/previous"
   switching=0
   info "Pages ready on :$PORT; previous release retained at $previous"
+  info "Installed control-file backup retained at $recovery"
 
   if [[ "${PAGES_SKIP_TEMPLATE_SYNC:-0}" != 1 && -f "$APP_DIR/scripts/template.js" && -d "$APP_DIR/templates" ]]; then
     app_command "$APP_DIR" node scripts/template.js sync || warn "template sync reported problems; previous revisions remain current"
