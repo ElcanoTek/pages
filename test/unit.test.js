@@ -3001,6 +3001,38 @@ test("preflight: a script that does not parse is reported — every control it w
   assert.equal(hit.script_index, 1);
 });
 
+for (const moduleSource of [
+  "export const value = 1;",
+  "import { value } from './values.js'; export { value };",
+  "const value = await Promise.resolve(1); export default value;",
+  "export const url = import.meta.url;",
+]) {
+  test(`preflight: module grammar accepts ${moduleSource}`, () => {
+    const moduleReport = preflight.analyze(`<script type="module">${moduleSource}</script>`);
+    assert.equal(moduleReport.errors.filter((e) => e.code === "script_syntax_error").length, 0);
+    const classicReport = preflight.analyze(`<script>${moduleSource}</script>`);
+    assert.equal(classicReport.errors.filter((e) => e.code === "script_syntax_error").length, 1);
+  });
+}
+
+test("preflight: module syntax failures remain actionable and bounded", () => {
+  const r = preflight.analyze('<script type="module">export const = 1;</script>'.repeat(20));
+  assert.equal(r.errors.length, preflight.MAX_PER_RULE);
+  assert.ok(r.errors_omitted > 0);
+  assert.equal(r.errors[0].code, "script_syntax_error");
+  assert.equal(r.errors[0].script_index, 1);
+});
+
+test("preflight: parsing modules never executes authored statements or imports", () => {
+  const r = preflight.analyze(`<script type="module">
+    import './does-not-exist.js';
+    globalThis.__pagesPreflightExecuted = true;
+    throw new Error('must never run');
+  </script>`);
+  assert.equal(r.errors.filter((e) => e.code === "script_syntax_error").length, 0);
+  assert.equal(globalThis.__pagesPreflightExecuted, undefined);
+});
+
 test("preflight: connect-src 'none' means network calls are reported", () => {
   const r = preflight.analyze(wrapPage("<div></div>", "fetch('/api/data').then(r=>r.json());"), { renderMode: "raw" });
   assert.ok(r.errors.some((e) => e.code === "network_blocked"));
