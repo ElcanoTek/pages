@@ -26,9 +26,9 @@ const PAGE_HTML = (n) =>
   `<canvas id=c></canvas><script>chart(${n})</script></body></html>`;
 
 // minimal JSON-over-HTTP client with optional bearer token
-function req(method, pathname, { host = DASH, token, body } = {}) {
+function req(method, pathname, { host = DASH, token, body, rawBody } = {}) {
   return new Promise((resolve, reject) => {
-    const payload = body !== undefined ? JSON.stringify(body) : null;
+    const payload = rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : null;
     const headers = { Host: host };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     if (payload) {
@@ -41,7 +41,7 @@ function req(method, pathname, { host = DASH, token, body } = {}) {
       res.on("end", () => {
         let json = null;
         try { json = b ? JSON.parse(b) : null; } catch { /* non-JSON (e.g. /raw html) */ }
-        resolve({ status: res.statusCode, json, body: b });
+        resolve({ status: res.statusCode, headers: res.headers, json, body: b });
       });
     });
     r.on("error", reject);
@@ -55,6 +55,24 @@ function req(method, pathname, { host = DASH, token, body } = {}) {
   let failed = false;
   try {
     const { token } = await tokens.mint({ label: "test-agent", scope: "deploy" });
+
+    // Parser failures precede router handlers but must retain the API contract.
+    for (const pathname of ["/api/v1/pages", "/api/v1/admin/pages"]) {
+      const malformed = await req("POST", pathname, { token, rawBody: '{"html": malformed' });
+      assert.equal(malformed.status, 400);
+      assert.match(malformed.headers["content-type"], /^application\/json/);
+      assert.deepEqual(malformed.json, { error: "invalid JSON request body", code: "bad_json" });
+      const oversized = await req("POST", pathname, { token, body: { html: "x".repeat(2 * 1024 * 1024) } });
+      assert.equal(oversized.status, 413);
+      assert.deepEqual(oversized.json, { error: "request body too large", code: "body_too_large" });
+      assert.ok(oversized.body.length < 200, "bounded error never echoes the submitted document");
+    }
+    const invalidView = await req("POST", "/admin", { rawBody: '{bad' });
+    assert.equal(invalidView.status, 400);
+    assert.match(invalidView.headers["content-type"], /^text\/html/);
+    assert.match(invalidView.body, /Request could not be read/);
+    assert.doesNotMatch(invalidView.body, /SyntaxError|at JSON.parse/);
+    console.log("✓ malformed/oversized REST and admin bodies retain JSON errors; views retain HTML");
 
     // 0. No token → 401.
     const noAuth = await req("POST", "/api/v1/pages", { body: { slug: "x" } });
