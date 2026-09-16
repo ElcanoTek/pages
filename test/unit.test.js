@@ -890,7 +890,7 @@ test("update prompts: a recurring data run gates on coverage, not on a file time
     recurring: true,
   });
   assert.match(prompt, /Compare internal source coverage with envelope.source_as_of/);
-  assert.match(prompt, /no source supplies missing coverage/);
+  assert.match(prompt, /no missing coverage or historical correction/);
   assert.match(prompt, /source_not_updated: Call mcp_pages_record_refresh_check/);
   assert.match(prompt, /A file timestamp alone never justifies publication/);
   assert.match(prompt, /runtime_today in UTC and a bounded freshness_window/);
@@ -948,6 +948,24 @@ test("update prompts: the managed-data prompt routes payloads by size instead of
 // The check record is what separates "the upstream froze" from "nobody runs
 // this job any more" — but only an unattended run needs to leave it; a one-time
 // run has its human right there.
+test("update prompts: scope and historical corrections are checked before a no-change record", () => {
+  const prompt = updatePrompts.managedPrompt({
+    slug: "northwind/daily", instructions: "Refresh the campaign export, including zero delivery.",
+    schemaSha256: "a".repeat(64), publish: true, recurring: true,
+  });
+  const checks = prompt.split("TERMINAL BRANCHES")[0];
+  assert.match(checks, /Compare the complete source identifier set with CONFIG/);
+  assert.match(checks, /CONFIG is a mapping registry, not implicit permission to exclude/);
+  assert.match(checks, /zero delivery alone never justifies exclusion/);
+  assert.match(checks, /Preserve every in-scope zero-metric row/);
+  assert.match(checks, /scope or mappings are ambiguous, select blocked before recording a no-change/);
+  assert.match(checks, /Check for corrected historical records even when the maximum date is unchanged/);
+  assert.match(checks, /every represented metric\/dimension/);
+  assert.match(checks, /immutable source revisions\/hashes against provenance tied to that live version/);
+  assert.match(checks, /Matching dates or aggregate totals alone do not prove unchanged history/);
+  assert.match(checks, /previous refresh-check claim is not baseline provenance/);
+});
+
 test("update prompts: a recurring run records its no-publish outcomes via record_refresh_check", () => {
   const recurring = updatePrompts.managedPrompt({
     slug: "acme/daily",

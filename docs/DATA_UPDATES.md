@@ -73,10 +73,23 @@ missing fields or ambiguous source/KPI/deal mappings. It never migrates layout,
 schema or configuration. Hashes must remain unchanged **during the run**, and
 `expected_version` protects the write against concurrent edits.
 
+Before selecting a branch, compare the full source identifier set with the
+configured registry. Bindings must state the intended source scope explicitly:
+CONFIG supplies mappings, not permission to discard unconfigured source rows.
+Report excluded identifiers, row counts and the scope rule. Keep every in-scope
+zero-delivery row; block ambiguous scope instead of copying prior exclusions.
+
+An unchanged reporting date or aggregate total does not prove unchanged history.
+Compare complete in-scope records and represented metrics/dimensions with the live
+payload, or verify unchanged immutable source revisions/hashes against provenance
+tied to that version and the same scope/transformation. A prior refresh-check
+claim is not baseline provenance. This catches historical corrections even when
+the latest date and totals are unchanged.
+
 A run selects exactly one branch:
 
 - **source_not_updated:** freshly retrieved, verified sources add no missing
-  coverage or requested correction. Record the check and finish successfully;
+  coverage, historical correction or requested correction. Record the check and finish successfully;
   no upload, new version or post-publication preflight is required.
 - **blocked:** source access, completeness, mapping or transport prevents a safe
   update. Record the exact blocker and preserve the live page. Never call this
