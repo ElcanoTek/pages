@@ -954,7 +954,8 @@ test("update prompts: scope and historical corrections are checked before a no-c
     schemaSha256: "a".repeat(64), publish: true, recurring: true,
   });
   const checks = prompt.split("TERMINAL BRANCHES")[0];
-  assert.match(checks, /Compare the complete source identifier set with CONFIG/);
+  assert.match(checks, /Compare the complete source identifier set with the declared scope/);
+  assert.match(checks, /CONFIG when present/);
   assert.match(checks, /CONFIG is a mapping registry, not implicit permission to exclude/);
   assert.match(checks, /zero delivery alone never justifies exclusion/);
   assert.match(checks, /Preserve every in-scope zero-metric row/);

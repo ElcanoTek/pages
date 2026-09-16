@@ -74,7 +74,7 @@ schema or configuration. Hashes must remain unchanged **during the run**, and
 `expected_version` protects the write against concurrent edits.
 
 Before selecting a branch, compare the full source identifier set with the
-configured registry. Bindings must state the intended source scope explicitly:
+declared scope and any configured mapping registries. Bindings must state the intended source scope explicitly:
 CONFIG supplies mappings, not permission to discard unconfigured source rows.
 Report excluded identifiers, row counts and the scope rule. Keep every in-scope
 zero-delivery row; block ambiguous scope instead of copying prior exclusions.
