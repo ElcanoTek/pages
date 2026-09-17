@@ -119,8 +119,10 @@ if (typeof document !== "undefined") (function () {
         `Source coverage: ${formatWhen(freshness.source_as_of)}`,
         `Refreshed: ${formatWhen(freshness.refreshed_at)}`,
         `Last checked: ${formatWhen(freshness.checked_at)}`,
-        freshness.last_check_outcome ? `Last outcome: ${freshness.last_check_outcome}` : null,
-        freshness.last_check_detail,
+        freshness.latest_outcome ? `Latest outcome: ${freshness.latest_outcome}` : null,
+        freshness.latest_detail,
+        freshness.last_check_at && freshness.last_check_at !== freshness.checked_at
+          ? `Previous check: ${formatWhen(freshness.last_check_at)} (${freshness.last_check_outcome || "unknown"})` : null,
       ].filter(Boolean).join("\n");
       return el("span", { class: "table-meta", title: detail },
         ...parts.map((part) => el("span", { class: "table-meta__line" }, part)));

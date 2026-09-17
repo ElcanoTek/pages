@@ -66,7 +66,7 @@ test("the operations list says how old each dashboard's DATA is", async ({ page 
   // two were indistinguishable before, and they need different people to act.
   await expect(frozen).toContainText("checked today");
   const detail = await frozen.locator("span.table-meta").getAttribute("title");
-  expect(detail).toContain("Last outcome: source_not_updated");
+  expect(detail).toContain("Latest outcome: source_not_updated");
   expect(detail).toContain("upstream max date still 2026-07-02");
 
   // No verdict language anywhere: Pages does not know any page's expected
@@ -82,6 +82,10 @@ test("the operations list says how old each dashboard's DATA is", async ({ page 
   const current = page.locator(".operation-table tbody tr", { hasText: "Client 01" }).first();
   await expect(current.locator('td[data-label="Last update"]')).toContainText("Data 1d old");
   await expect(current.locator('td[data-label="Last update"]')).not.toContainText("checked");
+  const currentDetail = await current.locator('td[data-label="Last update"] span.table-meta').getAttribute("title");
+  expect(currentDetail).toContain("Latest outcome: updated");
+  expect(currentDetail).toContain("Previous check:");
+  expect(currentDetail).not.toContain("Latest outcome: blocked");
 });
 
 test("workspace manager is compact and creates, renames, and safely removes an empty workspace", async ({ page, request }) => {

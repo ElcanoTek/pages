@@ -1194,10 +1194,11 @@ test("update prompts: instructions are bounded and reject credential values", ()
 test("prepared workflows expose direct-file and MCP-only upload paths consistently", () => {
   const args = { slug: "northwind/report", instructions: "Update the report.", liveVersionId: "42", publish: false };
   for (const prompt of [updatePrompts.fullPagePrompt(args), updatePrompts.managedPrompt(args)]) {
-    assert.match(prompt, /Prefer mcp_pages_create_upload_ticket/);
+    assert.match(prompt, /workspace file reference, prefer mcp_pages_start_page_upload/);
+    assert.match(prompt, /Otherwise prefer mcp_pages_create_upload_ticket/);
     assert.match(prompt, /If outbound HTTP is unavailable, use mcp_pages_start_page_upload/);
     assert.match(prompt, /mcp_pages_append_page_upload/);
-    assert.ok(prompt.indexOf("Prefer mcp_pages_create_upload_ticket") < prompt.indexOf("If outbound HTTP is unavailable"));
+    assert.ok(prompt.indexOf("workspace file reference") < prompt.indexOf("Otherwise prefer mcp_pages_create_upload_ticket"));
   }
   const dataDescription = TOOLS.update_page_data.inputSchema.shape.data.description;
   assert.match(dataDescription, /create_upload_ticket kind='data'/);
@@ -5559,4 +5560,26 @@ test("unpublished template and migration prompts carry their decision through ev
   assert.match(publishing, /publish_page[^\n]*expected_version/);
   assert.match(publishing, /5\. After the verified migration is live/);
   assert.doesNotMatch(publishing, /separately authorized migration publication/);
+});
+
+// Historical failures must not masquerade as the outcome of a successful refresh.
+test("freshness separates recorded failures from the latest live refresh", () => {
+  const row = {
+    source_as_of: "2026-08-16T00:00:00Z", refreshed_at: "2026-08-17T12:00:00Z",
+    last_check_at: "2026-08-17T11:00:00Z", last_check_outcome: "blocked",
+    last_check_detail: "upload unavailable", last_check_source_as_of: "2026-08-15T00:00:00Z",
+  };
+  const refreshed = versions.freshnessOf(row);
+  assert.equal(refreshed.latest_outcome, "updated");
+  assert.equal(refreshed.latest_detail, null);
+  assert.equal(refreshed.latest_source_as_of, refreshed.source_as_of);
+  assert.equal(refreshed.last_check_outcome, "blocked");
+  assert.equal(refreshed.last_check_at, "2026-08-17T11:00:00.000Z");
+  for (const checkAt of [row.refreshed_at, "2026-08-17T13:00:00Z"]) {
+    const failedLater = versions.freshnessOf({ ...row, last_check_at: checkAt });
+    assert.equal(failedLater.latest_outcome, "blocked");
+    assert.equal(failedLater.latest_detail, row.last_check_detail);
+    assert.equal(failedLater.checked_at, failedLater.last_check_at);
+  }
+  assert.equal(versions.freshnessOf({ last_check_at: row.last_check_at, last_check_outcome: "failed" }).latest_outcome, "failed");
 });
