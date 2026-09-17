@@ -696,3 +696,22 @@ come from the live page. New config/data validate against the selected target
 revision, publication defaults to false, and existing approval gates apply.
 Omitted data retains its envelope and freshness; replacement data records a new
 refresh time with explicit, non-regressing source coverage.
+
+### Refresh outcome ordering
+
+`freshness.checked_at` is still the later of the live refresh and the recorded
+check. `latest_outcome`, `latest_detail`, and `latest_source_as_of` describe that
+activity: a newer successful live refresh reports `updated` and no old blocker.
+`last_check_at` timestamps the unchanged historical `last_check_*` fields.
+An explicit check at or after the refresh wins, so a subsequent failure remains
+visible. This does not infer a schedule, declare a page overdue, or erase history.
+
+### File-capable MCP clients
+
+`append_page_upload.chunk_base64` advertises standard `contentEncoding: base64`.
+A compatible client such as Fleet can expose a workspace file reference, read
+and encode those exact bytes itself, and forward the canonical base64 string.
+Pages still accepts only that string on the wire and enforces chunk order, byte
+count and whole-content hash. Use `start_page_upload`, ordered appends, then the
+matching consumer. This path needs no ticket credential or sandbox HTTP egress.
+Other clients retain the ticket/PUT route. Staging never publishes on its own.

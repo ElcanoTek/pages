@@ -273,7 +273,7 @@ async function postEnvelope(body, opts = {}) {
     assert.equal(init.json.result.serverInfo.name, "pages");
     assert.equal(init.json.result.serverInfo.title, "Elcano Pages");
     assert.match(init.json.result.instructions || "", /list_workspaces/);
-    assert.match(init.json.result.instructions || "", /Prefer create_upload_ticket/);
+    assert.match(init.json.result.instructions || "", /Otherwise prefer create_upload_ticket/);
     assert.match(init.json.result.instructions || "", /If outbound HTTP is unavailable, use start_page_upload/);
     assert.match(init.json.result.instructions || "", /never pass a path, \$\(cat/i);
     assert.match(init.json.result.instructions || "", /update <slug> dashboard with/i);
@@ -2102,6 +2102,9 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
       assert.equal(sdkClient.getServerVersion().name, "pages");
       const sdkTools = await sdkClient.listTools();
       assert.deepEqual(sdkTools.tools.map((tool) => tool.name).sort(), EXPECTED_TOOLS);
+      const binaryChunk = sdkTools.tools.find((tool) => tool.name === "append_page_upload").inputSchema.properties.chunk_base64;
+      assert.equal(binaryChunk.type, "string");
+      assert.equal(binaryChunk.contentEncoding, "base64", "file-capable clients can forward original bytes");
       const sdkRead = await sdkClient.callTool({ name: "get_page", arguments: { slug: "mcpdemo" } });
       assert.equal(sdkRead.isError, undefined);
       assert.equal(sdkRead.structuredContent.page.slug, "mcpdemo");
@@ -3056,6 +3059,11 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     );
     assert.equal(inlineEcho.data_sha256, stagedResult.data_sha256, "staged and inline writes agree byte-for-byte");
     assert.equal(inlineEcho.schema_sha256, stagedResult.schema_sha256);
+    const afterSuccess = toolData(await callTool("get_page_data", { slug: "mcpdata" }));
+    assert.equal(afterSuccess.freshness.latest_outcome, "updated");
+    assert.equal(afterSuccess.freshness.latest_detail, null);
+    assert.equal(afterSuccess.freshness.last_check_outcome, "source_not_updated", "check history survives publication");
+    assert.equal(afterSuccess.freshness.last_check_at, afterCheck.freshness.last_check_at);
 
     // An exact retry of a spent upload returns the original commit result; a
     // retry with different options is a conflict, not a second publish.
