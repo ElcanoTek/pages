@@ -926,11 +926,18 @@ test("update prompts: the managed-data prompt routes payloads by size instead of
     // fail the whole source or skip its dates.
     assert.match(prompt, /empty across a whole source, or across every row of one partner or exchange/);
     assert.match(prompt, /never a reason to skip that source's dates/);
-    // The audit instruction covers whichever transport was chosen.
+    // The audit instruction covers whichever transport was chosen — decided
+    // before the audit, and re-audited if a size rejection forces a switch
+    // (field incident: a run declared the inline write, was rejected for
+    // size, published by reference through the undeclared upload tool and
+    // failed verification with the data already live).
+    assert.match(prompt, /Decide the transport in step 10 BEFORE the audit/);
     assert.match(
       prompt,
-      /confirm_audit once for the single managed-data write \(mcp_pages_update_page_data_upload or mcp_pages_update_page_data\)/
+      /confirm_audit once for the single managed-data write, naming the tool you will actually call \(mcp_pages_update_page_data_upload or mcp_pages_update_page_data\)/
     );
+    assert.match(prompt, /retire that declaration with confirm_audit\(success=false, \.\.\.\)/);
+    assert.match(prompt, /call confirm_audit again naming mcp_pages_update_page_data_upload before publishing/);
   }
 });
 
