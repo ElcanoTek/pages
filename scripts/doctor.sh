@@ -20,61 +20,80 @@
 #
 # Exit codes: 0 = healthy (or everything fixed), 1 = problems remain.
 
-# Vendored shortlist of MULTI-LABEL public suffixes (co.uk, com.au, github.io,
-# …), transcribed from the Mozilla Public Suffix List. Single-label TLDs
-# (.com/.org/…) need no entry: for them the registrable domain (eTLD+1) is
-# simply the last two labels. The trust-split check compares eTLD+1 values —
-# the cookie-tossing boundary is the registrable domain, not the
-# first-label-stripped parent (PLAN.md §7). An exotic unlisted suffix falls
-# back to the last-two-labels rule, which can over-report safety; extend this
-# list from publicsuffix.org when a deployment needs a missing suffix.
-PAGES_PUBLIC_SUFFIXES="
-ac.uk co.uk gov.uk ltd.uk me.uk net.uk nhs.uk org.uk plc.uk sch.uk police.uk mod.uk
-asn.au com.au edu.au gov.au net.au org.au id.au
-ac.nz co.nz geek.nz gen.nz govt.nz health.nz iwi.nz maori.nz mil.nz net.nz org.nz parliament.nz school.nz
-com.br net.br org.br gov.br edu.br
-com.cn net.cn org.cn gov.cn edu.cn ac.cn
-com.hk org.hk net.hk gov.hk edu.hk idv.hk
-ac.jp co.jp go.jp lg.jp ne.jp or.jp
-ac.kr co.kr go.kr ne.kr or.kr re.kr
-com.mx org.mx go.mx edu.mx net.mx
-com.sg net.sg org.sg gov.sg edu.sg
-com.tr org.tr net.tr gov.tr edu.tr
-co.in firm.in net.in org.in gen.in ind.in nic.in ac.in edu.in gov.in mil.in
-com.pl net.pl org.pl gov.pl edu.pl
-com.tw org.tw net.tw gov.tw edu.tw idv.tw
-co.za org.za net.za gov.za edu.za ac.za
-com.ar org.ar net.ar gob.ar edu.ar
-com.co net.co org.co gov.co edu.co nom.co
-co.il org.il net.il ac.il gov.il
-com.my net.my org.my gov.my edu.my
-com.ph net.ph org.ph gov.ph edu.ph
-co.th ac.th go.th in.th mi.th net.th or.th
-co.id ac.id or.id go.id
-com.pk net.pk edu.pk org.pk gov.pk
-co.ke or.ke ne.ke go.ke ac.ke
-co.ug or.ug ac.ug sc.ug go.ug ne.ug
-eu.org
-github.io gitlab.io appspot.com web.app firebaseapp.com herokuapp.com
-netlify.app vercel.app azurewebsites.net cloudapp.net amazonaws.com cloudfront.net
-"
+# The trust-split check compares registrable domains (eTLD+1) — the
+# cookie-tossing boundary (PLAN.md §7). The computation uses the FULL vendored
+# Mozilla Public Suffix List (scripts/lib/public-suffix-list.dat), not a
+# shortlist: a shortlist mis-reduces omitted suffixes (e.g. com.ng absent →
+# pages.contoso.com.ng and pages.northwind.com.ng both reduce to 'com.ng' and
+# produce a false shared-domain failure). See the dat file's header for
+# source, license (MPL-2.0) and refresh cadence.
 
-# pages_registrable_domain HOST — print the eTLD+1 of HOST using the vendored
-# suffix shortlist above. Lowercases, tolerates a trailing dot, and never
-# prints more than it can justify.
+# pages_registrable_domain HOST — print the eTLD+1 of HOST per the Public
+# Suffix List algorithm (https://publicsuffix.org/list/): the prevailing rule
+# is the longest matching rule (wildcards match exactly one label, exception
+# rules starting with '!' drop their leftmost label), the public suffix is the
+# labels that match, and the registrable domain is the suffix plus one more
+# label to its left. Lowercases and tolerates a trailing dot. Prints nothing
+# when the list file is unreadable — the caller treats that as 'cannot
+# verify', never as a pass.
 pages_registrable_domain() {
   local host="${1,,}"
   host="${host%.}"
-  local -a labels=()
-  IFS='.' read -r -a labels <<< "$host"
-  local n=${#labels[@]}
-  local last2="${labels[n-2]}.${labels[n-1]}"
-  if (( n >= 2 )) && [[ " $PAGES_PUBLIC_SUFFIXES " == *" $last2 "* ]] && (( n >= 3 )); then
-    printf '%s\n' "${labels[n-3]}.$last2"
-  elif (( n >= 2 )); then
-    printf '%s\n' "$last2"
+  local -a h=()
+  IFS='.' read -r -a h <<< "$host"
+  local n=${#h[@]}
+  if (( n == 0 )) || [[ ! -r "$PSL_FILE" ]]; then
+    return 0
+  fi
+  local line rule rl hl i match best=0 best_is_exception=0
+  local -a r=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    case "$line" in
+      ''|'//'*) continue ;;          # blanks, Mozilla header/section comments
+    esac
+    rule="$line"                      # dat rules are bare suffixes (no inline comments)
+    local is_exception=0
+    case "$rule" in
+      '!'*) is_exception=1; rule="${rule#!}" ;;
+    esac
+    r=(); IFS='.' read -r -a r <<< "$rule"
+    local rn=${#r[@]}
+    (( rn > n )) && continue          # a rule cannot be longer than the host
+    match=1
+    for (( i=1; i<=rn; i++ )); do
+      rl="${r[rn-i]}"; hl="${h[n-i]}"
+      if [[ "$rl" == '*' ]]; then
+        continue                      # wildcard: exactly one label, always matches
+      elif [[ "$rl" != "$hl" ]]; then
+        match=0; break
+      fi
+    done
+    # Longest match prevails (per spec). Exception/plain rules of equal
+    # length cannot both match one host, so ties do not need a policy.
+    if (( match )) && (( rn > best )); then
+      best=$rn
+      best_is_exception=$is_exception
+    fi
+  done < "$PSL_FILE"
+  local suffix_labels
+  if (( best == 0 )); then
+    suffix_labels=1                   # prevailing rule is the implicit "*"
+  elif (( best_is_exception )); then
+    suffix_labels=$(( best - 1 ))     # exception: drop the leftmost rule label
+    (( suffix_labels < 1 )) && suffix_labels=1
   else
-    printf '%s\n' "$host"
+    suffix_labels=$best
+  fi
+  local reg_labels=$(( suffix_labels + 1 ))
+  if (( reg_labels > n )); then
+    printf '%s\n' "$host"             # the host itself is inside a public suffix
+  else
+    local out="" start=$(( n - reg_labels )) j
+    for (( j=start; j<n; j++ )); do
+      out+="${h[j]}."
+    done
+    printf '%s\n' "${out%.}"
   fi
 }
 
@@ -99,6 +118,10 @@ pages_doctor() (
   ENV_FILE="${PAGES_ENV_FILE:-/etc/default/pages}"
   SERVICE="pages.service"
   CADDY_SNIPPET="/etc/caddy/conf.d/pages.caddy"
+  DOCTOR_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Full Mozilla Public Suffix List, vendored next to this script (see the
+  # dat file's header for source/license/refresh cadence). Overridable for tests.
+  PSL_FILE="${PAGES_PSL_FILE:-$DOCTOR_SCRIPT_DIR/lib/public-suffix-list.dat}"
   # Overridable so the tests can point the lifecycle checks at a scratch file;
   # also handy on non-Fedora dev boxes. Defaults to the OS-owned original.
   OS_RELEASE="${PAGES_OS_RELEASE:-/etc/os-release}"
@@ -207,10 +230,21 @@ EOF
   fi
 
   dashboard_host=""; content_host=""
+  env_readable=1
   step "Configuration ($ENV_FILE)"
   if [[ ! -f "$ENV_FILE" ]]; then
     fail "$ENV_FILE missing — run scripts/bootstrap.sh"
-  else
+  elif [[ ! -r "$ENV_FILE" ]]; then
+    if [[ $EUID -eq 0 ]]; then
+      fail "$ENV_FILE unreadable even as root — inspect its ownership and parent directories"
+    fi
+    # The read-only run (service user via the pages CLI) cannot read a
+    # root-only file (e.g. one tightened to 0600 root:root). Report the
+    # limited validation instead of cascading false 'key unset' failures.
+    advise "$ENV_FILE is not readable as $(id -un) — key, hostname and database checks are limited; run sudo pages doctor for full validation"
+    env_readable=0
+  fi
+  if [[ "$env_readable" == 1 && -f "$ENV_FILE" ]]; then
     if [[ -L "$ENV_FILE" ]]; then
       # Privileged chown/chmod follows symlinks; refuse rather than repair
       # through one — a symlinked credential file is drift worth an operator.
@@ -262,7 +296,9 @@ EOF
     if [[ -n "$dashboard_host" && -n "$content_host" ]]; then
       dashboard_reg="$(pages_registrable_domain "$dashboard_host")"
       content_reg="$(pages_registrable_domain "$content_host")"
-      if [[ "$content_reg" == "$dashboard_reg" ]]; then
+      if [[ -z "$dashboard_reg" || -z "$content_reg" ]]; then
+        advise "public suffix list unreadable at $PSL_FILE — cannot verify the trust split"
+      elif [[ "$content_reg" == "$dashboard_reg" ]]; then
         fail "CONTENT_HOST ($content_host) shares the registrable domain $content_reg with DASHBOARD_HOST ($dashboard_host) — agent HTML can toss cookies onto the trusted host (PLAN.md §7)"
       else
         pass "content host registrable domain ($content_reg) differs from the dashboard's ($dashboard_reg)"
@@ -294,7 +330,12 @@ EOF
     elif psql "$db_url" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
       pass "database accepts the '$APP_USER' role (DATABASE_URL)"
     else
-      advise "database probe failed as uid $EUID — re-run with sudo to probe as $APP_USER"
+      # The read-only run probes as the service user (via the pages CLI), so
+      # a failed probe means the configured URL is unusable even though the
+      # still-running service may be healthy on its old environment — the
+      # next restart is what breaks. That is a failure, not a rerun-with-root
+      # suggestion.
+      fail "database probe failed — DATABASE_URL in $ENV_FILE is not usable as $(id -un); the running service may still be on its old environment, but the next restart will take Pages down"
     fi
   fi
 
@@ -360,6 +401,8 @@ EOF
   done
   if [[ "$healthy" == 1 ]]; then
     pass "/readyz → 200 (database + migrations ready)"
+  elif [[ "$env_readable" == 0 && -z "${PAGES_PORT:-}" ]]; then
+    fail "/readyz not ready on :$PORT — inspect: pages logs (PORT is the built-in default; $ENV_FILE was unreadable, so the real port is unknown — run sudo pages doctor)"
   else
     fail "/readyz not ready on :$PORT — inspect: pages logs"
   fi

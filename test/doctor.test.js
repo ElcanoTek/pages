@@ -75,7 +75,7 @@ function fixture(options) {
   const {
     args, envFile = "present", statPerms, runningDir, active = 1,
     gitBehind = "0", gitRemoteSha = "abc1230", gitLsRemoteFail = false, readyzFails = 0,
-    dbPassword = SECRETS.dbPassword,
+    dbPassword = SECRETS.dbPassword, psqlFail = false, pagesPort = "",
   } = options;
   const dbUrl = `postgres://pages:${dbPassword}@127.0.0.1:5432/pages?sslmode=disable`;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pages-doctor-"));
@@ -100,6 +100,10 @@ function fixture(options) {
   fs.mkdirSync(path.join(source, "scripts"));
   fs.copyFileSync(path.join(root, "scripts/check-node.js"), path.join(source, "scripts/check-node.js"));
   fs.copyFileSync(DOCTOR_SCRIPT, path.join(source, "scripts/doctor.sh"));
+  // The doctor resolves the PSL next to its own path; the fixture checkout
+  // gets the same vendored list the real one ships.
+  fs.mkdirSync(path.join(source, "scripts", "lib"));
+  fs.copyFileSync(path.join(root, "scripts/lib/public-suffix-list.dat"), path.join(source, "scripts/lib/public-suffix-list.dat"));
 
   const hosts = {
     present: ["pages.contoso.example", "pages.northwind.example"],
@@ -108,6 +112,12 @@ function fixture(options) {
     // first-label comparison misses this pair, the PSL-aware one must not.
     "etld-same": ["pages.contoso.co.uk", "cdn.contoso.co.uk"],
     "bad-pubkey": ["pages.contoso.example", "pages.northwind.example"],
+    // com.ng is a two-level public suffix: these two hosts are DIFFERENT
+    // registrable domains and must pass the split check (a suffix shortlist
+    // that omits com.ng reduces both to 'com.ng' and fails them falsely).
+    "ng-distinct": ["pages.contoso.com.ng", "pages.northwind.com.ng"],
+    // Same registrable domain under com.ng — must still fail.
+    "ng-same": ["pages.contoso.com.ng", "cdn.contoso.com.ng"],
   }[envFile] || ["pages.contoso.example", "pages.northwind.example"];
   const pubkey = envFile === "bad-pubkey" ? `${SECRETS.pubkey}!` : SECRETS.pubkey;
   if (envFile !== "missing") {
@@ -128,12 +138,18 @@ function fixture(options) {
       `touch ${shq(path.join(state, "pwned"))}`,
       "",
     ].join("\n"), { mode: 0o640 });
+    if (envFile === "unreadable") {
+      // Simulate the tightened root:root 0600 state: the file exists but the
+      // read-only (service-user) run cannot read it. Mode 000 keeps it
+      // unreadable even for its owner without needing a second account.
+      fs.chmodSync(envFilePath, 0o000);
+    }
   }
   fs.writeFileSync(osReleasePath, 'ID=fedora\nVERSION_ID="42"\nSUPPORT_END="2030-12-31"\n');
   const write = (name, text) => { fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\nset -eu\n${text}\n`, { mode: 0o755 }); };
   write("node", 'if [[ "${1:-}" == "-v" ]]; then echo v22.12.0; else exit 0; fi');
   write("npm", "exit 0");
-  write("psql", 'printf "psql %s\\n" "$*" >> "$DOCTOR_TEST_LOG"; echo 1');
+  write("psql", 'if [[ "${DOCTOR_TEST_PSQL_FAIL:-0}" == 1 ]]; then exit 1; fi; printf "psql %s\\n" "$*" >> "$DOCTOR_TEST_LOG"; echo 1');
   write("dnf", "exit 0");
   write("rpm", 'printf "%s\\n" "6.9.0-100.fc40.x86_64"');
   write("uname", 'if [[ "${1:-}" == "-r" ]]; then printf "%s\\n" "6.9.0-100.fc40.x86_64"; exit 0; fi; command -p uname "$@"');
@@ -208,9 +224,11 @@ function fixture(options) {
     DOCTOR_TEST_GIT_FETCH_FAIL: "0",
     DOCTOR_TEST_CERT_END: CERT_END,
     DOCTOR_TEST_READYZ_FAILS: String(readyzFails),
+    DOCTOR_TEST_PSQL_FAIL: psqlFail ? "1" : "0",
   };
   delete env.NODE_TEST_CONTEXT;
   delete env.PAGES_PORT;
+  if (pagesPort) env.PAGES_PORT = pagesPort;
   const result = spawnSync("bash", ["-c", '. "$1"; shift; pages_doctor "$@"', "_", DOCTOR_SCRIPT, ...args],
     { env, encoding: "utf8", timeout: 60000 });
   const output = `${result.stdout}${result.stderr}`;
@@ -268,6 +286,41 @@ test("doctor --check flags a missing env file, a shared domain, and a shared eTL
     assert.equal(etld.result.status, 1, etld.output);
     assert.match(etld.output, /shares the registrable domain contoso\.co\.uk/);
   } finally { fs.rmSync(etld.dir, { recursive: true, force: true }); }
+});
+
+test("full PSL: com.ng distinct registrable domains pass the split; same eTLD+1 still fails", () => {
+  // com.ng is a two-level public suffix. A suffix shortlist that omits it
+  // reduces both hosts to 'com.ng' and fails this pair falsely; the full
+  // vendored list must pass it.
+  const distinct = fixture({ args: ["--check"], envFile: "ng-distinct" });
+  try {
+    assert.equal(distinct.result.status, 0, distinct.output);
+    assert.match(distinct.output, /registrable domain \(northwind\.com\.ng\) differs from the dashboard's \(contoso\.com\.ng\)/);
+  } finally { fs.rmSync(distinct.dir, { recursive: true, force: true }); }
+  const same = fixture({ args: ["--check"], envFile: "ng-same" });
+  try {
+    assert.equal(same.result.status, 1, same.output);
+    assert.match(same.output, /shares the registrable domain contoso\.com\.ng/);
+  } finally { fs.rmSync(same.dir, { recursive: true, force: true }); }
+});
+
+test("an env file the service user cannot read limits validation instead of cascading false key failures", () => {
+  const { dir, result, output, pwned } = fixture({ args: ["--check"], envFile: "unreadable", pagesPort: "4312" });
+  try {
+    assert.equal(result.status, 0, output); // advisory, not a failure cascade
+    assert.match(output, /not readable as/);
+    assert.match(output, /run sudo pages doctor for full validation/);
+    assert.ok(!/unset in/.test(output), "unreadable env produced false 'key unset' failures:\n" + output);
+    assert.equal(pwned, false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a failed database probe as the service user fails the check, not advises", () => {
+  const { dir, result, output } = fixture({ args: ["--check"], psqlFail: true });
+  try {
+    assert.equal(result.status, 1, output);
+    assert.match(output, /database probe failed — DATABASE_URL in .* is not usable/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("doctor rejects a pubkey whose base64 decodes only partially", () => {
