@@ -54,6 +54,54 @@ before accepting the task instead of discovering it at dispatch. (Five real
 autoupdate tasks were accepted as opaque prompt blobs and dead-lettered on their
 first run with no model configured, having executed nothing.)
 
+For `managed_data` it also states three things a scheduler can enforce without
+asking a model:
+
+- `roster: "required_tools_only"`: offer the run only `required_tools`. That
+  list holds every tool a branch may call and nothing else. A refresh needs
+  about eight Pages tools, and each step used to re-send the other thirty-odd
+  tool schemas.
+- `completion.any_succeeded`: the run is complete when one of these tools
+  succeeded, which means a committed version or a recorded refresh check. Both
+  are visible in tool records, so no model has to judge whether a correct
+  `source_not_updated` or `blocked` run "finished".
+- `serialization_key: "pages:<slug>"`: runs that share it must not overlap.
+  Give every schedule for the page the same key. Two schedules refreshing one
+  slug otherwise race to duplicate versions and `stale_version`.
+
+A recurring prompt also pins its **commit tool** at preparation, from the live
+payload size. At or below 20,000 UTF-8 bytes of compact JSON it is
+`mcp_pages_update_page_data` (inline). Above that it is
+`mcp_pages_update_page_data_upload`, with `start_page_upload` and
+`append_page_upload`. The prompt states it as a `COMMIT TOOL:` line after
+`PUBLISH`, and the roster and `completion` list only that path. A run
+therefore declares and calls the same tool, instead of choosing a transport
+late and declaring the other. An inline-pinned page whose payload later
+outgrows inline transport blocks and asks for the prompt to be prepared again.
+One-time prompts keep choosing their transport by size, so their requirements
+list both commit paths. For the largest data page:
+
+```json
+{
+  "mcp_servers": ["fast_io", "fastio_helpers", "pages"],
+  "required_tools": [
+    "download_url", "mcp_fast_io_download", "mcp_fastio_helpers_resolve_path",
+    "mcp_pages_append_page_upload", "mcp_pages_get_page_config", "mcp_pages_get_page_data",
+    "mcp_pages_preflight_page", "mcp_pages_record_refresh_check",
+    "mcp_pages_start_page_upload", "mcp_pages_update_page_data_upload"
+  ],
+  "roster": "required_tools_only",
+  "completion": { "any_succeeded": ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data_upload"] },
+  "serialization_key": "pages:northwind/overview",
+  "network": false,
+  "model_required": true,
+  "mode": "managed_data"
+}
+```
+
+These keys are advisory and forward compatible. A scheduler that does not know
+one ignores it; Pages still enforces every write itself.
+
 Recurring managed-data prompts also embed that same JSON after an
 `EXECUTION REQUIREMENTS (JSON):` line, so copying the prompt retains the handoff.
 An executor can reject missing network/tools before running the model. This is
@@ -264,10 +312,11 @@ caller to:
    freshness, completeness, row counts, and reconciliation evidence;
 3. select the no-update or blocked branch when appropriate;
 4. build one complete schema-valid data object; and
-5. call `update_page_data_upload` (or `update_page_data` for a small inline
-   object) with the read `live_version_id` as
-   `expected_version`, the latest represented `source_as_of`, and the requested
-   publish mode.
+5. call the prompt's `COMMIT TOOL` (a recurring prompt names one:
+   `update_page_data_upload` for a payload over 20,000 bytes, `update_page_data`
+   otherwise; a one-time prompt applies the same size rule itself) with the read
+   `live_version_id` as `expected_version`, the latest represented
+   `source_as_of`, and the requested publish mode.
 
 `update_page_data` locks the page, rereads the published template, rejects
 source regression/future coverage, creates an immutable version through the
