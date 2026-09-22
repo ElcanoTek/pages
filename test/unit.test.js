@@ -3262,6 +3262,35 @@ test("page-uploads: an operator can raise the chunk ceiling to 1 MiB and no furt
   // then refused with a 413 before any tool ran.
   assert.equal(clampChunkBytes("1048576", 49152, 786432), 49152);
   assert.equal(clampChunkBytes("786432", 49152, 786432), 786432);
+  // The default is held to the same bound: a request body too small for 48 KiB
+  // of base64 gets the largest chunk it can carry, never one it would refuse…
+  assert.equal(clampChunkBytes(undefined, 49152, 36864), 36864);
+  assert.equal(clampChunkBytes("49152", 49152, 36864), 36864);
+  assert.equal(clampChunkBytes("big", 49152, 36864), 36864);
+  // …down to the 4 KiB floor, below which no request limit is sensible.
+  assert.equal(clampChunkBytes(undefined, 49152, -12288), 4096);
+});
+
+test("page-uploads: a chunk setting that is not honoured says so, naming the value, the reason and what applies", () => {
+  const { resolveChunkCeiling } = pageUploads;
+  // Honoured, or simply unset at a request limit that carries the default: silent.
+  assert.deepEqual(resolveChunkCeiling("1048576", 49152), { bytes: 1048576, warning: null });
+  assert.deepEqual(resolveChunkCeiling(undefined, 49152), { bytes: 49152, warning: null });
+  assert.deepEqual(resolveChunkCeiling("  ", 49152), { bytes: 49152, warning: null });
+  const cases = [
+    ["2097152", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="2097152" is not used because it is above the 1048576-byte maximum; staged-upload chunks are limited to 49152 bytes\./],
+    ["1024", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="1024" is not used because it is below the 4096-byte minimum; staged-upload chunks are limited to 49152 bytes\./],
+    ["big", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="big" is not used because it is not a whole number of bytes; staged-upload chunks are limited to 49152 bytes\./],
+    ["1048576", 774144, /PAGE_UPLOAD_MAX_CHUNK_BYTES="1048576" is not used because its base64 does not fit one \d+-byte request \(MAX_HTML_BYTES carries at most 774144 raw bytes per chunk\); staged-upload chunks are limited to 49152 bytes\./],
+    [undefined, 36864, /MAX_HTML_BYTES \(\d+ bytes per request\) cannot carry the default 49152-byte upload chunk as base64; staged-upload chunks are limited to 36864 bytes\.$/],
+    [undefined, -12288, /limited to 4096 bytes\. Even that does not fit one request; raise MAX_HTML_BYTES to at least 21848 bytes\.$/],
+  ];
+  for (const [raw, transportMax, expected] of cases) {
+    const { warning } = resolveChunkCeiling(raw, 49152, transportMax);
+    assert.match(warning, /^WARNING: /);
+    assert.match(warning, expected);
+  }
+  assert.equal(pageUploads.MIN_TRANSPORT_REQUEST_BYTES, 21848);
 });
 
 test("page-uploads: the advertised chunk_base64 maxLength follows the configured ceiling", () => {
@@ -3276,20 +3305,32 @@ test("page-uploads: the advertised chunk_base64 maxLength follows the configured
     delete env.NODE_TEST_CONTEXT;
     const result = spawnSync(process.execPath, ["-e", script], { cwd: path.resolve(__dirname, ".."), env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(result.stdout);
+    const warnings = result.stderr.split("\n").filter((line) => line.includes("upload chunk") || line.includes("PAGE_UPLOAD_MAX_CHUNK_BYTES"));
+    return { ...JSON.parse(result.stdout), warnings };
   };
   const base64Chars = (bytes) => Math.ceil(bytes / 3) * 4;
   // A 1 MiB ceiling: Fleet compares the advertised maxLength with the byte range
   // it is about to read, so the schema has to say the configured number.
   assert.deepEqual(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048576" }),
-    { bytes: 1048576, chars: base64Chars(1048576), maxLength: base64Chars(1048576) });
-  assert.deepEqual(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048577" }),
-    { bytes: 49152, chars: base64Chars(49152), maxLength: base64Chars(49152) });
+    { bytes: 1048576, chars: base64Chars(1048576), maxLength: base64Chars(1048576), warnings: [] });
+  const over = resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048577" });
+  assert.deepEqual({ ...over, warnings: over.warnings.length },
+    { bytes: 49152, chars: base64Chars(49152), maxLength: base64Chars(49152), warnings: 1 });
+  assert.match(over.warnings[0], /PAGE_UPLOAD_MAX_CHUNK_BYTES="1048577" is not used because it is above/);
   const unset = { PAGE_UPLOAD_MAX_CHUNK_BYTES: "" };
-  assert.deepEqual(resolve(unset), { bytes: 49152, chars: 65536, maxLength: 65536 });
-  // An operator who shrank the request body cannot also advertise a chunk it refuses.
-  assert.equal(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048576", MAX_HTML_BYTES: "1mb" }).bytes, 49152);
-  assert.equal(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "524288", MAX_HTML_BYTES: "1mb" }).bytes, 524288);
+  assert.deepEqual(resolve(unset), { bytes: 49152, chars: 65536, maxLength: 65536, warnings: [] });
+  // An operator who shrank the request body cannot also advertise a chunk it
+  // refuses — and is told at startup, because the rollout depends on this value.
+  const shrunk = resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048576", MAX_HTML_BYTES: "1mb" });
+  assert.equal(shrunk.bytes, 49152);
+  assert.equal(shrunk.warnings.length, 1);
+  assert.match(shrunk.warnings[0], /"1048576" is not used because its base64 does not fit one 1048576-byte request .*limited to 49152 bytes/);
+  assert.deepEqual(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "524288", MAX_HTML_BYTES: "1mb" }).warnings, []);
+  // The default is bounded too, so the schema never advertises a chunk the body parser refuses.
+  const tiny = resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "", MAX_HTML_BYTES: "64kb" });
+  assert.deepEqual({ bytes: tiny.bytes, maxLength: tiny.maxLength }, { bytes: 36864, maxLength: base64Chars(36864) });
+  assert.ok(base64Chars(tiny.bytes) + 16 * 1024 <= 64 * 1024, "a full-size chunk plus its envelope fits the request");
+  assert.match(tiny.warnings[0], /cannot carry the default 49152-byte upload chunk as base64; staged-upload chunks are limited to 36864 bytes/);
 });
 
 test("page-uploads: guidance asks for as few appends as max_chunk_bytes allows", () => {
