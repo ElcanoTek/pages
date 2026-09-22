@@ -57,6 +57,9 @@ const SECRETS = {
   dbPassword: "db-northwind-9f2c",
 };
 SECRETS.dbUrl = `postgres://pages:${SECRETS.dbPassword}@127.0.0.1:5432/pages?sslmode=disable`;
+// What the probe must put on psql's argv: the configured URL with the
+// password removed (it travels via PGPASSWORD instead).
+SECRETS.redactedDbUrl = `postgres://pages@127.0.0.1:5432/pages?sslmode=disable`;
 
 // The fixture certificate expires 45 days out, relative to the test run —
 // a fixed date would start failing both TLS probes on that date.
@@ -118,6 +121,9 @@ function fixture(options) {
     "ng-distinct": ["pages.contoso.com.ng", "pages.northwind.com.ng"],
     // Same registrable domain under com.ng — must still fail.
     "ng-same": ["pages.contoso.com.ng", "cdn.contoso.com.ng"],
+    // Both hosts sit under the !www.ck exception: they share the registrable
+    // domain www.ck and must fail (exception beats the *.ck wildcard on ties).
+    "ck-exception": ["foo.www.ck", "bar.www.ck"],
   }[envFile] || ["pages.contoso.example", "pages.northwind.example"];
   const pubkey = envFile === "bad-pubkey" ? `${SECRETS.pubkey}!` : SECRETS.pubkey;
   if (envFile !== "missing") {
@@ -149,7 +155,7 @@ function fixture(options) {
   const write = (name, text) => { fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\nset -eu\n${text}\n`, { mode: 0o755 }); };
   write("node", 'if [[ "${1:-}" == "-v" ]]; then echo v22.12.0; else exit 0; fi');
   write("npm", "exit 0");
-  write("psql", 'if [[ "${DOCTOR_TEST_PSQL_FAIL:-0}" == 1 ]]; then exit 1; fi; printf "psql %s\\n" "$*" >> "$DOCTOR_TEST_LOG"; echo 1');
+  write("psql", 'if [[ "${DOCTOR_TEST_PSQL_FAIL:-0}" == 1 ]]; then exit 1; fi; printf "psql pgpassword=%s argv=%s\\n" "${PGPASSWORD:-}" "$*" >> "$DOCTOR_TEST_LOG"; echo 1');
   write("dnf", "exit 0");
   write("rpm", 'printf "%s\\n" "6.9.0-100.fc40.x86_64"');
   write("uname", 'if [[ "${1:-}" == "-r" ]]; then printf "%s\\n" "6.9.0-100.fc40.x86_64"; exit 0; fi; command -p uname "$@"');
@@ -304,6 +310,17 @@ test("full PSL: com.ng distinct registrable domains pass the split; same eTLD+1 
   } finally { fs.rmSync(same.dir, { recursive: true, force: true }); }
 });
 
+test("PSL exception rules win ties over equal-length wildcards", () => {
+  // foo.www.ck vs bar.www.ck: both '*.ck' and the '!www.ck' exception match
+  // at length 2. The exception is what makes www.ck a normal registrable
+  // domain, so both hosts share it and the split check must FAIL them.
+  const ck = fixture({ args: ["--check"], envFile: "ck-exception" });
+  try {
+    assert.equal(ck.result.status, 1, ck.output);
+    assert.match(ck.output, /shares the registrable domain www\.ck/);
+  } finally { fs.rmSync(ck.dir, { recursive: true, force: true }); }
+});
+
 test("an env file the service user cannot read limits validation instead of cascading false key failures", () => {
   const { dir, result, output, pwned } = fixture({ args: ["--check"], envFile: "unreadable", pagesPort: "4312" });
   try {
@@ -333,11 +350,12 @@ test("doctor rejects a pubkey whose base64 decodes only partially", () => {
   } finally { fs.rmSync(bad.dir, { recursive: true, force: true }); }
 });
 
-test("doctor passes the configured DATABASE_URL to psql positionally", () => {
+test("doctor passes the configured DATABASE_URL to psql — password via PGPASSWORD, redacted argv", () => {
   const { dir, result, output, actions } = fixture({ args: ["--check"] });
   try {
     assert.equal(result.status, 0, output);
-    assert.match(actions, new RegExp(`psql ${regexEscape(SECRETS.dbUrl)} -tAc SELECT 1`));
+    assert.match(actions, new RegExp(`psql pgpassword=${regexEscape(SECRETS.dbPassword)} argv=${regexEscape(SECRETS.redactedDbUrl)} -tAc SELECT 1`));
+    assert.ok(!actions.includes(`argv=${SECRETS.dbUrl}`), "full URL (with password) must not reach psql's argv");
     assert.ok(!actions.includes("DATABASE_URL="), "probe used the env-var form psql ignores");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
@@ -357,13 +375,13 @@ test("backslashes and quotes in a value survive the fixture's escaping end to en
   assert.ok(new RegExp(regexEscape(nasty)).test(`psql postgres://pages:${nasty}@host/db -tAc SELECT 1`));
 
   // End to end through the fixture: the env file carries the dq-escaped
-  // value; the production-style parser returns it without unescaping, and
-  // that exact string is what doctor must hand to psql.
+  // value; env_get decodes the double-quote escapes exactly as the service
+  // loader does, and that decoded value is what the probe must deliver —
+  // via PGPASSWORD, with a redacted argv.
   const { dir, result, output, actions } = fixture({ args: ["--check"], dbPassword: nasty });
   try {
     assert.equal(result.status, 0, output);
-    const asParserReturns = `postgres://pages:${dq(nasty)}@127.0.0.1:5432/pages?sslmode=disable`;
-    assert.match(actions, new RegExp(`psql ${regexEscape(asParserReturns)} -tAc SELECT 1`));
+    assert.match(actions, new RegExp(`psql pgpassword=${regexEscape(nasty)} argv=${regexEscape(SECRETS.redactedDbUrl)} -tAc SELECT 1`));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

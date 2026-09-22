@@ -69,9 +69,12 @@ pages_registrable_domain() {
         match=0; break
       fi
     done
-    # Longest match prevails (per spec). Exception/plain rules of equal
-    # length cannot both match one host, so ties do not need a policy.
-    if (( match )) && (( rn > best )); then
+    # Longest match prevails (per spec); on a TIE an exception rule wins over
+    # a wildcard of equal length — for foo.www.ck both '*.ck' and '!www.ck'
+    # match at length 2, and the exception is what makes www.ck a normal
+    # registrable domain (subdomains of it share one cookie boundary).
+    if (( match )) && { (( rn > best )) \
+         || { (( rn == best )) && (( is_exception == 1 )) && (( best_is_exception == 0 )); }; }; then
       best=$rn
       best_is_exception=$is_exception
     fi
@@ -144,12 +147,25 @@ pages_doctor() (
 
   # env_get KEY [FILE] — read one key without sourcing the file (it holds
   # secrets; sourcing would execute arbitrary content on a tampered box).
-  # Last assignment wins, surrounding quotes stripped. Never prints a value.
+  # Last assignment wins; surrounding quotes are stripped and the
+  # shell-style escapes write-env.js puts INSIDE double quotes (\" \\ \$
+  # \`) are decoded — systemd decodes them when loading the file, so the
+  # doctor must too or it validates a value the service never uses. Never
+  # prints a value.
   env_get() {
-    local key="$1" file="${2:-$ENV_FILE}"
+    local key="$1" file="${2:-$ENV_FILE}" value
     [[ -r "$file" ]] || return 0
-    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d= -f2- \
-      | sed -e 's/^["'\'']//' -e 's/["'\'']$//' || true
+    value="$(grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d= -f2-)" || return 0
+    case "$value" in
+      \"*\")
+        value="${value#\"}"; value="${value%\"}"
+        # One left-to-right pass over non-overlapping pairs: \\ and \" pair
+        # correctly because sed resumes scanning after each replacement.
+        value="$(printf '%s' "$value" | sed -e 's/\\\(["\\$`]\)/\1/g')" ;;
+      \'*\')
+        value="${value#\'}"; value="${value%\'}" ;;   # single quotes: no escapes
+    esac
+    printf '%s' "$value"
   }
 
   # PORT comes from the env file via the non-evaluating parser — never sourced.
@@ -318,24 +334,38 @@ EOF
   if [[ -n "$db_url" ]]; then
     if ! command -v psql >/dev/null 2>&1; then
       advise "psql missing — skipping the direct database probe (/readyz below still covers schema)"
-    elif [[ $EUID -eq 0 ]]; then
-      # Pass the configured URL positionally, like bootstrap's psql calls:
-      # DATABASE_URL is NOT a libpq environment variable, so exporting it
-      # would silently probe the service user's default socket/role instead.
-      if runuser -u "$APP_USER" -- psql "$db_url" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
+    else
+      # The password never goes on psql's argv (world-readable via ps and
+      # /proc/<pid>/cmdline while the probe runs): split the userinfo, hand
+      # it to libpq through PGPASSWORD — readable only to the owner and root
+      # in /proc/<pid>/environ — and pass a redacted URL positionally, like
+      # bootstrap's psql calls minus the credential exposure.
+      pg_password=""
+      db_arg="$db_url"
+      if [[ "$db_url" == *"@"* ]]; then
+        db_userinfo="${db_url#*://}"
+        db_userinfo="${db_userinfo%%@*}"
+        if [[ "$db_userinfo" == *:* ]]; then
+          pg_password="${db_userinfo#*:}"
+          db_arg="${db_url/"$db_userinfo"@/"${db_userinfo%%:*}"@}"
+        fi
+      fi
+      if [[ $EUID -eq 0 ]]; then
+        if PGPASSWORD="$pg_password" runuser -u "$APP_USER" -- psql "$db_arg" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
+          pass "database accepts the '$APP_USER' role (DATABASE_URL)"
+        else
+          fail "database probe failed — check DATABASE_URL in $ENV_FILE and pg_hba.conf"
+        fi
+      elif PGPASSWORD="$pg_password" psql "$db_arg" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
         pass "database accepts the '$APP_USER' role (DATABASE_URL)"
       else
-        fail "database probe failed — check DATABASE_URL in $ENV_FILE and pg_hba.conf"
+        # The read-only run probes as the service user (via the pages CLI), so
+        # a failed probe means the configured URL is unusable even though the
+        # still-running service may be healthy on its old environment — the
+        # next restart is what breaks. That is a failure, not a rerun-with-root
+        # suggestion.
+        fail "database probe failed — DATABASE_URL in $ENV_FILE is not usable as $(id -un); the running service may still be on its old environment, but the next restart will take Pages down"
       fi
-    elif psql "$db_url" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
-      pass "database accepts the '$APP_USER' role (DATABASE_URL)"
-    else
-      # The read-only run probes as the service user (via the pages CLI), so
-      # a failed probe means the configured URL is unusable even though the
-      # still-running service may be healthy on its old environment — the
-      # next restart is what breaks. That is a failure, not a rerun-with-root
-      # suggestion.
-      fail "database probe failed — DATABASE_URL in $ENV_FILE is not usable as $(id -un); the running service may still be on its old environment, but the next restart will take Pages down"
     fi
   fi
 
