@@ -121,6 +121,15 @@ case "$cmd" in
     [[ -f "$APP_DIR/scripts/backup.js" ]] || { echo "no integrity implementation at $APP_DIR; update Pages first" >&2; exit 1; }
     exec sudo node "$APP_DIR/scripts/backup.js" check "$@"
     ;;
+  doctor)
+    # Box-level diagnostics (scripts/doctor.sh). Dispatched from the SOURCE
+    # checkout, like update — the doctor also inspects that checkout. Read-only
+    # with --check; as root it makes the safe repairs (env perms, starting a
+    # stopped service, restarting a stale release).
+    [[ -d "$SRC_DIR/.git" ]] || { echo "no source checkout at $SRC_DIR" >&2; exit 1; }
+    exec sudo env PAGES_INSTALL_CONFIG="$PAGES_INSTALL_CONFIG" APP_DIR="$APP_DIR" APP_USER="$APP_USER" \
+      PAGES_SRC_DIR="$SRC_DIR" PAGES_ENV_FILE="$ENV_FILE" PAGES_PORT="${PAGES_PORT:-}" bash "$SRC_DIR/scripts/doctor.sh" "$@"
+    ;;
   # ── Phase 1+ subcommands (stubs today; wired as the app grows) ──────────
   page|theme)
     echo "'pages $cmd' arrives with Phase ${PAGES_PHASE_HINT:-1+}. See PLAN.md §9." >&2
@@ -151,6 +160,9 @@ pages — Elcano Pages operator CLI
   pages backup [dest]                  capture and rehearse a complete backup
                                        (default destination: /var/backups/pages)
   pages check-integrity <backup-dir>    verify files and repeat an isolated restore
+
+  pages doctor [--check]               diagnose the box (read-only with --check;
+                                       safe repairs as root; --dry-run, --strict)
 
   Planned (PLAN.md §9):
   pages page list|passwd|disable|enable

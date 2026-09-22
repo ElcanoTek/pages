@@ -7,7 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/backup.test.js test/data-limits.test.js test/unit.test.js test/theme.test.js test/install-config.test.js test/bootstrap-env.test.js test/runtime.test.js test/update.test.js test/migration-compatibility.test.js",
+    "test": "node --test test/backup.test.js test/data-limits.test.js test/unit.test.js test/theme.test.js test/install-config.test.js test/bootstrap-env.test.js test/runtime.test.js test/update.test.js test/migration-compatibility.test.js test/doctor.test.js",
     "test:browser": "playwright test",
     "preinstall": "node scripts/check-node.js"
   },

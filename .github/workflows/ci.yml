@@ -37,7 +37,7 @@ jobs:
         run: npm test
       - name: Shell syntax check
         run: |
-          for f in scripts/*.sh test/*.sh deploy/pages-cli; do
+          for f in install.sh scripts/*.sh test/*.sh deploy/pages-cli; do
             bash -n "$f"
           done
       - name: Install browser
