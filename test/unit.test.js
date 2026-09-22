@@ -3245,6 +3245,64 @@ test("page-uploads: the chunk ceiling stays inside a model's safe argument budge
   assert.equal(pageUploads.MAX_CHUNK_BASE64_CHARS, Math.ceil(pageUploads.MAX_CHUNK_BYTES / 3) * 4);
 });
 
+test("page-uploads: an operator can raise the chunk ceiling to 1 MiB and no further", () => {
+  const { clampChunkBytes } = pageUploads;
+  assert.equal(pageUploads.MIN_CHUNK_CEILING_BYTES, 4 * 1024);
+  assert.equal(pageUploads.MAX_CHUNK_CEILING_BYTES, 1024 * 1024);
+  // The default 2 MB request body carries a 1 MiB chunk as base64 plus its
+  // JSON-RPC envelope; otherwise the top of the clamp could never be used.
+  assert.ok(pageUploads.TRANSPORT_MAX_CHUNK_BYTES >= pageUploads.MAX_CHUNK_CEILING_BYTES);
+  for (const accepted of [4096, 49152, 262144, 262145, 1048576]) {
+    assert.equal(clampChunkBytes(String(accepted), 49152), accepted);
+  }
+  for (const rejected of ["1048577", "2097152", "4095", "0", "-1", "", "big", undefined]) {
+    assert.equal(clampChunkBytes(rejected, 49152), 49152, `${rejected} falls back to the default`);
+  }
+  // A ceiling the configured request body cannot carry would be advertised and
+  // then refused with a 413 before any tool ran.
+  assert.equal(clampChunkBytes("1048576", 49152, 786432), 49152);
+  assert.equal(clampChunkBytes("786432", 49152, 786432), 786432);
+});
+
+test("page-uploads: the advertised chunk_base64 maxLength follows the configured ceiling", () => {
+  const script =
+    "const pageUploads = require('./lib/page-uploads');" +
+    "const { TOOLS } = require('./lib/mcp-tools');" +
+    "const schema = require('zod').toJSONSchema(TOOLS.append_page_upload.inputSchema, { io: 'input' });" +
+    "process.stdout.write(JSON.stringify({ bytes: pageUploads.MAX_CHUNK_BYTES, chars: pageUploads.MAX_CHUNK_BASE64_CHARS," +
+    " maxLength: schema.properties.chunk_base64.maxLength }))";
+  const resolve = (overrides) => {
+    const env = { ...process.env, ...overrides };
+    delete env.NODE_TEST_CONTEXT;
+    const result = spawnSync(process.execPath, ["-e", script], { cwd: path.resolve(__dirname, ".."), env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const base64Chars = (bytes) => Math.ceil(bytes / 3) * 4;
+  // A 1 MiB ceiling: Fleet compares the advertised maxLength with the byte range
+  // it is about to read, so the schema has to say the configured number.
+  assert.deepEqual(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048576" }),
+    { bytes: 1048576, chars: base64Chars(1048576), maxLength: base64Chars(1048576) });
+  assert.deepEqual(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048577" }),
+    { bytes: 49152, chars: base64Chars(49152), maxLength: base64Chars(49152) });
+  const unset = { PAGE_UPLOAD_MAX_CHUNK_BYTES: "" };
+  assert.deepEqual(resolve(unset), { bytes: 49152, chars: 65536, maxLength: 65536 });
+  // An operator who shrank the request body cannot also advertise a chunk it refuses.
+  assert.equal(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "1048576", MAX_HTML_BYTES: "1mb" }).bytes, 49152);
+  assert.equal(resolve({ PAGE_UPLOAD_MAX_CHUNK_BYTES: "524288", MAX_HTML_BYTES: "1mb" }).bytes, 524288);
+});
+
+test("page-uploads: guidance asks for as few appends as max_chunk_bytes allows", () => {
+  const { fileUploadGuidance } = require("../lib/upload-guidance");
+  for (const kind of ["page", "data"]) {
+    assert.match(fileUploadGuidance(kind), /as few appends as returned max_chunk_bytes allows/);
+  }
+  assert.match(TOOLS.start_page_upload.description, /as few appends as the returned max_chunk_bytes allows/);
+  assert.match(TOOLS.append_page_upload.description, /as few appends as max_chunk_bytes allows/);
+  const invalid = (() => { try { pageUploads.decodeBase64Chunk("!"); } catch (error) { return error; } })();
+  assert.match(invalid.message, /as few appends as max_chunk_bytes allows/);
+});
+
 // ── templates ───────────────────────────────────────────────────────────────
 
 test("templates: names are flat and url-safe so one can never read as a page slug", () => {

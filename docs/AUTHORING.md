@@ -335,8 +335,12 @@ chance a turn dies mid-deploy.
   → `deploy_page_upload`. Chunks may be up to the `max_chunk_bytes` the start
   call returns (**49,152** by default — a 65 KB dashboard is two calls).
 
-`max_chunk_bytes` is a ceiling, not a quota: smaller chunks are always fine and
-sequence numbers do not depend on size.
+`max_chunk_bytes` is a ceiling, not a quota: smaller chunks are accepted and
+sequence numbers do not depend on size. Each append is a full round trip, so use
+as few appends as it allows. A client that reads a `workspace_file` reference
+host-side sends the bytes without the model emitting them; a deployment serving
+only such clients may raise the ceiling to 1 MiB, which makes most documents a
+single append.
 
 **Never shrink a working dashboard to fit the transport.** Dropping rows,
 columns or date granularity to save chunks trades away the thing the client

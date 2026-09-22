@@ -269,6 +269,15 @@ caller to:
    `expected_version`, the latest represented `source_as_of`, and the requested
    publish mode.
 
+A data file staged with `start_page_upload kind='data'` and `append_page_upload`
+costs one model round trip per append, so the file goes up in as few appends as
+the returned `max_chunk_bytes` allows. At the 48 KiB default a ~1 MB payload
+takes 21 appends. A client that reads `workspace_file` references host-side
+(Fleet) never puts those bytes in model output, and a deployment serving only
+such clients can raise `PAGE_UPLOAD_MAX_CHUNK_BYTES` to 1 MiB so that payload
+is one append (DEPLOYMENT.md §5). The ceiling changes transport only: the 1 MiB
+data and escaped-envelope limits above apply unchanged.
+
 `update_page_data` locks the page, rereads the published template, rejects
 source regression/future coverage, creates an immutable version through the
 normal approval state machine, and deduplicates exact retries. On
