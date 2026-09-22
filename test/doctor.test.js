@@ -23,6 +23,28 @@ function controlledScript(relative) {
 const DOCTOR_SCRIPT = controlledScript("scripts/doctor.sh");
 const CLI_SCRIPT = controlledScript("deploy/pages-cli");
 
+// Escape helpers for the few places a value is embedded into generated shell
+// code or a regular expression. Centralized because hand-rolled escaping
+// repeatedly gets one case wrong (CodeQL js/incomplete-sanitization): in a
+// DOUBLE-quoted shell string the backslash must be escaped BEFORE the quote —
+// otherwise the quote-escape introduces a backslash that the first pass
+// missed. Single-quoting sidesteps the ordering trap entirely, which is why
+// shq is preferred wherever the syntax allows it.
+//
+// shq: lossless single-quoting for arbitrary values (`'\''` idiom).
+function shq(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+// dq: escape a value for a DOUBLE-quoted shell string — backslashes first.
+function dq(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+// regexEscape: every regex metacharacter, backslash included — `\\` in the
+// character class means a single pass handles backslashes correctly.
+function regexEscape(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // Static-looking fixture secrets. The leakage test asserts none of these
 // values appears anywhere in doctor's output (key NAMES are fine — only
 // values must never be printed). "Northwind"-style invented data, not real
@@ -53,7 +75,9 @@ function fixture(options) {
   const {
     args, envFile = "present", statPerms, runningDir, active = 1,
     gitBehind = "0", gitRemoteSha = "abc1230", gitLsRemoteFail = false, readyzFails = 0,
+    dbPassword = SECRETS.dbPassword,
   } = options;
+  const dbUrl = `postgres://pages:${dbPassword}@127.0.0.1:5432/pages?sslmode=disable`;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pages-doctor-"));
   const bin = path.join(dir, "bin");
   const state = path.join(dir, "state");
@@ -87,19 +111,21 @@ function fixture(options) {
   }[envFile] || ["pages.contoso.example", "pages.northwind.example"];
   const pubkey = envFile === "bad-pubkey" ? `${SECRETS.pubkey}!` : SECRETS.pubkey;
   if (envFile !== "missing") {
+    // Every interpolated value goes through dq: a backslash or quote in a
+    // value must not corrupt the env file or change what env_get reads back.
     fs.writeFileSync(envFilePath, [
       'PORT="4312"',
-      `DASHBOARD_HOST="${hosts[0]}"`,
-      `CONTENT_HOST="${hosts[1]}"`,
-      `AUTH_SIGNING_PUBKEY="${pubkey}"`,
-      `PAGE_COOKIE_SECRET="${SECRETS.pageCookie}"`,
-      `RAW_TOKEN_SECRET="${SECRETS.rawToken}"`,
-      `API_TOKEN_PEPPER="${SECRETS.pepper}"`,
-      `DATABASE_URL="${SECRETS.dbUrl}"`,
+      `DASHBOARD_HOST="${dq(hosts[0])}"`,
+      `CONTENT_HOST="${dq(hosts[1])}"`,
+      `AUTH_SIGNING_PUBKEY="${dq(pubkey)}"`,
+      `PAGE_COOKIE_SECRET="${dq(SECRETS.pageCookie)}"`,
+      `RAW_TOKEN_SECRET="${dq(SECRETS.rawToken)}"`,
+      `API_TOKEN_PEPPER="${dq(SECRETS.pepper)}"`,
+      `DATABASE_URL="${dq(dbUrl)}"`,
       // Sourcing canary: if anything ever evaluates this file as shell code
       // (the install-config sourcing bug), this line runs. It is not a
       // KEY= line, so the non-evaluating parser must ignore it.
-      `touch "${path.join(state, "pwned")}"`,
+      `touch ${shq(path.join(state, "pwned"))}`,
       "",
     ].join("\n"), { mode: 0o640 });
   }
@@ -141,7 +167,7 @@ function fixture(options) {
   ].join("\n"));
   write("caddy", 'case "$1" in version) echo "v2.8.4" ;; *) exit 0 ;; esac');
   write("openssl", 'case "$*" in *s_client*) cat >/dev/null 2>&1 || true; printf "%s\\n" "-----BEGIN CERTIFICATE-----" "Y29udG9zbwo=" "-----END CERTIFICATE-----" ;; *x509*) printf "notAfter=%s\\n" "$DOCTOR_TEST_CERT_END" ;; *) exit 0 ;; esac');
-  write("stat", `case "$*" in *"${envFilePath}"*) printf "%s\\n" "\${DOCTOR_TEST_STAT_PERMS:-640 root:\${DOCTOR_TEST_APP_USER}}" ;; *) command -p stat "$@" ;; esac`);
+  write("stat", `case "$*" in *${shq(envFilePath)}*) printf "%s\\n" "\${DOCTOR_TEST_STAT_PERMS:-640 root:\${DOCTOR_TEST_APP_USER}}" ;; *) command -p stat "$@" ;; esac`);
   write("readlink", 'case "${@: -1}" in /proc/*/cwd) printf "%s\\n" "$DOCTOR_TEST_RUNNING_DIR" ;; *) command -p readlink "$@" ;; esac');
   write("chown", 'printf "chown %s\\n" "$*" >> "$DOCTOR_TEST_LOG"; exit 0');
   write("chmod", 'printf "chmod %s\\n" "$*" >> "$DOCTOR_TEST_LOG"; command -p chmod "$@"');
@@ -258,8 +284,33 @@ test("doctor passes the configured DATABASE_URL to psql positionally", () => {
   const { dir, result, output, actions } = fixture({ args: ["--check"] });
   try {
     assert.equal(result.status, 0, output);
-    assert.match(actions, new RegExp(`psql ${SECRETS.dbUrl.replace(/[/.:?]/g, "\\$&")} -tAc SELECT 1`));
+    assert.match(actions, new RegExp(`psql ${regexEscape(SECRETS.dbUrl)} -tAc SELECT 1`));
     assert.ok(!actions.includes("DATABASE_URL="), "probe used the env-var form psql ignores");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("backslashes and quotes in a value survive the fixture's escaping end to end", () => {
+  // Contains a double quote, a single quote, and a backslash in one value —
+  // the combination hand-escaping gets wrong (backslashes must be escaped
+  // before quotes; regexes must escape the backslash itself).
+  const nasty = 'p"\'\\w0rd';
+  // shq is lossless through a real shell.
+  const sh = spawnSync("bash", ["-c", `printf %s ${shq(nasty)}`], { encoding: "utf8" });
+  assert.equal(sh.stdout, nasty, `shq round-trip failed: ${JSON.stringify(sh.stdout)}`);
+  // dq is lossless through a real double-quoted shell string.
+  const dqs = spawnSync("bash", ["-c", `printf %s "${dq(nasty)}"`], { encoding: "utf8" });
+  assert.equal(dqs.stdout, nasty, `dq round-trip failed: ${JSON.stringify(dqs.stdout)}`);
+  // regexEscape matches the literal value embedded in surrounding text.
+  assert.ok(new RegExp(regexEscape(nasty)).test(`psql postgres://pages:${nasty}@host/db -tAc SELECT 1`));
+
+  // End to end through the fixture: the env file carries the dq-escaped
+  // value; the production-style parser returns it without unescaping, and
+  // that exact string is what doctor must hand to psql.
+  const { dir, result, output, actions } = fixture({ args: ["--check"], dbPassword: nasty });
+  try {
+    assert.equal(result.status, 0, output);
+    const asParserReturns = `postgres://pages:${dq(nasty)}@127.0.0.1:5432/pages?sslmode=disable`;
+    assert.match(actions, new RegExp(`psql ${regexEscape(asParserReturns)} -tAc SELECT 1`));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
