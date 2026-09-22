@@ -392,15 +392,25 @@ EOF
     else
       advise "checkout has local changes — resolve them before pages update"
     fi
-    if "${git[@]}" fetch --quiet origin 2>/dev/null; then
-      behind="$("${git[@]}" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
-      if [[ "$behind" =~ ^[0-9]+$ ]] && (( behind > 0 )); then
+    # Freshness is only knowable after a successful fetch: pin the refspec to
+    # main and bound the wait (git has no --max-time; coreutils timeout ships
+    # on every Fedora/RHEL box — fall back to an unbounded fetch only where it
+    # is somehow absent). A failed fetch must read as unknown, never current.
+    fetch=("${git[@]}" fetch --quiet origin main)
+    if command -v timeout >/dev/null 2>&1; then
+      fetch=(timeout 10 "${fetch[@]}")
+    fi
+    if "${fetch[@]}" 2>/dev/null; then
+      behind="$("${git[@]}" rev-list --count HEAD..origin/main 2>/dev/null)"
+      if [[ ! "$behind" =~ ^[0-9]+$ ]]; then
+        advise "fetched origin but could not compare with origin/main — inspect: git -C $SRC_DIR status"
+      elif (( behind > 0 )); then
         advise "checkout is $behind commit(s) behind origin/main — run: sudo pages update"
       else
         pass "checkout current with origin/main"
       fi
     else
-      advise "could not fetch origin — network or auth issue"
+      advise "could not reach origin — fetch failed (network, auth, or timeout); skipping the freshness check"
     fi
   fi
 

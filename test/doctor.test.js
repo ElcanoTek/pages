@@ -9,12 +9,24 @@ const os = require("node:os");
 const { spawnSync } = require("node:child_process");
 const root = path.join(__dirname, "..");
 
+// Static-looking fixture secrets. The leakage test asserts none of these
+// values appears anywhere in doctor's output (key NAMES are fine — only
+// values must never be printed). "Northwind"-style invented data, not real
+// credentials.
+const SECRETS = {
+  pubkey: Buffer.alloc(32, 97).toString("base64"),
+  pageCookie: "0123456789abcdef".repeat(4),
+  rawToken: "abcdef0123456789".repeat(4),
+  pepper: "aaaaaaaabbbbbbbb".repeat(4),
+  dbPassword: "db-northwind-9f2c",
+};
+
 // The fixture reexecutes the real pages_doctor function with a shimmed PATH
 // (the update.test.js pattern): systemctl/curl/git/openssl/stat/readlink are
 // fake binaries driven by files under the fixture dir, so a run of the doctor
 // can be asserted end to end without a box, root, systemd or a database.
 function fixture(options) {
-  const { args, envFile = "present", statPerms, runningDir, active = 1 } = options;
+  const { args, envFile = "present", statPerms, runningDir, active = 1, gitBehind = "0", gitFetchFail = false } = options;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pages-doctor-"));
   const bin = path.join(dir, "bin");
   const state = path.join(dir, "state");
@@ -41,11 +53,11 @@ function fixture(options) {
       'PORT="4312"',
       'DASHBOARD_HOST="pages.contoso.example"',
       'CONTENT_HOST="contoso-pages.example"',
-      `AUTH_SIGNING_PUBKEY="${Buffer.alloc(32, 97).toString("base64")}"`,
-      `PAGE_COOKIE_SECRET="${"0123456789abcdef".repeat(4)}"`,
-      `RAW_TOKEN_SECRET="${"abcdef0123456789".repeat(4)}"`,
-      `API_TOKEN_PEPPER="${"aaaaaaaabbbbbbbb".repeat(4)}"`,
-      'DATABASE_URL="postgres://pages:contoso@127.0.0.1:5432/pages?sslmode=disable"',
+      `AUTH_SIGNING_PUBKEY="${SECRETS.pubkey}"`,
+      `PAGE_COOKIE_SECRET="${SECRETS.pageCookie}"`,
+      `RAW_TOKEN_SECRET="${SECRETS.rawToken}"`,
+      `API_TOKEN_PEPPER="${SECRETS.pepper}"`,
+      `DATABASE_URL="postgres://pages:${SECRETS.dbPassword}@127.0.0.1:5432/pages?sslmode=disable"`,
       "",
     ].join("\n"), { mode: 0o640 });
   }
@@ -59,8 +71,19 @@ function fixture(options) {
   write("psql", "echo 1");
   write("dnf", "exit 0");
   write("rpm", 'printf "%s\\n" "6.9.0-100.fc40.x86_64"');
-  write("uname", '[[ "${1:-}" == "-r" ]] && { printf "%s\\n" "6.9.0-100.fc40.x86_64"; exit 0; }; command -p uname "$@"');
-  write("git", 'case "$*" in *--abbrev-ref*) echo main ;; *rev-list\\ --count*) echo 0 ;; *status\\ --porcelain*) : ;; *) exit 0 ;; esac');
+  write("uname", 'if [[ "${1:-}" == "-r" ]]; then printf "%s\\n" "6.9.0-100.fc40.x86_64"; exit 0; fi; command -p uname "$@"');
+  write("git", [
+    'case "$*" in',
+    '  *fetch*)',
+    '    printf "git-fetch\\n" >> "$DOCTOR_TEST_LOG"',
+    '    if [[ "${DOCTOR_TEST_GIT_FETCH_FAIL:-0}" == 1 ]]; then exit 1; fi',
+    "    exit 0 ;;",
+    "  *--abbrev-ref*) echo main ;;",
+    '  *rev-list\\ --count*) printf "%s\\n" "${DOCTOR_TEST_GIT_BEHIND:-0}" ;;',
+    "  *status\\ --porcelain*) : ;;",
+    "  *) exit 0 ;;",
+    "esac",
+  ].join("\n"));
   write("curl", '[[ "$*" == *"127.0.0.1:4312/readyz"* ]]');
   write("caddy", 'case "$1" in version) echo "v2.8.4" ;; *) exit 0 ;; esac');
   write("openssl", 'case "$*" in *s_client*) cat >/dev/null 2>&1 || true; printf "%s\\n" "-----BEGIN CERTIFICATE-----" "Y29udG9zbwo=" "-----END CERTIFICATE-----" ;; *x509*) echo "notAfter=Jan 15 12:00:00 2027 GMT" ;; *) exit 0 ;; esac');
@@ -97,6 +120,8 @@ function fixture(options) {
     DOCTOR_TEST_APP_USER: username,
     DOCTOR_TEST_STAT_PERMS: statPerms || "",
     DOCTOR_TEST_RUNNING_DIR: runningDir === "previous" ? previous : release,
+    DOCTOR_TEST_GIT_BEHIND: gitBehind,
+    DOCTOR_TEST_GIT_FETCH_FAIL: gitFetchFail ? "1" : "0",
   };
   delete env.NODE_TEST_CONTEXT;
   delete env.PAGES_PORT;
@@ -113,7 +138,9 @@ test("doctor --check on a healthy box reports healthy, changes nothing", () => {
     assert.equal(result.status, 0, output);
     assert.match(output, /box healthy/);
     assert.match(output, /\/readyz/);
-    assert.equal(actions, "");
+    assert.match(actions, /git-fetch\n/);
+    // read-only: no repair actions of any kind
+    assert.ok(!/(start|restart|chown|chmod) /.test(actions), actions);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -156,4 +183,41 @@ test("doctor --strict turns advisories into a failure; --dry-run changes nothing
     assert.match(dry.output, /\[dry-run\]/);
     assert.equal(dry.actions, "");
   } finally { fs.rmSync(dry.dir, { recursive: true, force: true }); }
+});
+
+test("doctor handles a fully-seeded secrets env file without crashing or leaking values", () => {
+  // The pages analog of the explorer static-credentials crash: the secret-
+  // bearing path must run clean, report normally, and never print a value.
+  const { dir, result, output } = fixture({ args: ["--check"] });
+  try {
+    assert.equal(result.status, 0, output);
+    for (const [name, value] of Object.entries(SECRETS)) {
+      assert.ok(!output.includes(value), `doctor output leaked ${name}`);
+    }
+    // the expected standing advisory on this fixture (release feed unreachable)
+    assert.match(output, /could not read the Fedora release feed/);
+    // key NAMES are reported, values are not
+    assert.match(output, /PAGE_COOKIE_SECRET set/);
+    assert.match(output, /API_TOKEN_PEPPER set/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("doctor fetches, then warns N commits behind origin/main", () => {
+  const { dir, result, output, actions } = fixture({ args: ["--check"], gitBehind: "3" });
+  try {
+    assert.equal(result.status, 0, output); // behind is an advisory, not a failure
+    assert.match(actions, /git-fetch\n/); // freshness claim must follow a fetch
+    assert.match(output, /3 commit\(s\) behind origin\/main — run: sudo pages update/);
+    assert.ok(!output.includes("current with origin/main"));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("doctor says could-not-reach-origin, never up-to-date, when the fetch fails", () => {
+  const { dir, result, output, actions } = fixture({ args: ["--check"], gitBehind: "3", gitFetchFail: true });
+  try {
+    assert.equal(result.status, 0, output); // honest advisory, not a false pass
+    assert.match(output, /could not reach origin/);
+    assert.ok(!output.includes("behind origin/main"), output);
+    assert.ok(!output.includes("current with origin/main"), output);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
