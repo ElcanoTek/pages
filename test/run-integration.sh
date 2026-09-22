@@ -203,6 +203,8 @@ echo "▸ full-source metadata integration"
 node "$ROOT/test/source-metadata.integration.js"
 echo "▸ managed-data size integration"
 node "$ROOT/test/data-limits.integration.js"
+echo "▸ managed-data summary and export integration"
+node "$ROOT/test/data-export.integration.js"
 echo "▸ template migration integration"
 node "$ROOT/test/template-migration.integration.js"
 

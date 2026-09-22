@@ -44,6 +44,7 @@ const compose = require("./lib/compose"); // DEV-only "compose with Cutlass" pan
 const csrf = require("./lib/csrf");
 const mcp = require("./lib/mcp");
 const uploadTicket = require("./lib/uploadticket");
+const dataExport = require("./lib/data-export");
 const limits = require("./lib/ratelimit");
 
 const PORT = Number(process.env.PORT || 3002);
@@ -396,6 +397,13 @@ dashboardApp.use("/api/v1", limits.api);
 // the same per-IP limiter. See lib/uploadticket.js for why this credential is
 // safe to hand to an agent's sandbox.
 dashboardApp.use("/upload", limits.api, uploadTicket.router);
+
+// The read-direction counterpart: short-lived GET-only URLs for one published
+// version's managed-data schema and envelope, minted by get_page_data
+// detail='export' so a host-side download can put them in a file instead of a
+// model context. Dashboard host only, reads no cookie, serves attachment JSON.
+// See lib/data-export.js for the credential's bounds.
+dashboardApp.use("/export", limits.api, dataExport.router);
 
 dashboardApp.use(express.urlencoded({ extended: false, limit: "64kb" }));
 // JSON body cap = the per-version HTML ceiling (PLAN §7: HTML ≤ ~1–2 MB).

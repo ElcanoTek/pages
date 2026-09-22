@@ -248,18 +248,34 @@ deployments can lower them with `PAGES_DATA_SCHEMA_MAX_BYTES`,
 
 ## Safe managed update execution
 
-`get_page_data({slug, include_data:false})` returns the same contract, hashes,
-profile, live state and coverage with `envelope.data` omitted and
-`data_omitted:true`. This keeps large row payloads out of the contract read.
-Omit the option (or pass true) to retrieve the full live data for historical
-overlap checks; never treat an omitted payload as an empty dataset.
+`get_page_data` reads the contract in three sizes, chosen with `detail`:
 
-`get_page_data({slug})` returns the published schema/envelope, semantic hashes,
-URLs, and truthful live-state fields. A generated managed prompt requires the
-caller to:
+| `detail` | Returns | Use |
+| --- | --- | --- |
+| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB whatever the payload size | the first read of every run; enough to pick a branch |
+| `export` | the same identity fields plus `schema_url`, `data_url` and `envelope_url` for the live version, valid for 10 minutes | fetch the schema and rows once into workspace files with a host-side URL download (Fleet's `download_url`), so they never enter the model's context |
+| `full` (default) | the published schema/envelope, semantic hashes, full `data_profile`, URLs and truthful live-state fields, exactly as before `detail` existed | clients that cannot download URLs; one read per run |
 
-1. read the exact slug and establish this run's schema/hash baseline (also
-   verify the generated schema pin for a one-time update);
+The exported schema and data files are the canonical JSON the hashes are
+computed over, so `sha256(schema.json)` equals `schema_sha256` and
+`sha256(data.json)` equals `data_sha256`. An export URL serves only the version
+that was live when it was minted, and it stops working when its minting token is
+revoked or loses the page grant. See [SECURITY.md](SECURITY.md).
+
+A full read with `include_data:false` still returns the complete contract,
+hashes, profile, live state and coverage, with `envelope.data` omitted and
+`data_omitted:true`. Never treat an omitted payload as an empty dataset.
+
+A generated managed prompt requires the caller to:
+
+1. read the exact slug with `detail:'summary'` and establish this run's
+   schema/hash baseline (also verify the generated schema pin for a one-time
+   update), then fetch the schema and complete live envelope **once** into
+   workspace files, by `detail:'export'` where the client can download URLs
+   and by one `detail:'full'` read otherwise. Validation, historical overlap and
+   reconciliation read those files. The run does not call `get_page_data` or
+   `get_page_config` again, whether to re-verify or after a context
+   compaction, unless a write returns `stale_version`;
 2. retrieve every required source read-only and establish identity, coverage,
    freshness, completeness, row counts, and reconciliation evidence;
 3. select the no-update or blocked branch when appropriate;
@@ -272,7 +288,7 @@ caller to:
 `update_page_data` locks the page, rereads the published template, rejects
 source regression/future coverage, creates an immutable version through the
 normal approval state machine, and deduplicates exact retries. On
-`stale_version` or an ambiguous transport result, reread once, compare hashes,
+`stale_version` or an ambiguous transport result, reread the summary once, compare hashes,
 and retry at most once only when the intended coverage is not already present.
 
 Use `publish:false` for a canary. Approval-gated updates remain pending for a
@@ -428,6 +444,9 @@ This is optional and operator-managed. Pages never creates a token or grant as a
 side effect of prompt preparation. A `data_update` token sees only
 `get_page_data` and `update_page_data`, may access only its explicit slugs, is
 denied from REST and unrelated MCP tools, and is recorded by token ID on writes.
+All three `get_page_data` read sizes are available to it. An export URL it mints
+is re-authorized against the same grant on every fetch, so removing the grant
+or revoking the token also ends its outstanding URLs.
 The broad MCP token already used by Chat can prepare and execute user-directed
 updates without additional Pages server configuration.
 
