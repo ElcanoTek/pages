@@ -5618,7 +5618,7 @@ test("recurring prompt survives a chat schema edit but a one-time prompt stays p
   );
   const lines = after.split("\n");
   const requirements = JSON.parse(lines[lines.indexOf("EXECUTION REQUIREMENTS (JSON):") + 1]);
-  assert.deepEqual(requirements, updatePrompts.executionRequirements(null, "managed_data"));
+  assert.deepEqual(requirements, updatePrompts.executionRequirements(null, "managed_data", { slug: "northwind-refresh", recurring: true }));
 });
 
 test("no-update and blocked branches never require publishing or a fictitious audit commitment", () => {

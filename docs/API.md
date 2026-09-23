@@ -225,6 +225,10 @@ and MCP initialization use the same preference and fallback.
 the caller must additionally provide one permitted upload transport. Its
 `network: false` means outbound file HTTP is optional because MCP chunks can
 complete the transfer. Check the chosen transport before processing data.
+For managed data it also carries `roster`, `completion.any_succeeded` and
+`serialization_key`. Both commit transports are always listed; the run picks
+one by the size of the file it built. Binding server and tool names must match
+`^[a-zA-Z0-9_.-]{1,200}$`. See DATA_UPDATES.md.
 
 ### Managed-data size limits
 

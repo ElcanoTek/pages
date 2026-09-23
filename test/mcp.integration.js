@@ -3346,6 +3346,19 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
       recurringPrompt.execution_requirements,
       "copying only the prompt retains the scheduling prerequisites"
     );
+    // #102: what a scheduler can enforce without asking a model. mcpdata's live
+    // payload is small, and the block still lists both commit transports: a
+    // recurring payload grows, and a narrowed roster must never lock it inline.
+    assert.ok(Buffer.byteLength(JSON.stringify(completeRead.envelope.data)) <= 20000);
+    assert.equal(recurringPrompt.execution_requirements.roster, "required_tools_only");
+    assert.deepEqual(recurringPrompt.execution_requirements.completion, {
+      any_succeeded: ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
+    });
+    assert.equal(recurringPrompt.execution_requirements.serialization_key, "pages:mcpdata");
+    for (const tool of ["mcp_pages_update_page_data", "mcp_pages_update_page_data_upload", "mcp_pages_start_page_upload", "mcp_pages_append_page_upload"]) {
+      assert.ok(recurringPrompt.execution_requirements.required_tools.includes(tool), tool);
+    }
+    assert.doesNotMatch(recurringPrompt.prompt, /COMMIT TOOL:/);
     assert.match(recurringPrompt.prompt, /source_not_updated: Call mcp_pages_record_refresh_check once/);
     assert.match(recurringPrompt.prompt, /incompatible grain, required fields, source identity or mappings are blocked/);
     assert.match(recurringPrompt.prompt, /UPDATE BRANCH ONLY/);

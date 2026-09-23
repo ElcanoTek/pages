@@ -54,6 +54,79 @@ before accepting the task instead of discovering it at dispatch. (Five real
 autoupdate tasks were accepted as opaque prompt blobs and dead-lettered on their
 first run with no model configured, having executed nothing.)
 
+For `managed_data` it also states three things a scheduler can enforce without
+asking a model:
+
+- `roster: "required_tools_only"`: offer the run only `required_tools`. That
+  list holds every tool a branch may call and nothing else. A refresh needs
+  about eight Pages tools, and each step used to re-send the other thirty-odd
+  tool schemas. Only a **recurring** prompt whose every source binding names
+  its `required_tools` carries it: a scheduler honouring it registers nothing
+  from a server none of whose tools is listed, so an unbound or server-only
+  source would leave the run unable to read its data. One-time prompts, the
+  managed half embedded in an adaptive prompt, and prompts prepared through the
+  legacy `configure_page_refresh` workflow alias (whose lifted bindings may be a
+  subset of the workflow it serializes) never carry it.
+- `completion.any_succeeded`: the run is complete when one of these tools
+  succeeded, which means a committed version or a recorded refresh check. Both
+  are visible in tool records, so no model has to judge whether a correct
+  `source_not_updated` or `blocked` run "finished". Recurring prompts only:
+  a one-time prompt's blocked branch records no refresh check, so it carries
+  no completion predicate.
+- `serialization_key: "pages:<slug>"`: runs that share it must not overlap.
+  Give every schedule for the page the same key. Two schedules refreshing one
+  slug otherwise race to duplicate versions and `stale_version`.
+
+Both commit transports are always in `required_tools` (and, on a recurring
+prompt, in `completion.any_succeeded`): `mcp_pages_update_page_data` (inline) and
+`mcp_pages_update_page_data_upload` with `start_page_upload` and
+`append_page_upload`. Pages does not pin one at preparation. A recurring payload
+grows as history accumulates, so a transport chosen from the size on the day the
+prompt was prepared would, once a scheduler narrows the roster, lock a page that
+later passes 20,000 bytes out of the upload tools. The run applies the 20,000-byte
+rule to the file it built, on every run, and declares that one commit tool before
+the gated mutation. A recurring prompt says so on a `ROSTER:` line, and tells the
+run to verify from the commit response and `get_page_data`, the only Pages reads
+in the roster. A scheduler that treats the two commit tools as one audited action
+(Fleet's `critical_tool_aliases`) accepts either against one declaration.
+`create_upload_ticket` is deliberately not listed: a client with direct file HTTP
+may still use it, but a scheduler that does not expose it would refuse the task.
+
+Each binding's `mcp_server` and `required_tools` are copied into the block
+verbatim, so each must be one name matching `^[a-zA-Z0-9_.-]{1,200}$`; preparation
+refuses anything else (for example `"fast_io + fastio_helpers"`) with
+`update_sources_invalid` rather than hand a scheduler a block it will reject. Bind
+each server as its own source. The legacy `configure_page_refresh` alias never
+fails on this: a workflow naming such a server lifts no bindings at all, and
+every source is left to the serialized workflow. `serialization_key` is only a value to copy:
+nothing enforces it until the installer sets it on the scheduled task.
+
+For the largest data page:
+
+```json
+{
+  "mcp_servers": ["fast_io", "fastio_helpers", "pages"],
+  "required_tools": [
+    "download_url", "mcp_fast_io_download", "mcp_fastio_helpers_resolve_path",
+    "mcp_pages_append_page_upload", "mcp_pages_get_page_config", "mcp_pages_get_page_data",
+    "mcp_pages_preflight_page", "mcp_pages_record_refresh_check",
+    "mcp_pages_start_page_upload", "mcp_pages_update_page_data",
+    "mcp_pages_update_page_data_upload"
+  ],
+  "roster": "required_tools_only",
+  "completion": {
+    "any_succeeded": ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"]
+  },
+  "serialization_key": "pages:northwind/overview",
+  "network": false,
+  "model_required": true,
+  "mode": "managed_data"
+}
+```
+
+These keys are advisory and forward compatible. A scheduler that does not know
+one ignores it; Pages still enforces every write itself.
+
 Recurring managed-data prompts also embed that same JSON after an
 `EXECUTION REQUIREMENTS (JSON):` line, so copying the prompt retains the handoff.
 An executor can reject missing network/tools before running the model. This is
@@ -281,10 +354,10 @@ A generated managed prompt requires the caller to:
    freshness, completeness, row counts, and reconciliation evidence;
 3. select the no-update or blocked branch when appropriate;
 4. build one complete schema-valid data object; and
-5. call `update_page_data_upload` (or `update_page_data` for a small inline
-   object) with the read `live_version_id` as
-   `expected_version`, the latest represented `source_as_of`, and the requested
-   publish mode.
+5. call `update_page_data_upload` for a built file over 20,000 bytes, or
+   `update_page_data` inline otherwise (decided per run, from the file) with the read
+   `live_version_id` as `expected_version`, the latest represented
+   `source_as_of`, and the requested publish mode.
 
 A data file staged with `start_page_upload kind='data'` and `append_page_upload`
 costs one model round trip per append, so the file goes up in as few appends as
