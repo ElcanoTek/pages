@@ -309,7 +309,12 @@
     `application/json` as an attachment with `nosniff` and `no-store`. The
     content host has no export route.
   - **One non-revealing 401** for a forged, expired, cross-audience, revoked
-    or un-granted credential.
+    or un-granted credential. A validly signed, live credential whose page has
+    since been deleted gets `404 page_not_found`; only a holder of a working
+    capability can observe that difference.
+  - **Visible where URLs are logged.** Like `/upload/<ticket>`, the token is in
+    the request path, so it sits in the model transcript and in the dashboard
+    site's Caddy access log (journald on the host) for its 10-minute life.
 - **Deploy-time preflight is advisory, never a gate.** `lib/preflight.js`
   statically checks each deployed document against the exact CSP/sandbox it will
   be served under and returns findings on the deploy result. It parses with

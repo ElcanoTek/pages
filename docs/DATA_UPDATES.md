@@ -270,9 +270,10 @@ A generated managed prompt requires the caller to:
 
 1. read the exact slug with `detail:'summary'` and establish this run's
    schema/hash baseline (also verify the generated schema pin for a one-time
-   update), then fetch the schema and complete live envelope **once** into
-   workspace files, by `detail:'export'` where the client can download URLs
-   and by one `detail:'full'` read otherwise. Validation, historical overlap and
+   update), then fetch the schema and live data **once** into workspace files,
+   by `detail:'export'` (`schema_url` and `data_url`, each file's exact bytes
+   hashed against `schema_sha256`/`data_sha256`) where the client can download
+   URLs and by one `detail:'full'` read otherwise. Validation, historical overlap and
    reconciliation read those files. The run does not call `get_page_data` or
    `get_page_config` again, whether to re-verify or after a context
    compaction, unless a write returns `stale_version`;

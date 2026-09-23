@@ -257,6 +257,7 @@ test("get_page_data export: URLs for the live version, bound to the calling toke
   assert.ok(Date.parse(exported.exports.expires_at) - Date.now() <= dataExport.EXPORT_TTL_SECONDS * 1000);
   assert.equal(Object.hasOwn(exported.envelope, "data"), false);
   assert.match(exported.next_step, /download_url/);
+  assert.match(exported.next_step, /Download schema_url and data_url once each/);
   assert.match(exported.next_step, /never share/i);
   await assert.rejects(read(result, { detail: "export" }, {}), /tokenId is missing/, "no token, no URL");
 });
@@ -308,6 +309,11 @@ test("managed prompts read the summary, fetch the contract once by reference, an
     assert.equal(fullReads.length, 1, fullReads.join("\n"));
     assert.match(fullReads[0], /ONCE into workspace files/);
     assert.match(fullReads[0], /download_url/);
+    // The hash check names data_sha256, so the run must download the file that
+    // hash is over (data_url) and hash its bytes, not re-canonicalize an
+    // envelope in Python and chase false mismatches back into re-reads.
+    assert.match(fullReads[0], /download its schema_url and data_url/);
+    assert.match(fullReads[0], /exact bytes against schema_sha256 and data_sha256/);
     assert.equal(prompt.match(/detail="export"/g).length, 1);
     assert.equal(prompt.match(/detail="full"/g).length, 1);
     assert.doesNotMatch(prompt, /include_data/);
