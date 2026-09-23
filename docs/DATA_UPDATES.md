@@ -96,7 +96,9 @@ Each binding's `mcp_server` and `required_tools` are copied into the block
 verbatim, so each must be one name matching `^[a-zA-Z0-9_.-]{1,200}$`; preparation
 refuses anything else (for example `"fast_io + fastio_helpers"`) with
 `update_sources_invalid` rather than hand a scheduler a block it will reject. Bind
-each server as its own source. `serialization_key` is only a value to copy:
+each server as its own source. The legacy `configure_page_refresh` alias never
+fails on this: a workflow naming such a server lifts no bindings at all, and
+every source is left to the serialized workflow. `serialization_key` is only a value to copy:
 nothing enforces it until the installer sets it on the scheduled task.
 
 For the largest data page:

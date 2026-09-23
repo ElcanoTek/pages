@@ -146,13 +146,21 @@ test("a binding whose server or tool a scheduler cannot parse is refused at prep
   assert.deepEqual(updatePrompts.normalizeSources([{ source_id: "ssp", mcp_server: "fast-io.v2", required_tools: ["mcp_fast_io_download"] }]), [
     { source_id: "ssp", mcp_server: "fast-io.v2", required_tools: ["mcp_fast_io_download"] },
   ]);
-  // The legacy workflow read never fails; it drops what it cannot hand on.
-  assert.deepEqual(
+  // The legacy workflow read never fails. An unparseable server lifts nothing
+  // (binding only the rest would declare that source out of scope while the
+  // serialized workflow still requires it); an unparseable tool name is dropped.
+  assert.equal(
     updatePrompts.sourcesFromWorkflow({
       sources: [
         { source_id: "combined", mcp_server: "fast_io + fastio_helpers" },
-        { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download", "two tools"] },
+        { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download"] },
       ],
+    }),
+    null
+  );
+  assert.deepEqual(
+    updatePrompts.sourcesFromWorkflow({
+      sources: [{ source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download", "two tools"] }],
     }),
     [{ source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download"] }]
   );
@@ -193,11 +201,12 @@ test("bindings lifted from a legacy workflow never narrow the roster", async () 
   const workflow = {
     sources: [
       { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download"] },
-      { source_id: "combined", mcp_server: "fast_io + fastio_helpers", required_tools: ["mcp_fastio_helpers_resolve_path"] },
+      // A long-standing lift rule: an entry without a server is skipped.
+      { source_id: "helpers", required_tools: ["mcp_fastio_helpers_resolve_path"] },
     ],
   };
   const lifted = updatePrompts.sourcesFromWorkflow(workflow);
-  assert.equal(lifted.length, 1, "the unusable binding is dropped");
+  assert.equal(lifted.length, 1, "the unbound entry is skipped");
   const saved = { getPage: versions.getPage, getPageData: versions.getPageData, binding: templates.pageTemplateBinding };
   versions.getPage = async () => ({
     page: { id: "17", slug: SLUG, title: "Northwind", published_version_id: "42", disabled: false, require_approval: false },
