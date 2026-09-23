@@ -77,7 +77,7 @@ not yet consume structured results.
 |------|------|------|
 | `list_pages` | `query?, workspace_id?, client_id?, is_live?, require_approval?, disabled?, limit?, cursor?` | bounded active-page discovery with workspace/theme/access state, URLs, and each row's **`freshness`** so one call ranks the estate by staleness; `workspace_id:null` selects Ungrouped |
 | `get_page` | `slug, include_html?` | metadata + routing URLs + page-level `is_live`; published HTML only when `include_html:true` |
-| `get_page_data` | `slug` | published managed-data schema/envelope, deterministic data/schema/template hashes, **`data_profile`**, **`freshness`** (coverage/refresh/check stamps plus `days_since_*`), metadata, URLs, and truthful live state |
+| `get_page_data` | `slug, detail?, include_data?` | the published managed-data contract, in three sizes. `detail:'full'` (default, unchanged): schema/envelope, deterministic data/schema/template hashes, **`data_profile`**, **`freshness`** (coverage/refresh/check stamps plus `days_since_*`), metadata, URLs, and truthful live state; `include_data:false` drops `envelope.data`. `detail:'summary'` (~1–2 KB typically; `coverage_profile` never exceeds 3 KB): brief page flags, `live_version_id`, the three hashes, envelope stamps, `freshness` and a **`coverage_profile`** (row counts and date extents only; `coverage_truncated:true` when entries were left out to stay within the bound). `detail:'export'`: short-lived `schema_url`/`data_url`/`envelope_url` for the live version, to download into files instead of context. See *Reading managed data by reference* |
 | `get_page_refresh` | `slug` | read-only compatibility guidance for older static Chat/Cutlass allowlists; returns `scheduling:user_owned` and never reads or creates a Pages schedule |
 | `record_refresh_check` | `slug, outcome, detail?, source_as_of_seen?` | record that a refresh looked at this page and what it concluded, **without creating a version**. Moves `freshness.checked_at` only — the published pointer, the data, and every hash are untouched. Call it when a run ends without publishing (`source_not_updated`, `source_unreachable`, `blocked`, `failed`); that outcome otherwise writes nothing anywhere, so a page whose upstream has frozen reads exactly like one nobody runs any more. In `data_update` scope, slug-gated like the other two data tools |
 | `prepare_dashboard_update` | `slug, instructions, recurring?, update_type?, publish?, sources?` | prepare a pinned exact-slug one-time workflow or reusable user-owned scheduler prompt; never changes a page or schedules work. `sources` declares which MCP server/tool serves each input, optionally its `path` and date `partition`, so the prompt forbids substitutions and requires enumerating a partitioned folder rather than taking its newest file. **`sources` is required when `recurring` is true** (`update_sources_required`): an unattended run cannot safely re-derive bindings from prose. The response carries `execution_requirements` — the MCP servers, tools, network and model a run needs — so a scheduler can validate the task before accepting it |
@@ -93,7 +93,7 @@ not yet consume structured results.
 | `list_themes` | — | list curated themes a human admin may assign; agents cannot mutate themes |
 | `create_upload_ticket` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | **preferred for files** — open a staged upload and return a one-shot `upload_url` + `ticket` your shell PUTs the file to directly, so the bytes never pass through model output. Supply exactly one target: `slug` deploys a page, `template` registers a design |
 | `start_page_upload` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
-| `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default); an exact sequence replay is idempotent |
+| `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default, up to 1 MiB where the operator raised `PAGE_UPLOAD_MAX_CHUNK_BYTES`); use as few appends as `max_chunk_bytes` allows; an exact sequence replay is idempotent |
 | `cancel_page_upload` | `upload_id` | discard an uncommitted upload and free its active-upload slot; never changes a page/version |
 | `deploy_page_upload` | `upload_id, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | SHA-verify and atomically create-or-update from the staged bytes; exact commit retries preserve the original receipt and refresh current serving guidance |
 | `deploy_page` | `slug, html, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | **create-or-update** from small inline HTML. Publishes by default on open pages; gated pages land pending. Creation-only fields are ignored for an existing page. A Bento deck (`.bento.html`) is recognised by its document block, defaults to `render_mode: raw`, and is refused as `themed` — see AUTHORING.md → *Bento decks* |
@@ -210,8 +210,9 @@ ticket:
 1. Compute the exact file byte count and lowercase SHA-256.
 2. Call `start_page_upload` with the target slug and those values.
 3. Base64-encode the original bytes in order, at most the returned
-   `max_chunk_bytes` (49,152 raw bytes by default) per call. Call
-   `append_page_upload` with sequence `0`, then each returned `next_sequence`.
+   `max_chunk_bytes` (49,152 raw bytes by default) per call, in as few calls as
+   that allows. Call `append_page_upload` with sequence `0`, then each returned
+   `next_sequence`.
 4. When `complete:true`, call `deploy_page_upload`. Do not resend the HTML.
 
 Call `cancel_page_upload` if the local file changes mid-upload or an upload is
@@ -400,6 +401,7 @@ omitting `require_approval` on page creation also defaults to `false`.
 | `GET  /api/v1/pages/:slug/versions/:id` | — | one version (html + meta) — the REST `get_version` |
 | `GET  /api/v1/pages/:slug/preflight` | `?version_id=` | findings for a stored version — the REST `preflight_page` (defaults to the published version) |
 | `PUT  /upload/:upload_id` | raw page bytes | send a ticketed upload's content. **Ticket auth, not agent-token auth** (`Authorization: Bearer <ticket>`); write-only and content-pinned. Not under `/api/v1` |
+| `GET  /export/:token/{schema,data,envelope}.json` | — | one published version's managed-data schema, data or envelope as canonical JSON, from a URL minted by `get_page_data` `detail:'export'`. **The token in the path is the credential**; read-only, one version, 10 minutes, re-checked against the minting agent token on every fetch. Dashboard host only. Not under `/api/v1` |
 | `POST /api/v1/pages/:slug/publish` | `{version_id, expected_version?}` | publish a draft |
 | `POST /api/v1/pages/:slug/rollback` | `{version_id?, expected_version?}` | rollback the pointer |
 | `POST /api/v1/pages/:slug/password` | `{password}` | set/change the client password (clearing is admin-only → 403 on bearer) |
@@ -719,3 +721,46 @@ Pages still accepts only that string on the wire and enforces chunk order, byte
 count and whole-content hash. Use `start_page_upload`, ordered appends, then the
 matching consumer. This path needs no ticket credential or sandbox HTTP egress.
 Other clients retain the ticket/PUT route. Staging never publishes on its own.
+
+Each append is still one model tool call, so send as few appends as
+`max_chunk_bytes` allows: every range is `max_chunk_bytes` long except the last.
+`start_page_upload` and every append reply state that ceiling and how many
+appends remain, and `chunk_base64` advertises the matching `maxLength` (base64
+characters), so a client can check a byte range before calling. The ceiling is
+48 KiB by default because it also bounds clients whose model writes the base64;
+a deployment whose clients all read files host-side can raise
+`PAGE_UPLOAD_MAX_CHUNK_BYTES` to 1 MiB (see DEPLOYMENT.md §5), which makes a
+~1 MB file one append.
+
+### Reading managed data by reference
+
+A refresh run needs about a kilobyte to decide what to do, and the full contract
+(schema, profile, every row) only once. `get_page_data` serves both:
+
+1. `get_page_data({slug, detail:'summary'})` returns `page` (slug, title,
+   `disabled`, `require_approval`), `live_version_id`, `data_sha256`,
+   `schema_sha256`, `template_sha256`, the envelope stamps (`contract_version`,
+   `refreshed_at`, `source_as_of`), `freshness` (recorded-check details clipped
+   to 160 characters) and `coverage_profile`: `data_profile` reduced to each
+   array's `count`, its date fields' `min`/`max`/`distinct`, and date-stamped
+   scalars such as `dataThrough`. There are no sums, key values, schema or rows.
+   A 990 KB payload's summary is about 1.6 KB. The coverage profile is bounded
+   whatever the payload holds: date extents are clipped to 32 characters, names
+   over 80 characters are skipped, each array keeps at most 6 date fields and
+   there are at most 8 scalars, and its serialized size never exceeds 3 KB. When
+   anything is left out the summary carries `coverage_truncated: true`; take the
+   complete counts and ranges from the exported data file.
+2. `get_page_data({slug, detail:'export'})` returns the same identity fields and
+   `exports: {version_id, schema_url, data_url, envelope_url, expires_at}`.
+   A client that downloads URLs host-side (Fleet's `download_url`) fetches them
+   into workspace files, so the bytes never enter the model's context. The
+   schema and data files are the canonical JSON the hashes are computed over:
+   `sha256(schema.json) == schema_sha256` and `sha256(data.json) == data_sha256`.
+3. A client that cannot download URLs uses `detail:'full'` (the default) once.
+
+The export URL carries its credential, because the host-side download accepts a
+URL and nothing else. It is read-only and serves only the version that was live
+when it was minted. It expires after 10 minutes. Every fetch re-checks that the
+minting agent token is unrevoked and still allowed to read that page, so a URL
+can never reach more than its token could. Treat it like a signed object-store
+link: never print or share it. [SECURITY.md](SECURITY.md) has the full bounds.

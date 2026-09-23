@@ -258,8 +258,11 @@
   handles stored in PostgreSQL, not transport sessions or server-local files.
   Handles are bearer-token-bound, expire after 24 hours of inactivity, and are
   capped at five active/2 MiB each. Every canonical-base64 chunk is limited to
-  48 KiB (`PAGE_UPLOAD_MAX_CHUNK_BYTES`, hard-bounded at 256 KiB by both the
-  application clamp and a `page_content_upload_chunks` CHECK) and ordered with
+  48 KiB by default (`PAGE_UPLOAD_MAX_CHUNK_BYTES`, hard-bounded at 1 MiB by
+  both the application clamp and a `page_content_upload_chunks` CHECK, and never
+  above what `MAX_HTML_BYTES` can carry as base64 — the default included — down to
+  a 4 KiB floor that needs `MAX_HTML_BYTES` of at least 21,848 bytes; a setting
+  that is not honoured logs a startup warning) and ordered with
   idempotent sequence retries. Pages verifies the exact
   byte count, SHA-256, and UTF-8 before atomically committing the immutable
   version, pointer/audit writes, and saved retry result; committed chunks are
@@ -286,6 +289,35 @@
   hash, with one non-revealing 401 for a wrong, unknown, foreign, or expired
   ticket. The endpoint sits behind the same per-IP limiter as `/api/v1` and
   authenticates on the header **before** the body parser buffers anything.
+- **Data export URLs are a read capability for one version, re-checked on use.**
+  `get_page_data` `detail:'export'` returns `/export/<token>/{schema,data,envelope}.json`
+  URLs so a refresh run can download a page's managed-data contract into a file
+  host-side instead of carrying 150–400 KB through its context. The consumer
+  that makes this worthwhile (Fleet's `download_url`) accepts a URL and nothing
+  else, and managed-data runs usually have no sandbox egress. So the token
+  travels in the path, like a signed object-store link, and it is bounded so a
+  leak is uninteresting:
+  - **Read-only and version-pinned.** GET/HEAD of three derived JSON documents
+    for the page id and immutable version id that were live at mint time. An
+    append-only version cannot change underneath a URL.
+  - **10 minutes** (`EXPORT_TTL_SECONDS`).
+  - **Never wider than its minting token.** Every fetch re-reads the minting
+    `api_tokens` row: a revoked token, or a `data_update` token whose grant no
+    longer holds that page, fails. So does a deleted page.
+  - **Its own key.** The HMAC key is derived from `RAW_TOKEN_SECRET` for this
+    audience alone, so no `/raw` view/template/session/edit token verifies here
+    and no export token verifies at `/raw`.
+  - **Dashboard host only, never HTML.** It is mounted beside `/upload`,
+    behind the same per-IP limiter, and reads no cookie. It serves
+    `application/json` as an attachment with `nosniff` and `no-store`. The
+    content host has no export route.
+  - **One non-revealing 401** for a forged, expired, cross-audience, revoked
+    or un-granted credential. A validly signed, live credential whose page has
+    since been deleted gets `404 page_not_found`; only a holder of a working
+    capability can observe that difference.
+  - **Visible where URLs are logged.** Like `/upload/<ticket>`, the token is in
+    the request path, so it sits in the model transcript and in the dashboard
+    site's Caddy access log (journald on the host) for its 10-minute life.
 - **Deploy-time preflight is advisory, never a gate.** `lib/preflight.js`
   statically checks each deployed document against the exact CSP/sandbox it will
   be served under and returns findings on the deploy result. It parses with

@@ -230,12 +230,12 @@ test("bindings lifted from a legacy workflow never narrow the roster", async () 
   }
 });
 
-// Golden hashes of the pre-#102 prompt text (generated from the unchanged main
-// branch), with the requirements line and the shared upload guidance masked so
+// Golden hashes of the pre-#102 prompt text (generated from main with #104's
+// summary-first read merged, i.e. without this change), with the requirements line and the shared upload guidance masked so
 // only this module's own wording is pinned. A one-time prompt is supervised and
 // keeps choosing its transport; only its requirements block changed.
-const ONE_TIME_GOLDEN = "0b70280b3a8c4c35d0eb1a52f4e875fbadc0feea573c46a7d5c03ad78aeb97eb";
-const ADAPTIVE_GOLDEN = "a59fd538d4c3bd7f5e3ef26adfb32e1cf93b8d641d39751dae57f3f6cdd36111";
+const ONE_TIME_GOLDEN = "9286e54b60a81617192ca974ef19c52ca2b989490cac40c6a22c90ce889f9226";
+const ADAPTIVE_GOLDEN = "1ec10a8cde3e8b30186f0541f1a9b494eb389b00ecd7fe22d0b00544c7279198";
 
 function masked(prompt) {
   const lines = prompt.split("\n");
