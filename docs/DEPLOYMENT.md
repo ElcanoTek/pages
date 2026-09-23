@@ -366,9 +366,29 @@ then ignored.
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `MAX_HTML_BYTES` | `2mb` | Whole HTTP request limit for dashboard, `/api/v1`, MCP and raw edits (an Express size string); includes RPC fields and `expect` |
-| `PAGE_UPLOAD_MAX_CHUNK_BYTES` | `49152` (48 KiB) | Max base64 chunk in a staged upload. Hard-clamped at 256 KiB by the app **and** a database CHECK |
+| `PAGE_UPLOAD_MAX_CHUNK_BYTES` | `49152` (48 KiB) | Largest raw chunk one `append_page_upload` accepts, returned as `max_chunk_bytes` and advertised as the `chunk_base64` `maxLength`. Accepts 4096–1048576 (1 MiB, which a database CHECK also enforces) and no more than `MAX_HTML_BYTES` can carry as base64; any other value falls back to 48 KiB and logs a startup `WARNING` naming the value, the reason and the size in effect. The default is held to the same `MAX_HTML_BYTES` bound (4 KiB floor). See below |
 | `PAGE_UPLOAD_TICKET_TTL_MINUTES` | `15` | Upload-ticket lifetime |
 | `PAGES_MCP_MAX_INLINE_DATA_BYTES` | `1500000` | Inline compact JSON transport budget only; data and escaped-envelope limits also apply |
+
+**Choosing `PAGE_UPLOAD_MAX_CHUNK_BYTES`.** Each `append_page_upload` is one
+model tool call, and every call re-sends the conversation, so the chunk ceiling
+sets how many round trips a staged upload costs. Which value is right depends on
+who produces the base64:
+
+- **The model writes it** (a client with no file references and no outbound
+  HTTP). Every byte is model output, and a large argument is slow and can be
+  truncated by the provider. Keep the 48 KiB default.
+- **The client reads a `workspace_file` reference host-side** (Fleet). The bytes
+  never touch the model; only the call count matters. `1048576` turns a ~1 MB
+  managed-data refresh from 21 appends into one. A 1 MiB chunk is about 1.4 MB
+  of base64 inside the JSON-RPC body, which fits the default `2mb`
+  `MAX_HTML_BYTES`; lowering `MAX_HTML_BYTES` below that makes a 1 MiB setting
+  fall back to the default, with a startup warning saying so.
+
+The setting is per deployment, so raise it only where every agent that stages
+uploads reads files host-side. Smaller chunks stay valid either way:
+`max_chunk_bytes` is a ceiling, not a required size. Upload tickets are
+unaffected; they PUT the whole file in one request.
 
 ### Managed dashboard-data bounds
 
