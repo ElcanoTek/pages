@@ -843,7 +843,7 @@ test("update prompts: recurring managed-data runs follow the live contract and r
   assert.match(prompt, /name the gap in your report instead of patching the data/i);
   // Recover a complete contract and rebuild from sources, while distinguishing
   // aggregate checks from proof that individual historical rows are preserved.
-  assert.match(prompt, /truncates that response/i);
+  assert.match(prompt, /never reconstruct data or registries from a preview or a truncated response/i);
   assert.match(prompt, /totals alone do not prove row-level equality/);
   assert.match(prompt, /rebuild the complete object from complete source coverage/i);
 });
