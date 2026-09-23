@@ -321,6 +321,10 @@ test("managed prompts read the summary, fetch the contract once by reference, an
     assert.match(prompt, /Do not call mcp_pages_get_page_data or mcp_pages_get_page_config again to re-verify or after a context compaction/);
     assert.match(prompt, /stale_version or an ambiguous write response, reread once with detail="summary"/);
     assert.match(prompt, /refresh the contract files once as in step 1/);
+    // A concurrent update_page_config is one cause of stale_version, and CONFIG
+    // is in neither export: a retry must not build on superseded mappings.
+    assert.match(prompt.split("\n").find((line) => line.startsWith("11. ")), /if this run used CONFIG registries in step 2, read them again once with mcp_pages_get_page_config/);
+    assert.match(prompt.split("\n").find((line) => line.startsWith("11. ")), /reconcile against the new live version and its current CONFIG, and retry once/);
   }
 });
 
@@ -408,4 +412,19 @@ test("coverage_truncated is set whenever any coverage is missing, not only when 
   } finally {
     versions.getPageData = original;
   }
+});
+
+test("the compact reads clip an oversize legacy title; the full read keeps it", async () => {
+  // POST /api/v1/pages takes a title without the 200-character MCP limit.
+  const result = publishedResult(tupleFixture());
+  result.page = { ...result.page, title: "Northwind ".repeat(50_000) };
+  for (const detail of ["summary", "export"]) {
+    const out = await read(result, { detail });
+    assert.equal(out.page.title.length, 200, detail);
+    assert.ok(out.page.title.endsWith("…"));
+    if (detail === "summary") assert.ok(bytes(out) <= 5 * 1024, `summary is ${bytes(out)} bytes`);
+  }
+  assert.equal((await read(result, {})).page.title, result.page.title, "a full read is unchanged");
+  const normal = publishedResult(tupleFixture());
+  assert.equal((await read(normal, { detail: "summary" })).page.title, normal.page.title, "a normal title is untouched");
 });

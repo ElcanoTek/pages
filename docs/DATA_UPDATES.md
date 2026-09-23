@@ -300,6 +300,9 @@ source regression/future coverage, creates an immutable version through the
 normal approval state machine, and deduplicates exact retries. On
 `stale_version` or an ambiguous transport result, reread the summary once, compare hashes,
 and retry at most once only when the intended coverage is not already present.
+Before that retry the run refreshes its contract files and, if it used CONFIG
+registries, rereads them with `get_page_config`: a concurrent configuration
+change is one cause of `stale_version`, and CONFIG is in neither export.
 
 Use `publish:false` for a canary. Approval-gated updates remain pending for a
 human; a disabled page cannot be published through the takedown.
