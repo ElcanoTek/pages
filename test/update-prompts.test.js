@@ -166,7 +166,7 @@ test("the roster is narrowed only for a recurring prompt whose every source name
   for (const sources of [null, serverOnly, [...updatePrompts.normalizeSources(SOURCES), ...serverOnly]]) {
     const requirements = updatePrompts.executionRequirements(sources, "managed_data", { slug: SLUG, recurring: true });
     assert.equal(Object.hasOwn(requirements, "roster"), false, JSON.stringify(sources));
-    assert.ok(requirements.completion, "completion does not depend on the roster");
+    assert.ok(requirements.completion, "a recurring prompt's completion does not depend on the roster");
     const prompt = updatePrompts.managedPrompt({ slug: SLUG, instructions: "Refresh.", schemaSha256: "a".repeat(64), publish: true, recurring: true, sources });
     assert.deepEqual(embeddedRequirements(prompt), requirements);
     assert.doesNotMatch(prompt, /\nROSTER:/);
@@ -185,6 +185,40 @@ test("the roster is narrowed only for a recurring prompt whose every source name
   assert.doesNotMatch(adaptive, /required_tools_only|\nROSTER:/);
   const oneTimePrepared = await prepare(payloadOfBytes(990_000), { recurring: false, updateType: "data" });
   assert.equal(Object.hasOwn(oneTimePrepared.execution_requirements, "roster"), false);
+});
+
+test("bindings lifted from a legacy workflow never narrow the roster", async () => {
+  // The lift drops entries it cannot hand on, so its bindings may be a subset
+  // of the sources the serialized workflow still tells the run to read.
+  const workflow = {
+    sources: [
+      { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download"] },
+      { source_id: "combined", mcp_server: "fast_io + fastio_helpers", required_tools: ["mcp_fastio_helpers_resolve_path"] },
+    ],
+  };
+  const lifted = updatePrompts.sourcesFromWorkflow(workflow);
+  assert.equal(lifted.length, 1, "the unusable binding is dropped");
+  const saved = { getPage: versions.getPage, getPageData: versions.getPageData, binding: templates.pageTemplateBinding };
+  versions.getPage = async () => ({
+    page: { id: "17", slug: SLUG, title: "Northwind", published_version_id: "42", disabled: false, require_approval: false },
+    published: { id: "42" },
+  });
+  versions.getPageData = async () => ({ schema_sha256: "a".repeat(64), envelope: { contract_version: 1, data: payloadOfBytes(2_000) } });
+  templates.pageTemplateBinding = async () => null;
+  try {
+    const prepared = await updatePrompts.prepare({
+      slug: SLUG, instructions: `Use this contract: ${JSON.stringify(workflow)}`, recurring: true, updateType: "data",
+      sources: lifted, allowUnboundRecurring: true,
+    });
+    assert.equal(Object.hasOwn(prepared.execution_requirements, "roster"), false);
+    assert.equal(Object.hasOwn(embeddedRequirements(prepared.prompt), "roster"), false);
+    assert.doesNotMatch(prepared.prompt, /\nROSTER:/);
+    assert.ok(prepared.execution_requirements.completion, "a recurring legacy prompt still declares completion");
+  } finally {
+    versions.getPage = saved.getPage;
+    versions.getPageData = saved.getPageData;
+    templates.pageTemplateBinding = saved.binding;
+  }
 });
 
 // Golden hashes of the pre-#102 prompt text (generated from the unchanged main
@@ -216,7 +250,9 @@ test("one-time managed and adaptive prompts are unchanged apart from their requi
   for (const tool of ["mcp_pages_update_page_data", "mcp_pages_update_page_data_upload", "mcp_pages_start_page_upload", "mcp_pages_append_page_upload"]) {
     assert.ok(requirements.required_tools.includes(tool), tool);
   }
-  assert.deepEqual(requirements.completion.any_succeeded, ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"]);
+  // No completion predicate: a one-time blocked run records no refresh check,
+  // so a scheduler enforcing one would fail a correct run.
+  assert.equal(Object.hasOwn(requirements, "completion"), false);
   assert.equal(requirements.serialization_key, "pages:northwind/overview");
 
   // Preparing a one-time data update pins nothing, whatever the payload size.

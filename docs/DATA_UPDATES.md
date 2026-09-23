@@ -63,18 +63,22 @@ asking a model:
   tool schemas. Only a **recurring** prompt whose every source binding names
   its `required_tools` carries it: a scheduler honouring it registers nothing
   from a server none of whose tools is listed, so an unbound or server-only
-  source would leave the run unable to read its data. One-time prompts, and the
-  managed half embedded in an adaptive prompt, never carry it.
+  source would leave the run unable to read its data. One-time prompts, the
+  managed half embedded in an adaptive prompt, and prompts prepared through the
+  legacy `configure_page_refresh` workflow alias (whose lifted bindings may be a
+  subset of the workflow it serializes) never carry it.
 - `completion.any_succeeded`: the run is complete when one of these tools
   succeeded, which means a committed version or a recorded refresh check. Both
   are visible in tool records, so no model has to judge whether a correct
-  `source_not_updated` or `blocked` run "finished".
+  `source_not_updated` or `blocked` run "finished". Recurring prompts only:
+  a one-time prompt's blocked branch records no refresh check, so it carries
+  no completion predicate.
 - `serialization_key: "pages:<slug>"`: runs that share it must not overlap.
   Give every schedule for the page the same key. Two schedules refreshing one
   slug otherwise race to duplicate versions and `stale_version`.
 
-Both commit transports are always in `required_tools` and in
-`completion.any_succeeded`: `mcp_pages_update_page_data` (inline) and
+Both commit transports are always in `required_tools` (and, on a recurring
+prompt, in `completion.any_succeeded`): `mcp_pages_update_page_data` (inline) and
 `mcp_pages_update_page_data_upload` with `start_page_upload` and
 `append_page_upload`. Pages does not pin one at preparation. A recurring payload
 grows as history accumulates, so a transport chosen from the size on the day the
