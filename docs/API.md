@@ -93,7 +93,7 @@ not yet consume structured results.
 | `list_themes` | — | list curated themes a human admin may assign; agents cannot mutate themes |
 | `create_upload_ticket` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | **preferred for files** — open a staged upload and return a one-shot `upload_url` + `ticket` your shell PUTs the file to directly, so the bytes never pass through model output. Supply exactly one target: `slug` deploys a page, `template` registers a design |
 | `start_page_upload` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
-| `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default); an exact sequence replay is idempotent |
+| `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default, up to 1 MiB where the operator raised `PAGE_UPLOAD_MAX_CHUNK_BYTES`); use as few appends as `max_chunk_bytes` allows; an exact sequence replay is idempotent |
 | `cancel_page_upload` | `upload_id` | discard an uncommitted upload and free its active-upload slot; never changes a page/version |
 | `deploy_page_upload` | `upload_id, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | SHA-verify and atomically create-or-update from the staged bytes; exact commit retries preserve the original receipt and refresh current serving guidance |
 | `deploy_page` | `slug, html, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | **create-or-update** from small inline HTML. Publishes by default on open pages; gated pages land pending. Creation-only fields are ignored for an existing page. A Bento deck (`.bento.html`) is recognised by its document block, defaults to `render_mode: raw`, and is refused as `themed` — see AUTHORING.md → *Bento decks* |
@@ -210,8 +210,9 @@ ticket:
 1. Compute the exact file byte count and lowercase SHA-256.
 2. Call `start_page_upload` with the target slug and those values.
 3. Base64-encode the original bytes in order, at most the returned
-   `max_chunk_bytes` (49,152 raw bytes by default) per call. Call
-   `append_page_upload` with sequence `0`, then each returned `next_sequence`.
+   `max_chunk_bytes` (49,152 raw bytes by default) per call, in as few calls as
+   that allows. Call `append_page_upload` with sequence `0`, then each returned
+   `next_sequence`.
 4. When `complete:true`, call `deploy_page_upload`. Do not resend the HTML.
 
 Call `cancel_page_upload` if the local file changes mid-upload or an upload is
@@ -715,3 +716,13 @@ Pages still accepts only that string on the wire and enforces chunk order, byte
 count and whole-content hash. Use `start_page_upload`, ordered appends, then the
 matching consumer. This path needs no ticket credential or sandbox HTTP egress.
 Other clients retain the ticket/PUT route. Staging never publishes on its own.
+
+Each append is still one model tool call, so send as few appends as
+`max_chunk_bytes` allows: every range is `max_chunk_bytes` long except the last.
+`start_page_upload` and every append reply state that ceiling and how many
+appends remain, and `chunk_base64` advertises the matching `maxLength` (base64
+characters), so a client can check a byte range before calling. The ceiling is
+48 KiB by default because it also bounds clients whose model writes the base64;
+a deployment whose clients all read files host-side can raise
+`PAGE_UPLOAD_MAX_CHUNK_BYTES` to 1 MiB (see DEPLOYMENT.md §5), which makes a
+~1 MB file one append.

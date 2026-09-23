@@ -258,8 +258,11 @@
   handles stored in PostgreSQL, not transport sessions or server-local files.
   Handles are bearer-token-bound, expire after 24 hours of inactivity, and are
   capped at five active/2 MiB each. Every canonical-base64 chunk is limited to
-  48 KiB (`PAGE_UPLOAD_MAX_CHUNK_BYTES`, hard-bounded at 256 KiB by both the
-  application clamp and a `page_content_upload_chunks` CHECK) and ordered with
+  48 KiB by default (`PAGE_UPLOAD_MAX_CHUNK_BYTES`, hard-bounded at 1 MiB by
+  both the application clamp and a `page_content_upload_chunks` CHECK, and never
+  above what `MAX_HTML_BYTES` can carry as base64 — the default included — down to
+  a 4 KiB floor that needs `MAX_HTML_BYTES` of at least 21,848 bytes; a setting
+  that is not honoured logs a startup warning) and ordered with
   idempotent sequence retries. Pages verifies the exact
   byte count, SHA-256, and UTF-8 before atomically committing the immutable
   version, pointer/audit writes, and saved retry result; committed chunks are

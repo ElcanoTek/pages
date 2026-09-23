@@ -209,4 +209,7 @@ node "$ROOT/test/template-migration.integration.js"
 echo "▸ backup and isolated restore integration"
 node "$ROOT/test/backup.integration.js"
 
+echo "▸ raised upload chunk ceiling integration"
+node "$ROOT/test/upload-chunk-ceiling.integration.js"
+
 echo "✓ integration passed"

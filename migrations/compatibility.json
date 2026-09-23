@@ -1,6 +1,7 @@
 {
   "minimum_previous_schema": "022_page_upload_attempts.sql",
   "migrations": {
-    "023_reserve_application_routes.sql": "backward-compatible"
+    "023_reserve_application_routes.sql": "backward-compatible",
+    "024_page_upload_chunk_ceiling_1mib.sql": "backward-compatible"
   }
 }
