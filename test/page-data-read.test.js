@@ -361,3 +361,51 @@ test("a hostile payload cannot push the summary past its bound", async () => {
   const fullRead = await read(publishedResult(tupleFixture()), {});
   assert.equal(schema.safeParse({ ...fullRead, coverage_truncated: true }).success, false);
 });
+
+test("coverage_truncated is set whenever any coverage is missing, not only when the byte bound cuts", async () => {
+  const schema = { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" };
+  const summaryOf = (data) => read(publishedResult({ schema, data }), { detail: "summary" });
+  const small = { dataThrough: "2026-09-20", rows: [{ day: "2026-09-19" }, { day: "2026-09-20" }] };
+  assert.equal(Object.hasOwn(await summaryOf(small), "coverage_truncated"), false, "a complete small page is not marked");
+
+  // profileData's own caps: a ninth array, the 25th scalar, the 25th field, too deep.
+  const nine = {};
+  for (let i = 0; i < 9; i++) nine[`a${i}`] = [{ day: "2026-09-20" }];
+  const ninth = await summaryOf(nine);
+  assert.equal(ninth.coverage_truncated, true, "a ninth array");
+  assert.equal(Object.keys(ninth.coverage_profile.arrays).length, 8);
+
+  const scalars = {};
+  for (let i = 0; i < 25; i++) scalars[`s${String(i).padStart(2, "0")}`] = "2026-09-20";
+  assert.equal((await summaryOf(scalars)).coverage_truncated, true, "a 25th scalar");
+
+  const wide = {};
+  for (let i = 0; i < 24; i++) wide[`n${String(i).padStart(2, "0")}`] = i;
+  wide.day = "2026-09-20";
+  assert.equal((await summaryOf({ rows: [wide] })).coverage_truncated, true, "a 25th field");
+
+  let deep = { day: "2026-09-20" };
+  for (let i = 0; i < 8; i++) deep = { nested: deep };
+  assert.equal((await summaryOf(deep)).coverage_truncated, true, "a level past the depth cap");
+
+  // A clipped extent on an otherwise small page.
+  const long = await summaryOf({ rows: [{ day: "2026-09-20T00:00:00.000Z and then a long note" }] });
+  assert.equal(long.coverage_truncated, true, "a clipped extent");
+  assert.ok(long.coverage_profile.arrays.rows.fields.day.max.length <= 32);
+
+  // The full read's data_profile is unaffected: same bytes, and it still validates.
+  const fullRead = await read(publishedResult({ schema, data: nine }), {});
+  assert.equal(JSON.stringify(fullRead.data_profile), JSON.stringify(pageData.profileData(nine)));
+  // …and the handler's own objects (not a JSON round trip) validate, so nothing
+  // that marks a capped profile rides on the profile itself.
+  const original = versions.getPageData;
+  versions.getPageData = async () => publishedResult({ schema, data: { rows: [wide] } });
+  try {
+    for (const detail of ["full", "summary"]) {
+      const raw = await TOOLS.get_page_data.handler({ slug: "northwind/overview", detail }, { tokenId: "9" });
+      assert.ok(TOOLS.get_page_data.outputSchema.safeParse(raw).success, detail);
+    }
+  } finally {
+    versions.getPageData = original;
+  }
+});
