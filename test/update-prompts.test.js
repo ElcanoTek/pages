@@ -234,8 +234,8 @@ test("bindings lifted from a legacy workflow never narrow the roster", async () 
 // summary-first read merged, i.e. without this change), with the requirements line and the shared upload guidance masked so
 // only this module's own wording is pinned. A one-time prompt is supervised and
 // keeps choosing its transport; only its requirements block changed.
-const ONE_TIME_GOLDEN = "9286e54b60a81617192ca974ef19c52ca2b989490cac40c6a22c90ce889f9226";
-const ADAPTIVE_GOLDEN = "1ec10a8cde3e8b30186f0541f1a9b494eb389b00ecd7fe22d0b00544c7279198";
+const ONE_TIME_GOLDEN = "e136af0026948614c803ce309398860e66b7206db575cda336249bc35f7aa6af";
+const ADAPTIVE_GOLDEN = "ac08581dbd6b4bcf4effd8e1d116f0f5765954fafc6d630d63bce1ce1a395458";
 
 function masked(prompt) {
   const lines = prompt.split("\n");
