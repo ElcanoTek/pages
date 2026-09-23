@@ -121,6 +121,28 @@ case "$cmd" in
     [[ -f "$APP_DIR/scripts/backup.js" ]] || { echo "no integrity implementation at $APP_DIR; update Pages first" >&2; exit 1; }
     exec sudo node "$APP_DIR/scripts/backup.js" check "$@"
     ;;
+  doctor)
+    # Box-level diagnostics (scripts/doctor.sh). Dispatched from the SOURCE
+    # checkout, like update — the doctor also inspects that checkout.
+    [[ -d "$SRC_DIR/.git" ]] || { echo "no source checkout at $SRC_DIR" >&2; exit 1; }
+    # Read-only modes run as the SERVICE user, not root: they need to read
+    # /etc/default/pages (0640 root:pages) to be honest, but they must not
+    # hold root — and doctor no longer reads PAGES_INSTALL_CONFIG at all.
+    # Operators without sudo cannot use them either way, by design: the env
+    # file is root:group-read on purpose.
+    read_only=0
+    for arg in "$@"; do
+      case "$arg" in --check|--dry-run|--help|-h) read_only=1 ;; esac
+    done
+    if [[ "$read_only" == 1 ]]; then
+      exec sudo -u "$APP_USER" -- env GIT_OPTIONAL_LOCKS=0 APP_DIR="$APP_DIR" APP_USER="$APP_USER" \
+        PAGES_SRC_DIR="$SRC_DIR" PAGES_ENV_FILE="$ENV_FILE" PAGES_PORT="${PAGES_PORT:-}" \
+        bash "$SRC_DIR/scripts/doctor.sh" "$@"
+    fi
+    exec sudo env APP_DIR="$APP_DIR" APP_USER="$APP_USER" \
+      PAGES_SRC_DIR="$SRC_DIR" PAGES_ENV_FILE="$ENV_FILE" PAGES_PORT="${PAGES_PORT:-}" \
+      bash "$SRC_DIR/scripts/doctor.sh" "$@"
+    ;;
   # ── Phase 1+ subcommands (stubs today; wired as the app grows) ──────────
   page|theme)
     echo "'pages $cmd' arrives with Phase ${PAGES_PHASE_HINT:-1+}. See PLAN.md §9." >&2
@@ -151,6 +173,10 @@ pages — Elcano Pages operator CLI
   pages backup [dest]                  capture and rehearse a complete backup
                                        (default destination: /var/backups/pages)
   pages check-integrity <backup-dir>    verify files and repeat an isolated restore
+
+  pages doctor [--check]               diagnose the box; repairs need root.
+                                       Read-only modes run as the service user
+                                       (--check, --dry-run, --help); otherwise sudo
 
   Planned (PLAN.md §9):
   pages page list|passwd|disable|enable

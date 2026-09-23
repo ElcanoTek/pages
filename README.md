@@ -359,6 +359,21 @@ security@elcanotek.com, not a public issue.
 
 ## Deployment
 
+### Install
+
+On a fresh **Fedora / RHEL 9+** box, one line installs main into `/opt/pages-src`
+and runs the interactive bootstrap (prompts read the TTY, so piping the script
+into `sudo bash` is safe):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ElcanoTek/pages/main/install.sh | sudo bash
+```
+
+That is the curl-able form of the manual `git clone` + `scripts/bootstrap.sh`
+below; both leave the same checkout the `pages update` command later pulls.
+
+### Bootstrap
+
 `scripts/bootstrap.sh` is an interactive installer for **Fedora / RHEL 9+**. It
 installs Node and PostgreSQL, creates the service user and `/opt/pages`,
 provisions the database, generates secrets, runs migrations, mints the initial
@@ -373,6 +388,7 @@ sudo bash scripts/bootstrap.sh
 pages status | logs | env | tls
 pages update            # git pull → staging build → migrate → swap → restart
 pages token add <label> [scope] [slug…]
+pages doctor            # box-level diagnostics (read-only with --check)
 ```
 
 Two things to know before you start: you need **two registrable domains**
