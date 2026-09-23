@@ -3277,10 +3277,16 @@ test("page-uploads: a chunk setting that is not honoured says so, naming the val
   assert.deepEqual(resolveChunkCeiling("1048576", 49152), { bytes: 1048576, warning: null });
   assert.deepEqual(resolveChunkCeiling(undefined, 49152), { bytes: 49152, warning: null });
   assert.deepEqual(resolveChunkCeiling("  ", 49152), { bytes: 49152, warning: null });
+  assert.deepEqual(resolveChunkCeiling(" 262144 ", 49152), { bytes: 262144, warning: null }, "surrounding space is trimmed");
   const cases = [
     ["2097152", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="2097152" is not used because it is above the 1048576-byte maximum; staged-upload chunks are limited to 49152 bytes\./],
     ["1024", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="1024" is not used because it is below the 4096-byte minimum; staged-upload chunks are limited to 49152 bytes\./],
     ["big", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="big" is not used because it is not a whole number of bytes; staged-upload chunks are limited to 49152 bytes\./],
+    // parseInt would read these as 1 MiB and raise the ceiling silently.
+    ["1048576oops", undefined, /PAGE_UPLOAD_MAX_CHUNK_BYTES="1048576oops" is not used because it is not a whole number of bytes; staged-upload chunks are limited to 49152 bytes\./],
+    ["1048576.5", undefined, /"1048576\.5" is not used because it is not a whole number of bytes/],
+    ["1e6", undefined, /"1e6" is not used because it is not a whole number of bytes/],
+    ["-65536", undefined, /"-65536" is not used because it is not a whole number of bytes/],
     ["1048576", 774144, /PAGE_UPLOAD_MAX_CHUNK_BYTES="1048576" is not used because its base64 does not fit one \d+-byte request \(MAX_HTML_BYTES carries at most 774144 raw bytes per chunk\); staged-upload chunks are limited to 49152 bytes\./],
     [undefined, 36864, /MAX_HTML_BYTES \(\d+ bytes per request\) cannot carry the default 49152-byte upload chunk as base64; staged-upload chunks are limited to 36864 bytes\.$/],
     [undefined, -12288, /limited to 4096 bytes\. Even that does not fit one request; raise MAX_HTML_BYTES to at least 21848 bytes\.$/],
