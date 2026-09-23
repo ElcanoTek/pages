@@ -744,8 +744,10 @@ A refresh run needs about a kilobyte to decide what to do, and the full contract
    whatever the payload holds: date extents are clipped to 32 characters, names
    over 80 characters are skipped, each array keeps at most 6 date fields and
    there are at most 8 scalars, and its serialized size never exceeds 3 KB. When
-   anything is left out the summary carries `coverage_truncated: true`; take the
-   complete counts and ranges from the exported data file.
+   any coverage is missing — cut to that bound, a clipped extent, or beyond the
+   profile's own limits (8 arrays, 24 fields per array, 24 scalars, 6 levels) —
+   the summary carries `coverage_truncated: true`; take the complete counts and
+   ranges from the exported data file.
 2. `get_page_data({slug, detail:'export'})` returns the same identity fields and
    `exports: {version_id, schema_url, data_url, envelope_url, expires_at}`.
    A client that downloads URLs host-side (Fleet's `download_url`) fetches them
