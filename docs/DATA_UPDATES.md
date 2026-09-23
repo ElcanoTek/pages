@@ -86,8 +86,9 @@ prompt was prepared would, once a scheduler narrows the roster, lock a page that
 later passes 20,000 bytes out of the upload tools. The run applies the 20,000-byte
 rule to the file it built, on every run, and declares that one commit tool before
 the gated mutation. A recurring prompt says so on a `ROSTER:` line, and tells the
-run to verify from the commit response and `get_page_data`, the only Pages reads
-in the roster. A scheduler that treats the two commit tools as one audited action
+run to verify from the commit response, `get_page_data` and `preflight_page` (the
+check step 12 requires for a live publication) and to call no Pages tool outside
+`required_tools`. A scheduler that treats the two commit tools as one audited action
 (Fleet's `critical_tool_aliases`) accepts either against one declaration.
 `create_upload_ticket` is deliberately not listed: a client with direct file HTTP
 may still use it, but a scheduler that does not expose it would refuse the task.
