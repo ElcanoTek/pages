@@ -60,7 +60,11 @@ asking a model:
 - `roster: "required_tools_only"`: offer the run only `required_tools`. That
   list holds every tool a branch may call and nothing else. A refresh needs
   about eight Pages tools, and each step used to re-send the other thirty-odd
-  tool schemas.
+  tool schemas. Only a **recurring** prompt whose every source binding names
+  its `required_tools` carries it: a scheduler honouring it registers nothing
+  from a server none of whose tools is listed, so an unbound or server-only
+  source would leave the run unable to read its data. One-time prompts, and the
+  managed half embedded in an adaptive prompt, never carry it.
 - `completion.any_succeeded`: the run is complete when one of these tools
   succeeded, which means a committed version or a recorded refresh check. Both
   are visible in tool records, so no model has to judge whether a correct

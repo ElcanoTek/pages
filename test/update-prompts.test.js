@@ -158,6 +158,35 @@ test("a binding whose server or tool a scheduler cannot parse is refused at prep
   );
 });
 
+test("the roster is narrowed only for a recurring prompt whose every source names its tools", async () => {
+  // A scheduler honouring required_tools_only registers nothing from a server
+  // none of whose tools is listed, so an unbound or server-only source would
+  // reach the run with no way to read its data.
+  const serverOnly = [{ source_id: "ssp", mcp_server: "fast_io" }];
+  for (const sources of [null, serverOnly, [...updatePrompts.normalizeSources(SOURCES), ...serverOnly]]) {
+    const requirements = updatePrompts.executionRequirements(sources, "managed_data", { slug: SLUG, recurring: true });
+    assert.equal(Object.hasOwn(requirements, "roster"), false, JSON.stringify(sources));
+    assert.ok(requirements.completion, "completion does not depend on the roster");
+    const prompt = updatePrompts.managedPrompt({ slug: SLUG, instructions: "Refresh.", schemaSha256: "a".repeat(64), publish: true, recurring: true, sources });
+    assert.deepEqual(embeddedRequirements(prompt), requirements);
+    assert.doesNotMatch(prompt, /\nROSTER:/);
+  }
+  const serverOnlyPrepared = await prepare(payloadOfBytes(2_000), { recurring: true, sources: serverOnly });
+  assert.equal(Object.hasOwn(serverOnlyPrepared.execution_requirements, "roster"), false);
+
+  // One-time prompts, and the managed half an adaptive prompt embeds, never
+  // narrow: the full-page branch needs tools this list cannot know.
+  const sources = updatePrompts.normalizeSources(SOURCES);
+  const common = { slug: SLUG, instructions: "Refresh.", schemaSha256: "a".repeat(64), sources };
+  const oneTime = updatePrompts.managedPrompt({ ...common, publish: true, recurring: false });
+  assert.equal(Object.hasOwn(embeddedRequirements(oneTime), "roster"), false);
+  const adaptive = updatePrompts.adaptivePrompt({ ...common, liveVersionId: "42", publish: false });
+  assert.equal(Object.hasOwn(embeddedRequirements(adaptive), "roster"), false);
+  assert.doesNotMatch(adaptive, /required_tools_only|\nROSTER:/);
+  const oneTimePrepared = await prepare(payloadOfBytes(990_000), { recurring: false, updateType: "data" });
+  assert.equal(Object.hasOwn(oneTimePrepared.execution_requirements, "roster"), false);
+});
+
 // Golden hashes of the pre-#102 prompt text (generated from the unchanged main
 // branch), with the requirements line and the shared upload guidance masked so
 // only this module's own wording is pinned. A one-time prompt is supervised and
