@@ -6,9 +6,10 @@
 # `pages doctor` walks every box-level prerequisite Pages depends on and
 # reports PASS/WARN/FAIL with the remedy; run as root it also makes the safe
 # repairs (env file ownership/mode, starting a stopped service, restarting a
-# stale release). `--check` reports without touching anything and needs no
-# root. What it never does: git pull, dnf upgrade, migrations or rebuilds —
-# doctor makes the box readable; `pages update` lands the code.
+# stale release). `--check` reports without touching anything (the pages CLI
+# runs it as the service user, not root). What it never does: git pull or
+# fetch, dnf upgrade, migrations or rebuilds — doctor makes the box readable;
+# `pages update` lands the code.
 #
 # Usage:
 #   sudo pages doctor             diagnose; fix what is safe (perms, start, restart)
@@ -19,14 +20,111 @@
 #
 # Exit codes: 0 = healthy (or everything fixed), 1 = problems remain.
 
+# The trust-split check compares registrable domains (eTLD+1) — the
+# cookie-tossing boundary (PLAN.md §7). The computation uses the FULL vendored
+# Mozilla Public Suffix List (scripts/lib/public-suffix-list.dat), not a
+# shortlist: a shortlist mis-reduces omitted suffixes (e.g. com.ng absent →
+# pages.contoso.com.ng and pages.northwind.com.ng both reduce to 'com.ng' and
+# produce a false shared-domain failure). See the dat file's header for
+# source, license (MPL-2.0) and refresh cadence.
+
+# pages_registrable_domain HOST — print the eTLD+1 of HOST per the Public
+# Suffix List algorithm (https://publicsuffix.org/list/): the prevailing rule
+# is the longest matching rule (wildcards match exactly one label, exception
+# rules starting with '!' drop their leftmost label), the public suffix is the
+# labels that match, and the registrable domain is the suffix plus one more
+# label to its left. Lowercases and tolerates a trailing dot. Prints nothing
+# when the list file is unreadable — the caller treats that as 'cannot
+# verify', never as a pass.
+pages_registrable_domain() {
+  local host="${1,,}"
+  host="${host%.}"
+  local -a h=()
+  IFS='.' read -r -a h <<< "$host"
+  local n=${#h[@]}
+  if (( n == 0 )) || [[ ! -r "$PSL_FILE" ]]; then
+    return 0
+  fi
+  local line rule rl hl i match best=0 best_is_exception=0
+  local -a r=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    case "$line" in
+      ''|'//'*) continue ;;          # blanks, Mozilla header/section comments
+    esac
+    rule="$line"                      # dat rules are bare suffixes (no inline comments)
+    local is_exception=0
+    case "$rule" in
+      '!'*) is_exception=1; rule="${rule#!}" ;;
+    esac
+    r=(); IFS='.' read -r -a r <<< "$rule"
+    local rn=${#r[@]}
+    (( rn > n )) && continue          # a rule cannot be longer than the host
+    match=1
+    for (( i=1; i<=rn; i++ )); do
+      rl="${r[rn-i]}"; hl="${h[n-i]}"
+      if [[ "$rl" == '*' ]]; then
+        continue                      # wildcard: exactly one label, always matches
+      elif [[ "$rl" != "$hl" ]]; then
+        match=0; break
+      fi
+    done
+    # Longest match prevails (per spec); on a TIE an exception rule wins over
+    # a wildcard of equal length — for foo.www.ck both '*.ck' and '!www.ck'
+    # match at length 2, and the exception is what makes www.ck a normal
+    # registrable domain (subdomains of it share one cookie boundary).
+    if (( match )) && { (( rn > best )) \
+         || { (( rn == best )) && (( is_exception == 1 )) && (( best_is_exception == 0 )); }; }; then
+      best=$rn
+      best_is_exception=$is_exception
+    fi
+  done < "$PSL_FILE"
+  local suffix_labels
+  if (( best == 0 )); then
+    suffix_labels=1                   # prevailing rule is the implicit "*"
+  elif (( best_is_exception )); then
+    suffix_labels=$(( best - 1 ))     # exception: drop the leftmost rule label
+    (( suffix_labels < 1 )) && suffix_labels=1
+  else
+    suffix_labels=$best
+  fi
+  local reg_labels=$(( suffix_labels + 1 ))
+  if (( reg_labels > n )); then
+    printf '%s\n' "$host"             # the host itself is inside a public suffix
+  else
+    local out="" start=$(( n - reg_labels )) j
+    for (( j=start; j<n; j++ )); do
+      out+="${h[j]}."
+    done
+    printf '%s\n' "${out%.}"
+  fi
+}
+
+# pages_latest_fedora — newest numeric Fedora stable from releases.json on
+# stdin (used by the Host packages step).
+pages_latest_fedora() {
+  python3 -c 'import json,sys; print(max(int(r["version"]) for r in json.load(sys.stdin) if r.get("version", "").isascii() and r.get("version", "").isdigit()))'
+}
+
 pages_doctor() (
   set -euo pipefail
-  PAGES_SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-  # shellcheck source=scripts/install-config.sh
-  . "$PAGES_SCRIPT_ROOT/scripts/install-config.sh"
-  SRC_DIR="$INSTALL_SRC_DIR"
+
+  # Installation layout. These mirror scripts/install-config.sh — KEEP IN SYNC
+  # — but doctor deliberately does NOT source that file (or the env file) to
+  # learn them: sourcing executes file content as the doctor's user (root),
+  # and the repair path exists precisely for when those files' permissions
+  # have gone wrong. Root-run doctor must never evaluate service-readable
+  # files before validating them.
+  APP_DIR="${APP_DIR:-${PAGES_APP_DIR:-/opt/pages}}"
+  APP_USER="${APP_USER:-${PAGES_APP_USER:-pages}}"
+  SRC_DIR="${PAGES_SRC_DIR:-/opt/pages-src}"
+  ENV_FILE="${PAGES_ENV_FILE:-/etc/default/pages}"
   SERVICE="pages.service"
   CADDY_SNIPPET="/etc/caddy/conf.d/pages.caddy"
+  DOCTOR_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Full Mozilla Public Suffix List, vendored next to this script (see the
+  # dat file's header for source/license/refresh cadence). Overridable for tests.
+  PSL_FILE="${PAGES_PSL_FILE:-$DOCTOR_SCRIPT_DIR/lib/public-suffix-list.dat}"
   # Overridable so the tests can point the lifecycle checks at a scratch file;
   # also handy on non-Fedora dev boxes. Defaults to the OS-owned original.
   OS_RELEASE="${PAGES_OS_RELEASE:-/etc/os-release}"
@@ -47,6 +145,33 @@ pages_doctor() (
   advise(){ printf '%s!%s %s\n' "$c_yellow" "$c_reset" "$*"; n_warn=$((n_warn+1)); }
   fail()  { printf '%s✗%s %s\n' "$c_red" "$c_reset" "$*"; n_fail=$((n_fail+1)); }
 
+  # env_get KEY [FILE] — read one key without sourcing the file (it holds
+  # secrets; sourcing would execute arbitrary content on a tampered box).
+  # Last assignment wins; surrounding quotes are stripped and the
+  # shell-style escapes write-env.js puts INSIDE double quotes (\" \\ \$
+  # \`) are decoded — systemd decodes them when loading the file, so the
+  # doctor must too or it validates a value the service never uses. Never
+  # prints a value.
+  env_get() {
+    local key="$1" file="${2:-$ENV_FILE}" value
+    [[ -r "$file" ]] || return 0
+    value="$(grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d= -f2-)" || return 0
+    case "$value" in
+      \"*\")
+        value="${value#\"}"; value="${value%\"}"
+        # One left-to-right pass over non-overlapping pairs: \\ and \" pair
+        # correctly because sed resumes scanning after each replacement.
+        value="$(printf '%s' "$value" | sed -e 's/\\\(["\\$`]\)/\1/g')" ;;
+      \'*\')
+        value="${value#\'}"; value="${value%\'}" ;;   # single quotes: no escapes
+    esac
+    printf '%s' "$value"
+  }
+
+  # PORT comes from the env file via the non-evaluating parser — never sourced.
+  PORT="${PAGES_PORT:-$(env_get PORT)}"
+  PORT="${PORT:-3002}"
+
   CHECK_ONLY=0 NO_RESTART=0 DRY_RUN=0 STRICT=0
   for arg in "$@"; do
     case "$arg" in
@@ -65,43 +190,37 @@ USAGE
   pages doctor --dry-run          print the checklist; touch nothing (no root needed)
   pages doctor --strict           warnings also exit 1
 
+Via the pages CLI, read-only modes run as the service user (sudo -u pages),
+not root; the plain command runs as root because repairs need it.
+
 Checks: Node runtime (scripts/check-node.js), the environment file (presence,
 0640 root:pages, required keys — values are never printed), the
-DASHBOARD_HOST/CONTENT_HOST registrable-domain split, PostgreSQL, the systemd
-service (active, enabled, running the current release), /readyz, Caddy + the
-TLS certificates for BOTH hostnames (validity + expiry), free disk, the OS
-support window, pending dnf updates, a pending reboot, Fedora vs latest stable,
-and the source checkout (clean, on main, current with origin).
+DASHBOARD_HOST/CONTENT_HOST eTLD+1 split, PostgreSQL, the systemd service
+(active, enabled, running the current release), /readyz, Caddy + chain and
+hostname verified TLS for BOTH hostnames, free disk, the OS support window,
+pending dnf updates, a pending reboot, Fedora vs latest stable, and the
+source checkout (clean, on main, compared against origin via ls-remote — no
+fetch, the checkout is never mutated).
 Repairs are limited to: env file ownership/mode, starting a stopped service,
-restarting a stale release. Doctor never pulls, upgrades or rebuilds — that
-stays `pages update`.
+restarting a stale release. Doctor never pulls, fetches, upgrades or
+rebuilds — that stays `pages update`.
 EOF
         exit 0 ;;
       *) echo "error: unknown argument: $arg (try --help)" >&2; exit 2 ;;
     esac
   done
 
-  # env_get KEY [FILE] — read one key without sourcing the file (it holds
-  # secrets; sourcing would execute arbitrary content on a tampered box).
-  # Last assignment wins, surrounding quotes stripped. Never prints a value.
-  env_get() {
-    local key="$1" file="${2:-$ENV_FILE}"
-    [[ -r "$file" ]] || return 0
-    grep -E "^${key}=" "$file" 2>/dev/null | tail -n1 | cut -d= -f2- \
-      | sed -e 's/^["'\'']//' -e 's/["'\'']$//' || true
-  }
-
   if [[ "$DRY_RUN" == 1 ]]; then
     step "pages doctor --dry-run (app=$APP_DIR, src=$SRC_DIR, service=$SERVICE)"
     info "[dry-run] Runtime: node present and passing $SRC_DIR/scripts/check-node.js (20.19+/22.12+); npm present"
-    info "[dry-run] Configuration: $ENV_FILE exists, mode 0640 root:$APP_USER, with AUTH_SIGNING_PUBKEY (base64 32-byte), PAGE_COOKIE_SECRET, RAW_TOKEN_SECRET, API_TOKEN_PEPPER, DATABASE_URL, DASHBOARD_HOST and CONTENT_HOST set; content host on a DIFFERENT registrable domain than the dashboard host"
-    info "[dry-run] Database: postgresql.service active; DATABASE_URL accepts a probe as $APP_USER"
-    info "[dry-run] Service: $SERVICE active + enabled; the running release matches $APP_DIR (stale releases restart, unless --no-restart)"
-    info "[dry-run] Readiness: /readyz → 200 on :$PORT"
-    info "[dry-run] Caddy/TLS: caddy active, configuration valid, certificates for BOTH hostnames valid and more than 14 days from expiry"
+    info "[dry-run] Configuration: $ENV_FILE exists, mode 0640 root:$APP_USER, with AUTH_SIGNING_PUBKEY (base64 32-byte), PAGE_COOKIE_SECRET, RAW_TOKEN_SECRET, API_TOKEN_PEPPER, DATABASE_URL, DASHBOARD_HOST and CONTENT_HOST set; content host on a DIFFERENT registrable domain (eTLD+1) than the dashboard host"
+    info "[dry-run] Database: postgresql.service active; psql probes DATABASE_URL as $APP_USER"
+    info "[dry-run] Service: $SERVICE active + enabled; the running release matches $APP_DIR (stale releases restart, unless --no-restart); filesystem repairs happen before any unit start"
+    info "[dry-run] Readiness: /readyz → 200 on :$PORT (15 tries after a repair start/restart)"
+    info "[dry-run] Caddy/TLS: caddy active, configuration valid, certificates for BOTH hostnames chain + hostname verified and more than 14 days from expiry"
     info "[dry-run] Disk: at least 1 GiB free on $APP_DIR"
     info "[dry-run] Host: OS support window, pending dnf updates, reboot-needed kernel check, Fedora vs latest stable"
-    info "[dry-run] Source: checkout clean, on main, current with origin/main (never pulled — that stays pages update)"
+    info "[dry-run] Source: checkout clean, on main, compared with origin via git ls-remote (read-only — no fetch)"
     exit 0
   fi
 
@@ -127,20 +246,43 @@ EOF
   fi
 
   dashboard_host=""; content_host=""
+  env_readable=1
   step "Configuration ($ENV_FILE)"
   if [[ ! -f "$ENV_FILE" ]]; then
     fail "$ENV_FILE missing — run scripts/bootstrap.sh"
-  else
-    perms="$(stat -c '%a %U:%G' "$ENV_FILE" 2>/dev/null || echo 'unknown')"
-    want="640 root:$APP_USER"
-    if [[ "$perms" == "$want" ]]; then
-      pass "$ENV_FILE is $perms"
-    elif [[ "$CHECK_ONLY" == 1 ]]; then
-      fail "$ENV_FILE is $perms — want $want (it holds every credential)"
-    elif chown root:"$APP_USER" "$ENV_FILE" 2>/dev/null && chmod 0640 "$ENV_FILE" 2>/dev/null; then
-      fixed "$ENV_FILE set to $want"
+  elif [[ ! -r "$ENV_FILE" ]]; then
+    if [[ $EUID -eq 0 ]]; then
+      fail "$ENV_FILE unreadable even as root — inspect its ownership and parent directories"
+    fi
+    # The read-only run (service user via the pages CLI) cannot read a
+    # root-only file (e.g. one tightened to 0600 root:root). Report the
+    # limited validation instead of cascading false 'key unset' failures.
+    advise "$ENV_FILE is not readable as $(id -un) — key, hostname and database checks are limited; run sudo pages doctor for full validation"
+    env_readable=0
+  fi
+  if [[ "$env_readable" == 1 && -f "$ENV_FILE" ]]; then
+    if [[ -L "$ENV_FILE" ]]; then
+      # Privileged chown/chmod follows symlinks; refuse rather than repair
+      # through one — a symlinked credential file is drift worth an operator.
+      fail "$ENV_FILE is a symlink — refusing to touch it; investigate and replace with a regular file"
     else
-      fail "could not set $ENV_FILE to $want — fix ownership/mode by hand"
+      perms="$(stat -c '%a %U:%G' "$ENV_FILE" 2>/dev/null || echo 'unknown')"
+      want="640 root:$APP_USER"
+      if [[ "$perms" == "$want" ]]; then
+        pass "$ENV_FILE is $perms"
+      elif [[ "$perms" == "600 root:root" ]]; then
+        # Stricter than the shipped state: never downgrade it. The pages CLI
+        # (token/template/backup) reads this file as $APP_USER, so warn
+        # instead of loosening group access.
+        pass "$ENV_FILE is $perms (stricter than $want)"
+        advise "pages CLI commands that read $ENV_FILE as $APP_USER will fail while it is root-only — set $want if you use them"
+      elif [[ "$CHECK_ONLY" == 1 ]]; then
+        fail "$ENV_FILE is $perms — want $want (it holds every credential)"
+      elif chown root:"$APP_USER" "$ENV_FILE" 2>/dev/null && chmod 0640 "$ENV_FILE" 2>/dev/null; then
+        fixed "$ENV_FILE set to $want"
+      else
+        fail "could not set $ENV_FILE to $want — fix ownership/mode by hand"
+      fi
     fi
     for key in AUTH_SIGNING_PUBKEY PAGE_COOKIE_SECRET RAW_TOKEN_SECRET API_TOKEN_PEPPER DATABASE_URL DASHBOARD_HOST CONTENT_HOST; do
       if [[ -n "$(env_get "$key")" ]]; then
@@ -151,7 +293,10 @@ EOF
     done
     pub="$(env_get AUTH_SIGNING_PUBKEY)"
     if [[ -n "$pub" ]]; then
-      if [[ "$(printf '%s' "$pub" | base64 -d 2>/dev/null | wc -c | tr -d ' ')" == 32 ]]; then
+      # The decoder itself must succeed: GNU base64 -d prints the decoded
+      # prefix before erroring on a bad character, so a length check alone
+      # would accept "valid32bytes!".
+      if pub_len="$(printf '%s' "$pub" | base64 -d 2>/dev/null | wc -c | tr -d ' ')" && [[ "$pub_len" == 32 ]]; then
         pass "AUTH_SIGNING_PUBKEY is a base64 32-byte Ed25519 key"
       else
         fail "AUTH_SIGNING_PUBKEY is not a base64 32-byte Ed25519 key — copy the auth service's key (printed by its bootstrap)"
@@ -159,14 +304,20 @@ EOF
     fi
     # The trust split is a security boundary, not a preference: two hostnames
     # on one registrable domain lets agent HTML toss cookies onto the trusted
-    # host (PLAN.md §7). Same parent-domain heuristic bootstrap.sh warns with.
+    # host (PLAN.md §7). Compare eTLD+1 (see pages_registrable_domain), not
+    # first-label-stripped parents — us.example.com vs eu.example.com is NOT
+    # a split even though the naive parent check passes.
     dashboard_host="$(env_get DASHBOARD_HOST)"
     content_host="$(env_get CONTENT_HOST)"
     if [[ -n "$dashboard_host" && -n "$content_host" ]]; then
-      if [[ "$content_host" == *".${dashboard_host#*.}" || "${content_host#*.}" == "${dashboard_host#*.}" ]]; then
-        fail "CONTENT_HOST ($content_host) shares a registrable domain with DASHBOARD_HOST ($dashboard_host) — agent HTML can toss cookies onto the trusted host (PLAN.md §7)"
+      dashboard_reg="$(pages_registrable_domain "$dashboard_host")"
+      content_reg="$(pages_registrable_domain "$content_host")"
+      if [[ -z "$dashboard_reg" || -z "$content_reg" ]]; then
+        advise "public suffix list unreadable at $PSL_FILE — cannot verify the trust split"
+      elif [[ "$content_reg" == "$dashboard_reg" ]]; then
+        fail "CONTENT_HOST ($content_host) shares the registrable domain $content_reg with DASHBOARD_HOST ($dashboard_host) — agent HTML can toss cookies onto the trusted host (PLAN.md §7)"
       else
-        pass "content host is a separate registrable domain from the dashboard host"
+        pass "content host registrable domain ($content_reg) differs from the dashboard's ($dashboard_reg)"
       fi
     fi
   fi
@@ -183,16 +334,38 @@ EOF
   if [[ -n "$db_url" ]]; then
     if ! command -v psql >/dev/null 2>&1; then
       advise "psql missing — skipping the direct database probe (/readyz below still covers schema)"
-    elif [[ $EUID -eq 0 ]]; then
-      if runuser -u "$APP_USER" -- env "DATABASE_URL=$db_url" psql -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
-        pass "database accepts the '$APP_USER' role"
-      else
-        fail "database probe failed — check DATABASE_URL in $ENV_FILE and pg_hba.conf"
-      fi
-    elif env "DATABASE_URL=$db_url" psql -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
-      pass "database accepts the '$APP_USER' role"
     else
-      advise "database probe failed as uid $EUID — re-run with sudo to probe as $APP_USER"
+      # The password never goes on psql's argv (world-readable via ps and
+      # /proc/<pid>/cmdline while the probe runs): split the userinfo, hand
+      # it to libpq through PGPASSWORD — readable only to the owner and root
+      # in /proc/<pid>/environ — and pass a redacted URL positionally, like
+      # bootstrap's psql calls minus the credential exposure.
+      pg_password=""
+      db_arg="$db_url"
+      if [[ "$db_url" == *"@"* ]]; then
+        db_userinfo="${db_url#*://}"
+        db_userinfo="${db_userinfo%%@*}"
+        if [[ "$db_userinfo" == *:* ]]; then
+          pg_password="${db_userinfo#*:}"
+          db_arg="${db_url/"$db_userinfo"@/"${db_userinfo%%:*}"@}"
+        fi
+      fi
+      if [[ $EUID -eq 0 ]]; then
+        if PGPASSWORD="$pg_password" runuser -u "$APP_USER" -- psql "$db_arg" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
+          pass "database accepts the '$APP_USER' role (DATABASE_URL)"
+        else
+          fail "database probe failed — check DATABASE_URL in $ENV_FILE and pg_hba.conf"
+        fi
+      elif PGPASSWORD="$pg_password" psql "$db_arg" -tAc "SELECT 1" 2>/dev/null | grep -q 1; then
+        pass "database accepts the '$APP_USER' role (DATABASE_URL)"
+      else
+        # The read-only run probes as the service user (via the pages CLI), so
+        # a failed probe means the configured URL is unusable even though the
+        # still-running service may be healthy on its old environment — the
+        # next restart is what breaks. That is a failure, not a rerun-with-root
+        # suggestion.
+        fail "database probe failed — DATABASE_URL in $ENV_FILE is not usable as $(id -un); the running service may still be on its old environment, but the next restart will take Pages down"
+      fi
     fi
   fi
 
@@ -206,6 +379,8 @@ EOF
       fail "$SERVICE not active — inspect: pages logs"
     elif systemctl start "$SERVICE" 2>/dev/null && systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
       fixed "started $SERVICE"
+      restarted=1   # readiness below polls like after a restart: Type=simple
+                    # means `start` can return before the port is listening.
     else
       fail "$SERVICE failed to start — inspect: pages logs"
     fi
@@ -218,6 +393,7 @@ EOF
     # update.sh normally does this, but a box that skipped it keeps serving the
     # old release while every file on disk claims the new one. Compare the
     # process cwd (the release dir) against the APP_DIR symlink target.
+    # Invariant: every filesystem repair above runs BEFORE any unit start.
     pid="$(systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || true)"
     if [[ "$pid" =~ ^[1-9][0-9]*$ ]]; then
       if [[ ! -L "$APP_DIR" ]]; then
@@ -255,6 +431,8 @@ EOF
   done
   if [[ "$healthy" == 1 ]]; then
     pass "/readyz → 200 (database + migrations ready)"
+  elif [[ "$env_readable" == 0 && -z "${PAGES_PORT:-}" ]]; then
+    fail "/readyz not ready on :$PORT — inspect: pages logs (PORT is the built-in default; $ENV_FILE was unreadable, so the real port is unknown — run sudo pages doctor)"
   else
     fail "/readyz not ready on :$PORT — inspect: pages logs"
   fi
@@ -283,11 +461,26 @@ EOF
     fi
     for tls_host in "$dashboard_host" "$content_host"; do
       [[ -n "$tls_host" ]] || continue
-      enddate="$( { echo | openssl s_client -servername "$tls_host" -connect "$tls_host:443" 2>/dev/null \
-        | openssl x509 -noout -enddate 2>/dev/null; } || true)"
-      enddate="${enddate#notAfter=}"
+      # -verify_hostname checks the peer name; -verify_return_error makes
+      # chain/hostname verification failure abort the handshake AND fail the
+      # command — gating on s_client's exit means a self-signed, untrusted,
+      # or wrong-host certificate cannot yield a parsed expiry. The one
+      # supported deployment that is intentionally not publicly trusted is a
+      # bootstrap with USE_LETSENCRYPT=n (`tls internal`, local CA): that one
+      # downgrades to an advisory; every other verification failure is FAIL.
+      if cert="$( { echo | openssl s_client -verify_hostname "$tls_host" -verify_return_error \
+            -servername "$tls_host" -connect "$tls_host:443" 2>/dev/null; } )" \
+         && [[ -n "$cert" ]]; then
+        enddate="$(printf '%s\n' "$cert" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2- || true)"
+      else
+        enddate=""
+      fi
       if [[ -z "$enddate" ]]; then
-        fail "no certificate answers https://$tls_host — check DNS, firewalld and: journalctl -u caddy"
+        if grep -qE '^[[:space:]]*tls[[:space:]]+internal([[:space:]]|$)' "$CADDY_SNIPPET" 2>/dev/null; then
+          advise "https://$tls_host does not verify against public trust (Caddy serves 'tls internal') — expected for this self-signed install; browsers will warn"
+        else
+          fail "no verifiable certificate for https://$tls_host (chain or hostname verification failed) — check DNS, firewalld and: journalctl -u caddy"
+        fi
         continue
       fi
       if end_s="$(date -d "$enddate" +%s 2>/dev/null)"; then
@@ -297,10 +490,10 @@ EOF
         elif (( days < 14 )); then
           advise "certificate for $tls_host expires in $days day(s) ($enddate)"
         else
-          pass "https://$tls_host — certificate valid, $days days left ($enddate)"
+          pass "https://$tls_host — certificate verified (chain + hostname), $days days left ($enddate)"
         fi
       else
-        pass "https://$tls_host serves a certificate (expiry unreadable: $enddate)"
+        pass "https://$tls_host serves a verified certificate (expiry unreadable: $enddate)"
       fi
     done
   fi
@@ -380,37 +573,49 @@ EOF
   elif [[ ! -d "$SRC_DIR/.git" ]]; then
     advise "no git checkout at $SRC_DIR — 'pages update' will not work on this box"
   else
-    git=(git -c "safe.directory=$SRC_DIR" -C "$SRC_DIR")
+    # safe.directory is required because the checkout is root-owned while the
+    # read-only run is the service user; core.fsmonitor=false keeps a
+    # tampered checkout's config from running a command as this user.
+    git=(git -c "safe.directory=$SRC_DIR" -c core.fsmonitor=false -C "$SRC_DIR")
     branch="$("${git[@]}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
     if [[ "$branch" == main ]]; then
       pass "checkout on main"
     else
       advise "checkout is on '$branch', not main — 'pages update' follows the checked-out branch"
     fi
-    if dirty="$("${git[@]}" status --porcelain 2>/dev/null)" && [[ -z "$dirty" ]]; then
+    if ! dirty="$("${git[@]}" status --porcelain 2>/dev/null)"; then
+      # A failed status (missing git, corrupt index, unreadable metadata) is
+      # not a clean checkout — 'pages update' cannot use this tree either.
+      advise "could not read checkout status (git error) — inspect: git -C $SRC_DIR status"
+    elif [[ -z "$dirty" ]]; then
       pass "checkout clean"
     else
       advise "checkout has local changes — resolve them before pages update"
     fi
-    # Freshness is only knowable after a successful fetch: pin the refspec to
-    # main and bound the wait (git has no --max-time; coreutils timeout ships
-    # on every Fedora/RHEL box — fall back to an unbounded fetch only where it
-    # is somehow absent). A failed fetch must read as unknown, never current.
-    fetch=("${git[@]}" fetch --quiet origin main)
+    # Freshness WITHOUT mutating the checkout: fetch writes objects,
+    # remote-tracking refs and .git/FETCH_HEAD, which even a diagnostic must
+    # not do. ls-remote reads the remote tip only; compare it to local HEAD.
+    # A failed or blocked probe reads as unknown, never current. git has no
+    # --max-time; coreutils timeout ships on every Fedora/RHEL box.
+    ls_remote=( "${git[@]}" ls-remote origin main )
     if command -v timeout >/dev/null 2>&1; then
-      fetch=(timeout 10 "${fetch[@]}")
+      ls_remote=( timeout 10 "${ls_remote[@]}" )
     fi
-    if "${fetch[@]}" 2>/dev/null; then
-      behind="$("${git[@]}" rev-list --count HEAD..origin/main 2>/dev/null)"
-      if [[ ! "$behind" =~ ^[0-9]+$ ]]; then
-        advise "fetched origin but could not compare with origin/main — inspect: git -C $SRC_DIR status"
-      elif (( behind > 0 )); then
-        advise "checkout is $behind commit(s) behind origin/main — run: sudo pages update"
-      else
-        pass "checkout current with origin/main"
-      fi
+    remote_main="$( "${ls_remote[@]}" 2>/dev/null | awk '$2 == "refs/heads/main" { print $1; exit }' )" || true
+    if [[ -z "$remote_main" ]]; then
+      advise "could not reach origin — remote freshness unknown (network, auth, or timeout)"
     else
-      advise "could not reach origin — fetch failed (network, auth, or timeout); skipping the freshness check"
+      head_sha="$( "${git[@]}" rev-parse HEAD 2>/dev/null || true )"
+      if [[ -n "$head_sha" && "$remote_main" == "$head_sha" ]]; then
+        pass "checkout current with origin/main"
+      else
+        behind="$( "${git[@]}" rev-list --count HEAD.."$remote_main" 2>/dev/null )" || true
+        if [[ "$behind" =~ ^[0-9]+$ ]] && (( behind > 0 )); then
+          advise "checkout is $behind commit(s) behind origin/main — run: sudo pages update"
+        else
+          advise "checkout differs from origin/main — run: sudo pages update"
+        fi
+      fi
     fi
   fi
 
@@ -433,12 +638,9 @@ EOF
   exit 0
 )
 
-pages_latest_fedora() {
-  python3 -c 'import json,sys; print(max(int(r["version"]) for r in json.load(sys.stdin) if r.get("version", "").isascii() and r.get("version", "").isdigit()))'
-}
-
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  # --check/--dry-run/--help need no root; repairs do.
+  # --check/--dry-run/--help need no root; repairs do. (Via the pages CLI the
+  # read-only modes run as the service user — see deploy/pages-cli.)
   needs_root=1
   for arg in "$@"; do
     case "$arg" in
