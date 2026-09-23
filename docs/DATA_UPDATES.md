@@ -252,7 +252,7 @@ deployments can lower them with `PAGES_DATA_SCHEMA_MAX_BYTES`,
 
 | `detail` | Returns | Use |
 | --- | --- | --- |
-| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB whatever the payload size | the first read of every run; enough to pick a branch |
+| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB for a typical payload; the coverage profile is capped at 3 KB and marked `coverage_truncated: true` when cut | the first read of every run; enough to pick a branch |
 | `export` | the same identity fields plus `schema_url`, `data_url` and `envelope_url` for the live version, valid for 10 minutes | fetch the schema and rows once into workspace files with a host-side URL download (Fleet's `download_url`), so they never enter the model's context |
 | `full` (default) | the published schema/envelope, semantic hashes, full `data_profile`, URLs and truthful live-state fields, exactly as before `detail` existed | clients that cannot download URLs; one read per run |
 

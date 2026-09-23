@@ -323,3 +323,41 @@ test("managed prompts read the summary, fetch the contract once by reference, an
     assert.match(prompt, /refresh the contract files once as in step 1/);
   }
 });
+
+test("a hostile payload cannot push the summary past its bound", async () => {
+  // Eight arrays of 24 date-like fields with long names, a date-prefixed string
+  // of 100 KB per array (it would be max verbatim), and 24 date-stamped scalars.
+  const huge = `2026-01-01${"x".repeat(100_000)}`;
+  const data = {};
+  for (let a = 0; a < 8; a++) {
+    const row = {};
+    for (let f = 0; f < 24; f++) row[`date_field_with_a_rather_long_descriptive_name_${String(f).padStart(2, "0")}`] = f === 0 ? huge : "2026-09-20";
+    data[`array_with_a_long_descriptive_name_${a}`] = [row, { ...row, date_field_with_a_rather_long_descriptive_name_00: "2025-01-01" }];
+  }
+  for (let s = 0; s < 24; s++) data[`stamp${s}`] = "2026-09-20T00:00:00.000Z";
+  const result = publishedResult({ schema: { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" }, data });
+  const full = pageData.profileData(data);
+  assert.ok(bytes(full) > 300_000, "the full profile really is hostile");
+
+  const summary = await read(result, { detail: "summary" });
+  assert.ok(bytes(summary.coverage_profile) <= pageData.COVERAGE_MAX_BYTES, `${bytes(summary.coverage_profile)} bytes`);
+  assert.ok(bytes(summary) <= 5 * 1024, `summary is ${bytes(summary)} bytes`);
+  assert.equal(summary.coverage_truncated, true);
+  assert.match(summary.next_step, /coverage_truncated/);
+  for (const entry of Object.values(summary.coverage_profile.arrays)) {
+    for (const field of Object.values(entry.fields)) {
+      assert.ok(field.min.length <= 32 && field.max.length <= 32, "extents are clipped");
+    }
+  }
+  // Only whole entries are left out: every kept array still says its count.
+  const first = Object.values(summary.coverage_profile.arrays)[0];
+  assert.equal(first.count, 2);
+
+  // A payload inside the bound is not marked, and its values are untouched.
+  const normal = await read(publishedResult(tupleFixture()), { detail: "summary" });
+  assert.equal(Object.hasOwn(normal, "coverage_truncated"), false);
+  // Full reads never carry the marker.
+  const schema = TOOLS.get_page_data.outputSchema;
+  const fullRead = await read(publishedResult(tupleFixture()), {});
+  assert.equal(schema.safeParse({ ...fullRead, coverage_truncated: true }).success, false);
+});
