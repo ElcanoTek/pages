@@ -108,6 +108,23 @@ test("a recurring prompt lists both commit transports whatever the payload size 
     assert.match(step(prepared.prompt, 9), /^9\. Over 20,000 UTF-8 bytes, stage the complete data file\. /);
     assert.ok(step(prepared.prompt, 9).includes(fileUploadGuidance("data", "mcp_pages_")), "by-reference upload guidance is kept");
     assert.match(prepared.prompt, /\nROSTER: a scheduler may offer this run only required_tools\. Both commit tools are listed: decide the transport in step 9 from the size of the file you built on this run, every run/);
+    // The roster line must not read as "only get_page_data": step 12 makes the
+    // preflight a success condition, and steps 2 and 9 need the config read and
+    // the staging tools. It names the verification reads and defers to the list.
+    const roster = prepared.prompt.split("\n").find((line) => line.startsWith("ROSTER: "));
+    assert.ok(roster.endsWith(
+      "Verify and report from the commit tool's response, mcp_pages_get_page_data and mcp_pages_preflight_page; do not call Pages tools outside required_tools."
+    ), roster);
+    assert.doesNotMatch(roster, /do not call other Pages tools/);
+    const offered = new Set(prepared.execution_requirements.required_tools);
+    const named = new Set([roster, step(prepared.prompt, 2), step(prepared.prompt, 9), step(prepared.prompt, 12)]
+      .flatMap((line) => line.match(/mcp_pages_[a-z_]+/g) || []));
+    // create_upload_ticket is the one exception, by design (DATA_UPDATES.md): the
+    // shared upload guidance offers it to clients with direct file HTTP, and it
+    // is deliberately left out of required_tools.
+    named.delete("mcp_pages_create_upload_ticket");
+    for (const tool of named) assert.ok(offered.has(tool), `${tool} is named by the prompt and must be in the roster`);
+    assert.ok(named.has("mcp_pages_preflight_page"));
   }
 });
 
