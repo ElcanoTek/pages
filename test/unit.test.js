@@ -5074,6 +5074,39 @@ test("mcp-tools: update_page_data states the supported payload size in its schem
   assert.match(described, /whole|not split/i);
 });
 
+// Anthropic's API validates every tool input_schema against JSON Schema draft
+// 2020-12 and rejects the whole request if one fails, so a single bad schema
+// breaks every Claude turn in any Fleet conversation that has Pages connected.
+// z.tuple did exactly that: the SDK emitted draft-07 `items: [...]`.
+// Validate what tools/list actually serves, not the zod source.
+
+test("mcp: every advertised tool schema is valid JSON Schema draft 2020-12", async () => {
+  const Ajv2020 = require("ajv/dist/2020").default;
+  const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
+  const { InMemoryTransport } = require("@modelcontextprotocol/sdk/inMemory.js");
+  const { createServer } = require("../lib/mcp");
+  const validateSchema = new Ajv2020({ strict: false }).getSchema("https://json-schema.org/draft/2020-12/schema");
+  const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+  await createServer(null).connect(serverSide);
+  const client = new Client({ name: "schema-check", version: "1" });
+  await client.connect(clientSide);
+  try {
+    const { tools } = await client.listTools();
+    assert.ok(tools.length > 0);
+    const invalid = [];
+    for (const tool of tools) {
+      for (const key of ["inputSchema", "outputSchema"]) {
+        if (tool[key] && !validateSchema(tool[key])) {
+          invalid.push(`${tool.name}.${key}: ${JSON.stringify(validateSchema.errors.slice(0, 2))}`);
+        }
+      }
+    }
+    assert.deepEqual(invalid, []);
+  } finally {
+    await client.close();
+  }
+});
+
 test("mcp-tools: an oversized payload is refused with an actionable code", () => {
   const mcpTools = require("../lib/mcp-tools");
   const assertInlineData = mcpTools.assertInlineData;
