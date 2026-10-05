@@ -3355,7 +3355,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     assert.equal(recurringPrompt.execution_requirements.roster, "required_tools_only");
     assert.deepEqual(recurringPrompt.execution_requirements.completion, {
       any_succeeded: ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
-      blocked_when: { tool: "mcp_pages_record_refresh_check", argument: "outcome", in: ["blocked", "failed", "source_unreachable"] },
+      blocked_when: { tool: "mcp_pages_record_refresh_check", argument: "outcome", in: ["blocked", "failed", "source_unreachable"], detail_argument: "detail" },
     });
     assert.equal(recurringPrompt.execution_requirements.serialization_key, "pages:mcpdata");
     for (const tool of ["mcp_pages_update_page_data", "mcp_pages_update_page_data_upload", "mcp_pages_start_page_upload", "mcp_pages_append_page_upload"]) {
