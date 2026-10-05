@@ -96,6 +96,7 @@ test("a recurring prompt lists both commit transports whatever the payload size 
       roster: "required_tools_only",
       completion: {
         any_succeeded: ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
+        blocked_when: { tool: "mcp_pages_record_refresh_check", argument: "outcome", in: ["blocked", "failed", "source_unreachable"] },
       },
       serialization_key: "pages:northwind/overview",
       network: false,
@@ -107,7 +108,7 @@ test("a recurring prompt lists both commit transports whatever the payload size 
     // The run still chooses by the size of the file it built, on every run.
     assert.match(step(prepared.prompt, 9), /^9\. Over 20,000 UTF-8 bytes, stage the complete data file\. /);
     assert.ok(step(prepared.prompt, 9).includes(fileUploadGuidance("data", "mcp_pages_")), "by-reference upload guidance is kept");
-    assert.match(prepared.prompt, /\nROSTER: a scheduler may offer this run only required_tools\. Both commit tools are listed: decide the transport in step 9 from the size of the file you built on this run, every run/);
+    assert.match(prepared.prompt, /\nROSTER: this run may be offered only required_tools\. Both commit tools are listed: decide the transport in step 9 from the size of the file you built on this run, every run/);
     // The roster line must not read as "only get_page_data": step 12 makes the
     // preflight a success condition, and steps 2 and 9 need the config read and
     // the staging tools. It names the verification reads and defers to the list.
@@ -247,12 +248,15 @@ test("bindings lifted from a legacy workflow never narrow the roster", async () 
   }
 });
 
-// Golden hashes of the pre-#102 prompt text (generated from main with #104's
-// summary-first read merged, i.e. without this change), with the requirements line and the shared upload guidance masked so
-// only this module's own wording is pinned. A one-time prompt is supervised and
-// keeps choosing its transport; only its requirements block changed.
-const ONE_TIME_GOLDEN = "e136af0026948614c803ce309398860e66b7206db575cda336249bc35f7aa6af";
-const ADAPTIVE_GOLDEN = "ac08581dbd6b4bcf4effd8e1d116f0f5765954fafc6d630d63bce1ce1a395458";
+// Golden hashes of the one-time prompt text, with the requirements line and the
+// shared upload guidance masked so only this module's own wording is pinned. A
+// one-time prompt is supervised and keeps choosing its transport. Last changed
+// deliberately when prompts stopped addressing a scheduler ("The scheduler must
+// supply…", "the caller's configured approval workflow") and gained the
+// integer-serialization rule (pages#109); update them only for an intended
+// wording change.
+const ONE_TIME_GOLDEN = "7972d851826c4b57b484efce1ded14ce1353a4e41a4a065035c32f1dfd7de4a2";
+const ADAPTIVE_GOLDEN = "caf9ccb5b81821dad561b5cad0184dd993f14ff53a4fc176e5fe2d0199be8b0a";
 
 function masked(prompt) {
   const lines = prompt.split("\n");
@@ -293,4 +297,95 @@ test("modes other than managed data carry no roster, completion or serialization
     for (const key of ["roster", "completion", "serialization_key"]) assert.equal(Object.hasOwn(requirements, key), false, `${mode} ${key}`);
     assert.deepEqual(requirements.required_tools, []);
   }
+});
+
+// A recurring prompt is the description of one run. The request behind it was
+// usually phrased as a request for the PROMPT ("create a reusable daily
+// unattended refresh … this is prompt creation only; do not install a schedule
+// now") and used to be quoted verbatim, so every run read instructions about a
+// scheduler it had no part in.
+test("a recurring request loses only its scheduling and prompt-creation prose", async () => {
+  const request =
+    "Create a reusable daily unattended data-only refresh for the Northwind campaign dashboard. " +
+    "The sources are the Contoso OpenX Scheduled Report workbook and the Fabrikam daily CSV. " +
+    "Run once daily when invoked by the user's scheduler; do not create or modify schedules. " +
+    "Daily totals must reconcile to the source. This is prompt creation only; do not install a schedule now.";
+  const prepared = await prepare(payloadOfBytes(2_000), { recurring: true, instructions: request });
+  const quoted = JSON.parse(prepared.prompt.split("\n").find((line) => line.startsWith("USER REQUEST: ")).slice("USER REQUEST: ".length));
+  assert.equal(
+    quoted,
+    "Data-only refresh for the Northwind campaign dashboard. " +
+      "The sources are the Contoso OpenX Scheduled Report workbook and the Fabrikam daily CSV. " +
+      "Daily totals must reconcile to the source."
+  );
+  assert.deepEqual(prepared.instructions_removed, [
+    "Create a reusable daily unattended",
+    "Run once daily when invoked by the user's scheduler; do not create or modify schedules.",
+    "This is prompt creation only; do not install a schedule now.",
+  ]);
+  assert.doesNotMatch(prepared.prompt, /schedul(?!ed Report)|prompt creation|caller/i);
+
+  // A one-time request is executed in the conversation that wrote it.
+  const oneTime = await prepare(payloadOfBytes(2_000), { recurring: false, updateType: "data", instructions: request });
+  assert.ok(oneTime.prompt.includes(JSON.stringify(request)));
+  assert.deepEqual(oneTime.instructions_removed, []);
+});
+
+test("a request that is only scheduling prose is kept rather than emptied", () => {
+  const request = "Do not install a schedule.";
+  assert.deepEqual(updatePrompts.taskOnlyInstructions(request), { text: request, removed: [] });
+  // Sentences keep their own line breaks.
+  assert.equal(
+    updatePrompts.taskOnlyInstructions("For each unattended run, update only the data.\nKeep zero rows.").text,
+    "Update only the data.\nKeep zero rows."
+  );
+});
+
+// Before these rules a quarter of production refresh runs stopped at the first
+// gap — a vendor report no longer generated, a fee column one exchange never
+// fills, two deals CONFIG did not list yet, a DSP feed a day behind — while the
+// sources held real new data, and each was recorded as a successful task.
+test("a recurring prompt blocks only on hard stops and publishes around other gaps", () => {
+  const sources = updatePrompts.normalizeSources(SOURCES);
+  const common = { slug: SLUG, instructions: "Refresh from the Northwind export.", schemaSha256: "a".repeat(64), sources, publish: true };
+  const recurring = updatePrompts.managedPrompt({ ...common, recurring: true });
+  const five = step(recurring, 5);
+  assert.match(five, /Select blocked only on a hard stop: a required source that cannot be retrieved or authenticated, fails its hash or identity check/);
+  assert.match(five, /Every other gap follows GAP RULES below/);
+  assert.doesNotMatch(five, /partial required sources select blocked/);
+  const rules = recurring.split("\nGAP RULES — ")[1].split("TERMINAL BRANCHES")[0];
+  assert.match(rules, /never filled with invented values/);
+  assert.match(rules, /publish each source through its own observed cutoff/);
+  assert.match(rules, /publish from the retrieved files and flag the missing check/);
+  assert.match(rules, /they are absent, not zero/);
+  assert.match(rules, /follow the convention the live payload already uses for that field from that source/);
+  assert.match(rules, /never drop it silently and never invent a mapping/);
+  assert.match(rules, /the bound source is the authority/);
+  assert.match(rules, /in the update's note/);
+  // The rules sit before the branches, so they decide the branch.
+  assert.ok(recurring.indexOf("\nGAP RULES — ") < recurring.indexOf("TERMINAL BRANCHES"));
+
+  // A supervised one-time run keeps the strict checks; its human decides.
+  const oneTime = updatePrompts.managedPrompt({ ...common, recurring: false });
+  assert.doesNotMatch(oneTime, /GAP RULES/);
+  assert.match(step(oneTime, 5), /Missing, inaccessible, ambiguous or partial required sources select blocked/);
+
+  // pages#109: float-widened counts pushed a 20,000-row payload over 1 MiB.
+  for (const prompt of [recurring, oneTime]) assert.match(step(prompt, 7), /Write integral counts as JSON integers/);
+});
+
+test("completion.blocked_when names exactly the check outcomes that publish nothing", async () => {
+  const prepared = await prepare(payloadOfBytes(2_000), { recurring: true });
+  const { completion, required_tools: requiredTools } = prepared.execution_requirements;
+  assert.deepEqual(completion.blocked_when, {
+    tool: "mcp_pages_record_refresh_check",
+    argument: "outcome",
+    in: ["blocked", "failed", "source_unreachable"],
+  });
+  assert.ok(completion.any_succeeded.includes(completion.blocked_when.tool));
+  assert.ok(requiredTools.includes(completion.blocked_when.tool));
+  // Every listed outcome is one the tool accepts, and the two that mean
+  // "finished normally" are not listed.
+  for (const outcome of completion.blocked_when.in) assert.ok(versions.REFRESH_CHECK_OUTCOMES.has(outcome), outcome);
+  for (const outcome of ["updated", "source_not_updated"]) assert.ok(!completion.blocked_when.in.includes(outcome), outcome);
 });
