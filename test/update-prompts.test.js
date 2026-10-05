@@ -331,6 +331,21 @@ test("a recurring request loses only its scheduling and prompt-creation prose", 
   assert.deepEqual(oneTime.instructions_removed, []);
 });
 
+test("a sentence that asks for the prompt itself is dropped", () => {
+  // Both phrasings come from production chat-generated prompts.
+  for (const ask of [
+    "Create a reusable DAILY data-refresh prompt for the existing /northwind-overview dashboard.",
+    "Prepare a reusable recurring auto-update prompt for the live dashboard.",
+  ]) {
+    const result = updatePrompts.taskOnlyInstructions(`${ask} Update data only. Keep zero rows.`);
+    assert.equal(result.text, "Update data only. Keep zero rows.");
+    assert.deepEqual(result.removed, [ask]);
+  }
+  // A run instruction that merely mentions a prompt-like word is kept.
+  const kept = "Write the complete JSON object to one file. Keep zero rows.";
+  assert.equal(updatePrompts.taskOnlyInstructions(kept).text, kept);
+});
+
 test("a request that is only scheduling prose is kept rather than emptied", () => {
   const request = "Do not install a schedule.";
   assert.deepEqual(updatePrompts.taskOnlyInstructions(request), { text: request, removed: [] });
