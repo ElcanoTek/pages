@@ -74,11 +74,13 @@ asking a model:
   a one-time prompt's blocked branch records no refresh check, so it carries
   no completion predicate.
 - `completion.blocked_when`: `{"tool": "mcp_pages_record_refresh_check",
-  "argument": "outcome", "in": ["blocked", "failed", "source_unreachable"]}`.
+  "argument": "outcome", "in": ["blocked", "failed", "source_unreachable"],
+  "detail_argument": "detail"}`.
   A run that completed through the predicate, whose last successful refresh
   check had one of those outcomes and which committed no version, finished
   **without publishing**. A scheduler that knows the key can show that run as
-  blocked instead of as a plain success; in production a dashboard sat frozen
+  blocked instead of as a plain success, with the check's `detail` as the
+  reason; in production a dashboard sat frozen
   for two weeks behind a green task list because nothing distinguished the two.
 - `serialization_key: "pages:<slug>"`: runs that share it must not overlap.
   Give every schedule for the page the same key. Two schedules refreshing one
@@ -124,7 +126,7 @@ For the largest data page:
   "roster": "required_tools_only",
   "completion": {
     "any_succeeded": ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
-    "blocked_when": { "tool": "mcp_pages_record_refresh_check", "argument": "outcome", "in": ["blocked", "failed", "source_unreachable"] }
+    "blocked_when": { "tool": "mcp_pages_record_refresh_check", "argument": "outcome", "in": ["blocked", "failed", "source_unreachable"], "detail_argument": "detail" }
   },
   "serialization_key": "pages:northwind/overview",
   "network": false,

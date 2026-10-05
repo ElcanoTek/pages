@@ -96,7 +96,7 @@ test("a recurring prompt lists both commit transports whatever the payload size 
       roster: "required_tools_only",
       completion: {
         any_succeeded: ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
-        blocked_when: { tool: "mcp_pages_record_refresh_check", argument: "outcome", in: ["blocked", "failed", "source_unreachable"] },
+        blocked_when: { tool: "mcp_pages_record_refresh_check", argument: "outcome", in: ["blocked", "failed", "source_unreachable"], detail_argument: "detail" },
       },
       serialization_key: "pages:northwind/overview",
       network: false,
@@ -396,7 +396,10 @@ test("completion.blocked_when names exactly the check outcomes that publish noth
     tool: "mcp_pages_record_refresh_check",
     argument: "outcome",
     in: ["blocked", "failed", "source_unreachable"],
+    detail_argument: "detail",
   });
+  // The named argument is one the check actually takes.
+  assert.ok(Object.hasOwn(TOOLS.record_refresh_check.inputSchema.shape, completion.blocked_when.detail_argument));
   assert.ok(completion.any_succeeded.includes(completion.blocked_when.tool));
   assert.ok(requiredTools.includes(completion.blocked_when.tool));
   // Every listed outcome is one the tool accepts, and the two that mean
