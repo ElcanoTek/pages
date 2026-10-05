@@ -376,6 +376,13 @@ test("a recurring prompt blocks only on hard stops and publishes around other ga
   assert.match(rules, /follow the convention the live payload already uses for that field from that source/);
   assert.match(rules, /never drop it silently and never invent a mapping/);
   assert.match(rules, /the bound source is the authority/);
+  // A metric the schema never had is not a gap: a run blocked on exactly that.
+  assert.match(rules, /that the page's schema has no field for: it is not published and is noted, never a reason to block/);
+  assert.match(five, /a field the schema requires that no source can fill, or a grain that does not match, without a schema change/);
+  // The discovery window is where to look, not a coverage deadline (a run
+  // blocked at 14:30 UTC because the sources "only" reached yesterday).
+  assert.match(step(recurring, 4), /it is not coverage the sources must reach/);
+  assert.match(rules, /an unallocated row's channel, that CONFIG does not map/);
   assert.match(rules, /in the update's note/);
   // The rules sit before the branches, so they decide the branch.
   assert.ok(recurring.indexOf("\nGAP RULES — ") < recurring.indexOf("TERMINAL BRANCHES"));
@@ -383,6 +390,7 @@ test("a recurring prompt blocks only on hard stops and publishes around other ga
   // A supervised one-time run keeps the strict checks; its human decides.
   const oneTime = updatePrompts.managedPrompt({ ...common, recurring: false });
   assert.doesNotMatch(oneTime, /GAP RULES/);
+  assert.doesNotMatch(step(oneTime, 4), /it is not coverage the sources must reach/);
   assert.match(step(oneTime, 5), /Missing, inaccessible, ambiguous or partial required sources select blocked/);
 
   // pages#109: float-widened counts pushed a 20,000-row payload over 1 MiB.
