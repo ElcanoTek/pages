@@ -3282,9 +3282,10 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     // — and an old client has no way to supply them. The compatibility alias
     // must keep working rather than inherit the recurring-bindings gate (#121).
     assert.equal(legacyCompatibilityPrepared.recurring, true);
-    assert.match(legacyCompatibilityPrepared.prompt, /daily at 08:00 UTC/i);
+    // The legacy cadence belongs to the job, not to the run's prompt.
+    assert.doesNotMatch(legacyCompatibilityPrepared.prompt, /08:00|scheduler/i);
     assert.match(legacyCompatibilityPrepared.next_step, /did not honor run_now/i);
-    assert.match(legacyCompatibilityPrepared.next_step, /Show prompt to the user verbatim/i);
+    assert.match(legacyCompatibilityPrepared.next_step, /Use prompt verbatim/i);
 
     // A recurring prompt runs unattended weeks later against a live client page,
     // so it must carry real bindings rather than prose an executing agent has to
@@ -3330,8 +3331,9 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     }
     assert.equal(contractOnly.envelope.source_as_of, completeRead.envelope.source_as_of);
 
-    assert.match(recurringPrompt.prompt, /user-owned scheduler/i);
-    assert.match(recurringPrompt.next_step, /Show prompt to the user verbatim/i);
+    assert.doesNotMatch(recurringPrompt.prompt, /scheduler/i);
+    assert.match(recurringPrompt.next_step, /Use prompt verbatim/i);
+    assert.deepEqual(recurringPrompt.instructions_removed, []);
     // A partitioned source must render as enumerate-the-range, not newest-wins.
     assert.match(recurringPrompt.prompt, /PARTITIONED by date/);
     assert.match(recurringPrompt.prompt, /never take only the newest/);
@@ -3353,6 +3355,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     assert.equal(recurringPrompt.execution_requirements.roster, "required_tools_only");
     assert.deepEqual(recurringPrompt.execution_requirements.completion, {
       any_succeeded: ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
+      blocked_when: { tool: "mcp_pages_record_refresh_check", argument: "outcome", in: ["blocked", "failed", "source_unreachable"] },
     });
     assert.equal(recurringPrompt.execution_requirements.serialization_key, "pages:mcpdata");
     for (const tool of ["mcp_pages_update_page_data", "mcp_pages_update_page_data_upload", "mcp_pages_start_page_upload", "mcp_pages_append_page_upload"]) {

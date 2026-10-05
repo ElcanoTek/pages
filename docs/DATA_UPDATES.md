@@ -73,6 +73,13 @@ asking a model:
   `source_not_updated` or `blocked` run "finished". Recurring prompts only:
   a one-time prompt's blocked branch records no refresh check, so it carries
   no completion predicate.
+- `completion.blocked_when`: `{"tool": "mcp_pages_record_refresh_check",
+  "argument": "outcome", "in": ["blocked", "failed", "source_unreachable"]}`.
+  A run that completed through the predicate, whose last successful refresh
+  check had one of those outcomes and which committed no version, finished
+  **without publishing**. A scheduler that knows the key can show that run as
+  blocked instead of as a plain success; in production a dashboard sat frozen
+  for two weeks behind a green task list because nothing distinguished the two.
 - `serialization_key: "pages:<slug>"`: runs that share it must not overlap.
   Give every schedule for the page the same key. Two schedules refreshing one
   slug otherwise race to duplicate versions and `stale_version`.
@@ -116,7 +123,8 @@ For the largest data page:
   ],
   "roster": "required_tools_only",
   "completion": {
-    "any_succeeded": ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"]
+    "any_succeeded": ["mcp_pages_record_refresh_check", "mcp_pages_update_page_data", "mcp_pages_update_page_data_upload"],
+    "blocked_when": { "tool": "mcp_pages_record_refresh_check", "argument": "outcome", "in": ["blocked", "failed", "source_unreachable"] }
   },
   "serialization_key": "pages:northwind/overview",
   "network": false,
@@ -152,6 +160,32 @@ declared scope and any configured mapping registries. Bindings must state the in
 CONFIG supplies mappings, not permission to discard unconfigured source rows.
 Report excluded identifiers, row counts and the scope rule. Keep every in-scope
 zero-delivery row; block ambiguous scope instead of copying prior exclusions.
+
+A recurring prompt blocks only on a **hard stop**: a required source that cannot
+be retrieved or authenticated, fails its hash or identity check, or cannot be
+parsed; a genuinely ambiguous mapping (an identifier that could belong to more
+than one configured record, or unclear account/campaign identity); or a schema or
+grain the payload cannot satisfy without a schema change. Every other gap
+follows the prompt's **GAP RULES**: publish what the sources verifiably report,
+name each gap as a Quality Flag (in the final report and the update's `note`),
+and never fill a gap with invented values:
+
+- a source whose newest date trails the others publishes through its own cutoff;
+- an unavailable companion report or cross-check is flagged, not a blocker, when
+  every bound source file was retrieved;
+- records missing on the newest date are absent, not zero, and are listed;
+- a field blank on every in-scope row of a source follows the convention the live
+  payload already uses for it (for example `0` on every existing row), or `null`
+  where the schema allows it, and is flagged as not reported;
+- an in-scope identifier CONFIG does not map is kept where the schema has an
+  unmapped representation, otherwise reported with its row count and totals for a
+  CONFIG decision — never dropped silently, never given an invented mapping;
+- source values that differ from the live payload are corrections and publish.
+
+A USER REQUEST block condition still applies when it names the specific report,
+field or identifier. These rules exist because, before them, a quarter of all
+production refresh runs stopped at the first such gap while the sources held
+real new data.
 
 An unchanged reporting date or aggregate total does not prove unchanged history.
 Compare complete in-scope records and represented metrics/dimensions with the live
@@ -194,7 +228,14 @@ Arguments:
   language. Name configured MCP accounts or credential locations, never secret
   values.
 - `recurring` — default `false`. When true, only a reusable data workflow is
-  returned for a user-owned scheduler.
+  returned: the verbatim task prompt of a recurring job. It describes one run
+  and says nothing about who invokes it or when; the job carries the cadence.
+  Sentences of `instructions` that are about scheduling or prompt creation
+  ("this is prompt creation only; do not install a schedule", "run when invoked
+  by the user's scheduler", a leading "create a reusable daily unattended …")
+  are dropped before the request is quoted, and returned verbatim as
+  `instructions_removed`. A source that is merely named "scheduled" (an "OpenX
+  Scheduled Report") is kept.
 - `update_type` — `data`, `layout`, or `auto` (default). Use `data` for values
   only, `layout` for design/schema/JavaScript, and `auto` only when classification
   is genuinely unclear.

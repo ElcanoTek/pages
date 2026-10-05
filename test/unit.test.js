@@ -817,7 +817,7 @@ test("versions.normalizeSlug: accepts flat + nested, lowercases, rejects junk", 
 
 // ── exact-slug dashboard update prompt handoff ─────────────────────────────
 
-test("update prompts: recurring managed-data runs follow the live contract and remain caller-owned", () => {
+test("update prompts: recurring managed-data runs follow the live contract and describe only the run", () => {
   const prompt = updatePrompts.managedPrompt({
     slug: "acme/daily",
     instructions: "Use the completed Google Ads report for yesterday.",
@@ -832,7 +832,10 @@ test("update prompts: recurring managed-data runs follow the live contract and r
   assert.match(prompt, /mcp_pages_update_page_data/);
   assert.doesNotMatch(prompt, /confirm_audit|critical_actions/);
   assert.match(prompt, /Pages does not require an additional host approval tool/);
-  assert.match(prompt, /user-owned scheduler/i);
+  // The prompt is a task's description of ONE run. Who invokes it and when is
+  // the scheduler's own state: production runs reported on, and were held to,
+  // a scheduler the prompt talked about but the run could not see.
+  assert.doesNotMatch(prompt, /schedul|caller|per invocation/i);
   assert.match(prompt, /never create another page, companion data page, or replacement slug/i);
   assert.match(prompt, /Never invent zeros/i);
   // A minted ± "share adjustment" pair nets to zero margin but not to zero
@@ -961,12 +964,12 @@ test("update prompts: the managed-data prompt routes payloads by size instead of
     assert.doesNotMatch(prompt, /transport is NEVER/);
     // A blank optional column (a fee one exchange never reports) must not
     // fail the whole source or skip its dates.
-    assert.match(prompt, /only when the source contract identifies that field as optional/);
-    assert.match(prompt, /Keep genuine zero-metric rows/);
+    assert.match(prompt, /only when the source contract (?:identifies that field as|makes the field) optional/);
+    assert.match(prompt, recurring ? /Preserve every in-scope zero-metric row/ : /Keep genuine zero-metric rows/);
     // The audit instruction covers whichever transport was chosen.
     assert.match(
       prompt,
-      /Follow the caller's configured approval workflow/
+      /If your runtime has an audit or approval step for gated mutations, complete it before the write/
     );
   }
 });
@@ -985,7 +988,7 @@ test("update prompts: scope and historical corrections are checked before a no-c
   assert.match(checks, /CONFIG is a mapping registry, not implicit permission to exclude/);
   assert.match(checks, /zero delivery alone never justifies exclusion/);
   assert.match(checks, /Preserve every in-scope zero-metric row/);
-  assert.match(checks, /scope or mappings are ambiguous, select blocked before recording a no-change/);
+  assert.match(checks, /scope or mappings are ambiguous — an identifier that could belong to more than one configured record, or a source whose account or campaign identity is unclear — select blocked before recording a no-change/);
   assert.match(checks, /Check for corrected historical records even when the maximum date is unchanged/);
   assert.match(checks, /every represented metric\/dimension/);
   assert.match(checks, /immutable source revisions\/hashes against provenance tied to that live version/);
@@ -5661,7 +5664,7 @@ test("no-update and blocked branches never require publishing or a fictitious au
   assert.match(noUpdate, /do not build\/upload\/publish/);
   assert.match(noUpdate, /If the check fails, report failure instead/);
   assert.match(prompt, /Never record source_not_updated for a source you could not retrieve/);
-  assert.match(prompt, /Follow the caller's configured approval workflow/);
+  assert.match(prompt, /If your runtime has an audit or approval step for gated mutations/);
   assert.match(prompt, /If no mutations remain, report that without inventing actions/);
   assert.match(prompt, /stop on an explicit policy, authentication or DNS failure/);
 });
