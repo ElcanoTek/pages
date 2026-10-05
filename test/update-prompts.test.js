@@ -376,6 +376,9 @@ test("a recurring prompt blocks only on hard stops and publishes around other ga
   assert.match(rules, /follow the convention the live payload already uses for that field from that source/);
   assert.match(rules, /never drop it silently and never invent a mapping/);
   assert.match(rules, /the bound source is the authority/);
+  // A metric the schema never had is not a gap: a run blocked on exactly that.
+  assert.match(rules, /that the page's schema has no field for: it is not published and is noted, never a reason to block/);
+  assert.match(five, /a field the schema requires that no source can fill, or a grain that does not match, without a schema change/);
   assert.match(rules, /in the update's note/);
   // The rules sit before the branches, so they decide the branch.
   assert.ok(recurring.indexOf("\nGAP RULES — ") < recurring.indexOf("TERMINAL BRANCHES"));
