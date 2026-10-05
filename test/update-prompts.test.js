@@ -253,10 +253,10 @@ test("bindings lifted from a legacy workflow never narrow the roster", async () 
 // one-time prompt is supervised and keeps choosing its transport. Last changed
 // deliberately when prompts stopped addressing a scheduler ("The scheduler must
 // supply…", "the caller's configured approval workflow") and gained the
-// integer-serialization rule (pages#109); update them only for an intended
-// wording change.
-const ONE_TIME_GOLDEN = "7972d851826c4b57b484efce1ded14ce1353a4e41a4a065035c32f1dfd7de4a2";
-const ADAPTIVE_GOLDEN = "caf9ccb5b81821dad561b5cad0184dd993f14ff53a4fc176e5fe2d0199be8b0a";
+// integer-serialization rule (pages#109), then the identifier-reuse rule;
+// update them only for an intended wording change.
+const ONE_TIME_GOLDEN = "f05966956bd9d44a4e13098d082aa0b8ddd69615650757090810523c1c96f23b";
+const ADAPTIVE_GOLDEN = "b84d9624e0a5b4c565c6877fb503711bfccf9b114efa8381e2996e174fe8042d";
 
 function masked(prompt) {
   const lines = prompt.split("\n");
@@ -386,7 +386,11 @@ test("a recurring prompt blocks only on hard stops and publishes around other ga
   assert.match(step(oneTime, 5), /Missing, inaccessible, ambiguous or partial required sources select blocked/);
 
   // pages#109: float-widened counts pushed a 20,000-row payload over 1 MiB.
-  for (const prompt of [recurring, oneTime]) assert.match(step(prompt, 7), /Write integral counts as JSON integers/);
+  for (const prompt of [recurring, oneTime]) {
+    assert.match(step(prompt, 7), /Write integral counts as JSON integers/);
+    // A rebuilt registry re-derived every deal ID of a live page.
+    assert.match(step(prompt, 7), /Reuse every identifier the live payload already assigns/);
+  }
 });
 
 test("completion.blocked_when names exactly the check outcomes that publish nothing", async () => {
