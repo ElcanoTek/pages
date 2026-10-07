@@ -60,6 +60,35 @@ test("KPI inputs distinguish missing observations from measured zeroes", async (
   expect(actual).toEqual({ missing: null, mixed: null, zero: 0, unrelated: 0.8 });
 });
 
+test("viewability is optional: N/A when the DSP does not report it, measured rows only when it reports some days", async ({ page }) => {
+  const viewability = async () => {
+    const rows = page.locator("#tracking tbody tr");
+    const csv = (await exportCampaign(page)).text.split("\n\n")[1].trim().split("\n").map(line => line.split(","));
+    return { cell: await rows.first().locator("td").last().textContent(), csv: csv[1][csv[0].indexOf("Viewability")] };
+  };
+  // No row reports viewability: never a fabricated 0.0%.
+  await openCampaign(page, { rows: [
+    metricRow("2026-06-01", { viewableImpressions: undefined }),
+    metricRow("2026-06-02", { viewableImpressions: undefined, dspImpressions: 3000 }),
+  ] });
+  expect(await viewability()).toEqual({ cell: "N/A", csv: "" });
+
+  // Only June 1 reports it: 700 of the 1,000 impressions measured that day, not
+  // 700 of all 4,000 delivered impressions.
+  await openCampaign(page, { rows: [
+    metricRow("2026-06-01"),
+    metricRow("2026-06-02", { viewableImpressions: undefined, dspImpressions: 3000 }),
+  ] });
+  expect(await viewability()).toEqual({ cell: "70.0%", csv: "0.7" });
+
+  // Every row reports it: unchanged from the required-field behaviour.
+  await openCampaign(page, { rows: [
+    metricRow("2026-06-01"),
+    metricRow("2026-06-02", { viewableImpressions: 1500, dspImpressions: 3000 }),
+  ] });
+  expect(await viewability()).toEqual({ cell: "55.0%", csv: "0.55" });
+});
+
 test("channel-only conversions reconcile totals and CPA without leaking into deal rows", async ({ page }) => {
   await openCampaign(page, { kpi: "cpa", rows: [
     metricRow("2026-06-01"), metricRow("2026-06-02", { dspSpend: 50, conversions: 5 }),
