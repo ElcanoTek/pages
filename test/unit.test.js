@@ -699,6 +699,26 @@ test("render.stripInjectedNav: #pages-nav is Pages' id, so a stored copy never s
   assert.equal(render.stripInjectedNav(plain), plain, "a document without the marker is returned unchanged");
 });
 
+test("render.stripInjectedNav: a script that MENTIONS the nav block in its text keeps every byte", () => {
+  // The campaign templates' page-switcher comment documented the block as
+  // `<script type="application/json" id="pages-nav">`. The old whole-document regex
+  // matched that comment and deleted the dashboard's script up to its </script>,
+  // so pages built from the template published with nothing running.
+  const app =
+    '<script>const a = 1;\n/* Pages injects <script type="application/json" id="pages-nav"> into <head> */\n' +
+    "renderAll();\n</script>";
+  const html = `<html><head></head><body>${app}<p>after</p></body></html>`;
+  assert.equal(render.stripInjectedNav(html), html, "text inside a script is not an element");
+
+  // A real stored copy is still removed, before and after such a script.
+  const stored = '<script type="application/json" id="pages-nav">{"pages":[{"slug":"someone-elses"}]}</script>';
+  const both = `<html><head>${stored}</head><body>${app}${stored.replace("someone-elses", "another")}</body></html>`;
+  const stripped = render.stripInjectedNav(both);
+  assert.doesNotMatch(stripped, /someone-elses|another/, "both stored copies removed");
+  assert.ok(stripped.includes(app), "the dashboard script survives whole");
+  assert.equal(stripped, `<html><head></head><body>${app}</body></html>`);
+});
+
 test("contentview.buildNav: the payload is the authorising portal's, bounded on every axis", () => {
   const contentview = require("../lib/contentview");
   const rows = Array.from({ length: 60 }, (_, i) => ({ slug: `dash-${i}`, title: `Dashboard ${i}` }));
@@ -3709,6 +3729,27 @@ test("templates: the shipped campaign dashboard accepts DSP rows that do not rep
   const { clicks, ...withoutClicks } = dspRow;
   assert.equal(typeof clicks, "number");
   assert.equal(validate({ ...example, rows: [withoutClicks] }), false, "the rest of the DSP group still travels together");
+});
+
+test("templates: every shipped template still runs after a deploy builds a page from it", () => {
+  // create_page_from_template materializes the template and the deploy normalises
+  // it (stripInjectedNav) before storing. A template that validates on its own can
+  // still publish a page whose script no longer parses; preflight then reports it
+  // only after the page is live.
+  const preflight = require("../lib/preflight");
+  const dir = path.join(__dirname, "../templates");
+  for (const name of fs.readdirSync(dir)) {
+    const file = path.join(dir, name, "template.html");
+    if (!fs.existsSync(file)) continue;
+    const html = fs.readFileSync(file, "utf8");
+    const parsed = pageTemplates.parseTemplateHtml(html);
+    const config = JSON.parse(html.match(/id="pages-config">([\s\S]*?)<\/script>/)[1]);
+    const page = pageData.materializeBlocks(parsed, { config, data: parsed.envelope.data }, { sourceAsOf: "1970-01-01T00:00:00Z" });
+    const deployed = render.stripInjectedNav(page.html);
+    assert.equal(deployed.length, page.html.length, `${name}: the deploy normalisation removed bytes from a page with no stored nav`);
+    const report = preflight.analyze(deployed, { renderMode: "themed" });
+    assert.deepEqual(report.errors, [], `${name}: ${JSON.stringify(report.errors).slice(0, 300)}`);
+  }
 });
 
 test("templates: the file-backed sync discovers templates/<name>/template.html", () => {
