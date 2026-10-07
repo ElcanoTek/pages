@@ -3689,6 +3689,28 @@ test("templates: every template this repo ships is valid and preflights clean", 
   }
 });
 
+test("templates: the shipped campaign dashboard accepts DSP rows that do not report viewability", () => {
+  // DV360 Overall reports without Active View columns, and Amazon exports, have no
+  // viewable impressions. Requiring the field forced every such campaign off the
+  // template onto a custom page; the row now fits and Viewability renders N/A.
+  const Ajv2020 = require("ajv/dist/2020");
+  const addFormats = require("ajv-formats");
+  const html = fs.readFileSync(path.join(__dirname, "../templates/nwm-campaign-dashboard/template.html"), "utf8");
+  const report = pageTemplates.validateHtml(html, { name: "nwm-campaign-dashboard" });
+  assert.equal(report.contract_ok, true, report.contract_error);
+  const ajv = new Ajv2020({ allErrors: true, strict: true, validateFormats: true });
+  addFormats(ajv);
+  const validate = ajv.compile(report.data_schema);
+  const example = JSON.parse(html.match(/id="pages-data-example">([\s\S]*?)<\/script>/)[1]);
+  const dspRow = example.rows.find((row) => typeof row.dspSpend === "number");
+  const { viewableImpressions, ...withoutViewability } = dspRow;
+  assert.equal(typeof viewableImpressions, "number", "the example row is a full DSP row");
+  assert.equal(validate({ ...example, rows: [withoutViewability] }), true, JSON.stringify(validate.errors));
+  const { clicks, ...withoutClicks } = dspRow;
+  assert.equal(typeof clicks, "number");
+  assert.equal(validate({ ...example, rows: [withoutClicks] }), false, "the rest of the DSP group still travels together");
+});
+
 test("templates: the file-backed sync discovers templates/<name>/template.html", () => {
   const templateFiles = require("../scripts/template.js");
 

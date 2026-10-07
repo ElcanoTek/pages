@@ -95,6 +95,13 @@ averaging daily ratios. A missing required input or zero denominator renders
 `N/A`; an observed zero numerator remains a real zero. Rows from a different
 feed that supply neither KPI input do not contribute to that ratio.
 
+Viewable impressions are optional in the data contract, because many DSP exports
+(DV360 Overall without Active View columns, Amazon) do not report them. A row
+without the field still carries the rest of its DSP group. The Viewability (%)
+column then renders `N/A` rather than `0.0%`. When only some rows report it, the
+column divides by the DSP impressions of those rows alone. A channel whose KPI
+is viewability keeps the complete-input rule above.
+
 Channel-only conversions in `unallocated` are included once in channel,
 campaign, daily and weekly totals, including CPA denominators, when every deal
 in that channel is selected. They never appear as conversions for an individual
