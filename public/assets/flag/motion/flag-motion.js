@@ -374,7 +374,8 @@
       if (!isSpark) {
         const info = freshness();
         const foot = [];
-        if (spec.source) foot.push(h("span", { text: "Source: " + spec.source + (info.through ? " · data through " + info.through : "") }));
+        // A source line that already states its coverage keeps it; the kit adds none.
+        if (spec.source) foot.push(h("span", { text: "Source: " + spec.source + (info.through && !/\bthrough\b/i.test(spec.source) ? " · data through " + info.through : "") }));
         if (spec.freshness === true && info.state !== "none") foot.push(h("span", { text: info.text, title: info.title }));
         if (foot.length) el.append(h("div", { class: "fm-chart-foot" }, foot));
         if (spec.table !== false) {
@@ -757,7 +758,7 @@
     const theme = explainerTheme(el, spec);
     const info = freshness();
     const footnote = spec.source || null;
-    const asOf = spec.asOf || (info.through ? "Data through " + info.through : null);
+    const asOf = spec.asOf || (info.through && !/\bthrough\b/i.test(footnote || "") ? "Data through " + info.through : null);
 
     let t = 0, playing = false, raf = 0, lastNow = 0, recording = false, onEnd = null, poster = true;
     const fmtTime = (ms) => { const sec = Math.round(ms / 1000); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
