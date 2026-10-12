@@ -766,6 +766,8 @@
     const font = (weight, size) => `${weight} ${Math.round(size * U)}px ${theme.font}`;
     // 1:1, 4:5 and 9:16 lay out in columns and rows, not one wide row.
     const narrow = W < H * 1.3;
+    // 9:16 and 4:5: stack, and let rows grow into the height the format has.
+    const tall = H > W * 1.15;
     // The largest size (design units) at which one line fits maxW, never below 40%.
     function fit(str, weight, size, maxW) {
       let sz = size;
@@ -783,7 +785,14 @@
         if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = word; } else line = test;
       }
       if (line) lines.push(line);
-      if (maxLines && lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, "") + "…"; }
+      if (maxLines && lines.length > maxLines) {
+        lines.length = maxLines;
+        // Keep what fits and mark the cut. Never reduce a line to a bare "…":
+        // a one-word line ("Pennington") keeps its word and is cut by characters.
+        let last = lines[maxLines - 1];
+        while (last.length > 1 && ctx.measureText(last + "…").width > maxW) last = last.slice(0, -1);
+        lines[maxLines - 1] = last.replace(/\s+$/, "") + "…";
+      }
       return lines;
     }
     function text(str, x, y, opts = {}) {
@@ -845,9 +854,9 @@
         const top = heading(sc, lt);
         const items = (sc.items || []).slice(0, 4);
         const gap = 36 * U, n = Math.max(1, items.length);
-        const cols = narrow ? Math.min(2, n) : n, rows = Math.ceil(n / cols);
+        const cols = tall ? 1 : narrow ? Math.min(2, n) : n, rows = Math.ceil(n / cols);
         const tileW = (W - 2 * P - gap * (cols - 1)) / cols;
-        const tileH = clamp((contentBottom() - top - 40 * U - gap * (rows - 1)) / rows, 220 * U, 420 * U);
+        const tileH = clamp((contentBottom() - top - 40 * U - gap * (rows - 1)) / rows, 220 * U, tall ? 380 * U : 420 * U);
         items.forEach((it, i) => {
           const d = 250 + i * 180, a = prog(lt, d, 600);
           const x = P + (i % cols) * (tileW + gap), y = top + Math.floor(i / cols) * (tileH + gap) + (1 - a) * 30 * U;
@@ -857,7 +866,7 @@
           const inner = tileW - 56 * U;
           text(it.label, x + 28 * U, y + 84 * U, { size: fit(it.label, 600, 28, inner), weight: 600, color: theme.muted });
           const p = prog(lt, d + 200, 1500);
-          const big = fit(formatValue(it.value, fmtOf(sc, it)), 800, cols >= 4 ? 76 : 96, inner);
+          const big = fit(formatValue(it.value, fmtOf(sc, it)), 800, cols >= 4 ? 76 : tall ? 120 : 96, inner);
           text(formatValue((it.from || 0) + (it.value - (it.from || 0)) * p, fmtOf(sc, it)), x + 28 * U, y + tileH * 0.55 + big * 0.35 * U, { size: big, weight: 800 });
           if (it.delta != null) {
             const ad = prog(lt, d + 1600, 500);
@@ -876,7 +885,7 @@
         if (sc.sort !== false) items.sort((a, b) => b.value - a.value);
         items = items.slice(0, sc.limit || 8);
         const max = Math.max(...items.map(it => it.value), 0) || 1;
-        const rowH = Math.min(92 * U, (contentBottom() - top) / Math.max(1, items.length));
+        const rowH = Math.min((tall ? 150 : 92) * U, (contentBottom() - top) / Math.max(1, items.length));
         ctx.font = font(600, 30);
         const labelW = Math.min((W - 2 * P) * 0.32, Math.max(...items.map(it => ctx.measureText(formatLabel(it.label)).width)) + 30 * U);
         const valueW = 210 * U;
@@ -1067,7 +1076,12 @@
       const noteW = note ? ctx.measureText(note).width : 0;
       if (spec.brand) text(spec.brand, P, H - P * 0.5, { size: 24, weight: 700, color: theme.muted });
       if (note && brandW + noteW + 40 * U <= W - 2 * P) text(note, W - P, H - P * 0.5, { size: 22, weight: 500, color: theme.muted, align: "right" });
-      else if (note) text(note, P, H - P * 0.5 - (spec.brand ? 36 * U : 0), { size: fit(note, 500, 22, W - 2 * P), weight: 500, color: theme.muted });
+      else if (note) {
+        ctx.font = font(500, 22);
+        const lines = wrap(note, W - 2 * P, 2);
+        const base = H - P * 0.5 - (spec.brand ? 36 * U : 0);
+        lines.forEach((l, i) => text(l, P, base - (lines.length - 1 - i) * 30 * U, { size: 22, weight: 500, color: theme.muted }));
+      }
       ctx.restore();
       ctx.fillStyle = theme.grid; ctx.fillRect(0, H - 8 * U, W, 8 * U);
       ctx.fillStyle = theme.accent; ctx.fillRect(0, H - 8 * U, W * (spec.duration ? time / spec.duration : 0), 8 * U);
