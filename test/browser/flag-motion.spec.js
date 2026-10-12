@@ -55,7 +55,8 @@ test("freshness reads the page's own refresh stamps, and says so when there are 
 
 test("provenance: a number opens what it is, how it is computed and where it came from", async ({ page }) => {
   await openKitPage(page, {
-    body: `<p>Spend <b id="spend" data-fm-metric="revenue">$1,478.05</b> · CTR <b id="ctr" data-fm-metric="ctr">0.62%</b></p>`,
+    body: `<p>Spend <b id="spend" data-fm-metric="revenue">$1,478.05</b> · CTR <b id="ctr" data-fm-metric="ctr">0.62%</b>
+      · <b id="both" data-fm-metric="revenue" data-fm-count="9876" data-fm-format="usd0"></b></p>`,
     envelope: { contract_version: 1, refreshed_at: hoursAgo(2), source_as_of: "2026-10-06T23:59:59Z", data: {} },
     provenance: {
       metrics: { revenue: { label: "SSP spend", definition: "What buyers spent on the campaign's deals, as the SSPs report it.",
@@ -80,6 +81,12 @@ test("provenance: a number opens what it is, how it is computed and where it cam
   await page.keyboard.press("Escape");
   await expect(pop).toHaveCount(0);
   await expect(spend).toBeFocused();
+
+  // A headline number usually counts up AND explains itself.
+  await page.keyboard.press("Escape");
+  await page.locator("#both").click();
+  await expect(page.getByRole("dialog", { name: /SSP spend/ })).toContainText("$9,876");
+  await page.keyboard.press("Escape");
 
   // No provenance entry: the data schema's own description is the definition.
   await page.locator("#ctr").focus();

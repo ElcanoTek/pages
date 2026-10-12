@@ -275,7 +275,9 @@
     const pop = h("div", { class: "fm-pop", role: "dialog", "aria-label": (metric.label || key) + " — how this number is computed", tabindex: "-1" }, [
       h("button", { class: "fm-pop-close", type: "button", "aria-label": "Close", text: "×" }),
       h("h4", { text: metric.label || anchor.getAttribute("data-fm-label") || key }),
-      h("div", { class: "fm-pop-value", text: (anchor.textContent || "").trim() }),
+      h("div", { class: "fm-pop-value", text: anchor.hasAttribute("data-fm-target")
+        ? formatValue(Number(anchor.getAttribute("data-fm-target")), anchor.getAttribute("data-fm-format") || "num")
+        : (anchor.textContent || "").trim() }),
       definition ? h("p", { text: definition }) : h("p", { text: "No definition recorded for this number yet." }),
       rows.length ? h("dl", {}, rows.flatMap(([dt, dd]) => [h("dt", { text: dt }), h("dd", {}, dd)])) : null,
       h("div", { class: "fm-pop-fresh", text: info.text }),
@@ -1171,21 +1173,25 @@
 
   // ── Declarative wiring ──────────────────────────────────────────────────────
   const registry = { charts: [], explainers: [] };
+  // One element can carry several features (a headline number that counts up
+  // AND explains itself), so each feature remembers what it has wired on its own.
+  const wired = {};
   function init(rootEl = doc) {
     if (!doc) return registry;
     doc.documentElement.classList.add("fm-ready");
-    const all = (sel) => Array.from(rootEl.querySelectorAll(sel)).filter(el => !el.hasAttribute("data-fm-done"));
+    const all = (sel) => {
+      const seen = wired[sel] || (wired[sel] = new WeakSet());
+      return Array.from(rootEl.querySelectorAll(sel)).filter(el => !seen.has(el) && seen.add(el));
+    };
     all("[data-fm-stagger]").forEach((parent) => {
       const step = Number(parent.getAttribute("data-fm-stagger")) || 80;
       Array.from(parent.children).forEach((child, i) => {
         if (!child.hasAttribute("data-fm-reveal")) child.setAttribute("data-fm-reveal", "");
         child.style.setProperty("--fm-delay", i * step + "ms");
       });
-      parent.setAttribute("data-fm-done", "");
     });
-    all("[data-fm-reveal]").forEach((el) => { el.setAttribute("data-fm-done", ""); inView(el, () => el.classList.add("fm-in"), 0.12); });
+    all("[data-fm-reveal]").forEach((el) => { inView(el, () => el.classList.add("fm-in"), 0.12); });
     all("[data-fm-count]").forEach((el) => {
-      el.setAttribute("data-fm-done", "");
       const target = countTarget(el);
       el.setAttribute("data-fm-target", String(target));
       const format = el.getAttribute("data-fm-format") || "num";
@@ -1193,15 +1199,13 @@
       el.textContent = formatValue(onScreen && !reducedMotion() ? Number(el.getAttribute("data-fm-from") || 0) : target, format);
       inView(el, () => count(el, target));
     });
-    all("[data-fm-freshness]").forEach((el) => { el.setAttribute("data-fm-done", ""); renderFreshness(el); });
+    all("[data-fm-freshness]").forEach((el) => { renderFreshness(el); });
     all("[data-fm-metric]").forEach(bindMetric);
     all("[data-fm-chart]").forEach((el) => {
-      el.setAttribute("data-fm-done", "");
       const spec = resolveSpec(el.getAttribute("data-fm-chart") || el.getAttribute("data-fm-src"));
       if (spec) registry.charts.push(chart(el, spec));
     });
     all("[data-fm-explainer]").forEach((el) => {
-      el.setAttribute("data-fm-done", "");
       const spec = resolveSpec(el.getAttribute("data-fm-explainer") || el.getAttribute("data-fm-src"));
       if (spec) registry.explainers.push(explainer(el, spec));
     });
