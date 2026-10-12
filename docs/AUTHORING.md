@@ -63,6 +63,7 @@ Pages are served from a separate, cookieless registrable domain under
 |---|---|---|
 | Inline `<script>` / `<style>` | ✅ | `'unsafe-inline'` is granted deliberately — charts need it |
 | Inline SVG, canvas, hand-rolled charts | ✅ | The normal way to draw here |
+| Animated charts, count-up KPIs, freshness and provenance, motion explainers with video export | ✅ | Opt in to the first-party **Flag Motion** kit, `/assets/flag/motion/flag-motion.{css,js}`: see [MOTION.md](MOTION.md) |
 | `data:` images and `data:` `@font-face` | ✅ | How you ship a brand logo or typeface |
 | `blob:` images | ✅ | For charts that rasterise before drawing |
 | `blob:` **scripts** — `import()` a module or start a Worker from bytes the page already holds | ✅ | Granted for documents that ship their runtime compressed (a Bento deck). `connect-src 'none'` still applies: a blob is built, never fetched |
