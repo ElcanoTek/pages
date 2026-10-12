@@ -3752,6 +3752,45 @@ test("templates: every shipped template still runs after a deploy builds a page 
   }
 });
 
+test("flag motion: number formats are exact and never print a fabricated zero", () => {
+  const motion = require("../public/assets/flag/motion/flag-motion.js");
+  const f = motion.format;
+  assert.equal(f(1234.5, "usd"), "$1,234.50");
+  assert.equal(f(1234.5, "usd0"), "$1,235");
+  assert.equal(f(1234567, "usdc"), "$1.2M");
+  assert.equal(f(0.1234, "pct"), "12.3%");
+  assert.equal(f(0.1234, "pct2"), "12.34%");
+  assert.equal(f(3.2, "x"), "3.20x");
+  assert.equal(f(1395658, "compact"), "1.4M");
+  assert.equal(f(1234.4, "int"), "1,234");
+  for (const missing of [null, undefined, NaN, Infinity, "12"]) assert.equal(f(missing, "usd"), "N/A");
+  assert.equal(motion.formatLabel("2026-10-06"), "Oct 6");
+  assert.equal(motion.formatLabel("2026-10-06", "long"), "Oct 6, 2026");
+  assert.deepEqual(motion.niceTicks(0, 1478, 4).ticks, [0, 500, 1000, 1500]);
+  assert.equal(motion.relativeAge(3 * 3600e3), "3 h ago");
+  // Refresh stamps: the epoch placeholder a page carries before its first ingest is "no data".
+  assert.equal(motion.freshness({ refreshedAt: "1970-01-01T00:00:00Z", sourceAsOf: "1970-01-01T00:00:00Z" }).text, "Awaiting first data");
+  const now = Date.parse("2026-10-12T12:00:00Z");
+  const fresh = motion.freshness({ refreshedAt: "2026-10-12T09:00:00Z", sourceAsOf: "2026-10-11T23:59:59Z" }, now);
+  assert.equal(fresh.text, "Updated 3 h ago · data through Oct 11, 2026");
+  assert.equal(fresh.state, "live");
+  assert.equal(motion.freshness({ refreshedAt: "2026-10-08T09:00:00Z" }, now).state, "stale");
+});
+
+test("flag motion: a page that opts in to the kit preflights clean", () => {
+  const preflight = require("../lib/preflight");
+  const html = `<!doctype html><html><head><link rel="stylesheet" href="/assets/flag/motion/flag-motion.css"></head>
+<body><b data-fm-count="12" data-fm-format="int"></b><div data-fm-chart="data:chart"></div>
+<script src="/assets/flag/motion/flag-motion.js" defer></script></body></html>`;
+  for (const renderMode of ["themed", "raw"]) {
+    const report = preflight.analyze(html, { renderMode });
+    assert.deepEqual(report.errors, [], `${renderMode}: ${JSON.stringify(report.errors)}`);
+  }
+  for (const file of ["flag-motion.js", "flag-motion.css"]) {
+    assert.ok(fs.existsSync(path.join(__dirname, "../public/assets/flag/motion", file)), `${file} ships under public/assets`);
+  }
+});
+
 test("templates: the file-backed sync discovers templates/<name>/template.html", () => {
   const templateFiles = require("../scripts/template.js");
 
