@@ -1171,6 +1171,49 @@
     };
   }
 
+  // ── Scheme: follow what the page looks like ─────────────────────────────────
+  // Flag's data-theme says what the THEME is; a custom design can paint its own
+  // light page under a dark theme (or the reverse). The kit reads the page's real
+  // background and picks its light or dark values from that, and re-reads it when
+  // the page or the theme toggle changes it.
+  function parseColor(value) {
+    const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?/.exec(value || "");
+    if (!m) return null;
+    const alpha = m[4] == null ? 1 : m[4].endsWith("%") ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+    return { r: +m[1], g: +m[2], b: +m[3], a: alpha };
+  }
+  function pageScheme() {
+    for (const el of [doc.body, doc.documentElement]) {
+      if (!el) continue;
+      const c = parseColor(win.getComputedStyle(el).backgroundColor);
+      if (c && c.a >= 0.5) {
+        const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        const luminance = 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+        return luminance < 0.18 ? "dark" : "light";
+      }
+    }
+    return doc.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  }
+  let schemeWatch = null;
+  function applyScheme() {
+    const scheme = pageScheme();
+    if (doc.documentElement.getAttribute("data-fm-scheme") !== scheme) doc.documentElement.setAttribute("data-fm-scheme", scheme);
+    return scheme;
+  }
+  function watchScheme() {
+    if (schemeWatch || !("MutationObserver" in win)) return;
+    let pending = 0;
+    schemeWatch = new win.MutationObserver(() => {
+      if (pending) return;
+      pending = win.requestAnimationFrame(() => { pending = 0; applyScheme(); });
+    });
+    const opts = { attributes: true, attributeFilter: ["data-theme", "class", "style"] };
+    schemeWatch.observe(doc.documentElement, opts);
+    if (doc.body) schemeWatch.observe(doc.body, opts);
+    // Theme toggles also animate the background; read it again once it settles.
+    win.addEventListener("transitionend", (e) => { if (e.target === doc.body || e.target === doc.documentElement) applyScheme(); });
+  }
+
   // ── Declarative wiring ──────────────────────────────────────────────────────
   const registry = { charts: [], explainers: [] };
   // One element can carry several features (a headline number that counts up
@@ -1178,6 +1221,8 @@
   const wired = {};
   function init(rootEl = doc) {
     if (!doc) return registry;
+    applyScheme();
+    watchScheme();
     doc.documentElement.classList.add("fm-ready");
     const all = (sel) => {
       const seen = wired[sel] || (wired[sel] = new WeakSet());
@@ -1227,7 +1272,7 @@
   }
 
   return {
-    version: VERSION, init, settle, count, chart, explainer, freshness, envelope, registry,
+    version: VERSION, init, settle, count, chart, explainer, freshness, envelope, registry, scheme: applyScheme,
     openProvenance, closeProvenance, renderFreshness,
     format: formatValue, formatLabel, niceTicks, relativeAge,
   };

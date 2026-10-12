@@ -3,9 +3,9 @@
  *
  * Flag Motion — styles for /assets/flag/motion/flag-motion.js. See docs/MOTION.md.
  *
- * Every colour is a role variable that falls back to the Flag tokens a themed
- * page already has, then to a light default, so the kit also works on a raw page
- * with its own design. Override any --fm-* variable on :root or on one chart.
+ * Every colour is a role variable with a light and a dark value; the script picks
+ * the scheme from the page's actual background, so the kit fits a Flag-themed page
+ * and a custom design alike. Override any --fm-* variable on :root or one chart.
  *
  * The categorical series palette is validated (lightness band, chroma floor,
  * colour-blind separation, normal-vision floor) against Flag's light surface
@@ -15,17 +15,21 @@
  */
 
 :root {
-  --fm-surface: var(--color-surface-1, #ffffff);
-  --fm-bg: var(--color-bg, #f4f6fb);
-  --fm-text: var(--color-text-primary, #141824);
-  --fm-text-2: var(--color-text-secondary, #33415f);
-  --fm-muted: var(--color-text-muted, #5c6a87);
-  --fm-border: var(--color-border, rgba(38, 55, 92, 0.2));
+  /* Light scheme. Concrete values, not Flag tokens: the kit follows what the
+   * page LOOKS like (data-fm-scheme, set by the script from the page's real
+   * background), which a custom-designed page can make differ from Flag's
+   * data-theme. A page restyles the kit by overriding any --fm-* variable. */
+  --fm-surface: #ffffff;
+  --fm-bg: #f4f6fb;
+  --fm-text: #141824;
+  --fm-text-2: #33415f;
+  --fm-muted: #5c6a87;
+  --fm-border: rgba(38, 55, 92, 0.2);
   --fm-grid: color-mix(in srgb, var(--fm-text) 9%, transparent);
-  --fm-accent: var(--color-primary, #4a3aa7);
-  --fm-good: var(--color-success, #1e7a3f);
-  --fm-bad: var(--color-danger, #b3261e);
-  --fm-warn: var(--color-warning, #8f3e10);
+  --fm-accent: #4a3aa7;
+  --fm-good: #1e7a3f;
+  --fm-bad: #b3261e;
+  --fm-warn: #8f3e10;
   --fm-font: var(--font-body, system-ui, -apple-system, "Segoe UI", sans-serif);
   --fm-mono: var(--font-code, ui-monospace, SFMono-Regular, Consolas, monospace);
   --fm-radius: var(--radius-lg, 14px);
@@ -39,14 +43,14 @@
   --fm-ease: cubic-bezier(.22, .8, .24, 1);
 }
 
-:root[data-theme="dark"] {
-  --fm-surface: var(--color-surface-1, #241b31);
-  --fm-bg: var(--color-bg, #1a0b1e);
-  --fm-text: var(--color-text-primary, #ffffff);
-  --fm-text-2: var(--color-text-secondary, #d2d9de);
-  --fm-muted: var(--color-text-muted, #beb6cd);
-  --fm-border: var(--color-border, rgba(114, 114, 171, .35));
-  --fm-accent: var(--color-accent, #9da7ef);
+:root[data-fm-scheme="dark"] {
+  --fm-surface: #241b31;
+  --fm-bg: #1a0b1e;
+  --fm-text: #ffffff;
+  --fm-text-2: #d2d9de;
+  --fm-muted: #beb6cd;
+  --fm-border: rgba(114, 114, 171, .35);
+  --fm-accent: #9da7ef;
   --fm-good: #50d48a;
   --fm-bad: #ff7b7b;
   --fm-warn: #ffa264;
