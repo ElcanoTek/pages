@@ -1376,6 +1376,18 @@ async function postEnvelope(body, opts = {}) {
     // ── config and data are genuinely independent ───────────────────────────
     const readConfig = toolData(await callTool("get_page_config", { slug: "mcp-tpl-acme" }));
     assert.deepEqual(readConfig.config, configA);
+    assert.equal(readConfig.template.name, "mcp-campaign", "get_page_config names the template the page is built from");
+    assert.equal(readConfig.template.is_current_revision, true);
+    assert.equal(readConfig.template.revision, readConfig.template.current_revision);
+    // A copy of the same bytes deployed by hand carries the managed blocks but
+    // no template binding: null is the authoritative "not template-built".
+    const builtHtml = (
+      await db.query("SELECT html FROM page_versions WHERE id = $1", [readConfig.live_version_id])
+    ).rows[0].html;
+    toolData(await callTool("deploy_page", { slug: "mcp-tpl-acme-copy", title: "Copy", html: builtHtml, publish: true }));
+    const copyConfig = toolData(await callTool("get_page_config", { slug: "mcp-tpl-acme-copy" }));
+    assert.deepEqual(copyConfig.config, configA, "the copy still has its config block");
+    assert.equal(copyConfig.template, null, "…but it is not template-built");
     assert.equal(readConfig.config_schema.type, "object");
     assert.equal(readConfig.live_version_id, builtA.version.id);
 
