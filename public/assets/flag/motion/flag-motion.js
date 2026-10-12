@@ -763,6 +763,15 @@
     const fmtTime = (ms) => { const sec = Math.round(ms / 1000); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
 
     const font = (weight, size) => `${weight} ${Math.round(size * U)}px ${theme.font}`;
+    // 1:1, 4:5 and 9:16 lay out in columns and rows, not one wide row.
+    const narrow = W < H * 1.3;
+    // The largest size (design units) at which one line fits maxW, never below 40%.
+    function fit(str, weight, size, maxW) {
+      let sz = size;
+      ctx.font = font(weight, sz);
+      while (sz > size * 0.4 && ctx.measureText(String(str)).width > maxW) { sz -= 2; ctx.font = font(weight, sz); }
+      return sz;
+    }
     const prog = (lt, delay, dur) => ease(clamp((lt - delay) / dur, 0, 1));
     function wrap(text, maxW, maxLines) {
       const words = String(text || "").split(/\s+/).filter(Boolean);
@@ -835,23 +844,27 @@
         const top = heading(sc, lt);
         const items = (sc.items || []).slice(0, 4);
         const gap = 36 * U, n = Math.max(1, items.length);
-        const tileW = (W - 2 * P - gap * (n - 1)) / n, tileH = clamp(contentBottom() - top - 40 * U, 260 * U, 420 * U);
+        const cols = narrow ? Math.min(2, n) : n, rows = Math.ceil(n / cols);
+        const tileW = (W - 2 * P - gap * (cols - 1)) / cols;
+        const tileH = clamp((contentBottom() - top - 40 * U - gap * (rows - 1)) / rows, 220 * U, 420 * U);
         items.forEach((it, i) => {
           const d = 250 + i * 180, a = prog(lt, d, 600);
-          const x = P + i * (tileW + gap), y = top + (1 - a) * 30 * U;
+          const x = P + (i % cols) * (tileW + gap), y = top + Math.floor(i / cols) * (tileH + gap) + (1 - a) * 30 * U;
           ctx.save(); ctx.globalAlpha *= a;
           ctx.fillStyle = theme.panel; roundRect(x, y, tileW, tileH, 26 * U); ctx.fill();
           ctx.fillStyle = theme.series[i % theme.series.length]; ctx.fillRect(x + 28 * U, y + 28 * U, 56 * U, 6 * U);
-          text(it.label, x + 28 * U, y + 84 * U, { size: 28, weight: 600, color: theme.muted });
+          const inner = tileW - 56 * U;
+          text(it.label, x + 28 * U, y + 84 * U, { size: fit(it.label, 600, 28, inner), weight: 600, color: theme.muted });
           const p = prog(lt, d + 200, 1500);
-          const big = n >= 4 ? 76 : 96;
+          const big = fit(formatValue(it.value, fmtOf(sc, it)), 800, cols >= 4 ? 76 : 96, inner);
           text(formatValue((it.from || 0) + (it.value - (it.from || 0)) * p, fmtOf(sc, it)), x + 28 * U, y + tileH * 0.55 + big * 0.35 * U, { size: big, weight: 800 });
           if (it.delta != null) {
             const ad = prog(lt, d + 1600, 500);
             ctx.globalAlpha *= ad;
             const up = it.delta >= 0;
             const good = it.higherIsBetter === false ? !up : up;
-            text(`${up ? "▲" : "▼"} ${formatValue(Math.abs(it.delta), "pct1")} ${it.deltaLabel || "vs prior"}`, x + 28 * U, y + tileH - 40 * U, { size: 30, weight: 700, color: good ? theme.good : theme.bad });
+            const deltaText = `${up ? "▲" : "▼"} ${formatValue(Math.abs(it.delta), "pct1")} ${it.deltaLabel || "vs prior"}`;
+            text(deltaText, x + 28 * U, y + tileH - 40 * U, { size: fit(deltaText, 700, 30, inner), weight: 700, color: good ? theme.good : theme.bad });
           }
           ctx.restore();
         });
@@ -965,8 +978,8 @@
           items = items.slice(0, MAX_SERIES - 1).concat([{ label: "Other", value: rest.reduce((a, it) => a + it.value, 0), other: true }]);
         }
         const total = items.reduce((a, it) => a + Math.max(0, it.value), 0) || 1;
-        const r = Math.min((contentBottom() - top) / 2, (W - 2 * P) * 0.22);
-        const cx = P + r + 20 * U, cy = top + (contentBottom() - top) / 2;
+        const r = narrow ? Math.min((contentBottom() - top) * 0.3, (W - 2 * P) * 0.3) : Math.min((contentBottom() - top) / 2, (W - 2 * P) * 0.22);
+        const cx = narrow ? W / 2 : P + r + 20 * U, cy = narrow ? top + r + 20 * U : top + (contentBottom() - top) / 2;
         const sweep = prog(lt, 300, 1800);
         let ang = -Math.PI / 2;
         items.forEach((it, i) => {
@@ -981,10 +994,11 @@
         });
         text(formatValue(total * prog(lt, 300, 1800), compactOf(fmtOf(sc))), cx, cy + 14 * U, { size: 56, weight: 800, align: "center" });
         text(sc.centerLabel || "Total", cx, cy + 58 * U, { size: 24, weight: 600, color: theme.muted, align: "center" });
-        const lx = cx + r + 140 * U;
+        const lx = narrow ? P : cx + r + 140 * U;
+        const rowH = narrow ? Math.min(60 * U, (contentBottom() - (cy + r + 60 * U)) / Math.max(1, items.length)) : 68 * U;
         items.forEach((it, i) => {
           const a = prog(lt, 900 + i * 160, 500);
-          const ly = cy - (items.length - 1) * 34 * U + i * 68 * U;
+          const ly = narrow ? cy + r + 90 * U + i * rowH : cy - (items.length - 1) * 34 * U + i * 68 * U;
           ctx.save(); ctx.globalAlpha *= a;
           ctx.fillStyle = it.other ? "#7d7690" : theme.series[i % theme.series.length];
           roundRect(lx, ly - 24 * U, 30 * U, 30 * U, 8 * U); ctx.fill();
@@ -995,27 +1009,39 @@
       },
       bullets(sc, lt) {
         let y = heading(sc, lt) + 20 * U;
-        (sc.items || []).slice(0, 6).forEach((item, i) => {
+        const items = (sc.items || []).slice(0, 6).map(item => (typeof item === "string" ? item : item.text));
+        const maxLines = narrow ? 3 : 2, room = contentBottom() - y - 20 * U;
+        // The largest text size at which every takeaway fits above the footer.
+        let size = narrow ? 36 : 40, laid = [];
+        for (; size >= 24; size -= 2) {
+          ctx.font = font(600, size);
+          laid = items.map(t => wrap(t, W - 2 * P - 60 * U, maxLines));
+          const height = laid.reduce((sum, lines) => sum + lines.length * (size + 10) * U + 30 * U, 0);
+          if (height <= room) break;
+        }
+        laid.forEach((lines, i) => {
           const a = prog(lt, 400 + i * 450, 600);
           ctx.save(); ctx.globalAlpha *= a; ctx.translate((1 - a) * 30 * U, 0);
-          ctx.fillStyle = theme.accent; ctx.beginPath(); ctx.arc(P + 12 * U, y - 12 * U, 9 * U, 0, Math.PI * 2); ctx.fill();
-          ctx.font = font(600, 40);
-          const lines = wrap(typeof item === "string" ? item : item.text, W - 2 * P - 60 * U, 2);
-          lines.forEach((l, li) => text(l, P + 50 * U, y + li * 50 * U, { size: 40, weight: 600 }));
+          ctx.fillStyle = theme.accent; ctx.beginPath(); ctx.arc(P + 12 * U, y - size * 0.3 * U, Math.max(6, size * 0.22) * U, 0, Math.PI * 2); ctx.fill();
+          lines.forEach((l, li) => text(l, P + 50 * U, y + li * (size + 10) * U, { size, weight: 600 }));
           ctx.restore();
-          y += lines.length * 50 * U + 34 * U;
+          y += lines.length * (size + 10) * U + 30 * U;
         });
       },
       compare(sc, lt) {
         const top = heading(sc, lt);
         const half = (W - 2 * P) / 2;
+        const colW = narrow ? W - 2 * P : half - 40 * U;
+        const finals = [sc.a, sc.b].map(side => (side ? formatValue(side.value || 0, fmtOf(sc, side)) : ""));
+        const valueSize = Math.min(...finals.map(f => fit(f, 800, 110, colW)));
         [sc.a, sc.b].forEach((side, i) => {
           if (!side) return;
           const a = prog(lt, 300 + i * 300, 600), p = prog(lt, 400 + i * 300, 1500);
-          const x = P + i * half;
+          const x = narrow ? P : P + i * half;
+          const y0 = narrow ? top + i * (valueSize + 110) * U : top;
           ctx.save(); ctx.globalAlpha *= a;
-          text(side.label, x, top + 60 * U, { size: 34, weight: 600, color: theme.muted });
-          text(formatValue((side.value || 0) * p, fmtOf(sc, side)), x, top + 180 * U, { size: 110, weight: 800, color: i === 1 ? theme.accent : theme.fg });
+          text(side.label, x, y0 + 60 * U, { size: 34, weight: 600, color: theme.muted });
+          text(formatValue((side.value || 0) * p, fmtOf(sc, side)), x, y0 + (60 + valueSize * 1.05) * U, { size: valueSize, weight: 800, color: i === 1 ? theme.accent : theme.fg });
           ctx.restore();
         });
         if (sc.a && sc.b && Number.isFinite(sc.a.value) && sc.a.value !== 0) {
@@ -1023,7 +1049,8 @@
           const a = prog(lt, 2100, 600);
           ctx.save(); ctx.globalAlpha *= a;
           const up = change >= 0, good = sc.higherIsBetter === false ? !up : up;
-          text(`${up ? "▲" : "▼"} ${formatValue(Math.abs(change), "pct1")} ${sc.deltaLabel || ""}`.trim(), P, top + 300 * U, { size: 44, weight: 800, color: good ? theme.good : theme.bad });
+          const deltaY = narrow ? top + 2 * (valueSize + 110) * U + 40 * U : top + (110 + valueSize * 1.05 + 90) * U;
+          text(`${up ? "▲" : "▼"} ${formatValue(Math.abs(change), "pct1")} ${sc.deltaLabel || ""}`.trim(), P, deltaY, { size: 44, weight: 800, color: good ? theme.good : theme.bad });
           ctx.restore();
         }
       },
@@ -1032,9 +1059,14 @@
     function chrome(time) {
       ctx.save();
       ctx.globalAlpha = 0.85;
-      if (spec.brand) text(spec.brand, P, H - P * 0.5, { size: 24, weight: 700, color: theme.muted });
       const note = [footnote, asOf].filter(Boolean).join("  ·  ");
-      if (note) text(note, W - P, H - P * 0.5, { size: 22, weight: 500, color: theme.muted, align: "right" });
+      ctx.font = font(700, 24);
+      const brandW = spec.brand ? ctx.measureText(spec.brand).width : 0;
+      ctx.font = font(500, 22);
+      const noteW = note ? ctx.measureText(note).width : 0;
+      if (spec.brand) text(spec.brand, P, H - P * 0.5, { size: 24, weight: 700, color: theme.muted });
+      if (note && brandW + noteW + 40 * U <= W - 2 * P) text(note, W - P, H - P * 0.5, { size: 22, weight: 500, color: theme.muted, align: "right" });
+      else if (note) text(note, P, H - P * 0.5 - (spec.brand ? 36 * U : 0), { size: fit(note, 500, 22, W - 2 * P), weight: 500, color: theme.muted });
       ctx.restore();
       ctx.fillStyle = theme.grid; ctx.fillRect(0, H - 8 * U, W, 8 * U);
       ctx.fillStyle = theme.accent; ctx.fillRect(0, H - 8 * U, W * (spec.duration ? time / spec.duration : 0), 8 * U);
