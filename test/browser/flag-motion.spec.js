@@ -142,6 +142,8 @@ test("a chart bound to data: renders the page's managed data", async ({ page }) 
   });
   await expect(page.locator("#c path.fm-area")).toHaveCount(1);
   await expect(page.locator("#c .fm-chart-foot")).toHaveText("Source: TWC SSP history · data through Oct 6, 2026");
+  await page.evaluate(() => FlagMotion.chart(document.querySelector("#c"), { type: "line", labels: ["2026-10-05"], series: [{ name: "x", values: [1] }], source: "DV360 Overall · through Oct 6, 2026" }));
+  await expect(page.locator("#c .fm-chart-foot")).toHaveText("Source: DV360 Overall · through Oct 6, 2026");
 });
 
 test("reduced motion: reveals, counts and charts settle at once", async ({ page }) => {
