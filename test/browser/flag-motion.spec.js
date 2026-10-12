@@ -214,3 +214,24 @@ test("the kit follows the page's real background, not only the theme flag", asyn
   await expect(page.locator("html")).toHaveAttribute("data-fm-scheme", "dark");
   await expect.poll(ink).toBe("rgb(255, 255, 255)");
 });
+
+test("explainers lay out for square and vertical formats", async ({ page }) => {
+  const long = "Hy Vee was 76% of September spend and logged no delivery on Sep 29–30, so the book is concentrated in one brand";
+  for (const aspect of ["1:1", "9:16"]) {
+    await openKitPage(page, { body: `<div id="x" data-fm-explainer='${JSON.stringify({
+      aspect, autoplay: false, brand: "Raptive × Elcano", source: "Raptive performers report · day rows · Sep 1–30 vs Aug 1–31, 2026",
+      scenes: [
+        { type: "kpis", duration: 3000, title: "September topline", items: [
+          { label: "Spend", value: 250393, format: "usd0", delta: 0.186 }, { label: "Elcano margin", value: 15703, format: "usd0", delta: 0.178 },
+          { label: "Raptive share", value: 53605, format: "usd0" }, { label: "Impressions", value: 14700000, format: "compact" }] },
+        { type: "compare", duration: 3000, title: "September vs August", format: "usd0", a: { label: "August", value: 211067 }, b: { label: "September", value: 249800 } },
+        { type: "bullets", duration: 3000, title: "What to watch", items: [long, long, long, long, long] },
+      ] })}'></div>` });
+    const size = await page.locator("#x canvas").evaluate(c => [c.width, c.height]);
+    expect(size).toEqual(aspect === "1:1" ? [1080, 1080] : [1080, 1920]);
+    for (const at of [2900, 5900, 8900]) {
+      const state = await page.evaluate(ms => { const x = FlagMotion.registry.explainers.at(-1); x.seek(ms); return x.state(); }, at);
+      expect(state.time).toBe(at);
+    }
+  }
+});
