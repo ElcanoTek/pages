@@ -7,11 +7,11 @@ const { test, expect } = require("@playwright/test");
 
 // A page that opts in to the kit exactly as a deployed one does: the two
 // same-origin assets, plus whatever managed blocks the case needs.
-async function openKitPage(page, { body, envelope, provenance, schema, config, reducedMotion } = {}) {
+async function openKitPage(page, { body, envelope, provenance, schema, config, reducedMotion, head = "", htmlAttrs = "" } = {}) {
   if (reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" });
   const block = (type, id, value) =>
     value === undefined ? "" : `<script type="${type}" id="${id}">${JSON.stringify(value).replace(/</g, "\\u003c")}</script>`;
-  const html = `<!doctype html><html><head><meta charset="utf-8">
+  const html = `<!doctype html><html ${htmlAttrs}><head><meta charset="utf-8">${head}
 <link rel="stylesheet" href="/assets/flag/motion/flag-motion.css">
 ${block("application/schema+json", "pages-data-schema", schema)}
 ${block("application/json", "pages-data", envelope)}
@@ -200,4 +200,17 @@ test("explainer: Download video records the timeline into a file", async ({ page
   const bytes = (await fs.stat(await download.path())).size;
   expect(bytes).toBeGreaterThan(1000);
   await expect(page.locator(".fm-ex-status")).toContainText("Saved merrell-recap.");
+});
+
+test("the kit follows the page's real background, not only the theme flag", async ({ page }) => {
+  // A custom light design under Flag's dark theme: dark-scheme text would vanish.
+  await openKitPage(page, { htmlAttrs: 'data-theme="dark"', head: "<style>body{background:#ffffff}</style>",
+    body: `<span id="f" data-fm-freshness></span>` });
+  await expect(page.locator("html")).toHaveAttribute("data-fm-scheme", "light");
+  const ink = () => page.locator("#f .fm-fresh-label").evaluate(el => getComputedStyle(el).color);
+  expect(await ink()).toBe("rgb(20, 24, 36)");
+  // The page turns dark (a theme toggle): the kit follows.
+  await page.evaluate(() => { document.body.style.background = "#1a0b1e"; });
+  await expect(page.locator("html")).toHaveAttribute("data-fm-scheme", "dark");
+  await expect.poll(ink).toBe("rgb(255, 255, 255)");
 });
