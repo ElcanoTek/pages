@@ -177,7 +177,13 @@
     const through = env ? valid(env.sourceAsOf) : null;
     if (!refreshed && !through) return { state: "none", text: "Awaiting first data", title: "" };
     const age = refreshed ? now - refreshed : Infinity;
-    const throughText = through ? formatLabel(new Date(through).toISOString().slice(0, 10), "long") : null;
+    // The covered DAY. A page that states it (DATA.dataThrough) is the authority.
+    // Otherwise source_as_of is usually an end-of-day instant in the source's own
+    // timezone (2026-10-09T03:59:59Z is the end of Oct 8 in New York), so read the
+    // day twelve hours earlier: right for end-of-day stamps from UTC-11 to UTC+11.
+    const stated = env && env.data && typeof env.data.dataThrough === "string" && ISO_DAY.test(env.data.dataThrough) ? env.data.dataThrough : null;
+    const throughDay = stated || (through ? new Date(through - 12 * 3600e3).toISOString().slice(0, 10) : null);
+    const throughText = throughDay ? formatLabel(throughDay, "long") : null;
     const parts = [];
     if (refreshed) parts.push("Updated " + relativeAge(age));
     if (throughText) parts.push("data through " + throughText);

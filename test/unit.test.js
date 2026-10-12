@@ -3775,6 +3775,10 @@ test("flag motion: number formats are exact and never print a fabricated zero", 
   assert.equal(fresh.text, "Updated 3 h ago · data through Oct 11, 2026");
   assert.equal(fresh.state, "live");
   assert.equal(motion.freshness({ refreshedAt: "2026-10-08T09:00:00Z" }, now).state, "stale");
+  // End of day in New York is 03:59:59Z the next day: still "through Oct 8".
+  assert.equal(motion.freshness({ refreshedAt: "2026-10-12T09:00:00Z", sourceAsOf: "2026-10-09T03:59:59Z" }, now).through, "Oct 8, 2026");
+  // A page that states its covered day wins.
+  assert.equal(motion.freshness({ refreshedAt: "2026-10-12T09:00:00Z", sourceAsOf: "2026-10-09T12:00:00Z", data: { dataThrough: "2026-10-07" } }, now).through, "Oct 7, 2026");
 });
 
 test("flag motion: a page that opts in to the kit preflights clean", () => {
