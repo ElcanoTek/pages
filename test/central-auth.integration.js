@@ -35,6 +35,8 @@ Object.assign(process.env, {
   AUTH_CLIENT_SECRET: CLIENT_SECRET,
   AUTH_SIGNING_PUBKEY: rawPublic.toString("base64"),
   PAGE_COOKIE_SECRET: process.env.PAGE_COOKIE_SECRET || "central-test-secret",
+  // Above what the steps below use; step 19 then exhausts it on purpose.
+  RL_SIGNIN_PER_MIN: "200",
 });
 
 const { app } = require("../server.js");
@@ -428,6 +430,21 @@ async function signIn(sub, email, { next = "/admin", claims = {} } = {}) {
     assert.equal(signedOut.status, 200);
     assert.match(signedOut.body, /signed out of Pages/);
     console.log("✓ /logout revokes, clears, and hands off to Auth; cross-site ignored; /signed-out public");
+
+    // 19. The sign-in routes are rate-limited per client, with a page a
+    //     person can read. Last, because it spends this client's budget.
+    let limited = null;
+    for (let i = 0; i < 250 && !limited; i++) {
+      const r = await req("GET", "/auth/login");
+      if (r.status === 429) limited = r;
+    }
+    assert.ok(limited, "sign-in limiter engages");
+    assert.match(limited.headers["content-type"], /text\/html/);
+    assert.equal(limited.headers["retry-after"], "60");
+    assert.match(limited.body, /Too many sign-in attempts/);
+    assert.equal((await req("GET", "/logout")).status, 429, "/logout shares the limit");
+    assert.equal((await req("GET", "/auth/callback?code=c&state=s")).status, 429, "/auth/callback shares the limit");
+    console.log("✓ /auth/login, /auth/callback and /logout are rate-limited with an HTML 429");
 
     console.log("✓ central auth integration passed");
   } catch (err) {

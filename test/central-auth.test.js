@@ -275,3 +275,12 @@ test("central-auth.normalizeEmail: matches Auth's shape", () => {
     assert.throws(() => ca.normalizeEmail(bad), ca.CentralAuthError, bad);
   }
 });
+
+test("central-auth.stripTrailingSlashes: trims only the trailing run, fast on a long one", () => {
+  assert.equal(ca.stripTrailingSlashes("https://auth.example///"), "https://auth.example");
+  assert.equal(ca.stripTrailingSlashes("https://auth.example"), "https://auth.example");
+  assert.equal(ca.stripTrailingSlashes("///"), "");
+  const started = process.hrtime.bigint();
+  assert.equal(ca.stripTrailingSlashes("/".repeat(200000) + "x"), "/".repeat(200000) + "x");
+  assert.ok(process.hrtime.bigint() - started < 1_000_000_000n, "linear time");
+});
