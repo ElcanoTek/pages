@@ -247,9 +247,10 @@ file becomes revision N+1 while every deployed page stays pinned to the revision
 it was built from. A template that fails validation is reported and skipped; it
 does not fail a deploy that has already proven the service healthy.
 
-Pages is an Elcano product, so a design carrying a client's identity belongs in
-this repo. That is the opposite of fleet, which ships no client content by
-construction.
+Every install registers every template in this directory, so a design here
+must not carry any client's identity: it would appear in every deployment's
+library. A design that belongs to one client is registered on that client's
+deployment (below), or promoted from one of its pages.
 
 ### 2. Registered by an agent — MCP
 
@@ -289,8 +290,8 @@ with the page count in the confirmation.
 
 ```
 get_template               template="nwm-campaign-dashboard"      → schemas + reference config, NO html
-create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-allergex-acct00156"
-                           config={ … } title="Contoso — Allergex"
+create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-example-acct00156"
+                           config={ … } title="Contoso — Example Campaign"
 ```
 
 - **`config` must be complete.** It is validated against the config schema and is
@@ -332,8 +333,9 @@ from `get_page_config`, and carries source coverage across unchanged — renamin
 campaign or retargeting a KPI cannot disturb, restate, or roll back its numbers.
 
 Do **not** deploy or patch HTML into a template-built page. It would fork the
-page off its design: the next revision silently stops reaching it and nothing
-reports the drift. `prepare_dashboard_update` returns `mode: managed_template`
+page off its design: the next revision silently stops reaching it, and the only
+signal is `drifted` in `list_template_pages` (`drifted_count` in
+`list_templates`). `prepare_dashboard_update` returns `mode: managed_template`
 for these pages and routes each kind of request to the tool that owns it.
 
 ## Propagating a design fix

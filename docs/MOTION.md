@@ -57,11 +57,11 @@ Every `data-fm-metric` number opens a card built from, in order:
          "definition": "What buyers spent on this campaign's deals, as the SSPs report it.",
          "formula": "Σ Spend ($) over in-scope deals",
          "source": "ssp",
-         "filter": "Deal names carrying ELC07361"
+         "filter": "Deal names carrying ACCT00156"
        }
      },
      "sources": {
-       "ssp": { "label": "TWC SSP history", "location": "Fast.io · Storage/twc_ssp_historical_data.csv", "cadence": "Daily, 14:30 UTC" }
+       "ssp": { "label": "Partner SSP history", "location": "Shared reports · ssp_history.csv", "cadence": "Daily, 14:30 UTC" }
      }
    }
    ```
@@ -80,7 +80,7 @@ should name the report, not the internal path.
 { "type": "line", "title": "Daily spend", "format": "usd",
   "labels": ["2026-10-01", "2026-10-02"],
   "series": [{ "name": "Index Exchange", "values": [420, 510] }, { "name": "Magnite", "values": [220, null] }],
-  "target": 500, "targetLabel": "Goal", "source": "TWC SSP history" }
+  "target": 500, "targetLabel": "Goal", "source": "Partner SSP history" }
 ```
 
 | Key | Types | Meaning |
@@ -103,18 +103,18 @@ the order given and never cycle. Text never wears a series colour. Override any
 ## Explainer spec (animation as code)
 
 ```json
-{ "title": "Merrell in 30 seconds", "brand": "Elcano × The Weather Company",
-  "source": "TWC SSP history", "filename": "merrell-recap", "aspect": "16:9",
+{ "title": "Contoso in 30 seconds", "brand": "Northwind Media",
+  "source": "Partner SSP history", "filename": "contoso-recap", "aspect": "16:9",
   "scenes": [
-    { "type": "title",   "kicker": "Campaign recap", "title": "Merrell — two weeks of fall", "subtitle": "Display across Index and Magnite" },
+    { "type": "title",   "kicker": "Campaign recap", "title": "Contoso — two weeks of fall", "subtitle": "Display across Index and Magnite" },
     { "type": "kpis",    "title": "What it delivered", "items": [{ "label": "SSP spend", "value": 14780.5, "format": "usd0", "delta": 0.18 }] },
-    { "type": "bars",    "title": "Top deals", "format": "usd0", "items": [{ "label": "Index — Crisp Fall Air", "value": 3820 }] },
+    { "type": "bars",    "title": "Top deals", "format": "usd0", "items": [{ "label": "Index — Autumn Outdoors", "value": 3820 }] },
     { "type": "line",    "title": "Daily spend", "format": "usd0", "labels": ["2026-10-01", "…"], "series": [{ "name": "Spend", "values": [640, "…"] }],
                          "annotate": { "index": 6, "text": "Weather trigger: first cold front" } },
     { "type": "donut",   "title": "Spend by SSP", "format": "usd0", "items": [{ "label": "Index Exchange", "value": 9200 }] },
     { "type": "compare", "title": "Week over week", "format": "usd0", "a": { "label": "Last week", "value": 6200 }, "b": { "label": "This week", "value": 8580 } },
-    { "type": "bullets", "title": "What to do next", "items": ["Shift budget toward Crisp Fall Air"] },
-    { "type": "closing", "title": "Questions? Ask Victoria." }
+    { "type": "bullets", "title": "What to do next", "items": ["Shift budget toward Autumn Outdoors"] },
+    { "type": "closing", "title": "Questions? Ask your account team." }
   ] }
 ```
 

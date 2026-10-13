@@ -104,7 +104,7 @@ may still use it, but a scheduler that does not expose it would refuse the task.
 
 Each binding's `mcp_server` and `required_tools` are copied into the block
 verbatim, so each must be one name matching `^[a-zA-Z0-9_.-]{1,200}$`; preparation
-refuses anything else (for example `"fast_io + fastio_helpers"`) with
+refuses anything else (for example `"file_store + file_helpers"`) with
 `update_sources_invalid` rather than hand a scheduler a block it will reject. Bind
 each server as its own source. The legacy `configure_page_refresh` alias never
 fails on this: a workflow naming such a server lifts no bindings at all, and
@@ -115,9 +115,9 @@ For the largest data page:
 
 ```json
 {
-  "mcp_servers": ["fast_io", "fastio_helpers", "pages"],
+  "mcp_servers": ["file_store", "pages"],
   "required_tools": [
-    "download_url", "mcp_fast_io_download", "mcp_fastio_helpers_resolve_path",
+    "download_url", "mcp_file_store_download", "mcp_file_store_resolve_path",
     "mcp_pages_append_page_upload", "mcp_pages_get_page_config", "mcp_pages_get_page_data",
     "mcp_pages_preflight_page", "mcp_pages_record_refresh_check",
     "mcp_pages_start_page_upload", "mcp_pages_update_page_data",
@@ -267,8 +267,8 @@ Arguments:
   ```json
   {
     "source_id": "amazon_dsp",
-    "mcp_server": "fastio_helpers",
-    "path": "NWM_keel/Meridian/daily",
+    "mcp_server": "file_store",
+    "path": "northwind/contoso/daily",
     "partition": { "by": "date", "format": "YYYY-MM-DD", "since": "source_as_of" },
     "required_tools": ["list_partitions"]
   }
@@ -311,7 +311,7 @@ workflows pin their baseline; recurring managed workflows read it at execution:
   `update_page_config` and a design change to a new template revision plus a
   reviewed per-page rerender. Deploying HTML into such a page is forbidden: it
   forks the page off its shared design, so the next fix silently stops reaching
-  it and nothing reports the drift.
+  it; the only signal is `drifted` in `list_template_pages`.
 - `mode: adaptive` — the prompt first classifies a mixed/unclear one-time request
   and then follows exactly one of the two safe paths.
 - `mode: migration_required` — the live dashboard lacks the managed-data blocks.
@@ -369,7 +369,7 @@ deployments can lower them with `PAGES_DATA_SCHEMA_MAX_BYTES`,
 
 | `detail` | Returns | Use |
 | --- | --- | --- |
-| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB for a typical payload; the coverage profile is capped at 3 KB and marked `coverage_truncated: true` when cut | the first read of every run; enough to pick a branch |
+| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB for a typical payload; the coverage profile is capped at 3 KB and marked `coverage_truncated: true` when cut | the first read of every run; enough to stop early on a hard stop, but not proof that history is unchanged (compare complete records, or verify immutable source provenance, before choosing `source_not_updated`) |
 | `export` | the same identity fields plus `schema_url`, `data_url` and `envelope_url` for the live version, valid for 10 minutes | fetch the schema and rows once into workspace files with a host-side URL download (Fleet's `download_url`), so they never enter the model's context |
 | `full` (default) | the published schema/envelope, semantic hashes, full `data_profile`, URLs and truthful live-state fields, exactly as before `detail` existed | clients that cannot download URLs; one read per run |
 

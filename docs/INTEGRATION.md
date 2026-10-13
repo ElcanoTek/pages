@@ -148,7 +148,7 @@ and CSRF. An agent cannot read a portal either: there is no `list_portals`. If a
 future change does add one, this paragraph is the thing to delete, and every
 consumer allowlist is the thing to update.
 
-### Current catalog (45 tools)
+### Current catalog (46 tools)
 
 <!-- pages:allowlist:start -->
 ```text
@@ -156,7 +156,7 @@ list_pages, get_page, get_page_data, get_page_refresh, record_refresh_check,
 prepare_dashboard_update, find_in_version, patch_page, preflight_page,
 get_version, list_versions, update_page_data_upload,
 list_workspaces, create_workspace, rename_workspace, set_page_workspace,
-list_themes, create_upload_ticket, start_page_upload, append_page_upload,
+list_themes, get_guide, create_upload_ticket, start_page_upload, append_page_upload,
 cancel_page_upload, list_templates, get_template, list_template_revisions,
 list_template_pages, rerender_page_from_template, register_template_upload,
 validate_template, template_urls, delete_template, create_template_from_page,
@@ -171,6 +171,13 @@ A unit test asserts this block matches the registry exactly — here and in the
 mirrored block in [API.md](API.md) — so neither copy can drift. It says nothing
 about what a consumer deployed: Pages cannot read those manifests, which is why
 this list is worth re-diffing rather than assuming.
+
+`get_guide` is read-only and changes nothing a consumer already does. It returns
+Pages' own agent guide ([AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) and the reference
+guides it links to), packaged with each release, so a consumer bundle can tell
+its agent "read `get_guide` before creating or changing a page" instead of
+carrying its own copy of how Pages works. A consumer that does not list it is
+unaffected.
 
 `get_page_refresh` and `configure_page_refresh` are compatibility names; new
 client prompts should call `prepare_dashboard_update` directly. The former
