@@ -215,6 +215,7 @@ test("central-auth.Client.exchange: refuses answers it must not trust", async ()
     "other audience": () => signedWith(idClaims({ aud: "explorer" })),
     "audience array": () => signedWith(idClaims({ aud: ["pages"] })),
     "other issuer": () => signedWith(idClaims({ iss: "https://evil.example" })),
+    "issuer with a trailing slash": () => signedWith(idClaims({ iss: `${ISSUER}/` })),
     expired: () => signedWith(idClaims({ exp: now() - 120 })),
     "issued in the future": () => signedWith(idClaims({ iat: now() + 600 })),
     "no subject": () => signedWith(idClaims({ sub: "" })),
