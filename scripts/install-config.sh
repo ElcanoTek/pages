@@ -16,13 +16,16 @@ if [[ -z "$PORT" && -f "$ENV_FILE" ]]; then
 fi
 PORT="${PORT:-3002}"
 
-# Prints the pages role password held in a prior DATABASE_URL, so a re-run keeps
-# it. Only URL-safe passwords (bootstrap mints hex) are reused, because the same
-# text goes into both the URL and ALTER ROLE; anything else prints nothing and
-# the caller mints a fresh one, rewriting the role and the URL together.
-database_url_password() {
-  local pattern='^postgres(ql)?://pages:([A-Za-z0-9._~-]+)@'
-  if [[ "${1:-}" =~ $pattern ]]; then printf '%s' "${BASH_REMATCH[2]}"; fi
+# Prints the pages role password for bootstrap: the one in an existing
+# DATABASE_URL, so a re-run keeps it, or a freshly minted one on first install
+# (hex, so no URL encoding). The same text goes into both the URL and ALTER
+# ROLE, so only URL-safe passwords are reused; any other existing URL fails
+# here, before the role is touched, rather than rotating the live password.
+database_password() {
+  local url="${1:-}" pattern='^postgres(ql)?://pages:([A-Za-z0-9._~-]+)@'
+  if [[ -z "$url" ]]; then openssl rand -hex 24; return; fi
+  [[ "$url" =~ $pattern ]] || return 1
+  printf '%s' "${BASH_REMATCH[2]}"
 }
 
 render_install() {

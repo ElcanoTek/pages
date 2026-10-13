@@ -159,9 +159,9 @@ fi
 systemctl enable --now postgresql >/dev/null 2>&1 || systemctl restart postgresql
 systemctl reload postgresql >/dev/null 2>&1 || true
 # Reuse the existing DB password (parsed from a prior DATABASE_URL) so re-runs
-# never lock the app out; otherwise mint one (hex → no URL-encoding needed).
-DB_PASS="$(database_url_password "${DATABASE_URL:-}")"
-DB_PASS="${DB_PASS:-$(openssl rand -hex 24)}"
+# never lock the app out; otherwise mint one.
+DB_PASS="$(database_password "${DATABASE_URL:-}")" \
+  || die "no database password: DATABASE_URL in $ENV_FILE is not a pages URL with a URL-safe password (correct or remove it), or generating one failed; database role left unchanged"
 psql_su() { runuser -u postgres -- psql -v ON_ERROR_STOP=1 "$@"; }
 if psql_su -tAc "SELECT 1 FROM pg_roles WHERE rolname='pages'" 2>/dev/null | grep -q 1; then
   psql_su -c "ALTER ROLE pages WITH LOGIN PASSWORD '$DB_PASS'" >/dev/null || die "ALTER ROLE pages failed"

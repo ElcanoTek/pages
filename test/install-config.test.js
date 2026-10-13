@@ -58,23 +58,32 @@ test("installation: unsupported path and port values fail before installing", ()
 });
 
 test("installation: a re-run reuses the database password from the prior URL", () => {
-  const extract = (url) => {
-    const result = spawnSync("bash", ["-c", 'set -euo pipefail; . scripts/install-config.sh; database_url_password "$1"', "_", url], {
-      cwd: path.join(__dirname, ".."), encoding: "utf8", env: { PATH: process.env.PATH, PAGES_INSTALL_CONFIG: "/nonexistent" },
-    });
+  const password = (url) => spawnSync("bash", ["-c", 'set -euo pipefail; . scripts/install-config.sh; database_password "$1"', "_", url], {
+    cwd: path.join(__dirname, ".."), encoding: "utf8", env: { PATH: process.env.PATH, PAGES_INSTALL_CONFIG: "/nonexistent", PAGES_ENV_FILE: "/nonexistent" },
+  });
+  const reused = (url) => {
+    const result = password(url);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stderr, "");
-    return result.stdout;
+    return result.stdout.replace(/\n$/, ""); // as bootstrap's $(...) strips it
   };
-  const minted = "0f3a9c1e5b7d2468ace013579bdf2468ace013579bdf0246";
-  assert.equal(extract(`postgres://pages:${minted}@127.0.0.1:5432/pages?sslmode=disable`), minted);
-  assert.equal(extract("postgresql://pages:a.b_c~d-e@db.test/pages"), "a.b_c~d-e");
-  // Not reusable: wrong scheme or role, no password, or text that would need
-  // URL decoding or SQL quoting. The caller then mints and rewrites both.
-  for (const url of ["", "mysql://pages:secret@host/pages", "postgres://other:secret@host/pages", "postgres://pages@host/pages",
+  const minted = reused("");
+  assert.match(minted, /^[0-9a-f]{48}$/);
+  assert.notEqual(reused(""), minted);
+  assert.equal(reused(`postgres://pages:${minted}@127.0.0.1:5432/pages?sslmode=disable`), minted);
+  assert.equal(reused("postgresql://pages:a.b_c~d-e@db.test/pages"), "a.b_c~d-e");
+  // An existing URL that cannot be reused verbatim (wrong scheme or role, no
+  // password, or text needing URL decoding or SQL quoting) fails with no
+  // output, so bootstrap stops before changing the role.
+  for (const url of ["mysql://pages:secret@host/pages", "postgres://other:secret@host/pages", "postgres://pages@host/pages",
     "postgres://pages:@host/pages", "postgres://pages:p%40ss@host/pages", "postgres://pages:it's@host/pages"]) {
-    assert.equal(extract(url), "", url);
+    const result = password(url);
+    assert.equal(result.status, 1, url);
+    assert.equal(result.stdout, "", url);
   }
+  // Bootstrap must stop on that failure, and must call the helper before the
+  // role is created or altered.
   const bootstrap = readFileSync(path.join(__dirname, "../scripts/bootstrap.sh"), "utf8");
-  assert.match(bootstrap, /DB_PASS="\$\(database_url_password "\$\{DATABASE_URL:-\}"\)"/);
+  const call = bootstrap.search(/DB_PASS="\$\(database_password "\$\{DATABASE_URL:-\}"\)" \\\n\s+\|\| die /);
+  assert.ok(call > 0);
+  assert.ok(call < bootstrap.indexOf("ALTER ROLE pages") && call < bootstrap.indexOf("CREATE ROLE pages"));
 });
