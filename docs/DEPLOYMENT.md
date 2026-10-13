@@ -400,7 +400,10 @@ widens a boundary that is checked before the body is parsed.
 | `RL_CONTENT_PER_MIN` | `240` | Content-host reads |
 | `RL_PASSWORD_TRIES` | `20` | Password-form attempts per window |
 | `RL_PASSWORD_WINDOW_MIN` | `15` | Password window, minutes |
-| `RL_SIGNIN_PER_MIN` | `60` | Central mode: `/auth/login`, `/auth/callback` and `/logout` together |
+| `RL_SIGNIN_PER_MIN` | `60` | Central mode: `/auth/login` |
+| `RL_SIGNIN_CALLBACK_PER_MIN` | `60` | Central mode: `/auth/callback` |
+| `RL_SIGNOUT_PER_MIN` | `30` | Central mode: `/logout`, per session (per address without one) |
+| `RL_BACKCHANNEL_PER_MIN` | `600` | Central mode: `/auth/backchannel-logout` |
 
 These sit on top of a per-page progressive backoff that is not configurable and
 deliberately delays rather than locks out.

@@ -35,8 +35,9 @@ Object.assign(process.env, {
   AUTH_CLIENT_SECRET: CLIENT_SECRET,
   AUTH_SIGNING_PUBKEY: rawPublic.toString("base64"),
   PAGE_COOKIE_SECRET: process.env.PAGE_COOKIE_SECRET || "central-test-secret",
-  // Above what the steps below use; step 19 then exhausts it on purpose.
+  // Above what steps 1-18 use; steps 19-20 then exhaust them on purpose.
   RL_SIGNIN_PER_MIN: "200",
+  RL_API_PER_MIN: "20",
 });
 
 const { app } = require("../server.js");
@@ -431,8 +432,19 @@ async function signIn(sub, email, { next = "/admin", claims = {} } = {}) {
     assert.match(signedOut.body, /signed out of Pages/);
     console.log("✓ /logout revokes, clears, and hands off to Auth; cross-site ignored; /signed-out public");
 
-    // 19. The sign-in routes are rate-limited per client, with a page a
-    //     person can read. Last, because it spends this client's budget.
+    // 19. Each sign-in stage has its own budget. Exhausting /auth/login
+    //     from one address neither strands a handoff already at Auth nor
+    //     stops a signed-in person from signing out.
+    await centralAuth.store.grantAccess("dee@northwind.example");
+    const dee = await signIn("sub-dee", "dee@northwind.example");
+    assert.ok(dee.session);
+    const pending = await req("GET", "/auth/login");
+    const pendingAuthorize = new URL(pending.headers.location);
+    const pendingCode = crypto.randomBytes(16).toString("hex");
+    codes.set(pendingCode, {
+      challenge: pendingAuthorize.searchParams.get("code_challenge"),
+      claims: { iss: ISSUER, aud: "pages", sub: "sub-dee", email: "dee@northwind.example", nonce: pendingAuthorize.searchParams.get("nonce"), exp: nowS() + 300 },
+    });
     let limited = null;
     for (let i = 0; i < 250 && !limited; i++) {
       const r = await req("GET", "/auth/login");
@@ -442,9 +454,32 @@ async function signIn(sub, email, { next = "/admin", claims = {} } = {}) {
     assert.match(limited.headers["content-type"], /text\/html/);
     assert.equal(limited.headers["retry-after"], "60");
     assert.match(limited.body, /Too many sign-in attempts/);
-    assert.equal((await req("GET", "/logout")).status, 429, "/logout shares the limit");
-    assert.equal((await req("GET", "/auth/callback?code=c&state=s")).status, 429, "/auth/callback shares the limit");
-    console.log("✓ /auth/login, /auth/callback and /logout are rate-limited with an HTML 429");
+    const finished = await req(
+      "GET",
+      `/auth/callback?code=${pendingCode}&state=${encodeURIComponent(pendingAuthorize.searchParams.get("state"))}&iss=${encodeURIComponent(ISSUER)}`,
+      { cookie: cookieFrom(pending, "pages_login") }
+    );
+    assert.equal(finished.status, 303, "a handoff in flight still completes");
+    assert.ok(cookieFrom(finished, "pages_session"));
+    let anonLimited = false;
+    for (let i = 0; i < 100 && !anonLimited; i++) anonLimited = (await req("GET", "/logout")).status === 429;
+    assert.ok(anonLimited, "anonymous /logout is limited per address");
+    const deeOut = await req("GET", "/logout", { cookie: dee.session });
+    assert.equal(deeOut.status, 303, "a signed-in person can still sign out");
+    assert.equal(deeOut.headers.location, `${ISSUER}/logout?client_id=pages`);
+    assert.match(deeOut.headers["set-cookie"].join("\n"), /pages_session=; Path=\/; HttpOnly; SameSite=Lax; Max-Age=0/);
+    assert.equal((await req("GET", "/admin", { cookie: dee.session })).status, 302, "and the session is revoked");
+    console.log("✓ login, callback and logout have separate budgets; login pressure strands no handoff or sign-out");
+
+    // 20. The back-channel receiver has its own budget: agent API traffic
+    //     from Auth's address cannot delay a revocation.
+    const dee2 = cookieFrom(finished, "pages_session");
+    let apiLimited = false;
+    for (let i = 0; i < 100 && !apiLimited; i++) apiLimited = (await req("GET", "/api/v1/admin/pages")).status === 429;
+    assert.ok(apiLimited, "API budget exhausted");
+    assert.equal((await backchannel({ logout_token: logoutToken("sub-dee") })).status, 204, "revocation still delivered");
+    assert.equal((await req("GET", "/admin", { cookie: dee2 })).status, 302, "and applied");
+    console.log("✓ back-channel revocations are not starved by API traffic");
 
     console.log("✓ central auth integration passed");
   } catch (err) {
