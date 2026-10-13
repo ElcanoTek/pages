@@ -23,6 +23,9 @@ const rawPublic = Buffer.from(signing.publicKey.export({ format: "jwk" }).x, "ba
 // env edit here.
 const rotated = crypto.generateKeyPairSync("ed25519");
 const rotatedPublic = Buffer.from(rotated.publicKey.export({ format: "jwk" }).x, "base64url");
+// A key Auth never published: what a token-endpoint impostor would sign with.
+const forger = crypto.generateKeyPairSync("ed25519");
+const forgerPublic = Buffer.from(forger.publicKey.export({ format: "jwk" }).x, "base64url");
 const kid = (raw) => crypto.createHash("sha256").update(raw).digest().subarray(0, 16).toString("base64url");
 
 Object.assign(process.env, {
@@ -80,8 +83,13 @@ const fakeAuth = http.createServer((req, res) => {
         res.statusCode = tokenStatus !== 200 ? tokenStatus : 400;
         return res.end(JSON.stringify({ error: "invalid_grant" }));
       }
+      // Like Auth: the claims in the clear and as an EdDSA-signed id_token.
+      // A test can forge the token (another key) or leave it out.
+      const claims = { iat: nowS(), ...entry.claims };
+      const answer = { ...claims };
+      if (entry.idToken !== "omit") answer.id_token = entry.idToken === "forged" ? signed("JWT", claims, forger.privateKey, forgerPublic) : signed("JWT", claims);
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(entry.claims));
+      res.end(JSON.stringify(answer));
     });
     return;
   }
@@ -146,7 +154,7 @@ const backchannel = (form) => req("POST", "/auth/backchannel-logout", { form });
 
 // signIn — the whole browser round trip. Returns the callback response and
 // the session cookie (null when sign-in was refused).
-async function signIn(sub, email, { next = "/admin", claims = {} } = {}) {
+async function signIn(sub, email, { next = "/admin", claims = {}, idToken } = {}) {
   const start = await req("GET", `/auth/login?next=${encodeURIComponent(next)}`);
   assert.equal(start.status, 303, "login starts with a redirect to Auth");
   const authorize = new URL(start.headers.location);
@@ -156,6 +164,7 @@ async function signIn(sub, email, { next = "/admin", claims = {} } = {}) {
   codes.set(code, {
     challenge: authorize.searchParams.get("code_challenge"),
     claims: { iss: ISSUER, aud: "pages", sub, email, nonce: authorize.searchParams.get("nonce"), exp: nowS() + 300, ...claims },
+    idToken,
   });
   const state = authorize.searchParams.get("state");
   const callback = await req("GET", `/auth/callback?code=${code}&state=${encodeURIComponent(state)}&iss=${encodeURIComponent(ISSUER)}`, {
@@ -265,11 +274,16 @@ async function signIn(sub, email, { next = "/admin", claims = {} } = {}) {
     assert.equal(badAud.session, null, "a code minted for another application is refused");
     const badIss = await signIn("sub-ana", "ana@northwind.example", { claims: { iss: "https://other.example" } });
     assert.equal(badIss.session, null);
+    const forged = await signIn("sub-ana", "ana@northwind.example", { idToken: "forged" });
+    assert.equal(forged.callback.status, 502);
+    assert.equal(forged.session, null, "an id_token signed by an unknown key is refused");
+    const unsigned = await signIn("sub-ana", "ana@northwind.example", { idToken: "omit" });
+    assert.equal(unsigned.session, null, "claims without an id_token are refused");
     tokenStatus = 500;
     const outage = await signIn("sub-ana", "ana@northwind.example");
     assert.equal(outage.callback.status, 502);
     tokenStatus = 200;
-    console.log("✓ nonce/aud/iss mismatch and Auth outage → no session");
+    console.log("✓ nonce/aud/iss mismatch, forged or missing id_token, and Auth outage → no session");
 
     // 10. The content host never serves the sign-in surface.
     const contentLogin = await req("GET", "/auth/login", { host: CONTENT });

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 ElcanoTek, Inc.
 "use strict";
 // Unit tests for lib/central-auth.js (no DB): signed back-channel tokens, the
-// JWKS key resolver, the code exchange, the login transaction, redirect
+// JWKS key resolver, the code exchange and its id_token, the login transaction, redirect
 // safety and configuration validation. The Postgres store and the routes are
 // covered by test/central-auth.integration.js. Run: npm test
 
@@ -155,6 +155,10 @@ test("central-auth.KeyResolver: a failed or hostile JWKS keeps the cached keys",
   }
 });
 
+// A key Auth publishes only through /jwks.json (a rotation in progress).
+const rotated = keyPair();
+const jwks = async () => new Response(JSON.stringify({ keys: [{ kty: "OKP", crv: "Ed25519", x: rotated.raw.toString("base64url"), kid: ca.kidForKey(rotated.raw) }] }));
+
 function client(fetchImpl, clock = now) {
   const config = ca.loadConfig({
     AUTH_ISSUER_URL: ISSUER,
@@ -163,14 +167,23 @@ function client(fetchImpl, clock = now) {
     AUTH_SIGNING_PUBKEY: primary.raw.toString("base64"),
     PAGE_COOKIE_SECRET: "unit-test-secret",
   });
-  return new ca.Client(config, { fetchImpl, clock });
+  const keys = new ca.KeyResolver(config.issuer, config.staticKeys, { fetchImpl: jwks, clock });
+  return new ca.Client(config, { keys, fetchImpl, clock });
 }
 
-test("central-auth.Client.exchange: posts the code with client_secret_basic and checks the claims", async () => {
+// Auth's /token answer: the claims in the clear and as a signed id_token.
+const idClaims = (extra = {}) => ({
+  iss: ISSUER, aud: "pages", sub: "sub-1", email: "Ana@Northwind.example", iat: now(), exp: now() + 60,
+  nonce: "n1", auth_time: now(), amr: ["pwd"], acr: "urn:elcanotek:loa:1", ...extra,
+});
+const tokenResponse = (claims = idClaims(), idToken = sign("JWT", claims)) =>
+  new Response(JSON.stringify({ ...claims, id_token: idToken }));
+
+test("central-auth.Client.exchange: posts the code with client_secret_basic and verifies the id_token", async () => {
   let seen;
   const c = client(async (url, init) => {
     seen = { url, init };
-    return new Response(JSON.stringify({ iss: ISSUER, aud: "pages", sub: "sub-1", email: "Ana@Northwind.example", nonce: "n1", exp: now() + 60 }));
+    return tokenResponse();
   });
   const principal = await c.exchange({ code: "c1", verifier: "v1", nonce: "n1" });
   assert.deepEqual(principal, { subject: "sub-1", email: "ana@northwind.example" });
@@ -183,18 +196,44 @@ test("central-auth.Client.exchange: posts the code with client_secret_basic and 
   assert.equal(form.get("grant_type"), "authorization_code");
 });
 
+test("central-auth.Client.exchange: an id_token signed by a JWKS-only key verifies", async () => {
+  const c = client(async () => tokenResponse(idClaims(), sign("JWT", idClaims(), rotated)));
+  assert.equal((await c.exchange({ code: "c", verifier: "v", nonce: "n1" })).subject, "sub-1");
+});
+
+test("central-auth.Client.exchange: identity comes from the signed claims, not the JSON beside them", async () => {
+  const c = client(async () => new Response(JSON.stringify({ ...idClaims({ sub: "sub-evil", email: "evil@northwind.example" }), id_token: sign("JWT", idClaims()) })));
+  assert.deepEqual(await c.exchange({ code: "c", verifier: "v", nonce: "n1" }), { subject: "sub-1", email: "ana@northwind.example" });
+});
+
 test("central-auth.Client.exchange: refuses answers it must not trust", async () => {
-  const good = { iss: ISSUER, aud: "pages", sub: "sub-1", email: "a@northwind.example", nonce: "n1", exp: now() + 60 };
+  const other = keyPair();
+  const signedWith = (claims) => tokenResponse(idClaims(), sign("JWT", claims));
   const cases = {
-    "nonce mismatch": { ...good, nonce: "n2" },
-    "other audience": { ...good, aud: "explorer" },
-    "other issuer": { ...good, iss: "https://evil.example" },
-    expired: { ...good, exp: now() - 120 },
-    "no subject": { ...good, sub: "" },
-    "bad email": { ...good, email: "nope" },
+    "nonce mismatch": () => signedWith(idClaims({ nonce: "n2" })),
+    "no nonce": () => signedWith(idClaims({ nonce: undefined })),
+    "other audience": () => signedWith(idClaims({ aud: "explorer" })),
+    "audience array": () => signedWith(idClaims({ aud: ["pages"] })),
+    "other issuer": () => signedWith(idClaims({ iss: "https://evil.example" })),
+    "issuer with a trailing slash": () => signedWith(idClaims({ iss: `${ISSUER}/` })),
+    expired: () => signedWith(idClaims({ exp: now() - 120 })),
+    "issued in the future": () => signedWith(idClaims({ iat: now() + 600 })),
+    "no subject": () => signedWith(idClaims({ sub: "" })),
+    "bad email": () => signedWith(idClaims({ email: "nope" })),
+    "missing id_token": () => new Response(JSON.stringify(idClaims())),
+    "id_token not a string": () => new Response(JSON.stringify({ ...idClaims(), id_token: { a: 1 } })),
+    "unknown key": () => tokenResponse(idClaims(), sign("JWT", idClaims(), other)),
+    "trusted kid, other key's signature": () => tokenResponse(idClaims(), sign("JWT", idClaims(), other, { kid: ca.kidForKey(primary.raw) })),
+    "wrong typ": () => tokenResponse(idClaims(), sign("logout+jwt", idClaims())),
+    "alg none": () => tokenResponse(idClaims(), sign("JWT", idClaims(), primary, { alg: "none" })),
+    "tampered claims": () => {
+      const [h, , sig] = sign("JWT", idClaims()).split(".");
+      const body = Buffer.from(JSON.stringify(idClaims({ sub: "sub-evil" }))).toString("base64url");
+      return tokenResponse(idClaims(), `${h}.${body}.${sig}`);
+    },
   };
-  for (const [name, payload] of Object.entries(cases)) {
-    const c = client(async () => new Response(JSON.stringify(payload)));
+  for (const [name, respond] of Object.entries(cases)) {
+    const c = client(async () => respond());
     await assert.rejects(c.exchange({ code: "c", verifier: "v", nonce: "n1" }), ca.CentralAuthError, name);
   }
   await assert.rejects(
@@ -205,6 +244,10 @@ test("central-auth.Client.exchange: refuses answers it must not trust", async ()
   await assert.rejects(client(async () => new Response("", { status: 302, headers: { Location: "https://evil.example" } })).exchange({ code: "c", verifier: "v", nonce: "n1" }), ca.CentralAuthError, "redirect not followed");
   await assert.rejects(client(async () => new Response("x".repeat(70 * 1024))).exchange({ code: "c", verifier: "v", nonce: "n1" }), ca.CentralAuthError, "oversized");
   await assert.rejects(client(async () => { throw new Error("ECONNREFUSED"); }).exchange({ code: "c", verifier: "v", nonce: "n1" }), ca.CentralAuthError, "unreachable");
+});
+
+test("central-auth.Client: refuses to exist without a key resolver", () => {
+  assert.throws(() => new ca.Client({}), TypeError);
 });
 
 test("central-auth: login transaction is sealed, single-state, and expires", () => {

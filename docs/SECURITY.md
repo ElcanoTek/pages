@@ -10,8 +10,9 @@
 - **Central sign-in mode keeps the same boundary.** With
   `PAGES_AUTH_MODE=central` (a password-mode Auth deployment) the dashboard
   host runs Auth's application handoff itself: S256 PKCE, state and nonce,
-  `client_secret_basic`, claims checked for issuer, audience, expiry and nonce,
-  and a host-only `__Host-pages_session` cookie stored only as its SHA-256.
+  `client_secret_basic`, an `id_token` whose EdDSA signature is checked against
+  Auth's keys before its issuer, audience, expiry and nonce are trusted, and a
+  host-only `__Host-pages_session` cookie stored only as its SHA-256.
   "Admin" means "on this deployment's access list", which only Auth's signed
   access events or the operator CLI change; revoking access ends that email's
   sessions in the same transaction, and Auth's back-channel logout (EdDSA,

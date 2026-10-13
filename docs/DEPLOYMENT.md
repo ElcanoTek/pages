@@ -153,8 +153,9 @@ mode: the application contract"): Pages redirects to Auth's `/authorize`,
 exchanges the code at `/token`, keeps its own access list, and mints a
 host-only `__Host-pages_session` cookie (24 h absolute, 12 h idle). Everyone
 on the access list is an admin; Pages has one human role.
-`AUTH_SIGNING_PUBKEY` is still required: it verifies Auth's back-channel
-tokens, and the key is the same one `auth pubkey` prints.
+`AUTH_SIGNING_PUBKEY` is still required: it verifies the `id_token` from each
+sign-in and Auth's back-channel tokens, and the key is the same one `auth
+pubkey` prints.
 
 1. On the Auth host, register Pages (the secret is shown once) and its
    back-channel endpoint, **before** granting anyone, so the grant events
