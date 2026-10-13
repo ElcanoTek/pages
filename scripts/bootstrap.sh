@@ -160,10 +160,7 @@ systemctl enable --now postgresql >/dev/null 2>&1 || systemctl restart postgresq
 systemctl reload postgresql >/dev/null 2>&1 || true
 # Reuse the existing DB password (parsed from a prior DATABASE_URL) so re-runs
 # never lock the app out; otherwise mint one (hex → no URL-encoding needed).
-DB_PASS=""
-if [[ -n "${DATABASE_URL:-}" ]]; then
-  DB_PASS="$(printf '%s' "$DATABASE_URL" | sed -nE 's@^postgres(ql)?://pages:([^@]+)@.*@\2@p')"
-fi
+DB_PASS="$(database_url_password "${DATABASE_URL:-}")"
 DB_PASS="${DB_PASS:-$(openssl rand -hex 24)}"
 psql_su() { runuser -u postgres -- psql -v ON_ERROR_STOP=1 "$@"; }
 if psql_su -tAc "SELECT 1 FROM pg_roles WHERE rolname='pages'" 2>/dev/null | grep -q 1; then

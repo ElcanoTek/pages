@@ -4,7 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
-const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require("node:fs");
+const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } = require("node:fs");
 const path = require("node:path");
 const { render } = require("../scripts/render-install");
 
@@ -55,4 +55,26 @@ test("installation: unsupported path and port values fail before installing", ()
   const values = { APP_DIR: "/opt/pages", APP_USER: "pages", INSTALL_SRC_DIR: "/opt/pages-src", ENV_FILE: "/etc/default/pages", CLI_TARGET: "/usr/local/bin/pages", PORT: "3002", PAGES_INSTALL_CONFIG: "/etc/default/pages-install" };
   for (const invalid of [{ PORT: "70000" }, { APP_DIR: "/tmp/my app" }, { APP_USER: "bad user" }]) assert.throws(() => render("check", { ...values, ...invalid }));
   assert.match(render("service", values), /WorkingDirectory=\/opt\/pages/);
+});
+
+test("installation: a re-run reuses the database password from the prior URL", () => {
+  const extract = (url) => {
+    const result = spawnSync("bash", ["-c", 'set -euo pipefail; . scripts/install-config.sh; database_url_password "$1"', "_", url], {
+      cwd: path.join(__dirname, ".."), encoding: "utf8", env: { PATH: process.env.PATH, PAGES_INSTALL_CONFIG: "/nonexistent" },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    return result.stdout;
+  };
+  const minted = "0f3a9c1e5b7d2468ace013579bdf2468ace013579bdf0246";
+  assert.equal(extract(`postgres://pages:${minted}@127.0.0.1:5432/pages?sslmode=disable`), minted);
+  assert.equal(extract("postgresql://pages:a.b_c~d-e@db.test/pages"), "a.b_c~d-e");
+  // Not reusable: wrong scheme or role, no password, or text that would need
+  // URL decoding or SQL quoting. The caller then mints and rewrites both.
+  for (const url of ["", "mysql://pages:secret@host/pages", "postgres://other:secret@host/pages", "postgres://pages@host/pages",
+    "postgres://pages:@host/pages", "postgres://pages:p%40ss@host/pages", "postgres://pages:it's@host/pages"]) {
+    assert.equal(extract(url), "", url);
+  }
+  const bootstrap = readFileSync(path.join(__dirname, "../scripts/bootstrap.sh"), "utf8");
+  assert.match(bootstrap, /DB_PASS="\$\(database_url_password "\$\{DATABASE_URL:-\}"\)"/);
 });
