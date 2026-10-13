@@ -1,16 +1,14 @@
 # Dashboard updates through Pages MCP
 
-> **A note on names.** *Chat*, *Cutlass*, *MOC* and *Fleet* are ElcanoTek's own
-> internal agent tools and orchestration services — the original consumers of
-> this interface. None of them is part of this repository and Pages depends on
-> none of them; any MCP client works identically. Where this page says a name is
-> "already registered" or "already allowlisted", read it as a note about
-> ElcanoTek's deployment, not a requirement of Pages.
+> Any compatible MCP client can prepare and execute these workflows. Pages
+> depends on no particular agent runtime, scheduler or host; where this page
+> mentions host features (audit declarations, tool aliases, file references),
+> they apply only when your host provides them.
 
 Pages owns the safe update contract, versioning, validation, publishing, and
 audit trail. It does **not** own an agent runtime or recurring scheduler. Pages
-does not dispatch to MOC and needs no MOC, OpenRouter, Fleet, Chat, or Cutlass
-credentials for dashboard updates.
+does not dispatch work to any agent runtime and holds no model or source
+credentials; those belong to the host that executes the workflow.
 
 Any general-purpose MCP client can ask Pages for the exact workflow, then either
 execute it once or give the text to a user for their scheduler of choice. Source
@@ -50,9 +48,8 @@ execute a recurring prompt while preparing it.
 Because Pages does not dispatch, the response also carries
 `execution_requirements` — the MCP servers and tools the run needs, whether it
 needs network, and that it needs a model assigned. A scheduler can check that
-before accepting the task instead of discovering it at dispatch. (Five real
-autoupdate tasks were accepted as opaque prompt blobs and dead-lettered on their
-first run with no model configured, having executed nothing.)
+before accepting the task instead of discovering it at dispatch: a task
+accepted without them can fail before any tool runs.
 
 For `managed_data` it also states three things a scheduler can enforce without
 asking a model:
@@ -80,8 +77,7 @@ asking a model:
   check had one of those outcomes and which committed no version, finished
   **without publishing**. A scheduler that knows the key can show that run as
   blocked instead of as a plain success, with the check's `detail` as the
-  reason; in production a dashboard sat frozen
-  for two weeks behind a green task list because nothing distinguished the two.
+  reason, so a page whose refresh keeps blocking does not look refreshed.
 - `serialization_key: "pages:<slug>"`: runs that share it must not overlap.
   Give every schedule for the page the same key. Two schedules refreshing one
   slug otherwise race to duplicate versions and `stale_version`.
@@ -97,14 +93,14 @@ rule to the file it built, on every run, and declares that one commit tool befor
 the gated mutation. A recurring prompt says so on a `ROSTER:` line, and tells the
 run to verify from the commit response, `get_page_data` and `preflight_page` (the
 check step 12 requires for a live publication) and to call no Pages tool outside
-`required_tools`. A scheduler that treats the two commit tools as one audited action
-(Fleet's `critical_tool_aliases`) accepts either against one declaration.
+`required_tools`. A scheduler that can treat the two commit tools as one audited action (a tool
+alias, where the host supports one) accepts either against one declaration.
 `create_upload_ticket` is deliberately not listed: a client with direct file HTTP
 may still use it, but a scheduler that does not expose it would refuse the task.
 
 Each binding's `mcp_server` and `required_tools` are copied into the block
 verbatim, so each must be one name matching `^[a-zA-Z0-9_.-]{1,200}$`; preparation
-refuses anything else (for example `"fast_io + fastio_helpers"`) with
+refuses anything else (for example `"file_store + file_helpers"`) with
 `update_sources_invalid` rather than hand a scheduler a block it will reject. Bind
 each server as its own source. The legacy `configure_page_refresh` alias never
 fails on this: a workflow naming such a server lifts no bindings at all, and
@@ -115,9 +111,9 @@ For the largest data page:
 
 ```json
 {
-  "mcp_servers": ["fast_io", "fastio_helpers", "pages"],
+  "mcp_servers": ["file_store", "pages"],
   "required_tools": [
-    "download_url", "mcp_fast_io_download", "mcp_fastio_helpers_resolve_path",
+    "download_url", "mcp_file_store_download", "mcp_file_store_resolve_path",
     "mcp_pages_append_page_upload", "mcp_pages_get_page_config", "mcp_pages_get_page_data",
     "mcp_pages_preflight_page", "mcp_pages_record_refresh_check",
     "mcp_pages_start_page_upload", "mcp_pages_update_page_data",
@@ -142,8 +138,8 @@ Recurring managed-data prompts also embed that same JSON after an
 `EXECUTION REQUIREMENTS (JSON):` line, so copying the prompt retains the handoff.
 An executor can reject missing network/tools before running the model. This is
 an opt-in consumer contract, not a Pages scheduling API or permission grant.
-In Fleet, sandbox **Allow network egress** must permit HTTPS file uploads;
-working MCP downloads alone do not establish shell connectivity. A scheduler
+Where a run uploads files over HTTPS, the executing sandbox must allow that
+egress; working MCP downloads alone do not establish shell connectivity. A scheduler
 must select the bound servers, helper servers supplying required tools, and the
 right connected accounts. Source authentication and completeness are verified
 again during execution.
@@ -185,9 +181,8 @@ and never fill a gap with invented values:
 - source values that differ from the live payload are corrections and publish.
 
 A USER REQUEST block condition still applies when it names the specific report,
-field or identifier. These rules exist because, before them, a quarter of all
-production refresh runs stopped at the first such gap while the sources held
-real new data.
+field or identifier. Separating hard stops from reportable gaps keeps a
+refresh from blocking on a gap while its sources hold valid new data.
 
 An unchanged reporting date or aggregate total does not prove unchanged history.
 Compare complete in-scope records and represented metrics/dimensions with the live
@@ -208,17 +203,17 @@ A run selects exactly one branch:
   commit with optimistic concurrency, then verify the returned state/profile
   and the live browser preflight.
 
-The runtime's audit protocol applies when it provides `confirm_audit`. A
-completion audit with no remaining mutations declares `critical_actions: []`;
-it must not promise publication for the other branches. Upload transport is
+The host's audit protocol applies when it has one. A completion audit with no
+remaining mutations declares that in the host's documented form; it must not
+promise publication for the other branches. Upload transport is
 bounded: one transient retry, no policy bypass, no model-emitted large base64
 payload, no repeated upload cancellation/restart. A missing transport is a
 blocker, not permission to sample the data. Existing saved prompts are not
 rewritten automatically: regenerate them after upgrading the producer and
 executor. Customer data-grain migrations are separate work.
 
-No per-dashboard server setup is required. In particular, do not create a Pages
-runner token or add `PAGES_MOC_*` / `PAGES_REFRESH_*` environment variables.
+No per-dashboard server setup is required: preparing a prompt needs no runner
+identity and no server-side scheduler configuration.
 
 ## `prepare_dashboard_update`
 
@@ -267,8 +262,8 @@ Arguments:
   ```json
   {
     "source_id": "amazon_dsp",
-    "mcp_server": "fastio_helpers",
-    "path": "NWM_keel/Meridian/daily",
+    "mcp_server": "file_store",
+    "path": "northwind/contoso/daily",
     "partition": { "by": "date", "format": "YYYY-MM-DD", "since": "source_as_of" },
     "required_tools": ["list_partitions"]
   }
@@ -276,9 +271,9 @@ Arguments:
 
   A declared `partition` changes the prompt's retrieval instruction from "find
   the file" to "enumerate EVERY partition in range and aggregate them; never take
-  only the newest". That distinction is not cosmetic: against a real workspace an
-  exact-filename search for one daily report returns ~100 hits, one per day, and
-  the default newest-wins pick publishes a single day of a multi-week dataset.
+  only the newest". That distinction is not cosmetic: a partitioned source holds
+  many files matching the same name, one per day, and picking only the newest
+  publishes a single day of a multi-week dataset.
 
   Names only — the same credential screen as `instructions` applies, so a secret
   value can never arrive this way. The vocabulary matches the `workflow.sources`
@@ -311,7 +306,7 @@ workflows pin their baseline; recurring managed workflows read it at execution:
   `update_page_config` and a design change to a new template revision plus a
   reviewed per-page rerender. Deploying HTML into such a page is forbidden: it
   forks the page off its shared design, so the next fix silently stops reaching
-  it and nothing reports the drift.
+  it; the only signal is `drifted` in `list_template_pages`.
 - `mode: adaptive` — the prompt first classifies a mixed/unclear one-time request
   and then follows exactly one of the two safe paths.
 - `mode: migration_required` — the live dashboard lacks the managed-data blocks.
@@ -369,8 +364,8 @@ deployments can lower them with `PAGES_DATA_SCHEMA_MAX_BYTES`,
 
 | `detail` | Returns | Use |
 | --- | --- | --- |
-| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB for a typical payload; the coverage profile is capped at 3 KB and marked `coverage_truncated: true` when cut | the first read of every run; enough to pick a branch |
-| `export` | the same identity fields plus `schema_url`, `data_url` and `envelope_url` for the live version, valid for 10 minutes | fetch the schema and rows once into workspace files with a host-side URL download (Fleet's `download_url`), so they never enter the model's context |
+| `summary` | brief page flags, `live_version_id`, `data_sha256`/`schema_sha256`/`template_sha256`, envelope stamps, `freshness`, and `coverage_profile` (per-array `count`, date-field `min`/`max`/`distinct`, date-stamped scalars). About 1–2 KB for a typical payload; the coverage profile is capped at 3 KB and marked `coverage_truncated: true` when cut | the first read of every run; enough to stop early on a hard stop, but not proof that history is unchanged (compare complete records, or verify immutable source provenance, before choosing `source_not_updated`) |
+| `export` | the same identity fields plus `schema_url`, `data_url` and `envelope_url` for the live version, valid for 10 minutes | fetch the schema and rows once into workspace files with a host-side URL download (a downloader tool your host provides), so they never enter the model's context |
 | `full` (default) | the published schema/envelope, semantic hashes, full `data_profile`, URLs and truthful live-state fields, exactly as before `detail` existed | clients that cannot download URLs; one read per run |
 
 The exported schema and data files are the canonical JSON the hashes are
@@ -407,7 +402,7 @@ A data file staged with `start_page_upload kind='data'` and `append_page_upload`
 costs one model round trip per append, so the file goes up in as few appends as
 the returned `max_chunk_bytes` allows. At the 48 KiB default a ~1 MB payload
 takes 21 appends. A client that reads `workspace_file` references host-side
-(Fleet) never puts those bytes in model output, and a deployment serving only
+never puts those bytes in model output, and a deployment serving only
 such clients can raise `PAGE_UPLOAD_MAX_CHUNK_BYTES` to 1 MiB so that payload
 is one append (DEPLOYMENT.md §5). The ceiling changes transport only: the 1 MiB
 data and escaped-envelope limits above apply unchanged.
@@ -426,22 +421,23 @@ human; a disabled page cannot be published through the takedown.
 
 ### Reconciling what you actually wrote
 
-Step 3 above says "stop without writing if anything is missing" — but for a long
-time nothing helped a caller know it was in that state. The schema validates
-**shape**: a payload missing three weeks of days, or a whole deal, satisfies it
-exactly as well as a correct one. A Vandelay campaign dashboard served understated SSP
-totals and a DSP series that silently began nine days late, and both payloads
-were schema-perfect (issue #102).
+Step 3 above says "stop without writing if anything is missing", and the schema
+cannot tell you that you are in that state. The schema validates **shape**: a
+payload missing three weeks of days, or a whole deal, satisfies it exactly as
+well as a correct one, so totals can be understated and a series can start late
+while the payload stays schema-valid.
 
 So both `update_page_data` and `get_page_data` return **`data_profile`** — what
-the payload contains, at paths you can name:
+the payload contains, at paths you can name. The examples in this section share
+one synthetic fixture (every name, identifier, date and amount is invented): two
+deals over ten days, `example-deal-a` at 100 a day and `example-deal-b` at 50.
 
 ```json
-{ "arrays": { "rows": { "count": 101, "fields": {
-      "date":   { "kind": "date",   "min": "2026-07-06", "max": "2026-08-05", "distinct": 31 },
-      "dealId": { "kind": "key",    "distinct": 4, "values": { "allergy": 30, "1442375": 11 } },
-      "spend":  { "kind": "number", "sum": 25743.281, "min": 118.542, "max": 502.61 } } } },
-  "scalars": { "dataThrough": "2026-08-05" } }
+{ "arrays": { "rows": { "count": 20, "fields": {
+      "date":   { "kind": "date",   "min": "2026-01-01", "max": "2026-01-10", "distinct": 10 },
+      "dealId": { "kind": "key",    "distinct": 2, "values": { "example-deal-a": 10, "example-deal-b": 10 } },
+      "spend":  { "kind": "number", "sum": 1500, "min": 50, "max": 100 } } } },
+  "scalars": { "dataThrough": "2026-01-10" } }
 ```
 
 Field kinds come from the **values**, not the schema — a column the schema calls
@@ -485,31 +481,28 @@ it is replacing (already in hand, so this costs nothing):
 These are **warnings, not errors** — narrowing is sometimes correct, e.g. a new
 flight — so the write lands and the reason appears in `next_step` as well.
 
-`coverage_unverified` exists because comparison has a blind spot, and the Vandelay
-incident landed squarely in it. Reconstructed from its transcript, the DSP window
-was wrong in the **first** payload:
+`coverage_unverified` exists because comparison has a blind spot: the **first**
+payload. In the synthetic fixture, the request asks for January 1 onward, but the
+source export is a trailing window, so the first payload built from it covers
+only January 5–10:
 
 ```
-create_page_from_template  rows= 31  2026-07-30 → 2026-08-05
-create_page_from_template  rows= 31  2026-07-30 → 2026-08-05
-create_page_from_template  rows= 31  2026-07-30 → 2026-08-05
-update_page_data           rows= 21  2026-07-30 → 2026-08-05   ← shipped
+create_page_from_template  (no data: awaiting first ingest)
+update_page_data           rows= 12  2026-01-05 → 2026-01-10   ← wrong window
 ```
 
-Against a request for "7/6 and on". There was never a wider payload to regress
-from, so a diff finds nothing — the one write that put wrong numbers in front of a
-client is precisely the write a diff cannot see. So a first real payload over an
+There is no wider payload to regress from, so a diff finds nothing: the first
+write is precisely the write a diff cannot see. So a first real payload over an
 empty one is reported as unverified instead of silently accepted, and naming that
 array in `expect` withdraws the warning because `expect` enforces it outright.
 
 ### "It said it updated, but there's no new data"
 
-The other direction, and a separate incident. A dashboard refresh reported
-**"Version 205 published and live"** with **"Data Warnings: None"** and the same
-Aug 3 – Aug 5 coverage as the version before it. The reply came back: *"This just
-ran but didn't update yesterday Aug 6th data?"*
+The other direction. A refresh can publish a new version with no warnings and
+exactly the same coverage as the version before it, for example January 1–10
+again when the user expected January 11 to arrive.
 
-Nothing was broken. The managed-data dedupe key is `(data_sha256,
+Nothing is broken. The managed-data dedupe key is `(data_sha256,
 data_template_sha256, source_as_of, render_mode)`, so **a newer `source_as_of`
 over byte-identical data is deliberately not a dedupe** — that is how a
 re-verified source gets recorded. But `deduped:false`, `version_is_live:true` and
@@ -535,9 +528,8 @@ Three rules keep them honest:
   was still created" would be untrue there.
 
 When one of these fires, `next_step` says **"THIS REFRESH ADDED NO NEW DATA"** and
-tells the caller not to describe it as a data update — the mistake in that
-incident was not a wrong number, it was announcing a refresh that had not
-happened.
+tells the caller not to describe it as a data update. Report whether data or
+coverage actually changed, not only that a version was published.
 
 ### `expect`: make it a contract instead of a promise
 
@@ -545,11 +537,11 @@ Stronger, and preferred when the source is in hand. Compute the same numbers fro
 the source in the pass that builds the payload, and let the server enforce them:
 
 ```
-update_page_data  slug="vandelay-acct00142"  data={…}  source_as_of="2026-08-05"
+update_page_data  slug="example-campaign"  data={…}  source_as_of="2026-01-10"
                   expected_version=<live_version_id>
-                  expect={ "row_count":  {"rows": 101},
-                           "totals":     {"rows.spend": 24541.60},
-                           "date_range": {"rows.date": ["2026-07-06", "2026-08-05"]} }
+                  expect={ "row_count":  {"rows": 20},
+                           "totals":     {"rows.spend": 1500.00},
+                           "date_range": {"rows.date": ["2026-01-01", "2026-01-10"]} }
 ```
 
 Verified against the server's profile **before anything is written**: a mismatch
@@ -577,8 +569,8 @@ denied from REST and unrelated MCP tools, and is recorded by token ID on writes.
 All three `get_page_data` read sizes are available to it. An export URL it mints
 is re-authorized against the same grant on every fetch, so removing the grant
 or revoking the token also ends its outstanding URLs.
-The broad MCP token already used by Chat can prepare and execute user-directed
-updates without additional Pages server configuration.
+An existing broad authoring token can prepare and execute user-directed updates
+without additional Pages server configuration.
 
 Grants bind to the **page that holds the slug**, not the slug text alone: a
 grant for a not-yet-existing slug binds to the first live page that takes it,

@@ -1291,7 +1291,9 @@ test("Pages MCP registry exposes prompt preparation and durable large-content to
   // so a design change lands as an inspectable version, not on a client's screen.
   assert.match(TOOLS.rerender_page_from_template.description, /publish defaults to FALSE/i);
   assert.match(TOOLS.rerender_page_from_template.description, /One page per call/i);
-  assert.equal(Object.keys(TOOLS).length, 45);
+  assert.equal(Object.keys(TOOLS).length, 46);
+  assert.equal(TOOLS.get_guide.annotations.readOnlyHint, true);
+  assert.equal(TOOLS.get_guide.annotations.destructiveHint, false);
   assert.equal(TOOLS.prepare_dashboard_update.annotations.readOnlyHint, true);
   assert.equal(TOOLS.prepare_dashboard_update.annotations.destructiveHint, false);
   assert.equal(TOOLS.get_page_refresh.annotations.readOnlyHint, true);

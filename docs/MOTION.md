@@ -15,7 +15,7 @@ blocks. It is opt-in, so no existing page changes until its HTML includes it.
 
 | You want | Write | What the viewer gets |
 | --- | --- | --- |
-| A number that counts up | `<b data-fm-count="14780.5" data-fm-format="usd">` | Counts from 0 when scrolled into view, lands on `$14,780.50` exactly |
+| A number that counts up | `<b data-fm-count="1500" data-fm-format="usd">` | Counts from 0 when scrolled into view, lands on `$1,500.00` exactly |
 | Sections that ease in | `data-fm-reveal`, or `data-fm-stagger` on a parent | Fade-up on scroll; children staggered |
 | "How fresh is this?" | `<span data-fm-freshness></span>` | `● Updated 3 h ago · data through Oct 11, 2026`, from `#pages-data`'s `refreshed_at` / `source_as_of` |
 | "Where does this number come from?" | `data-fm-metric="spend"` on the number | Click or Enter opens what it is, the formula, the source file, the scope and the refresh cadence |
@@ -57,11 +57,11 @@ Every `data-fm-metric` number opens a card built from, in order:
          "definition": "What buyers spent on this campaign's deals, as the SSPs report it.",
          "formula": "Σ Spend ($) over in-scope deals",
          "source": "ssp",
-         "filter": "Deal names carrying ELC07361"
+         "filter": "Deals tagged EXAMPLE-CAMPAIGN"
        }
      },
      "sources": {
-       "ssp": { "label": "TWC SSP history", "location": "Fast.io · Storage/twc_ssp_historical_data.csv", "cadence": "Daily, 14:30 UTC" }
+       "ssp": { "label": "Example SSP report", "location": "Shared reports · ssp_history.csv", "cadence": "As configured by the source owner" }
      }
    }
    ```
@@ -71,16 +71,17 @@ Every `data-fm-metric` number opens a card built from, in order:
    no extra work.
 
 The card always ends with the page's freshness line. Write `location` for the
-audience: a staff-only page can name the file, while a client-shareable page
-should name the report, not the internal path.
+audience: an admin-only page can name the file, while a client-shareable page
+should name the report, not the internal path. State the source's real cadence
+and time zone; there is no default.
 
 ## Chart spec
 
 ```json
 { "type": "line", "title": "Daily spend", "format": "usd",
-  "labels": ["2026-10-01", "2026-10-02"],
-  "series": [{ "name": "Index Exchange", "values": [420, 510] }, { "name": "Magnite", "values": [220, null] }],
-  "target": 500, "targetLabel": "Goal", "source": "TWC SSP history" }
+  "labels": ["2026-01-01", "2026-01-02"],
+  "series": [{ "name": "SSP A", "values": [100, 110] }, { "name": "SSP B", "values": [50, null] }],
+  "target": 120, "targetLabel": "Goal", "source": "Example SSP report" }
 ```
 
 | Key | Types | Meaning |
@@ -102,19 +103,21 @@ the order given and never cycle. Text never wears a series colour. Override any
 
 ## Explainer spec (animation as code)
 
+All names, identifiers and figures in these examples are invented.
+
 ```json
-{ "title": "Merrell in 30 seconds", "brand": "Elcano × The Weather Company",
-  "source": "TWC SSP history", "filename": "merrell-recap", "aspect": "16:9",
+{ "title": "Example campaign in 30 seconds", "brand": "Northwind Media",
+  "source": "Example SSP report", "filename": "example-recap", "aspect": "16:9",
   "scenes": [
-    { "type": "title",   "kicker": "Campaign recap", "title": "Merrell — two weeks of fall", "subtitle": "Display across Index and Magnite" },
-    { "type": "kpis",    "title": "What it delivered", "items": [{ "label": "SSP spend", "value": 14780.5, "format": "usd0", "delta": 0.18 }] },
-    { "type": "bars",    "title": "Top deals", "format": "usd0", "items": [{ "label": "Index — Crisp Fall Air", "value": 3820 }] },
-    { "type": "line",    "title": "Daily spend", "format": "usd0", "labels": ["2026-10-01", "…"], "series": [{ "name": "Spend", "values": [640, "…"] }],
-                         "annotate": { "index": 6, "text": "Weather trigger: first cold front" } },
-    { "type": "donut",   "title": "Spend by SSP", "format": "usd0", "items": [{ "label": "Index Exchange", "value": 9200 }] },
-    { "type": "compare", "title": "Week over week", "format": "usd0", "a": { "label": "Last week", "value": 6200 }, "b": { "label": "This week", "value": 8580 } },
-    { "type": "bullets", "title": "What to do next", "items": ["Shift budget toward Crisp Fall Air"] },
-    { "type": "closing", "title": "Questions? Ask Victoria." }
+    { "type": "title",   "kicker": "Campaign recap", "title": "Example campaign — ten days", "subtitle": "Display across two example deals" },
+    { "type": "kpis",    "title": "What it delivered", "items": [{ "label": "SSP spend", "value": 1500, "format": "usd0", "delta": 0.1 }] },
+    { "type": "bars",    "title": "Top deals", "format": "usd0", "items": [{ "label": "example-deal-a", "value": 1000 }] },
+    { "type": "line",    "title": "Daily spend", "format": "usd0", "labels": ["2026-01-01", "…"], "series": [{ "name": "Spend", "values": [150, "…"] }],
+                         "annotate": { "index": 4, "text": "Example: promotion starts" } },
+    { "type": "donut",   "title": "Spend by SSP", "format": "usd0", "items": [{ "label": "SSP A", "value": 900 }] },
+    { "type": "compare", "title": "Week over week", "format": "usd0", "a": { "label": "Last week", "value": 600 }, "b": { "label": "This week", "value": 900 } },
+    { "type": "bullets", "title": "What to do next", "items": ["Shift budget toward example-deal-a"] },
+    { "type": "closing", "title": "Questions? Ask your account team." }
   ] }
 ```
 

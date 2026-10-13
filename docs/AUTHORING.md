@@ -1,14 +1,17 @@
 # Pages — what actually works inside a published page
 
 The contract for anyone (human or agent) writing the HTML Pages serves. Every
-rule here is enforced by a real response header, and every one of them has
-already broken a live client dashboard at least once.
+rule here is enforced by a real response header, and each describes a common way
+a page fails in the viewer's browser.
 
 `preflight_page` checks a page against this document automatically, and every
 `deploy_page` / `update_page` / `deploy_page_upload` result carries the same
-findings in its `preflight` field. **Read that field.** It is the only thing in
-the loop that can actually see whether your page works — the authoring sandbox
-has no browser, and the live page is not anonymously fetchable.
+findings in its `preflight` field. **Read that field.** It is a static check:
+it parses scripts and checks the page against these rules, but it does not run
+the page, so a clean result is not proof that it renders or binds its data
+correctly. Where your host offers a browser, look at the page as well; the live
+page is not anonymously fetchable, so preflight is often the only check you
+have.
 
 Subresource checks resolve relative, protocol-relative (`//host/path`) and
 absolute URLs against the configured content origin, then use the same
@@ -33,8 +36,8 @@ identifier resolves against those first. `togglePopover` is a real method on
 `HTMLElement` (the Popover API), so that button calls the *built-in*, throws
 `NotSupportedError`, and does nothing. Your function is never reached.
 
-This shipped to a live campaign dashboard and survived five deploy attempts and
-two user complaints, because nothing in the authoring loop could execute a page.
+This error survives static checks because it depends on how the browser
+resolves names at run time.
 
 **506 names are shadowed this way** — including `close`, `open`, `select`,
 `submit`, `reset`, `clear`, `search`, `focus`, `blur`, `title`, `value`, `name`,
@@ -98,7 +101,7 @@ Two of these fail in a way that is much worse than "doesn't work":
 
 ## Bento decks
 
-A Bento deck — the `.bento.html` that fleet's `bento-slides` skill produces — is
+A Bento deck — a self-contained `.bento.html` file — is
 one self-contained file that is its own viewer **and editor**: a 650KB runtime,
 deflate-compressed, that a bootstrap inflates and `import()`s from a `blob:` URL,
 around one JSON block of slides. Deploy the file as it is. Pages recognises the
@@ -126,10 +129,11 @@ that means:
   can't rewrite the open file" — and *Save as…* offers a copy, a duplicate, an
   encrypted copy. *Add image* and *Replace from JSON* open an ordinary file
   chooser. To change the deck people see,
-  save the edited file and make it the next version — from the page's *Edit
-  source* dialog (**Upload a file**), or by having an agent stage it with
-  `create_upload_ticket` and call `deploy_page_upload`. Either way it lands as a
-  draft for review, like every other version.
+  save the edited file and make it the next version. From the page's *Edit
+  source* dialog (**Upload a file**) it lands as a draft for review. An agent
+  stages it with `create_upload_ticket` and calls `deploy_page_upload`, which
+  publishes by default on an open page: pass `publish: false` for a draft to
+  review.
 - **Unsaved edits are gone on reload.** The sandbox has no storage, so Bento's
   in-browser backup is off; Bento warns before the tab closes.
 - **Export PDF works** (`window.print()`, `allow-modals`). **Speaker view does
@@ -140,8 +144,8 @@ that means:
   mints a `collab` block (room URL, private key) into any file saved from its UI.
   Inert here — both CSPs forbid connections — but preflight warns
   (`bento_deck_collab_keys`) when such a file is deployed, because it is key
-  material in a shareable document. Round-tripping it through fleet's
-  `bento_doc.py` (`get`, `set`) drops the block.
+  material in a shareable document. Remove the block with your authoring tool
+  before distributing the file.
 - **Size.** A deck is ~690KB before any content. The inline body cap and the
   upload-ticket cap are both 2MB, so a deck with embedded images needs the upload
   path and has to stay under it. Embedded video must be `data:` or `blob:`.
@@ -151,14 +155,14 @@ straight into the presentation with no editor — set it on a hand-out copy.
 
 ### Saving back to Pages: the edit session
 
-Everything above is what a *reader* of the deck gets. Staff get one more thing:
+Everything above is what a *reader* of the deck gets. Admins get one more thing:
 **Edit in Bento** on the page's detail screen opens the deck in an **edit
 session** — the newest version of the page (drafts included), served for a
 signed, eight-hour, page-bound token that names who opened it. In that session:
 
 - **Save saves to Pages.** Every one of Bento's save entry points (the button,
   ⌘S, *Save a copy…*) is intercepted and the serialised deck is posted to Pages,
-  where it lands as a new **draft** version attributed to the staff member. The
+  where it lands as a new **draft** version attributed to the admin. The
   deck says so in a small toast; you publish from the admin, as with any draft.
   If Pages cannot be reached or refuses the save, Pages starts a download from
   the exact bytes and filename captured at Save, even if Bento has already
@@ -188,7 +192,7 @@ same state machine underneath.
 
 The boot mechanism is pinned by `test/browser/bento-deck.spec.js` with a
 synthetic deck. `node test/manual/bento-deck-check.js Deck.bento.html` runs the
-same probes against a real one — run it when Bento is re-vendored in fleet.
+same probes against a real one — run it when the deck runtime is upgraded.
 
 ## Giving a partner a menu of their other dashboards
 
@@ -202,8 +206,8 @@ rules below apply only when you want to replace the built-in one:
 ```html
 <script type="application/json" id="pages-nav" data-flag-injected>
 {"portal":{"slug":"nwm","name":"Northwind Media Group"},
- "pages":[{"slug":"nwm-contoso","title":"Contoso — Allergex",
-           "url":"https://elcano-pages.com/nwm-contoso","current":true}],
+ "pages":[{"slug":"nwm-contoso","title":"Contoso — Example Campaign",
+           "url":"https://content.example.com/nwm-contoso","current":true}],
  "truncated":false}
 </script>
 ```
@@ -211,7 +215,7 @@ rules below apply only when you want to replace the built-in one:
 Five rules, four of which are the difference between a working menu and a broken
 dashboard:
 
-1. **Guard, then render nothing.** The block is absent on a staff view, on a
+1. **Guard, then render nothing.** The block is absent on an admin view, on a
    page-password view, and on any page in no portal. An unguarded
    `JSON.parse(document.getElementById("pages-nav").textContent)` is a `TypeError`
    that takes down *everything after it in that script* — the same failure mode as
@@ -345,8 +349,10 @@ single append.
 
 **Never shrink a working dashboard to fit the transport.** Dropping rows,
 columns or date granularity to save chunks trades away the thing the client
-asked for. If an upload is failing, cancel it and start a new one — the upload
-tools exist so the document does not have to change.
+asked for. If an append fails, re-send from the sequence it expects: a failed
+append is not accepted and loses nothing already stored, so the upload resumes.
+Cancel only an upload you no longer want to deploy — the upload tools exist so
+the document does not have to change.
 
 If you hit the active-upload cap, uploads that have been idle for an hour are
 reaped automatically on your next `start_page_upload`. Uploads still in flight
@@ -358,8 +364,8 @@ you have abandoned.
 Do not re-upload a whole dashboard to fix a CSS rule or rename a function.
 
 ```
-find_in_version  slug="contoso-allergex" query="ctl-group{"     → line + excerpt
-patch_page       slug="contoso-allergex"
+find_in_version  slug="contoso-example" query="ctl-group{"     → line + excerpt
+patch_page       slug="contoso-example"
                  edits=[{find:".ctl-group{display:flex;",
                          replace:".ctl-group{position:relative;display:flex;"}]
 ```
@@ -385,7 +391,10 @@ resources exist or that the browser will allow them. Each script retains the
 1. Check the `preflight` field on your deploy result. `ok: false` means part of
    the page does not work — fix it and redeploy before sharing the link.
 2. Share `urls.live` verbatim.
-3. A page with no password is Elcano-staff-only. To share with a client, call
+3. A page with no password and no partner portal opens only for people signed
+   in to this Pages deployment as admins. A portal grants its partner access on
+   its own, and an agent cannot list portals, so do not report a page as
+   admin-only from a missing password alone. To share with a client, call
    `set_password` first, then send the URL and the password.
 
 Preflight is advisory and never blocks a deploy: a false positive must not be

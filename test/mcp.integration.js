@@ -102,6 +102,7 @@ const EXPECTED_TOOLS = [
   "deploy_page",
   "deploy_page_upload",
   "find_in_version",
+  "get_guide",
   "get_page",
   "get_page_config",
   "get_page_data",
@@ -433,6 +434,29 @@ async function postEnvelope(body, opts = {}) {
     const themes = toolData(await callTool("list_themes", {}));
     assert.ok(themes.themes.some((theme) => theme.name === "flag"));
     console.log("✓ deploy/get/page_urls/list_themes share canonical state and URLs");
+
+    // get_guide is the one tool whose text is not the JSON of its result: hosts
+    // that pass only text to the model (Fleet) get the Markdown itself.
+    const guideIndex = await callTool("get_guide", {});
+    assert.equal(guideIndex.json.result.isError, undefined, guideIndex.body);
+    const indexText = guideIndex.json.result.content[0].text;
+    assert.match(indexText, /^# Pages agent guide/);
+    assert.deepEqual(
+      guideIndex.json.result.structuredContent.entries.map((e) => e.topic),
+      ["workflow", "authoring", "templates", "data_updates", "motion"]
+    );
+    const guideSection = await callTool("get_guide", { topic: "workflow", section: "changing-a-live-page" });
+    const sectionResult = guideSection.json.result;
+    assert.ok(sectionResult.content[0].text.startsWith(sectionResult.structuredContent.content));
+    assert.match(sectionResult.content[0].text, /Other sections in workflow: /);
+    assert.equal(
+      crypto.createHash("sha256").update(sectionResult.structuredContent.content).digest("hex"),
+      sectionResult.structuredContent.content_sha256
+    );
+    const missingSection = toolError(await callTool("get_guide", { topic: "workflow", section: "no-such-section" }));
+    assert.equal(missingSection.data.code, "guide_section_not_found");
+    assert.ok(missingSection.data.details.available.includes("changing-a-live-page"));
+    console.log("✓ get_guide serves the index and sections as readable text, and names valid sections on a miss");
 
     // Preflight, end to end. The bug this reproduces shipped to a live client
     // dashboard: onclick="togglePopover()" resolves to HTMLElement.togglePopover

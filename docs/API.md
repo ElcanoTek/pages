@@ -69,7 +69,9 @@ stable contract above.
 `outputSchema`, and standard read/destructive/idempotent/open-world annotations
 for every tool. Successful calls return the same schema-checked object both as
 `structuredContent` and serialized JSON in `content[0].text` for clients that do
-not yet consume structured results.
+not yet consume structured results. The one exception is `get_guide`: its text
+content is the guide's Markdown, for hosts that pass only text to the model, so
+a machine consumer reads its `structuredContent` instead.
 
 ### Tools
 
@@ -91,6 +93,7 @@ not yet consume structured results.
 | `rename_workspace` | `workspace_id, name` | rename a workspace without changing its member pages |
 | `set_page_workspace` | `slug, workspace_id` | move a page; pass `null` for Ungrouped; page content, URL, and serving state are unchanged |
 | `list_themes` | — | list curated themes a human admin may assign; agents cannot mutate themes |
+| `get_guide` | `topic?, section?` | read Pages' own agent guide: no arguments for the index, a `topic` (`workflow`, `authoring`, `templates`, `data_updates`, `motion`) for its sections, a `topic` and `section` for that section's text. Read-only; the text ships with the release, so it matches this server's tools. Its text content is the Markdown itself, for hosts that pass only text to the model; the structured result carries the same content, `content_sha256`, `product_version` and the `entries` that can be read next. Not offered to `data_update` tokens |
 | `create_upload_ticket` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | **preferred for files** — open a staged upload and return a one-shot `upload_url` + `ticket` your shell PUTs the file to directly, so the bytes never pass through model output. Supply exactly one target: `slug` deploys a page, `template` registers a design |
 | `start_page_upload` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
 | `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default, up to 1 MiB where the operator raised `PAGE_UPLOAD_MAX_CHUNK_BYTES`); use as few appends as `max_chunk_bytes` allows; an exact sequence replay is idempotent |
@@ -348,7 +351,7 @@ list_pages, get_page, get_page_data, get_page_refresh, record_refresh_check,
 prepare_dashboard_update, find_in_version, patch_page, preflight_page,
 get_version, list_versions, update_page_data_upload,
 list_workspaces, create_workspace, rename_workspace, set_page_workspace,
-list_themes, create_upload_ticket, start_page_upload, append_page_upload,
+list_themes, get_guide, create_upload_ticket, start_page_upload, append_page_upload,
 cancel_page_upload, list_templates, get_template, list_template_revisions,
 list_template_pages, rerender_page_from_template, register_template_upload,
 validate_template, template_urls, delete_template, create_template_from_page,
@@ -359,7 +362,7 @@ delete_page, page_urls
 ```
 <!-- pages:allowlist:end -->
 
-That is the complete **45-tool** catalog. A consumer list written for the
+That is the complete **46-tool** catalog. A consumer list written for the
 update-prompt transition still works — it carries the two compatibility names —
 but any list predating templates, `find_in_version`, `patch_page`,
 `preflight_page`, or `create_upload_ticket` does not carry those, and **a name a
@@ -588,8 +591,8 @@ payload nor the Page menu, preserving the deck's own toolbar. The payload is a
 ```html
 <script type="application/json" id="pages-nav" data-flag-injected>
 {"portal":{"slug":"nwm","name":"Northwind Media Group"},
- "pages":[{"slug":"nwm-contoso","title":"Contoso — Allergex",
-           "url":"https://elcano-pages.com/nwm-contoso","current":true}],
+ "pages":[{"slug":"nwm-contoso","title":"Contoso — Example Campaign",
+           "url":"https://content.example.com/nwm-contoso","current":true}],
  "truncated":false}
 </script>
 ```
@@ -664,8 +667,9 @@ payload nor the Page menu, preserving the deck's own toolbar. The payload is a
    an approval-gated page the version is forced to **pending**; hand the user the
    `urls.admin` URL for a human to approve. Always read `live`/`next_step`.
 5. **Make it client-accessible.** `set_password(slug, password)` — the client
-   opens `urls.live` and enters the password. Without a password a page is
-   Elcano-staff-only (outside visitors get a "staff-only" gate).
+   opens `urls.live` and enters the password. Without a password, and outside
+   any partner portal, a page is admin-only (outside visitors get an admin-only
+   gate).
 6. **Update later.** `update_page(slug, html)` is just another version — old versions
    stay for rollback. "Update the northwind dashboard" → a new version, not a
    regenerate-from-scratch. For a *targeted* change — a CSS rule, a handler name,

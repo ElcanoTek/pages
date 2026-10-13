@@ -68,12 +68,18 @@ time, before the content hash, so a template can never present a second answer t
 "which dashboards can this viewer open".
 
 A template that wants a `Page ▾` menu **reads** the block, defensively — it is
-absent on a staff view, a page-password view, and any page in no portal, and an
+absent on an admin view, a page-password view, and any page in no portal, and an
 unguarded `JSON.parse` of a missing block takes the rest of the script down with
 it. The full contract, including why the payload's `url` must be used as given and
 why titles need `textContent`, is in
 [AUTHORING.md](AUTHORING.md#giving-a-partner-a-menu-of-their-other-dashboards);
 `templates/nwm-campaign-dashboard/template.html` is a working implementation.
+
+### Example: the shipped campaign-dashboard template
+
+The metric, attribution, date and comparison conventions below belong to that one
+shipped design (`templates/nwm-campaign-dashboard/`). They are not Pages-wide
+rules: another design defines its own in its schema and documentation.
 
 The campaign dashboard uses the same KPI ratios for cards, tables, chart
 tooltips, comparisons and CSV values:
@@ -146,9 +152,11 @@ Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
 
+### Navigation in pages built from a template
+
 Pages built from a template receive the navigation block in either `raw` or
 `themed` mode when a portal authorises the view; keep the page's existing mode.
-Guard the block lookup and render no menu when it is absent, including staff and
+Guard the block lookup and render no menu when it is absent, including admin and
 page-password views. Bento decks deliberately receive neither the block nor the
 menu, even in a portal.
 
@@ -247,9 +255,10 @@ file becomes revision N+1 while every deployed page stays pinned to the revision
 it was built from. A template that fails validation is reported and skipped; it
 does not fail a deploy that has already proven the service healthy.
 
-Pages is an Elcano product, so a design carrying a client's identity belongs in
-this repo. That is the opposite of fleet, which ships no client content by
-construction.
+Every install registers every template in this directory, so a design here
+must not carry any client's identity: it would appear in every deployment's
+library. A design that belongs to one client is registered on that client's
+deployment (below), or promoted from one of its pages.
 
 ### 2. Registered by an agent — MCP
 
@@ -289,8 +298,8 @@ with the page count in the confirmation.
 
 ```
 get_template               template="nwm-campaign-dashboard"      → schemas + reference config, NO html
-create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-allergex-acct00156"
-                           config={ … } title="Contoso — Allergex"
+create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-example"
+                           config={ … } title="Contoso — Example Campaign"
 ```
 
 - **`config` must be complete.** It is validated against the config schema and is
@@ -332,8 +341,9 @@ from `get_page_config`, and carries source coverage across unchanged — renamin
 campaign or retargeting a KPI cannot disturb, restate, or roll back its numbers.
 
 Do **not** deploy or patch HTML into a template-built page. It would fork the
-page off its design: the next revision silently stops reaching it and nothing
-reports the drift. `prepare_dashboard_update` returns `mode: managed_template`
+page off its design: the next revision silently stops reaching it, and the only
+signal is `drifted` in `list_template_pages` (`drifted_count` in
+`list_templates`). `prepare_dashboard_update` returns `mode: managed_template`
 for these pages and routes each kind of request to the tool that owns it.
 
 ## Propagating a design fix
