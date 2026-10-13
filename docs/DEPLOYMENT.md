@@ -144,6 +144,49 @@ printf '%s' "$AUTH_SIGNING_PUBKEY" | base64 -d | wc -c   # must print 32
 Anyone whose cookie email ends in `@$ADMIN_EMAIL_DOMAIN` is automatically an
 admin.
 
+### Or: sign in through a password-mode Auth (`PAGES_AUTH_MODE=central`)
+
+A deployment whose Auth runs in password mode issues no shared cookie, so the
+default mode above cannot see anyone. Central mode makes Pages an application
+of that Auth instead (the contract is Auth's `docs/INTEGRATION.md`, "Password
+mode: the application contract"): Pages redirects to Auth's `/authorize`,
+exchanges the code at `/token`, keeps its own access list, and mints a
+host-only `__Host-pages_session` cookie (24 h absolute, 12 h idle). Everyone
+on the access list is an admin; Pages has one human role.
+`AUTH_SIGNING_PUBKEY` is still required: it verifies Auth's back-channel
+tokens, and the key is the same one `auth pubkey` prints.
+
+1. On the Auth host, register Pages (the secret is shown once) and its
+   back-channel endpoint, **before** granting anyone, so the grant events
+   reach Pages:
+
+   ```bash
+   auth app create pages https://<DASHBOARD_HOST>/auth/callback https://<DASHBOARD_HOST>/signed-out
+   auth app set-backchannel pages https://<DASHBOARD_HOST>/auth/backchannel-logout
+   ```
+
+2. Add to `/etc/default/pages` and `pages restart`:
+
+   ```bash
+   PAGES_AUTH_MODE="central"
+   AUTH_ISSUER_URL="https://<auth host>"
+   AUTH_CLIENT_ID="pages"
+   AUTH_CLIENT_SECRET="<from auth app create>"
+   ```
+
+   Central mode validates all of this at start and refuses to boot on a
+   mistake (`pages logs` names the setting). `AUTH_COOKIE_NAME`,
+   `AUTH_LOGIN_URL` and `ADMIN_EMAIL_DOMAIN` are ignored in this mode.
+
+3. Grant people Pages in the Auth console. Auth pushes each grant and revoke
+   to Pages as a signed event; a revoke ends that person's Pages sessions.
+   `pages access grant|revoke|list <email>` edits the same list directly for
+   bootstrap and break-glass.
+
+Sign out from Pages ends the Pages session and hands the browser to Auth's
+`/logout`, which signs the person out of every application. Auth's own
+sign-out reaches Pages through the back-channel endpoint.
+
 ---
 
 ## 3. PostgreSQL provisioning
@@ -330,6 +373,13 @@ in — these two values are the whole configuration of the split.
 | `AUTH_LOGIN_URL` | `https://auth.elcanotek.com` | Where auth failures redirect |
 | `ADMIN_EMAIL_DOMAIN` | `elcanotek.com` | Cookie emails in this domain are automatically admins |
 | `ADMIN_CSRF_SECRET` | falls back to `PAGE_COOKIE_SECRET`, then `RAW_TOKEN_SECRET` | HMAC key for admin CSRF tokens. Usually leave unset |
+| `PAGES_AUTH_MODE` | `elcano` | `central` signs in through a password-mode Auth (§2). Any other value refuses to start |
+| `AUTH_ISSUER_URL` | — | Central mode: the Auth origin (`https://auth.example.com`, no path) |
+| `AUTH_CLIENT_ID` | `pages` | Central mode: the client ID registered with `auth app create` |
+| `AUTH_CLIENT_SECRET` | — | Central mode: that client's secret, 32–256 bytes |
+| `AUTH_SIGNING_PREVIOUS_PUBKEYS` | unset | Central mode: comma-separated older Auth keys. Auth's `/jwks.json` is also read at runtime, so a rotation normally needs no edit here |
+| `PAGES_PUBLIC_URL` | `https://$DASHBOARD_HOST` | Central mode: the origin in the registered callback URL |
+| `PAGES_AUTH_COOKIE_SECURE` / `AUTH_ALLOW_INSECURE_HTTP` | `1` / `0` | Central mode, **local development only**: plain-HTTP Auth and a non-`Secure` cookie |
 
 ### MCP transport boundary
 

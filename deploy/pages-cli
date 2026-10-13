@@ -90,6 +90,20 @@ case "$cmd" in
       exec node scripts/token.js "$@"
     ' _ "$ENV_FILE" "$APP_DIR" "$@"
     ;;
+  access)
+    # Central-mode access list (PAGES_AUTH_MODE=central): who may use the admin
+    # UI. Auth maintains it through signed access events; this is bootstrap
+    # and break-glass. Same wiring as `token`: the service user, the SERVICE's
+    # env file, so it reaches the same database the server does.
+    [[ -f "$ENV_FILE" ]] || { echo "$ENV_FILE missing — run bootstrap.sh first" >&2; exit 1; }
+    [[ -f "$APP_DIR/scripts/access.js" ]] || { echo "no app install at $APP_DIR — run bootstrap.sh first" >&2; exit 1; }
+    exec sudo runuser -u "$APP_USER" -- bash -c '
+      env_file="$1"; app_dir="$2"; shift 2
+      set -a; . "$env_file"; set +a
+      cd "$app_dir"
+      exec node scripts/access.js "$@"
+    ' _ "$ENV_FILE" "$APP_DIR" "$@"
+    ;;
   template)
     # Page templates from FILES (docs/TEMPLATES.md): one stored design, many
     # pages. Same wiring as `token` — the installed app's scripts/template.js,
@@ -163,6 +177,8 @@ pages — Elcano Pages operator CLI
                                       mint a token; data_update requires exact slugs
   pages token list                     list tokens (prefix, label, state)
   pages token revoke <id>              revoke a token (server 401s it)
+  pages access grant|revoke <email>    central sign-in only: who may use the admin UI
+  pages access list                    (Auth keeps it current; revoke ends sessions)
   pages template list                  registered templates + how many pages use each
   pages template show <name> [--revision N]
   pages template register <file> [--name X] [--title T] [--description D]

@@ -162,6 +162,7 @@ you cannot ignore.
 | `DATABASE_URL` | yes | libpq `PG*` fallback | PostgreSQL connection string |
 | `AUTH_SIGNING_PUBKEY` | yes | — | Ed25519 **public** key (base64, 32 bytes) verifying the SSO cookie |
 | `AUTH_LOGIN_URL` | no | `https://auth.elcanotek.com` | Where auth failures redirect |
+| `PAGES_AUTH_MODE` | no | `elcano` | `central` signs admins in through a password-mode Auth instead of the shared cookie ([DEPLOYMENT.md §2](docs/DEPLOYMENT.md)) |
 | `ADMIN_EMAIL_DOMAIN` | no | `elcanotek.com` | Cookie emails in this domain become admins |
 | `PAGE_COOKIE_SECRET` | yes | — | HMAC key for client-password sessions. Throws at startup if empty in production |
 | `RAW_TOKEN_SECRET` | yes | — | HMAC key for signed `/raw` render tokens. Throws at startup if empty in production |
@@ -392,9 +393,11 @@ pages doctor            # box-level diagnostics (read-only with --check)
 ```
 
 Two things to know before you start: you need **two registrable domains**
-(above), and `AUTH_SIGNING_PUBKEY` is **mandatory** — Pages verifies an
-externally signed SSO cookie and does not implement login, so without a
-compatible signing service the admin UI is unreachable.
+(above), and `AUTH_SIGNING_PUBKEY` is **mandatory** — by default Pages verifies
+an externally signed SSO cookie and does not implement login, so without a
+compatible signing service the admin UI is unreachable. Against a
+password-mode Auth deployment, set `PAGES_AUTH_MODE=central` and Pages signs
+people in through Auth's application handoff instead.
 
 **Read [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) first.** It documents the DNS
 requirement, the complete environment reference, TLS, service management,
