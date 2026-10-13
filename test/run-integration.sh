@@ -188,6 +188,9 @@ node "$ROOT/test/admin.integration.js"
 echo "▸ view integration"
 node "$ROOT/test/view.integration.js"
 
+echo "▸ central auth integration"
+node "$ROOT/test/central-auth.integration.js"
+
 echo "▸ template CLI integration"
 node "$ROOT/test/template-cli.integration.js"
 

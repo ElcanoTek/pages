@@ -405,6 +405,12 @@ dashboardApp.use("/upload", limits.api, uploadTicket.router);
 // See lib/data-export.js for the credential's bounds.
 dashboardApp.use("/export", limits.api, dataExport.router);
 
+// Central sign-in (PAGES_AUTH_MODE=central): /auth/login, /auth/callback, the
+// back-channel receiver, /logout and /signed-out. Mounted before the broad
+// body parsers because the receiver owns a smaller one. Absent in elcano
+// mode, where the shared cookie's auth service owns login and logout.
+if (auth.central) dashboardApp.use(require("./lib/central-auth-routes"));
+
 dashboardApp.use(express.urlencoded({ extended: false, limit: "64kb" }));
 // JSON body cap = the per-version HTML ceiling (PLAN §7: HTML ≤ ~1–2 MB).
 dashboardApp.use(express.json({ limit: MAX_REQUEST_BYTES }));
@@ -429,7 +435,7 @@ dashboardApp.use(
 // locally scripts/dev.sh mints a dev one and exposes it here so /admin works in
 // a browser without auth.elcanotek.com. Mounted ONLY when PAGES_DEV_LOGIN=1 and
 // a cookie is provided — never enable in production.
-if (process.env.PAGES_DEV_LOGIN === "1" && process.env.DEV_ADMIN_COOKIE) {
+if (process.env.PAGES_DEV_LOGIN === "1" && process.env.DEV_ADMIN_COOKIE && !auth.central) {
   const cookieName = process.env.AUTH_COOKIE_NAME || "elcano_auth";
   console.warn("⚠ DEV LOGIN ENABLED: GET /__dev/login sets a local admin cookie. Do NOT set PAGES_DEV_LOGIN=1 in production.");
 
@@ -465,7 +471,7 @@ if (process.env.PAGES_DEV_LOGIN === "1" && process.env.DEV_ADMIN_COOKIE) {
 
 // Who am I — proves the SSO cookie path works end to end.
 dashboardApp.get("/api/me", auth.requireAuth, (req, res) => {
-  res.json({ email: req.user.email, tenant: req.user.tenant, admin: auth.isElcanoAdmin(req.user) });
+  res.json({ email: req.user.email, tenant: req.user.tenant, admin: auth.isAdmin(req.user) });
 });
 
 // Client view broker (PLAN §6b). For Elcano-only pages (no password), the
@@ -557,7 +563,8 @@ dashboardApp.use("/api/v1", apiRouter);
 
 // Logout is owned by the auth service (it clears the shared cookie). 303 so
 // the browser re-issues as GET. Mirrors home.
-dashboardApp.all("/logout", (_req, res) => res.redirect(303, `${auth.AUTH_LOGIN_URL}/logout`));
+// In central mode lib/central-auth-routes.js owns /logout (mounted above).
+if (!auth.central) dashboardApp.all("/logout", (_req, res) => res.redirect(303, `${auth.AUTH_LOGIN_URL}/logout`));
 
 // Root is not a public surface: there's nothing to show an anonymous visitor,
 // and the old plain-text blurb advertised the /admin and /view paths. Bounce to

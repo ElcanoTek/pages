@@ -7,6 +7,17 @@
   and renders untrusted agent HTML under a strict `sandbox` CSP. Confidential
   ("Elcano-only") pages are unreachable on the content host without either a
   per-page password or a short broker token minted after **Elcano-staff** SSO.
+- **Central sign-in mode keeps the same boundary.** With
+  `PAGES_AUTH_MODE=central` (a password-mode Auth deployment) the dashboard
+  host runs Auth's application handoff itself: S256 PKCE, state and nonce,
+  `client_secret_basic`, claims checked for issuer, audience, expiry and nonce,
+  and a host-only `__Host-pages_session` cookie stored only as its SHA-256.
+  "Admin" means "on this deployment's access list", which only Auth's signed
+  access events or the operator CLI change; revoking access ends that email's
+  sessions in the same transaction, and Auth's back-channel logout (EdDSA,
+  exact `iss`/`aud`, live `exp`, no `nonce`, idempotent by `jti`) ends every
+  session of the subject. The content host still never sees any of it:
+  `/auth/*` is mounted on the dashboard app only.
 - **The `/view` broker is staff-only, and a render token is not a page
   credential.** These are two of the three ways to reach a live page without its
   own client password — a partner portal session is the third, below — so both
