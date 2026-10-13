@@ -3012,10 +3012,9 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     assert.equal(checkAudit.rows[0].metadata.outcome, "source_not_updated");
     console.log("✓ a no-op refresh is recordable without a version, and shows up in both reads");
 
-    // 22c. Managed data gets the staged path HTML has had since #14. The
-    // payload that motivated it was 978 KB and growing 50 KB in five days, and
-    // the run that built it burned six tool searches hunting for a file-backed
-    // variant, found none, and aborted with the page unchanged (fleet 3d767956).
+    // 22c. Managed data gets the staged path HTML has had since #14, so a large
+    // payload that grows over time never leaves a caller hunting for a
+    // file-backed variant or aborting with the page unchanged.
     const stagedPayload = { count: 41, label: "staged" };
     const stagedBytes = Buffer.from(JSON.stringify(stagedPayload), "utf8");
     const beforeStaged = toolData(await callTool("get_page_data", { slug: "mcpdata" }));

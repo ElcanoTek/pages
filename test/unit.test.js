@@ -5156,15 +5156,12 @@ test("update prompts: a one-time update keeps the old leniency", async () => {
   );
 });
 
-// ── managed-data inline size contract (NWM refresh, fleet task 3d767956) ─────
+// ── managed-data inline size contract ───────────────────────────────────────
 //
-// A daily refresh built a complete, schema-valid 978 KB payload — 846 new rows,
-// nothing dropped, schema hash matched — then declined to send it because
-// update_page_data documented no size limit and offers no file-backed variant.
-// It burned six tool searches looking for update_page_data_from_file, flagged
-// `file_backed_update_tool_unavailable`, and aborted with the page unchanged.
-// The payload would have been accepted: 927 KB was already published on that
-// same page and the body limit is 2 MB. An unstated limit makes a caller guess.
+// A complete payload below the supported limit must be accepted. When the
+// limit is unstated and no staged transport exists, a caller that is unsure
+// about inline delivery can abort a correct refresh with the page unchanged.
+// So the limit is documented and a by-reference path exists.
 
 test("mcp-tools: update_page_data states the supported payload size in its schema", () => {
   const { TOOLS } = require("../lib/mcp-tools");
@@ -5233,9 +5230,9 @@ test("mcp-tools: an oversized payload is refused with an actionable code", () =>
   assert.ok(err.details && err.details.bytes > err.details.max_bytes);
 });
 
-test("mcp-tools: a realistic 978 KB payload is accepted, not refused", () => {
+test("mcp-tools: a payload just under 1 MB is accepted, not refused", () => {
   const { assertInlineData } = require("../lib/mcp-tools");
-  // Same order of magnitude as the payload the NWM run declined to send.
+  // A synthetic payload just under the 1 MB data limit.
   const rows = Array.from({ length: 12600 }, (_, i) => ({
     date: "2026-08-16",
     deal: `deal-${i}`,
@@ -5243,8 +5240,8 @@ test("mcp-tools: a realistic 978 KB payload is accepted, not refused", () => {
     impressions: 98765,
   }));
   const bytes = Buffer.byteLength(JSON.stringify({ rows }), "utf8");
-  assert.ok(bytes > 950000 && bytes < 1000000, `fixture should be ~978 KB, got ${bytes}`);
-  assert.doesNotThrow(() => assertInlineData({ rows }), "the size that broke production must pass");
+  assert.ok(bytes > 950000 && bytes < 1000000, `fixture should be just under 1 MB, got ${bytes}`);
+  assert.doesNotThrow(() => assertInlineData({ rows }), "a payload just under the limit must pass");
 });
 
 test("content host: nothing a client can reach calls this an internal tool", () => {
