@@ -356,10 +356,10 @@ test("a request that is only scheduling prose is kept rather than emptied", () =
   );
 });
 
-// Before these rules a quarter of production refresh runs stopped at the first
-// gap — a vendor report no longer generated, a fee column one exchange never
-// fills, two deals CONFIG did not list yet, a DSP feed a day behind — while the
-// sources held real new data, and each was recorded as a successful task.
+// An unattended refresh should distinguish reportable source gaps (a report no
+// longer generated, a column a source never fills, an identifier CONFIG does not
+// list yet, one feed a day behind) from hard blockers, publish what the sources
+// verifiably report, and report its outcome accurately.
 test("a recurring prompt blocks only on hard stops and publishes around other gaps", () => {
   const sources = updatePrompts.normalizeSources(SOURCES);
   const common = { slug: SLUG, instructions: "Refresh from the Northwind export.", schemaSha256: "a".repeat(64), sources, publish: true };
