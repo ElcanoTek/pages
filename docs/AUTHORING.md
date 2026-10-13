@@ -1,8 +1,8 @@
 # Pages — what actually works inside a published page
 
 The contract for anyone (human or agent) writing the HTML Pages serves. Every
-rule here is enforced by a real response header, and every one of them has
-already broken a live client dashboard at least once.
+rule here is enforced by a real response header, and each describes a common way
+a page fails in the viewer's browser.
 
 `preflight_page` checks a page against this document automatically, and every
 `deploy_page` / `update_page` / `deploy_page_upload` result carries the same
@@ -36,8 +36,8 @@ identifier resolves against those first. `togglePopover` is a real method on
 `HTMLElement` (the Popover API), so that button calls the *built-in*, throws
 `NotSupportedError`, and does nothing. Your function is never reached.
 
-This shipped to a live campaign dashboard and survived five deploy attempts and
-two user complaints, because nothing in the authoring loop could execute a page.
+This error survives static checks because it depends on how the browser
+resolves names at run time.
 
 **506 names are shadowed this way** — including `close`, `open`, `select`,
 `submit`, `reset`, `clear`, `search`, `focus`, `blur`, `title`, `value`, `name`,
@@ -101,7 +101,7 @@ Two of these fail in a way that is much worse than "doesn't work":
 
 ## Bento decks
 
-A Bento deck — the `.bento.html` that fleet's `bento-slides` skill produces — is
+A Bento deck — a self-contained `.bento.html` file — is
 one self-contained file that is its own viewer **and editor**: a 650KB runtime,
 deflate-compressed, that a bootstrap inflates and `import()`s from a `blob:` URL,
 around one JSON block of slides. Deploy the file as it is. Pages recognises the
@@ -144,8 +144,8 @@ that means:
   mints a `collab` block (room URL, private key) into any file saved from its UI.
   Inert here — both CSPs forbid connections — but preflight warns
   (`bento_deck_collab_keys`) when such a file is deployed, because it is key
-  material in a shareable document. Round-tripping it through fleet's
-  `bento_doc.py` (`get`, `set`) drops the block.
+  material in a shareable document. Remove the block with your authoring tool
+  before distributing the file.
 - **Size.** A deck is ~690KB before any content. The inline body cap and the
   upload-ticket cap are both 2MB, so a deck with embedded images needs the upload
   path and has to stay under it. Embedded video must be `data:` or `blob:`.
@@ -155,14 +155,14 @@ straight into the presentation with no editor — set it on a hand-out copy.
 
 ### Saving back to Pages: the edit session
 
-Everything above is what a *reader* of the deck gets. Staff get one more thing:
+Everything above is what a *reader* of the deck gets. Admins get one more thing:
 **Edit in Bento** on the page's detail screen opens the deck in an **edit
 session** — the newest version of the page (drafts included), served for a
 signed, eight-hour, page-bound token that names who opened it. In that session:
 
 - **Save saves to Pages.** Every one of Bento's save entry points (the button,
   ⌘S, *Save a copy…*) is intercepted and the serialised deck is posted to Pages,
-  where it lands as a new **draft** version attributed to the staff member. The
+  where it lands as a new **draft** version attributed to the admin. The
   deck says so in a small toast; you publish from the admin, as with any draft.
   If Pages cannot be reached or refuses the save, Pages starts a download from
   the exact bytes and filename captured at Save, even if Bento has already
@@ -192,7 +192,7 @@ same state machine underneath.
 
 The boot mechanism is pinned by `test/browser/bento-deck.spec.js` with a
 synthetic deck. `node test/manual/bento-deck-check.js Deck.bento.html` runs the
-same probes against a real one — run it when Bento is re-vendored in fleet.
+same probes against a real one — run it when the deck runtime is upgraded.
 
 ## Giving a partner a menu of their other dashboards
 
@@ -215,7 +215,7 @@ rules below apply only when you want to replace the built-in one:
 Five rules, four of which are the difference between a working menu and a broken
 dashboard:
 
-1. **Guard, then render nothing.** The block is absent on a staff view, on a
+1. **Guard, then render nothing.** The block is absent on an admin view, on a
    page-password view, and on any page in no portal. An unguarded
    `JSON.parse(document.getElementById("pages-nav").textContent)` is a `TypeError`
    that takes down *everything after it in that script* — the same failure mode as

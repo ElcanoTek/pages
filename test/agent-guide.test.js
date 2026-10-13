@@ -86,41 +86,180 @@ test("agent-guide: results satisfy the tool's output schema and render as readab
   assert.match(TOOLS.get_guide.renderText(section), /Other sections in workflow: who-owns-what, /);
 });
 
-// Each deployment serves this text to its own agents, so it must not carry any
-// real customer, partner, mailbox, storage location or production endpoint.
-// The product name and its Flag theme are fine; a client's identity is not.
-const FORBIDDEN = [
-  /\btwc\b/i,
-  /weather company/i,
-  /merrell/i,
-  /raptive/i,
-  /reklaim/i,
-  /omnicom/i,
-  /omcvic/i,
-  /rainbarrel/i,
-  /diageo/i,
-  /\bkeel\b/i,
-  /sun bum/i,
-  /sc ?johnson/i,
-  /energizer/i,
-  /\bELC\d{3,}/i,
-  /fast[._ ]?io/i,
-  /victoria/i,
-  /elcanotek\.com/i,
-  /elcano-pages\.com/i,
-  /elcano[- ]staff/i,
-  /elcano share/i,
-  /allergex/i,
-];
+// Each deployment serves this text to its own agents, so it must be generic:
+// no real organisation's data, endpoints or identifiers, and no internal
+// product names presented as if every deployment had them. This repository is
+// public, so the checks below are deliberately generic heuristics, not proof.
+// The names of real customers belong in a private list, read when
+// PAGES_PRIVATE_DENYLIST points at it (one term or /regex/flags per line); the
+// list itself must never be committed here, and failures name only the entry
+// number so a CI log cannot republish it.
 
-test("agent-guide: every served document is tenant-neutral", () => {
-  for (const topic of guide.TOPIC_NAMES) {
-    const text = docText(topic);
-    for (const re of FORBIDDEN) {
-      const hit = text.match(re);
-      assert.equal(hit, null, `${guide.TOPICS[topic]} contains ${hit && hit[0]} (${re})`);
+// URLs in served text point at documentation domains or public standards.
+const ALLOWED_URL_HOSTS = [/(^|\.)example\.com$/i, /^json-schema\.org$/i];
+// Long numeric identifiers are deliberate placeholders, never real records.
+const SYNTHETIC_IDS = new Set(["9000001"]);
+// ElcanoTek's own domains and internal tools are not part of every deployment.
+const INTERNAL_NAMES = [/elcanotek\.com/i, /elcano-pages\.com/i, /\bCutlass\b/, /\bMOC\b/, /\bFleet\b/, /\bVictoria\b/];
+const SECRET_PARAMS = new Set([
+  "token", "access_token", "refresh_token", "id_token", "key", "api_key", "apikey",
+  "secret", "client_secret", "password", "sig", "signature", "auth",
+]);
+
+// urlFindings — every URL (any scheme case, or protocol-relative //host.tld)
+// that is not a documentation host, or that carries credentials or a
+// secret-shaped query parameter. Returns problem descriptions.
+function urlFindings(text) {
+  const problems = [];
+  const urls = [
+    ...[...text.matchAll(/\bhttps?:\/\/[^\s`"')<>\]]+/gi)].map((m) => m[0]),
+    ...[
+      ...text.matchAll(
+        /(?<![\w:/])\/\/(?:(?:[a-z0-9-]+\.)+[a-z]{2,}|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:.]+\])(?:[/:?#][^\s`"')<>\]]*)?/gi
+      ),
+    ].map((m) => `https:${m[0]}`),
+  ];
+  for (const raw of urls) {
+    let url;
+    try {
+      url = new URL(raw);
+    } catch {
+      problems.push(`unparseable URL ${raw}`);
+      continue;
+    }
+    if (!ALLOWED_URL_HOSTS.some((re) => re.test(url.hostname))) problems.push(`non-documentation host ${raw}`);
+    if (url.username || url.password) problems.push(`credentials in URL ${raw}`);
+    if ([...url.searchParams.keys()].some((name) => SECRET_PARAMS.has(name.toLowerCase().replace(/-/g, "_")))) {
+      problems.push(`secret-shaped query in ${raw}`);
     }
   }
+  for (const [email] of text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) {
+    if (!/@example\.com$/i.test(email)) problems.push(`non-example email ${email}`);
+  }
+  return problems;
+}
+
+// idFindings — record-shaped identifiers: long numbers that are not listed
+// placeholders, account or campaign codes, and storage locations.
+function idFindings(text) {
+  const problems = [];
+  for (const [id] of text.matchAll(/(?<![\w.])\d{6,}(?![\w.])/g)) {
+    if (!SYNTHETIC_IDS.has(id)) problems.push(`record-shaped id ${id}`);
+  }
+  const code = text.match(/\b(?:acct|elc)[-_ ]?\d{3,}\b/i);
+  if (code) problems.push(`account or campaign code ${code[0]}`);
+  if (/s3:\/\/|\bStorage\//.test(text)) problems.push("storage location");
+  return problems;
+}
+
+// compilePrivateTerms — one matcher per entry. A literal matches anywhere,
+// case-insensitively, when not glued to another letter or digit (so Markdown
+// emphasis like _Name_ still matches). A /regex/ entry may use only the i, m,
+// s and u flags. A bad entry fails with its number only: the native error
+// would quote the private text.
+function compilePrivateTerms(lines) {
+  return lines
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((line, index) => {
+      // A leading slash always means a regex, so a typo cannot silently
+      // become a literal that matches nothing.
+      const m = line.match(/^\/(.+)\/([A-Za-z]*)$/);
+      try {
+        if (line.startsWith("/") && !m) throw new Error("malformed regex entry");
+        if (m) {
+          if (/[^imsu]/.test(m[2])) throw new Error("unsupported flag");
+          return new RegExp(m[1], m[2].includes("i") ? m[2] : `${m[2]}i`);
+        }
+        const escaped = line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "i");
+      } catch {
+        throw new Error(`private denylist entry #${index + 1} is not a valid term or /regex/flags`);
+      }
+    });
+}
+
+function readPrivateTerms() {
+  const file = process.env.PAGES_PRIVATE_DENYLIST;
+  if (!file) return null;
+  let text;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    throw new Error("PAGES_PRIVATE_DENYLIST is set but the file cannot be read");
+  }
+  return compilePrivateTerms(text.split("\n"));
+}
+
+function privateFindings(text, terms) {
+  return terms.flatMap((re, i) => (re.test(text) ? [`private denylist entry #${i + 1}`] : []));
+}
+
+function servedDocs() {
+  return guide.TOPIC_NAMES.map((topic) => ({ file: guide.TOPICS[topic], text: docText(topic) }));
+}
+
+test("agent-guide: served URLs point only at documentation domains", () => {
+  for (const { file, text } of servedDocs()) assert.deepEqual(urlFindings(text), [], file);
+});
+
+test("agent-guide: served examples carry no record-shaped identifiers", () => {
+  for (const { file, text } of servedDocs()) assert.deepEqual(idFindings(text), [], file);
+});
+
+test("agent-guide: served text names no internal domain or tool", () => {
+  for (const { file, text } of servedDocs()) {
+    for (const re of INTERNAL_NAMES) {
+      const hit = text.match(re);
+      assert.equal(hit, null, `${file} contains ${hit && hit[0]}`);
+    }
+  }
+});
+
+test("agent-guide: the checks fire on invented leaks and their usual disguises", () => {
+  // Every fixture is invented; none names a real organisation.
+  for (const leak of [
+    "see https://dashboards.invented-corp.test/page",
+    "see HTTPS://dashboards.invented-corp.test/page",
+    "see //dashboards.invented-corp.test/page",
+    "see https://demo:invented-secret@example.com/page",
+    "see https://example.com/page?token=invented-secret",
+    "see https://example.com/page?%74oken=invented-secret",
+    "see https://example.com/page?access_token=invented-secret",
+    "see //192.0.2.1/page",
+    "see //[2001:db8::1]/page",
+    "mail ops@invented-corp.test",
+  ]) {
+    assert.notDeepEqual(urlFindings(leak), [], leak);
+  }
+  for (const fine of ["see https://content.example.com/page", "see https://JSON-SCHEMA.org/draft", "mail OPS@EXAMPLE.COM", "a protocol-relative (`//host/path`) URL"]) {
+    assert.deepEqual(urlFindings(fine), [], fine);
+  }
+  for (const leak of ['{"dealId":"4815162"}', "filter: ACCT00123", "filter: elc-0042", "s3://invented-bucket/x", "Storage/invented.csv"]) {
+    assert.notDeepEqual(idFindings(leak), [], leak);
+  }
+  assert.deepEqual(idFindings('{"dealId":"9000001","bytes":"1.048576"}'), []);
+});
+
+test("agent-guide: the private denylist matches disguised names and never echoes an entry", () => {
+  const terms = compilePrivateTerms(["# comment", "Invented Holdings", "/invent(?:ed)? ?co\\b/", "Invented Co."]);
+  for (const text of ["by _Invented Holdings_.", "INVENTED HOLDINGS", "**Invented Holdings**", "from inventedco", "an Invented Co. page"]) {
+    assert.notDeepEqual(privateFindings(text, terms), [], text);
+  }
+  assert.deepEqual(privateFindings("Uninvented Holdingsworth", compilePrivateTerms(["Invented Holdings"])), []);
+  for (const bad of ["/InventedSecretName[/i", "/InventedSecretName/y", "/InventedSecretName/g", "/InventedSecretName/I", "/InventedSecretName"]) {
+    assert.throws(
+      () => compilePrivateTerms(["fine", bad]),
+      (err) => err.message === "private denylist entry #2 is not a valid term or /regex/flags" && !err.message.includes("InventedSecretName")
+    );
+  }
+});
+
+test("agent-guide: no term from the private denylist appears in served text", (t) => {
+  const terms = readPrivateTerms();
+  if (!terms) return t.skip("PAGES_PRIVATE_DENYLIST is not set (it is kept outside this public repository)");
+  assert.ok(terms.length > 0, "the private denylist is empty");
+  for (const { file, text } of servedDocs()) assert.deepEqual(privateFindings(text, terms), [], file);
 });
 
 // Backticked snake_case names in the workflow are either tools (which must

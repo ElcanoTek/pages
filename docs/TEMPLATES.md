@@ -68,12 +68,18 @@ time, before the content hash, so a template can never present a second answer t
 "which dashboards can this viewer open".
 
 A template that wants a `Page ▾` menu **reads** the block, defensively — it is
-absent on a staff view, a page-password view, and any page in no portal, and an
+absent on an admin view, a page-password view, and any page in no portal, and an
 unguarded `JSON.parse` of a missing block takes the rest of the script down with
 it. The full contract, including why the payload's `url` must be used as given and
 why titles need `textContent`, is in
 [AUTHORING.md](AUTHORING.md#giving-a-partner-a-menu-of-their-other-dashboards);
 `templates/nwm-campaign-dashboard/template.html` is a working implementation.
+
+### Example: the shipped campaign-dashboard template
+
+The metric, attribution, date and comparison conventions below belong to that one
+shipped design (`templates/nwm-campaign-dashboard/`). They are not Pages-wide
+rules: another design defines its own in its schema and documentation.
 
 The campaign dashboard uses the same KPI ratios for cards, tables, chart
 tooltips, comparisons and CSV values:
@@ -146,9 +152,11 @@ Updating the shipped template registers a new immutable revision on the next
 template sync. Existing pages keep their pinned revision until a reviewed
 `rerender_page_from_template` update; updating Pages alone does not rewrite them.
 
+### Navigation in pages built from a template
+
 Pages built from a template receive the navigation block in either `raw` or
 `themed` mode when a portal authorises the view; keep the page's existing mode.
-Guard the block lookup and render no menu when it is absent, including staff and
+Guard the block lookup and render no menu when it is absent, including admin and
 page-password views. Bento decks deliberately receive neither the block nor the
 menu, even in a portal.
 
@@ -290,7 +298,7 @@ with the page count in the confirmation.
 
 ```
 get_template               template="nwm-campaign-dashboard"      → schemas + reference config, NO html
-create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-example-acct00156"
+create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-example"
                            config={ … } title="Contoso — Example Campaign"
 ```
 

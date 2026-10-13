@@ -142,7 +142,7 @@ reason to rewrite charts that already work.
     For every page on the design, it is a template revision (see "Changing a live
     page").
 - **Recap of a page:** the recap's numbers are the page's published numbers
-  (`get_page_data`), never a fresh pull, so they match to the cent. Carry the
+  (`get_page_data`), never a fresh pull, so they match exactly. Carry the
   page's quality flags into the recap. Agree whether it is a snapshot or a live
   page with its own refresh, and whether it sits on the page or beside it.
 - **Editing an explainer:** change only the scenes named; everything else stays

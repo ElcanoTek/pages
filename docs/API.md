@@ -592,7 +592,7 @@ payload nor the Page menu, preserving the deck's own toolbar. The payload is a
 <script type="application/json" id="pages-nav" data-flag-injected>
 {"portal":{"slug":"nwm","name":"Northwind Media Group"},
  "pages":[{"slug":"nwm-contoso","title":"Contoso — Example Campaign",
-           "url":"https://elcano-pages.com/nwm-contoso","current":true}],
+           "url":"https://content.example.com/nwm-contoso","current":true}],
  "truncated":false}
 </script>
 ```
@@ -667,8 +667,9 @@ payload nor the Page menu, preserving the deck's own toolbar. The payload is a
    an approval-gated page the version is forced to **pending**; hand the user the
    `urls.admin` URL for a human to approve. Always read `live`/`next_step`.
 5. **Make it client-accessible.** `set_password(slug, password)` — the client
-   opens `urls.live` and enters the password. Without a password a page is
-   Elcano-staff-only (outside visitors get a "staff-only" gate).
+   opens `urls.live` and enters the password. Without a password, and outside
+   any partner portal, a page is admin-only (outside visitors get an admin-only
+   gate).
 6. **Update later.** `update_page(slug, html)` is just another version — old versions
    stay for rollback. "Update the northwind dashboard" → a new version, not a
    regenerate-from-scratch. For a *targeted* change — a CSS rule, a handler name,
