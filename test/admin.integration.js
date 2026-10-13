@@ -215,7 +215,7 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
     // surface is what it changes for a partner.
     await versions.createPage({ slug: "pt-overview", title: "NWM Client Overview" }, seed);
     await versions.deploy({ slug: "pt-overview", html: HTML("pt-1"), publish: true }, seed);
-    await versions.createPage({ slug: "pt-campaign", title: "NWM Contoso Allergex" }, seed);
+    await versions.createPage({ slug: "pt-campaign", title: "NWM Contoso Fabrikam" }, seed);
     await versions.deploy({ slug: "pt-campaign", html: HTML("pt-2"), publish: true }, seed);
     await versions.setPassword({ slug: "pt-campaign", password: "existing-client-password" }, seed);
 
@@ -274,10 +274,10 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
     // Labelled so that curated order and alphabetical order DISAGREE: "Contoso"
     // sorts before "Portfolio", so an assertion on the returned order can only
     // pass if sort_order is what decides it.
-    const addCampaign = await adminPost(`/api/v1/admin/portals/${nwm.id}/pages`, { slug: "pt-campaign", label: "Contoso — Allergex", sort_order: 1 });
+    const addCampaign = await adminPost(`/api/v1/admin/portals/${nwm.id}/pages`, { slug: "pt-campaign", label: "Contoso — Fabrikam", sort_order: 1 });
     assert.equal(addCampaign.status, 201);
     assert.equal(addCampaign.json.reclassifies_staff_only, false, "a page that already had a client password is not reclassified");
-    assert.equal(addCampaign.json.member.display_title, "Contoso — Allergex", "the curated label is the partner-facing title");
+    assert.equal(addCampaign.json.member.display_title, "Contoso — Fabrikam", "the curated label is the partner-facing title");
     assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages`, { slug: "pt-campaign" })).status, 409, "already a member");
     assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages`, { slug: "pt-nonexistent" })).status, 404, "unknown page");
     assert.equal((await adminPost("/api/v1/admin/portals/999999/pages", { slug: "pt-campaign" })).status, 404, "unknown portal");
@@ -325,7 +325,7 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
     assert.equal(switcherAware.every((m) => m.shows_switcher), true, "either way, both show a menu");
 
     // The production trap: authoring boilerplate that MENTIONS #pages-nav in a
-    // CSS comment without ever reading it (Lakeside/Hy-Vee, 2026-08-20). The old
+    // CSS comment without ever reading it. The old
     // position() scan called this "owns its menu" while the page showed none;
     // the consume-pattern regex must not.
     await versions.deploy(
@@ -350,13 +350,13 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
     // Link audit: the drift that keeps recurring is a hub (home) page whose
     // links agents keep current while the human-curated member list falls
     // behind — the partner then follows a link the hub shows and loses the Page
-    // menu (Fabrikam/Lakeside, 2026-08-19). The detail read surfaces exactly those
+    // menu. The detail read surfaces exactly those
     // links: live pages the home page links to that are not members.
-    await versions.createPage({ slug: "pt-lakeside", title: "Lakeside campaign" }, seed);
+    await versions.createPage({ slug: "pt-woodgrove", title: "Woodgrove campaign" }, seed);
     await versions.deploy(
       {
-        slug: "pt-lakeside",
-        html: "<!doctype html><html><head><title>Lakeside</title></head><body>lakeside</body></html>",
+        slug: "pt-woodgrove",
+        html: "<!doctype html><html><head><title>Woodgrove</title></head><body>woodgrove</body></html>",
         publish: true,
       },
       seed
@@ -366,10 +366,10 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
         slug: "pt-overview",
         html:
           `<!doctype html><html><head><title>Overview</title></head><body>` +
-          `<a href="/pt-lakeside">Lakeside</a>` +
+          `<a href="/pt-woodgrove">Woodgrove</a>` +
           `<a href="/pt-campaign">Contoso</a>` + // already a member: not drift
           `<a href="/pt-overview">self</a>` + // the home page itself: not drift
-          `<a href="https://elsewhere.example.com/pt-lakeside">external, ignored</a>` +
+          `<a href="https://elsewhere.example.com/pt-woodgrove">external, ignored</a>` +
           `</body></html>`,
         publish: true,
       },
@@ -379,25 +379,25 @@ const adminPost = (p, body) => req("POST", p, { cookie: adminCookie, csrf: true,
     assert.equal(audited.scanned, true, "with a published home page the audit runs");
     assert.deepEqual(
       audited.missing.map((p) => p.slug),
-      ["pt-lakeside"],
+      ["pt-woodgrove"],
       "exactly the linked live non-member — members and the home page itself are not drift"
     );
-    assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages`, { slug: "pt-lakeside" })).status, 201);
+    assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages`, { slug: "pt-woodgrove" })).status, 201);
     assert.deepEqual(
       (await adminGet(`/api/v1/admin/portals/${nwm.id}`)).json.link_audit.missing,
       [],
       "adding the member clears the audit"
     );
     // Put membership back the way the rest of the flow expects it.
-    assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages/remove`, { slug: "pt-lakeside" })).status, 200);
+    assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages/remove`, { slug: "pt-woodgrove" })).status, 200);
 
-    const relabelled = await adminPost(`/api/v1/admin/portals/${nwm.id}/pages/update`, { slug: "pt-campaign", label: "Contoso — Allergex (Q3)" });
-    assert.equal(relabelled.json.member.display_title, "Contoso — Allergex (Q3)");
+    const relabelled = await adminPost(`/api/v1/admin/portals/${nwm.id}/pages/update`, { slug: "pt-campaign", label: "Contoso — Fabrikam (Q3)" });
+    assert.equal(relabelled.json.member.display_title, "Contoso — Fabrikam (Q3)");
     assert.equal(relabelled.json.member.sort_order, 1, "an absent field is left alone, not reset");
     assert.equal((await adminPost(`/api/v1/admin/portals/${nwm.id}/pages/update`, { slug: "pt-campaign" })).status, 400, "nothing to update");
     const clearedLabel = await adminPost(`/api/v1/admin/portals/${nwm.id}/pages/update`, { slug: "pt-campaign", label: null });
     assert.equal(clearedLabel.json.member.label, null);
-    assert.equal(clearedLabel.json.member.display_title, "NWM Contoso Allergex", "clearing a label falls back to the page title");
+    assert.equal(clearedLabel.json.member.display_title, "NWM Contoso Fabrikam", "clearing a label falls back to the page title");
 
     // Fan-out cap: each extra portal holding a page is one more scrypt candidate
     // on that page's password form once the serve predicate lands.

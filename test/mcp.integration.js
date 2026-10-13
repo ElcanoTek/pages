@@ -3348,7 +3348,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
           {
             source_id: "amazon_dsp",
             mcp_server: "fastio_helpers",
-            path: "NWM_keel/Meridian/daily",
+            path: "northwind/contoso/daily",
             partition: { by: "date", format: "YYYY-MM-DD", since: "source_as_of" },
             required_tools: ["list_partitions"],
           },

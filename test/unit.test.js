@@ -549,7 +549,7 @@ test("render: themed mode synthesizes a head when there is none", () => {
 
 const NAV_FIXTURE = {
   portal: { slug: "nwm", name: "Northwind Media Group" },
-  pages: [{ slug: "nwm-contoso", title: "Contoso — Allergex", url: "https://elcano-pages.com/nwm-contoso", current: true }],
+  pages: [{ slug: "nwm-contoso", title: "Contoso — Fabrikam", url: "https://elcano-pages.com/nwm-contoso", current: true }],
   truncated: false,
 };
 
@@ -599,7 +599,7 @@ test("render: a dashboard that reads the block owns the control; one that does n
   assert.equal(render.readsNavBlock(plain), false);
   assert.equal(render.readsNavBlock(reader), true);
 
-  // The production trap (Lakeside / Hy-Vee, 2026-08-20): authoring boilerplate
+  // The production trap: authoring boilerplate
   // MENTIONS the id in a CSS comment describing a control the agent never
   // built. A bare-mention scan suppressed the built-in menu on those pages —
   // whole fresh portal, no nav anywhere, looked exactly like a membership or
@@ -1045,7 +1045,7 @@ test("update prompts: partition since=source_as_of renders as the page watermark
     {
       source_id: "dsp_daily",
       mcp_server: "fastio_helpers",
-      path: "NWM_keel/Meridian/daily",
+      path: "northwind/contoso/daily",
       partition: { by: "date", format: "YYYY-MM-DD", since: "source_as_of" },
     },
   ]);
@@ -2097,9 +2097,9 @@ const PORTAL_MUTATION_CALLS = {
   create: { slug: "nwm", name: "Northwind Media Group", password: "a-long-enough-portal-secret" },
   rename: { id: 1, name: "NWM" },
   setPassword: { id: 1, password: "a-long-enough-portal-secret" },
-  addPage: { id: 1, slug: "nwm-contoso-allergex", label: "Contoso — Allergex" },
-  updatePage: { id: 1, slug: "nwm-contoso-allergex", label: "Contoso" },
-  removePage: { id: 1, slug: "nwm-contoso-allergex" },
+  addPage: { id: 1, slug: "nwm-contoso-fabrikam", label: "Contoso — Fabrikam" },
+  updatePage: { id: 1, slug: "nwm-contoso-fabrikam", label: "Contoso" },
+  removePage: { id: 1, slug: "nwm-contoso-fabrikam" },
   setHome: { id: 1, slug: "nwm-client-overview" },
   remove: { id: 1 },
 };
@@ -2164,7 +2164,7 @@ test("portals: slugs, names, labels and order are bounded before any write", () 
   // reason the column is nullable.
   assert.equal(portals.normalizeLabel(null), null);
   assert.equal(portals.normalizeLabel("   "), null);
-  assert.equal(portals.normalizeLabel(" Contoso —  Allergex "), "Contoso — Allergex");
+  assert.equal(portals.normalizeLabel(" Contoso —  Fabrikam "), "Contoso — Fabrikam");
   assert.throws(() => portals.normalizeLabel("x".repeat(201)), (err) => err.code === "bad_portal_label");
   assert.throws(() => portals.normalizeLabel("a\u0000b"), (err) => err.code === "bad_portal_label");
   assert.throws(() => portals.normalizeLabel(12), (err) => err.code === "bad_portal_label");
@@ -2351,7 +2351,7 @@ test("portal admin: a selection that no longer exists falls back to the first po
 test("portal admin: a move renumbers by position, so a shared sort_order cannot stick", () => {
   const list = [
     { page_id: 71, display_title: "Portfolio overview", sort_order: 0 },
-    { page_id: 72, display_title: "Contoso Allergex", sort_order: 1 },
+    { page_id: 72, display_title: "Contoso Fabrikam", sort_order: 1 },
     { page_id: 73, display_title: "Taken down", sort_order: 2 },
   ];
 
@@ -2398,7 +2398,7 @@ test("portal admin: a move renumbers by position, so a shared sort_order cannot 
 test("portal admin: a move announces itself, because nothing on the row shows the order", () => {
   const list = [
     { page_id: 71, display_title: "Portfolio overview" },
-    { page_id: 72, display_title: "Contoso Allergex" },
+    { page_id: 72, display_title: "Contoso Fabrikam" },
     { page_id: 73, display_title: "Taken down" },
   ];
   // The ends are absolute: "first"/"last" is what an admin was checking for.
@@ -2406,8 +2406,8 @@ test("portal admin: a move announces itself, because nothing on the row shows th
   assert.equal(describeMove(list, 2, "down"), "Taken down is now last.");
   // In the middle there is no number to quote, so it names the neighbour the
   // press moved it past — which is what the person was aiming at.
-  assert.equal(describeMove(list, 1, "up"), "Contoso Allergex moved above Taken down.");
-  assert.equal(describeMove(list, 1, "down"), "Contoso Allergex moved below Portfolio overview.");
+  assert.equal(describeMove(list, 1, "up"), "Contoso Fabrikam moved above Taken down.");
+  assert.equal(describeMove(list, 1, "down"), "Contoso Fabrikam moved below Portfolio overview.");
   // A one-member portal has no ends to reach, and must not claim a move.
   assert.equal(describeMove([{ page_id: 91, display_title: "Fabrikam SSP weekly" }], 0, "up"),
     "Fabrikam SSP weekly is the only page in this portal.");
@@ -2537,20 +2537,20 @@ test("portal admin: the link audit's caption names the table and its one action"
 test("portal admin: an add made from the audit says what it did, by name", () => {
   // The row used to just vanish — no toast at all on the one click here that can
   // make a staff-only dashboard readable by everyone holding the password.
-  assert.equal(describeAdded([{ reclassifies_staff_only: false, member: { display_title: "Lakeside campaign" } }]),
+  assert.equal(describeAdded([{ reclassifies_staff_only: false, member: { display_title: "Woodgrove campaign" } }]),
     "Page added.");
-  assert.equal(describeAdded([{ reclassifies_staff_only: true, member: { display_title: "Lakeside campaign" } }]),
-    "Page added. Lakeside campaign is now readable with this portal's password.");
+  assert.equal(describeAdded([{ reclassifies_staff_only: true, member: { display_title: "Woodgrove campaign" } }]),
+    "Page added. Woodgrove campaign is now readable with this portal's password.");
 
   // "Add all N" can reclassify some of the N and not the others, and the rows
   // that would have carried the news are gone by the time it arrives — so the
   // ones that changed are named, and only those.
   const mixed = describeAdded([
-    { reclassifies_staff_only: false, member: { display_title: "Lakeside campaign" } },
+    { reclassifies_staff_only: false, member: { display_title: "Woodgrove campaign" } },
     { reclassifies_staff_only: true, member: { display_title: "Tailspin Pet Q3" } },
   ]);
   assert.equal(mixed, "Added 2 pages. Tailspin Pet Q3 is now readable with this portal's password.");
-  assert.equal(/Lakeside/.test(mixed), false, "a page that was already client-readable must not be reported as changed");
+  assert.equal(/Woodgrove/.test(mixed), false, "a page that was already client-readable must not be reported as changed");
 
   const both = describeAdded([
     { reclassifies_staff_only: true, member: { display_title: "A" } },
@@ -2645,10 +2645,10 @@ const { CONTENT_ORIGIN: TEST_CONTENT_ORIGIN } = require("../lib/csp");
 // content origin, root-relative), and nothing else.
 test("portal link audit: extractLinkedSlugs finds page links and only page links", () => {
   const html = `<!doctype html><body>
-    <a href="${TEST_CONTENT_ORIGIN}/lakeside-campaign-overview">Lakeside</a>
+    <a href="${TEST_CONTENT_ORIGIN}/woodgrove-campaign-overview">Woodgrove</a>
     <a href="/harborsun-acct00176">Harbor Sun</a>
     <a href='/nested/campaign_page'>nested</a>
-    <a href="/lakeside-campaign-overview?ref=hub#kpis">same page again</a>
+    <a href="/woodgrove-campaign-overview?ref=hub#kpis">same page again</a>
     <a href="https://elsewhere.example.com/not-ours">external</a>
     <a href="//protocol-relative.example.com/nope">protocol-relative</a>
     <a href="mailto:west@example.com">mail</a>
@@ -2660,7 +2660,7 @@ test("portal link audit: extractLinkedSlugs finds page links and only page links
     <a href="/trailing/">trailing slash</a>
   </body>`;
   assert.deepEqual(portalsLib.extractLinkedSlugs(html, TEST_CONTENT_ORIGIN), [
-    "lakeside-campaign-overview",
+    "woodgrove-campaign-overview",
     "harborsun-acct00176",
     "nested/campaign_page",
     "trailing",
@@ -3409,7 +3409,7 @@ test("templates: names are flat and url-safe so one can never read as a page slu
 
 test("templates: the prompt for a template-built page routes each change to the tool that owns it", () => {
   const prompt = updatePrompts.templatePrompt({
-    slug: "contoso-allergex-acct00156",
+    slug: "contoso-fabrikam-acct00156",
     instructions: "Make the spend chart taller and rename the campaign.",
     template: "nwm-campaign-dashboard",
     revision: 2,
@@ -4265,7 +4265,7 @@ test("templates: the NWM template ships example data so its preview is populated
   // And the reference config must not carry a real client's identity: it is shown
   // to everyone who opens the library and handed to agents by get_template.
   const identity = JSON.stringify({ config: parsed.config, example: parsed.example });
-  for (const leaked of ["Contoso", "Allergex", "Initech", "ACCT00156", "9900001", "9900002"]) {
+  for (const leaked of ["Contoso", "Fabrikam", "Initech", "ACCT00156", "9900001", "9900002"]) {
     assert.ok(!identity.includes(leaked), `reference config still names ${leaked}`);
   }
 });
@@ -4295,9 +4295,9 @@ test("page-data: a derived schema never rejects what a hand-written one would al
   // A dictionary keyed by data (deal codes, client ids) must not have its current
   // keys frozen — the next campaign's codes would be refused. Recognised narrowly:
   // 2+ keys whose values are all objects of one shape.
-  const dict = compileInferred({ revshareMap: { B14: { pct: 70, type: "margin" }, B20: { pct: 65, type: "margin" } } });
-  assert.equal(dict({ revshareMap: { B21: { pct: 60, type: "margin" } } }), true, "a new dictionary key");
-  assert.equal(dict({ revshareMap: { B21: { pct: "sixty", type: "margin" } } }), false, "…but still typed");
+  const dict = compileInferred({ revshareMap: { X1: { pct: 50, type: "margin" }, X2: { pct: 40, type: "margin" } } });
+  assert.equal(dict({ revshareMap: { X3: { pct: 30, type: "margin" } } }), true, "a new dictionary key");
+  assert.equal(dict({ revshareMap: { X3: { pct: "thirty", type: "margin" } } }), false, "…but still typed");
 
   // Same-typed SCALAR fields stay a record, so typo protection survives.
   const record = compileInferred({ sspLabel: "Index Exchange", dspLabel: "Amazon DSP" });
@@ -5056,7 +5056,7 @@ test("update prompts: a partitioned source renders as enumerate-the-range, not n
     {
       source_id: "amazon_dsp",
       mcp_server: "fastio_helpers",
-      path: "NWM_keel/Meridian/daily",
+      path: "northwind/contoso/daily",
       partition: { by: "date", format: "YYYY-MM-DD", since: "source_as_of" },
       required_tools: ["list_partitions"],
     },
@@ -5069,7 +5069,7 @@ test("update prompts: a partitioned source renders as enumerate-the-range, not n
     publish: true,
     sources,
   });
-  assert.match(prompt, /path NWM_keel\/Meridian\/daily/);
+  assert.match(prompt, /path northwind\/contoso\/daily/);
   assert.match(prompt, /PARTITIONED by date \(YYYY-MM-DD\) from the page's current source_as_of/);
   // The instruction that separates a six-day refresh from a one-day one.
   assert.match(prompt, /enumerate EVERY partition in range and aggregate them; never take only the newest/);
