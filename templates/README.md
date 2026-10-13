@@ -42,11 +42,12 @@ page built from it.
 Both schemas must be self-contained **JSON Schema 2020-12** with an object root.
 Local `$ref`s work; external ones are rejected.
 
-## Why this lives here rather than in a client bundle
+## What belongs here
 
-Pages is an Elcano product, so a design carrying a client's identity belongs in
-this repo — unlike fleet, which ships no client content by construction. Templates
-can *also* come from a bundle or any other checkout: `pages template register
+Every install registers every template in this directory, so a design here must
+be reusable and carry invented reference data only, never a client's identity. A
+design that belongs to one client is registered on that client's deployment.
+Templates can come from a bundle or any other checkout: `pages template register
 <path>` takes any file, and an agent can register one over MCP with
 `create_upload_ticket{template}` → `register_template_upload`. This directory is
 the set that ships *with* the deployment.

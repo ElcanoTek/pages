@@ -31,10 +31,10 @@ test("a portal-authorised dashboard grows a Page menu of real links", async ({ p
   // Real anchors with the ready-made url from the payload — never a scripted
   // window.open, which the sandbox silently swallows (allow-popups is withheld).
   await expect(links.nth(0)).toHaveAttribute("href", "/live/nwm-client-overview");
-  await expect(links.nth(1)).toHaveAttribute("href", "/live/nwm/contoso-allergex");
+  await expect(links.nth(1)).toHaveAttribute("href", "/live/nwm/contoso-fabrikam");
   await expect(links.nth(1)).toHaveAttribute("aria-current", "page");
   await expect(links.nth(0)).not.toHaveAttribute("aria-current", /.*/);
-  await expect(links.nth(1)).toContainText("Contoso — Allergex always-on");
+  await expect(links.nth(1)).toContainText("Contoso — Fabrikam always-on");
 
   // A sibling's title is chosen by whoever owns that page. escapedJson keeps it
   // from ending the JSON block; textContent is what keeps it from becoming markup

@@ -61,7 +61,7 @@ test("the unlocked portal index is a keyboard-navigable list of real links", asy
   // nest, so a relative href would resolve against the wrong directory, and
   // `base-uri 'none'` means a <base> tag cannot fix it.
   await expect(links.first()).toHaveAttribute("href", "/nwm-client-overview");
-  await expect(links.nth(1)).toHaveAttribute("href", "/nwm/contoso-allergex-always-on");
+  await expect(links.nth(1)).toHaveAttribute("href", "/nwm/contoso-fabrikam-always-on");
   // The home page is first, and it is now marked by the section it sits under
   // rather than by a word repeated inside its own link.
   await expect(page.getByRole("heading", { level: 2, name: "Start here" })).toBeVisible();

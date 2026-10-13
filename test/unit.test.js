@@ -549,7 +549,7 @@ test("render: themed mode synthesizes a head when there is none", () => {
 
 const NAV_FIXTURE = {
   portal: { slug: "nwm", name: "Northwind Media Group" },
-  pages: [{ slug: "nwm-contoso", title: "Contoso — Allergex", url: "https://elcano-pages.com/nwm-contoso", current: true }],
+  pages: [{ slug: "nwm-contoso", title: "Contoso — Fabrikam", url: "https://elcano-pages.com/nwm-contoso", current: true }],
   truncated: false,
 };
 
@@ -599,7 +599,7 @@ test("render: a dashboard that reads the block owns the control; one that does n
   assert.equal(render.readsNavBlock(plain), false);
   assert.equal(render.readsNavBlock(reader), true);
 
-  // The production trap (Lakeside / Hy-Vee, 2026-08-20): authoring boilerplate
+  // The production trap: authoring boilerplate
   // MENTIONS the id in a CSS comment describing a control the agent never
   // built. A bare-mention scan suppressed the built-in menu on those pages —
   // whole fresh portal, no nav anywhere, looked exactly like a membership or
@@ -961,9 +961,8 @@ test("update prompts: a one-time data run reports coverage instead of blocking o
   assert.match(prompt, /deliberate republish of already-covered data is allowed here/);
 });
 
-// Watched failing twice in production: a scheduled run built a complete,
-// reconciled payload (978 KB once, 44 KB once), judged the inline `data`
-// argument unsafe to carry it, and ended with the live page untouched. The
+// A scheduled run can build a complete, reconciled payload, judge the inline
+// `data` argument unsafe to carry it, and end with the live page untouched. The
 // prompt must name the by-reference transport so payload size is a routing
 // decision, never a reason to abort.
 test("update prompts: the managed-data prompt routes payloads by size instead of leaving transport to guesswork", () => {
@@ -1045,7 +1044,7 @@ test("update prompts: partition since=source_as_of renders as the page watermark
     {
       source_id: "dsp_daily",
       mcp_server: "fastio_helpers",
-      path: "NWM_keel/Meridian/daily",
+      path: "northwind/contoso/daily",
       partition: { by: "date", format: "YYYY-MM-DD", since: "source_as_of" },
     },
   ]);
@@ -2097,9 +2096,9 @@ const PORTAL_MUTATION_CALLS = {
   create: { slug: "nwm", name: "Northwind Media Group", password: "a-long-enough-portal-secret" },
   rename: { id: 1, name: "NWM" },
   setPassword: { id: 1, password: "a-long-enough-portal-secret" },
-  addPage: { id: 1, slug: "nwm-contoso-allergex", label: "Contoso — Allergex" },
-  updatePage: { id: 1, slug: "nwm-contoso-allergex", label: "Contoso" },
-  removePage: { id: 1, slug: "nwm-contoso-allergex" },
+  addPage: { id: 1, slug: "nwm-contoso-fabrikam", label: "Contoso — Fabrikam" },
+  updatePage: { id: 1, slug: "nwm-contoso-fabrikam", label: "Contoso" },
+  removePage: { id: 1, slug: "nwm-contoso-fabrikam" },
   setHome: { id: 1, slug: "nwm-client-overview" },
   remove: { id: 1 },
 };
@@ -2164,7 +2163,7 @@ test("portals: slugs, names, labels and order are bounded before any write", () 
   // reason the column is nullable.
   assert.equal(portals.normalizeLabel(null), null);
   assert.equal(portals.normalizeLabel("   "), null);
-  assert.equal(portals.normalizeLabel(" Contoso —  Allergex "), "Contoso — Allergex");
+  assert.equal(portals.normalizeLabel(" Contoso —  Fabrikam "), "Contoso — Fabrikam");
   assert.throws(() => portals.normalizeLabel("x".repeat(201)), (err) => err.code === "bad_portal_label");
   assert.throws(() => portals.normalizeLabel("a\u0000b"), (err) => err.code === "bad_portal_label");
   assert.throws(() => portals.normalizeLabel(12), (err) => err.code === "bad_portal_label");
@@ -2351,7 +2350,7 @@ test("portal admin: a selection that no longer exists falls back to the first po
 test("portal admin: a move renumbers by position, so a shared sort_order cannot stick", () => {
   const list = [
     { page_id: 71, display_title: "Portfolio overview", sort_order: 0 },
-    { page_id: 72, display_title: "Contoso Allergex", sort_order: 1 },
+    { page_id: 72, display_title: "Contoso Fabrikam", sort_order: 1 },
     { page_id: 73, display_title: "Taken down", sort_order: 2 },
   ];
 
@@ -2398,7 +2397,7 @@ test("portal admin: a move renumbers by position, so a shared sort_order cannot 
 test("portal admin: a move announces itself, because nothing on the row shows the order", () => {
   const list = [
     { page_id: 71, display_title: "Portfolio overview" },
-    { page_id: 72, display_title: "Contoso Allergex" },
+    { page_id: 72, display_title: "Contoso Fabrikam" },
     { page_id: 73, display_title: "Taken down" },
   ];
   // The ends are absolute: "first"/"last" is what an admin was checking for.
@@ -2406,8 +2405,8 @@ test("portal admin: a move announces itself, because nothing on the row shows th
   assert.equal(describeMove(list, 2, "down"), "Taken down is now last.");
   // In the middle there is no number to quote, so it names the neighbour the
   // press moved it past — which is what the person was aiming at.
-  assert.equal(describeMove(list, 1, "up"), "Contoso Allergex moved above Taken down.");
-  assert.equal(describeMove(list, 1, "down"), "Contoso Allergex moved below Portfolio overview.");
+  assert.equal(describeMove(list, 1, "up"), "Contoso Fabrikam moved above Taken down.");
+  assert.equal(describeMove(list, 1, "down"), "Contoso Fabrikam moved below Portfolio overview.");
   // A one-member portal has no ends to reach, and must not claim a move.
   assert.equal(describeMove([{ page_id: 91, display_title: "Fabrikam SSP weekly" }], 0, "up"),
     "Fabrikam SSP weekly is the only page in this portal.");
@@ -2537,20 +2536,20 @@ test("portal admin: the link audit's caption names the table and its one action"
 test("portal admin: an add made from the audit says what it did, by name", () => {
   // The row used to just vanish — no toast at all on the one click here that can
   // make a staff-only dashboard readable by everyone holding the password.
-  assert.equal(describeAdded([{ reclassifies_staff_only: false, member: { display_title: "Lakeside campaign" } }]),
+  assert.equal(describeAdded([{ reclassifies_staff_only: false, member: { display_title: "Woodgrove campaign" } }]),
     "Page added.");
-  assert.equal(describeAdded([{ reclassifies_staff_only: true, member: { display_title: "Lakeside campaign" } }]),
-    "Page added. Lakeside campaign is now readable with this portal's password.");
+  assert.equal(describeAdded([{ reclassifies_staff_only: true, member: { display_title: "Woodgrove campaign" } }]),
+    "Page added. Woodgrove campaign is now readable with this portal's password.");
 
   // "Add all N" can reclassify some of the N and not the others, and the rows
   // that would have carried the news are gone by the time it arrives — so the
   // ones that changed are named, and only those.
   const mixed = describeAdded([
-    { reclassifies_staff_only: false, member: { display_title: "Lakeside campaign" } },
+    { reclassifies_staff_only: false, member: { display_title: "Woodgrove campaign" } },
     { reclassifies_staff_only: true, member: { display_title: "Tailspin Pet Q3" } },
   ]);
   assert.equal(mixed, "Added 2 pages. Tailspin Pet Q3 is now readable with this portal's password.");
-  assert.equal(/Lakeside/.test(mixed), false, "a page that was already client-readable must not be reported as changed");
+  assert.equal(/Woodgrove/.test(mixed), false, "a page that was already client-readable must not be reported as changed");
 
   const both = describeAdded([
     { reclassifies_staff_only: true, member: { display_title: "A" } },
@@ -2645,10 +2644,10 @@ const { CONTENT_ORIGIN: TEST_CONTENT_ORIGIN } = require("../lib/csp");
 // content origin, root-relative), and nothing else.
 test("portal link audit: extractLinkedSlugs finds page links and only page links", () => {
   const html = `<!doctype html><body>
-    <a href="${TEST_CONTENT_ORIGIN}/lakeside-campaign-overview">Lakeside</a>
-    <a href="/harborsun-acct00176">Harbor Sun</a>
+    <a href="${TEST_CONTENT_ORIGIN}/woodgrove-campaign-overview">Woodgrove</a>
+    <a href="/harborsun-example">Harbor Sun</a>
     <a href='/nested/campaign_page'>nested</a>
-    <a href="/lakeside-campaign-overview?ref=hub#kpis">same page again</a>
+    <a href="/woodgrove-campaign-overview?ref=hub#kpis">same page again</a>
     <a href="https://elsewhere.example.com/not-ours">external</a>
     <a href="//protocol-relative.example.com/nope">protocol-relative</a>
     <a href="mailto:west@example.com">mail</a>
@@ -2660,8 +2659,8 @@ test("portal link audit: extractLinkedSlugs finds page links and only page links
     <a href="/trailing/">trailing slash</a>
   </body>`;
   assert.deepEqual(portalsLib.extractLinkedSlugs(html, TEST_CONTENT_ORIGIN), [
-    "lakeside-campaign-overview",
-    "harborsun-acct00176",
+    "woodgrove-campaign-overview",
+    "harborsun-example",
     "nested/campaign_page",
     "trailing",
   ]);
@@ -3409,7 +3408,7 @@ test("templates: names are flat and url-safe so one can never read as a page slu
 
 test("templates: the prompt for a template-built page routes each change to the tool that owns it", () => {
   const prompt = updatePrompts.templatePrompt({
-    slug: "contoso-allergex-acct00156",
+    slug: "contoso-fabrikam-example",
     instructions: "Make the spend chart taller and rename the campaign.",
     template: "nwm-campaign-dashboard",
     revision: 2,
@@ -3763,12 +3762,12 @@ test("flag motion: number formats are exact and never print a fabricated zero", 
   assert.equal(f(0.1234, "pct"), "12.3%");
   assert.equal(f(0.1234, "pct2"), "12.34%");
   assert.equal(f(3.2, "x"), "3.20x");
-  assert.equal(f(1395658, "compact"), "1.4M");
+  assert.equal(f(1425000, "compact"), "1.4M");
   assert.equal(f(1234.4, "int"), "1,234");
   for (const missing of [null, undefined, NaN, Infinity, "12"]) assert.equal(f(missing, "usd"), "N/A");
   assert.equal(motion.formatLabel("2026-10-06"), "Oct 6");
   assert.equal(motion.formatLabel("2026-10-06", "long"), "Oct 6, 2026");
-  assert.deepEqual(motion.niceTicks(0, 1478, 4).ticks, [0, 500, 1000, 1500]);
+  assert.deepEqual(motion.niceTicks(0, 1450, 4).ticks, [0, 500, 1000, 1500]);
   assert.equal(motion.relativeAge(3 * 3600e3), "3 h ago");
   // Refresh stamps: the epoch placeholder a page carries before its first ingest is "no data".
   assert.equal(motion.freshness({ refreshedAt: "1970-01-01T00:00:00Z", sourceAsOf: "1970-01-01T00:00:00Z" }).text, "Awaiting first data");
@@ -4265,8 +4264,16 @@ test("templates: the NWM template ships example data so its preview is populated
   // And the reference config must not carry a real client's identity: it is shown
   // to everyone who opens the library and handed to agents by get_template.
   const identity = JSON.stringify({ config: parsed.config, example: parsed.example });
-  for (const leaked of ["Contoso", "Allergex", "Initech", "ACCT00156", "9900001", "9900002"]) {
+  for (const leaked of ["Contoso", "Fabrikam", "Initech", "9900001", "9900002"]) {
     assert.ok(!identity.includes(leaked), `reference config still names ${leaked}`);
+  }
+  // Any account code other than the exact ACCT00000 placeholder is a
+  // real-looking one.
+  const realLookingCodes = (text) => (text.match(/\bacct\d+\b/gi) || []).filter((code) => code !== "ACCT00000");
+  assert.deepEqual(realLookingCodes(identity), [], "reference config carries a real-looking account code");
+  assert.deepEqual(realLookingCodes('{"accountCode":"ACCT00000"}'), [], "fixture: the placeholder passes");
+  for (const leak of ["ACCT00000123", "acct00123", "ACCT12345"]) {
+    assert.deepEqual(realLookingCodes(`{"accountCode":"${leak}"}`), [leak], `fixture: ${leak} is caught`);
   }
 });
 
@@ -4295,9 +4302,9 @@ test("page-data: a derived schema never rejects what a hand-written one would al
   // A dictionary keyed by data (deal codes, client ids) must not have its current
   // keys frozen — the next campaign's codes would be refused. Recognised narrowly:
   // 2+ keys whose values are all objects of one shape.
-  const dict = compileInferred({ revshareMap: { B14: { pct: 70, type: "margin" }, B20: { pct: 65, type: "margin" } } });
-  assert.equal(dict({ revshareMap: { B21: { pct: 60, type: "margin" } } }), true, "a new dictionary key");
-  assert.equal(dict({ revshareMap: { B21: { pct: "sixty", type: "margin" } } }), false, "…but still typed");
+  const dict = compileInferred({ revshareMap: { X1: { pct: 50, type: "margin" }, X2: { pct: 40, type: "margin" } } });
+  assert.equal(dict({ revshareMap: { X3: { pct: 30, type: "margin" } } }), true, "a new dictionary key");
+  assert.equal(dict({ revshareMap: { X3: { pct: "thirty", type: "margin" } } }), false, "…but still typed");
 
   // Same-typed SCALAR fields stay a record, so typo protection survives.
   const record = compileInferred({ sspLabel: "Index Exchange", dspLabel: "Amazon DSP" });
@@ -4579,51 +4586,52 @@ test("preflight: a broken managed block is an error, and a raw page is not", () 
   assert.ok(badConfig.errors.some((e) => e.code === "managed_block_invalid"));
 });
 
-// Issue #102: a Vandelay dashboard served wrong DSP and SSP numbers to a client, and
-// every payload had satisfied its JSON Schema perfectly. The schema validates
-// SHAPE; nothing reported what the payload CONTAINED. Two errors shipped — the
-// DSP series started Jul 30 instead of Jul 21 because only the newest fast.io
-// daily folder was read (a trailing-7-day export, not a cumulative one), and SSP
-// totals were understated ~7% because rows were filtered to the three configured
-// deals, dropping a fourth that carried all of Jul 6's spend.
+// Issue #102: a schema validates SHAPE, so a payload can satisfy it perfectly
+// while showing the wrong numbers. Two failures matter: a series that starts
+// late because only the newest file of a trailing-window export was read, and
+// totals understated because rows were filtered to the configured deals,
+// dropping one that carried real spend.
 //
-// The fixture below is that shape: 31 days, 4 deals, spend on Jul 6 belonging
-// only to the deal that got dropped.
-function incidentRows() {
+// The fixture below is synthetic (every id, date and amount is invented) and has
+// that shape: 31 days, 4 deals, and spend on the first day belonging only to the
+// deal a filter would drop. The fractional amounts make the raw float sum carry
+// an artifact, so the rounding check below is real.
+function sampleRows() {
   const rows = [];
-  for (let day = 6; day <= 36; day++) {
-    const date = day <= 31 ? `2026-07-${String(day).padStart(2, "0")}` : `2026-08-${String(day - 31).padStart(2, "0")}`;
-    if (day <= 16) rows.push({ date, dealId: "1442375", spend: day === 6 ? 502.61 : 118.542 });
-    if (day >= 7) {
-      rows.push({ date, dealId: "allergy", spend: 240.3364 });
-      rows.push({ date, dealId: "pollen", spend: 284.9543 });
-      rows.push({ date, dealId: "severe", spend: 276.551 });
+  for (let day = 1; day <= 31; day++) {
+    const date = `2026-03-${String(day).padStart(2, "0")}`;
+    if (day <= 11) rows.push({ date, dealId: "example-deal-a", spend: day === 1 ? 412.37 : 97.161 });
+    if (day >= 2) {
+      rows.push({ date, dealId: "example-deal-b", spend: 201.3373 });
+      rows.push({ date, dealId: "example-deal-c", spend: 233.0251 });
+      rows.push({ date, dealId: "example-deal-d", spend: 187.6417 });
     }
   }
   return rows;
 }
 
 test("page-data: profileData reports what a payload contains, not just its shape", () => {
-  const profile = pageData.profileData({ dataThrough: "2026-08-05", rows: incidentRows() });
+  const profile = pageData.profileData({ dataThrough: "2026-03-31", rows: sampleRows() });
   const rows = profile.arrays.rows;
   assert.equal(rows.count, 101);
   // A date field is recognised from its VALUES, not the schema — ISO prefixes
   // compare lexicographically, so min/max are the real window.
   assert.equal(rows.fields.date.kind, "date");
-  assert.equal(rows.fields.date.min, "2026-07-06");
-  assert.equal(rows.fields.date.max, "2026-08-05");
+  assert.equal(rows.fields.date.min, "2026-03-01");
+  assert.equal(rows.fields.date.max, "2026-03-31");
   assert.equal(rows.fields.date.distinct, 31);
   // A low-cardinality string is a dimension worth enumerating: this is the check
-  // that would have shown deal 1442375 present.
+  // that would show the easily dropped deal present.
   assert.equal(rows.fields.dealId.kind, "key");
-  assert.deepEqual(Object.keys(rows.fields.dealId.values).sort(), ["1442375", "allergy", "pollen", "severe"]);
-  assert.equal(rows.fields.dealId.values["1442375"], 11);
-  // Sums are rounded, because a float sum reported as 25743.280999999998 invites
+  assert.deepEqual(Object.keys(rows.fields.dealId.values).sort(), ["example-deal-a", "example-deal-b", "example-deal-c", "example-deal-d"]);
+  assert.equal(rows.fields.dealId.values["example-deal-a"], 11);
+  // Sums are rounded, because a float sum reported as 20044.102999999992 invites
   // a caller to "fix" a number that is already right.
   assert.equal(rows.fields.spend.kind, "number");
-  assert.equal(rows.fields.spend.sum, 25743.281);
-  assert.equal(rows.fields.spend.max, 502.61);
-  assert.deepEqual(profile.scalars, { dataThrough: "2026-08-05" });
+  assert.notEqual(sampleRows().reduce((sum, row) => sum + row.spend, 0), 20044.103, "fixture: the raw sum must carry a float artifact");
+  assert.equal(rows.fields.spend.sum, 20044.103);
+  assert.equal(rows.fields.spend.max, 412.37);
+  assert.deepEqual(profile.scalars, { dataThrough: "2026-03-31" });
 
   // Free text is not a dimension; it must not be enumerated into the response.
   const wide = pageData.profileData({
@@ -4775,10 +4783,10 @@ test("page-data: the warning list is capped, and says how many it dropped", () =
 });
 
 test("page-data: compareDataProfiles catches both halves of the #102 incident", () => {
-  const published = pageData.profileData({ rows: incidentRows() });
-  // Exactly what shipped: a trailing-7-day window with the fourth deal filtered out.
+  const published = pageData.profileData({ rows: sampleRows() });
+  // Both failures at once: a trailing-7-day window with one deal filtered out.
   const broken = pageData.profileData({
-    rows: incidentRows().filter((row) => row.date >= "2026-07-30" && row.dealId !== "1442375"),
+    rows: sampleRows().filter((row) => row.date >= "2026-03-25" && row.dealId !== "example-deal-a"),
   });
   const codes = pageData.compareDataProfiles(published, broken).map((w) => w.code);
   assert.ok(codes.includes("coverage_start_regressed"), codes.join(","));
@@ -4788,14 +4796,14 @@ test("page-data: compareDataProfiles catches both halves of the #102 incident", 
   const startWarning = pageData
     .compareDataProfiles(published, broken)
     .find((w) => w.code === "coverage_start_regressed");
-  assert.equal(startWarning.previous, "2026-07-06");
-  assert.equal(startWarning.current, "2026-07-30");
+  assert.equal(startWarning.previous, "2026-03-01");
+  assert.equal(startWarning.current, "2026-03-25");
   assert.match(startWarning.message, /trailing-window source export/);
 
   // Growing the window, adding rows, and gaining a deal are all silent — the
   // ordinary refresh must not be buried in warnings it has to ignore.
   const grown = pageData.profileData({
-    rows: [...incidentRows(), { date: "2026-08-06", dealId: "allergy", spend: 10 }, { date: "2026-08-06", dealId: "newdeal", spend: 5 }],
+    rows: [...sampleRows(), { date: "2026-04-01", dealId: "example-deal-b", spend: 10 }, { date: "2026-04-01", dealId: "newdeal", spend: 5 }],
   });
   assert.deepEqual(pageData.compareDataProfiles(published, grown), []);
   // And an identical payload is silent.
@@ -4814,31 +4822,31 @@ function caught(fn) {
 }
 
 test("page-data: expect turns 'be correct' into a contract the server enforces", () => {
-  const profile = pageData.profileData({ rows: incidentRows() });
+  const profile = pageData.profileData({ rows: sampleRows() });
   // The correct numbers pass. Float drift is absorbed: a caller summing the same
   // column in a different order supplies a slightly different last bit.
   assert.doesNotThrow(() =>
     pageData.assertExpectedProfile(profile, {
       row_count: { rows: 101 },
-      totals: { "rows.spend": 25743.2810000001 },
-      date_range: { "rows.date": ["2026-07-06", "2026-08-05"] },
+      totals: { "rows.spend": 20044.1030000001 },
+      date_range: { "rows.date": ["2026-03-01", "2026-03-31"] },
     })
   );
-  // The understatement that shipped — ~7% — is refused, and nothing is written
-  // because this runs before prepareDeploy.
-  const short = pageData.profileData({ rows: incidentRows().filter((r) => r.dealId !== "1442375") });
-  const err = caught(() => pageData.assertExpectedProfile(short, { totals: { "rows.spend": 25743.281 } }));
+  // An understated total (here ~7%, one deal dropped) is refused, and nothing is
+  // written because this runs before prepareDeploy.
+  const short = pageData.profileData({ rows: sampleRows().filter((r) => r.dealId !== "example-deal-a") });
+  const err = caught(() => pageData.assertExpectedProfile(short, { totals: { "rows.spend": 20044.103 } }));
   assert.equal(err.code, "data_reconciliation_failed");
   assert.equal(err.details.mismatches.length, 1);
   assert.equal(err.details.mismatches[0].check, "total");
-  assert.equal(err.details.mismatches[0].expected, 25743.281);
-  assert.ok(err.details.mismatches[0].actual < 25743.281);
+  assert.equal(err.details.mismatches[0].expected, 20044.103);
+  assert.ok(err.details.mismatches[0].actual < 20044.103);
   // A truncated window is caught on the date range even when totals are not given.
   assert.throws(
     () =>
       pageData.assertExpectedProfile(
-        pageData.profileData({ rows: incidentRows().filter((r) => r.date >= "2026-07-30") }),
-        { date_range: { "rows.date": ["2026-07-06", "2026-08-05"] } }
+        pageData.profileData({ rows: sampleRows().filter((r) => r.date >= "2026-03-25") }),
+        { date_range: { "rows.date": ["2026-03-01", "2026-03-31"] } }
       ),
     (e) => e && e.code === "data_reconciliation_failed" && /date_range/.test(e.message)
   );
@@ -4866,42 +4874,31 @@ test("page-data: expect turns 'be correct' into a contract the server enforces",
   );
 });
 
-// Reconstructing the Vandelay incident from its own transcript (383 entries) showed the
-// hole in comparison-based detection, and it is the write that actually shipped:
-//
-//   create_page_from_template  rows= 31  2026-07-30→2026-08-05
-//   create_page_from_template  rows= 31  2026-07-30→2026-08-05
-//   create_page_from_template  rows= 31  2026-07-30→2026-08-05
-//   get_page_data              rows= 21  2026-07-30→2026-08-05
-//   update_page_data           rows= 21  2026-07-30→2026-08-05   ← shipped
-//
-// The DSP window was wrong in the FIRST payload, against a request for "7/6 and
-// on". There was never a wider baseline, so a diff finds nothing — the one write
-// that put wrong numbers in front of a client is exactly the write a diff cannot
-// see. The payload even carried its own confession in sourceDetail: "Requested
-// scope Jul 6–Aug 5, 2026; source delivery is Jul 30…".
-const SHIPPED_3M = {
-  dataThrough: "2026-08-05",
-  lastRefreshed: "Aug 6, 2026",
-  // Three configured deals × the trailing 7 days the newest fast.io folder held.
+// The hole in comparison-based detection: a window can be wrong in the FIRST
+// payload. With no wider baseline, a diff finds nothing, so the first write is
+// exactly the write a diff cannot see. This synthetic first payload holds three
+// deals over the last 7 days of a requested month-long window.
+const FIRST_PAYLOAD = {
+  dataThrough: "2026-03-31",
+  lastRefreshed: "Apr 1, 2026",
   rows: ["DL900000000000000001", "DL900000000000000002", "DL900000000000000003"].flatMap((dealId) =>
-    ["07-30", "07-31", "08-01", "08-02", "08-03", "08-04", "08-05"].map((tail) => ({
+    ["03-25", "03-26", "03-27", "03-28", "03-29", "03-30", "03-31"].map((tail) => ({
       date: `2026-${tail}`,
       dealId,
-      dspSpend: 72.1,
-      dspImpressions: 27000,
-      clicks: 24,
+      dspSpend: 80,
+      dspImpressions: 25000,
+      clicks: 20,
     }))
   ),
   // Diagnostic strings, not a data series.
-  unmapped: { notes: ["Fast.io source rows accounted for: 31 of 31; 0 dropped."] },
+  unmapped: { notes: ["Source rows accounted for: 21 of 21; 0 dropped."] },
 };
 
 test("page-data: a first payload that is already wrong gets flagged, because no diff can see it", () => {
   const emptyBaseline = pageData.profileData({ dataThrough: null, rows: [] });
-  const shipped = pageData.profileData(SHIPPED_3M);
+  const shipped = pageData.profileData(FIRST_PAYLOAD);
   assert.equal(shipped.arrays.rows.count, 21);
-  assert.equal(shipped.arrays.rows.fields.date.min, "2026-07-30");
+  assert.equal(shipped.arrays.rows.fields.date.min, "2026-03-25");
 
   // The comparison finds nothing, and that is not a bug in the comparison — the
   // baseline genuinely had no rows. Something else has to speak up.
@@ -4912,7 +4909,7 @@ test("page-data: a first payload that is already wrong gets flagged, because no 
     "only the data series, and only once"
   );
   assert.match(noBaseline[0].message, /UNVERIFIED/);
-  assert.match(noBaseline[0].message, /2026-07-30 to 2026-08-05/, "the window is quoted so it can be eyeballed");
+  assert.match(noBaseline[0].message, /2026-03-25 to 2026-03-31/, "the window is quoted so it can be eyeballed");
   assert.match(noBaseline[0].message, /expect/);
 
   // An array of scalars (unmapped.notes) has no coverage to verify. Warning about
@@ -4922,9 +4919,9 @@ test("page-data: a first payload that is already wrong gets flagged, because no 
   // Declaring the array in ANY of the three expect groups withdraws the warning —
   // expect enforces it instead, which is strictly stronger than a warning.
   for (const expected of [
-    { date_range: { "rows.date": ["2026-07-06", "2026-08-05"] } },
+    { date_range: { "rows.date": ["2026-03-01", "2026-03-31"] } },
     { row_count: { rows: 21 } },
-    { totals: { "rows.dspSpend": 1514.1 } },
+    { totals: { "rows.dspSpend": 1680 } },
   ]) {
     assert.deepEqual(
       pageData.compareDataProfiles(emptyBaseline, shipped, { expected }),
@@ -4941,37 +4938,32 @@ test("page-data: a first payload that is already wrong gets flagged, because no 
   assert.deepEqual(pageData.compareDataProfiles(shipped, shipped), []);
 });
 
-test("page-data: expect is what actually stops the Vandelay write", () => {
-  const shipped = pageData.profileData(SHIPPED_3M);
+test("page-data: expect is what stops a wrong first payload", () => {
+  const shipped = pageData.profileData(FIRST_PAYLOAD);
 
-  // The requested scope the agent recorded in its own sourceDetail.
+  // The requested scope.
   const window = caught(() =>
-    pageData.assertExpectedProfile(shipped, { date_range: { "rows.date": ["2026-07-06", "2026-08-05"] } })
+    pageData.assertExpectedProfile(shipped, { date_range: { "rows.date": ["2026-03-01", "2026-03-31"] } })
   );
   assert.equal(window.code, "data_reconciliation_failed");
   assert.deepEqual(window.details.mismatches[0], {
     check: "date_range",
     path: "rows.date",
-    expected: ["2026-07-06", "2026-08-05"],
-    actual: ["2026-07-30", "2026-08-05"],
+    expected: ["2026-03-01", "2026-03-31"],
+    actual: ["2026-03-25", "2026-03-31"],
   });
 
-  // The SSP half is caught by a different property: the payload had no `revenue`
+  // A different property catches a missing column: the payload has no `revenue`
   // field at all, so a total for it must be a MISMATCH rather than a silent pass.
-  // Ground truth from the Index export (18394716-draft-2026-08-06): 101 rows,
-  // Jul 6–Aug 5, 4 deals, $24,541.60 total, $502.61 on Jul 6 — all of it on the
-  // one deal the dashboard config did not model.
-  const ssp = caught(() => pageData.assertExpectedProfile(shipped, { totals: { "rows.revenue": 24541.6 } }));
+  const ssp = caught(() => pageData.assertExpectedProfile(shipped, { totals: { "rows.revenue": 20044.103 } }));
   assert.equal(ssp.details.mismatches[0].actual, null);
   assert.match(ssp.details.mismatches[0].detail, /no numeric field at that path/);
 });
 
-// A published dashboard was refreshed and the report went out as "Version 205
-// published and live" with "Data Warnings: None" — and the SAME Aug 3–Aug 5
-// coverage as the version before it. The recipient replied: "This just ran but
-// didn't update yesterday Aug 6th data?"
+// A refresh can publish a new version with no warnings and exactly the coverage
+// of the version before it, while the user expected a new day to arrive.
 //
-// Nothing was broken. The managed-data dedupe key is (data_sha256,
+// Nothing is broken. The managed-data dedupe key is (data_sha256,
 // data_template_sha256, source_as_of, render_mode), so a newer source_as_of over
 // byte-identical data is deliberately NOT a dedupe — that is how a re-verified
 // source gets recorded. But deduped:false, version_is_live:true and a fresh
@@ -4980,20 +4972,20 @@ test("page-data: expect is what actually stops the Vandelay write", () => {
 test("page-data: a refresh that added nothing says so, and says which kind of nothing", () => {
   const day = (max) => {
     const out = [];
-    for (const d of ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06"].filter((x) => x <= max)) {
-      for (const dealId of ["ACCT00172", "ACCT00177"]) out.push({ date: d, dealId, dspSpend: 100.5 });
+    for (const d of ["2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04"].filter((x) => x <= max)) {
+      for (const dealId of ["example-deal-a", "example-deal-b"]) out.push({ date: d, dealId, dspSpend: 100.5 });
     }
     return out;
   };
-  const published = { rows: day("2026-08-05") };
+  const published = { rows: day("2026-04-03") };
   const warn = (next) =>
     pageData.compareDataProfiles(pageData.profileData(published), pageData.profileData(next), {
       previousDataSha: pageData.semanticHash(published),
       nextDataSha: pageData.semanticHash(next),
     });
 
-  // Version 205: byte-identical payload, newer source_as_of.
-  const identical = warn({ rows: day("2026-08-05") });
+  // Byte-identical payload, newer source_as_of.
+  const identical = warn({ rows: day("2026-04-03") });
   assert.deepEqual(identical.map((w) => w.code), ["data_unchanged"]);
   assert.match(identical[0].message, /byte-identical/);
   assert.match(identical[0].message, /Do not report this as a data update/);
@@ -5003,14 +4995,14 @@ test("page-data: a refresh that added nothing says so, and says which kind of no
 
   // The other kind of nothing: figures moved, the window did not. A source that
   // was updated but only restated days already covered.
-  const restated = warn({ rows: day("2026-08-05").map((r) => ({ ...r, dspSpend: 101.25 })) });
+  const restated = warn({ rows: day("2026-04-03").map((r) => ({ ...r, dspSpend: 101.25 })) });
   assert.deepEqual(restated.map((w) => w.code), ["coverage_did_not_advance"]);
-  assert.match(restated[0].message, /still ends at 2026-08-05/);
-  assert.equal(restated[0].previous, "2026-08-05");
+  assert.match(restated[0].message, /still ends at 2026-04-03/);
+  assert.equal(restated[0].previous, "2026-04-03");
 
   // A refresh that genuinely extends the window is silent, which is the whole
   // point — these must not fire on the ordinary good case.
-  assert.deepEqual(warn({ rows: day("2026-08-06") }), []);
+  assert.deepEqual(warn({ rows: day("2026-04-04") }), []);
 
   // Both hashes are required. A caller that cannot say whether the payload is the
   // same gets neither warning rather than the vaguer one.
@@ -5023,7 +5015,7 @@ test("page-data: a refresh that added nothing says so, and says which kind of no
   // The first cut only compared the end date, so a refresh that restored three
   // weeks of history at the front was told it had added nothing.
   const backfilled = warn({
-    rows: [{ date: "2026-07-06", dealId: "ACCT00172", dspSpend: 50 }, ...day("2026-08-05")],
+    rows: [{ date: "2026-03-01", dealId: "example-deal-a", dspSpend: 50 }, ...day("2026-04-03")],
   });
   assert.deepEqual(backfilled, [], "an earlier start is added data");
   // …and anything that SHRANK is a loss finding, which is louder and more specific.
@@ -5031,7 +5023,7 @@ test("page-data: a refresh that added nothing says so, and says which kind of no
   // moves — otherwise a truncated window would fire its own louder warning too.
   assert.deepEqual(
     warn({
-      rows: day("2026-08-05").filter((r) => !(r.date === "2026-08-04" && r.dealId === "ACCT00177")),
+      rows: day("2026-04-03").filter((r) => !(r.date === "2026-04-02" && r.dealId === "example-deal-b")),
     }).map((w) => w.code),
     ["row_count_dropped"]
   );
@@ -5040,7 +5032,7 @@ test("page-data: a refresh that added nothing says so, and says which kind of no
   // another. Both fire, and the stale finding LEADS so the MAX_DATA_WARNINGS cap
   // can never drop the one that changes what the caller should say.
   const swapped = warn({
-    rows: day("2026-08-05").map((r) => (r.dealId === "ACCT00177" ? { ...r, dealId: "ACCT99999" } : r)),
+    rows: day("2026-04-03").map((r) => (r.dealId === "example-deal-b" ? { ...r, dealId: "example-deal-z" } : r)),
   });
   assert.deepEqual(swapped.map((w) => w.code), ["coverage_did_not_advance", "dimension_values_missing"]);
 });
@@ -5056,20 +5048,20 @@ test("update prompts: a partitioned source renders as enumerate-the-range, not n
     {
       source_id: "amazon_dsp",
       mcp_server: "fastio_helpers",
-      path: "NWM_keel/Meridian/daily",
+      path: "northwind/contoso/daily",
       partition: { by: "date", format: "YYYY-MM-DD", since: "source_as_of" },
       required_tools: ["list_partitions"],
     },
   ]);
   assert.deepEqual(sources[0].partition, { by: "date", format: "YYYY-MM-DD", since: "source_as_of" });
   const prompt = updatePrompts.fullPagePrompt({
-    slug: "harborsun-acct00176",
+    slug: "harborsun-example",
     instructions: "Refresh through the newest complete day.",
     liveVersionId: "252",
     publish: true,
     sources,
   });
-  assert.match(prompt, /path NWM_keel\/Meridian\/daily/);
+  assert.match(prompt, /path northwind\/contoso\/daily/);
   assert.match(prompt, /PARTITIONED by date \(YYYY-MM-DD\) from the page's current source_as_of/);
   // The instruction that separates a six-day refresh from a one-day one.
   assert.match(prompt, /enumerate EVERY partition in range and aggregate them; never take only the newest/);
@@ -5114,8 +5106,8 @@ test("update prompts: execution requirements name what a scheduler must supply",
   assert.ok(req.required_tools.includes("list_partitions"));
   assert.ok(req.required_tools.includes("mcp_pages_update_page_data_upload"));
   assert.equal(req.network, false, "MCP chunk transport does not require outbound file HTTP");
-  // The five Pages autoupdate tasks dead-lettered because no model was ever
-  // assigned. A scheduler can refuse up front if this is stated.
+  // A task with no model assigned fails at dispatch. A scheduler can refuse it
+  // up front when this is stated.
   assert.equal(req.model_required, true);
   assert.equal(req.mode, "managed_data");
 });
@@ -5133,7 +5125,7 @@ test("update prompts: a recurring update refuses to be built from prose alone", 
   await assert.rejects(
     () =>
       updatePrompts.prepare({
-        slug: "harborsun-acct00176",
+        slug: "harborsun-example",
         instructions: "Every day, refresh with the newest Amazon DSP and Index Exchange data.",
         recurring: true,
         updateType: "data",
@@ -5164,15 +5156,12 @@ test("update prompts: a one-time update keeps the old leniency", async () => {
   );
 });
 
-// ── managed-data inline size contract (NWM refresh, fleet task 3d767956) ─────
+// ── managed-data inline size contract ───────────────────────────────────────
 //
-// A daily refresh built a complete, schema-valid 978 KB payload — 846 new rows,
-// nothing dropped, schema hash matched — then declined to send it because
-// update_page_data documented no size limit and offers no file-backed variant.
-// It burned six tool searches looking for update_page_data_from_file, flagged
-// `file_backed_update_tool_unavailable`, and aborted with the page unchanged.
-// The payload would have been accepted: 927 KB was already published on that
-// same page and the body limit is 2 MB. An unstated limit makes a caller guess.
+// A complete payload below the supported limit must be accepted. When the
+// limit is unstated and no staged transport exists, a caller that is unsure
+// about inline delivery can abort a correct refresh with the page unchanged.
+// So the limit is documented and a by-reference path exists.
 
 test("mcp-tools: update_page_data states the supported payload size in its schema", () => {
   const { TOOLS } = require("../lib/mcp-tools");
@@ -5241,9 +5230,9 @@ test("mcp-tools: an oversized payload is refused with an actionable code", () =>
   assert.ok(err.details && err.details.bytes > err.details.max_bytes);
 });
 
-test("mcp-tools: a realistic 978 KB payload is accepted, not refused", () => {
+test("mcp-tools: a payload just under 1 MB is accepted, not refused", () => {
   const { assertInlineData } = require("../lib/mcp-tools");
-  // Same order of magnitude as the payload the NWM run declined to send.
+  // A synthetic payload just under the 1 MB data limit.
   const rows = Array.from({ length: 12600 }, (_, i) => ({
     date: "2026-08-16",
     deal: `deal-${i}`,
@@ -5251,8 +5240,8 @@ test("mcp-tools: a realistic 978 KB payload is accepted, not refused", () => {
     impressions: 98765,
   }));
   const bytes = Buffer.byteLength(JSON.stringify({ rows }), "utf8");
-  assert.ok(bytes > 950000 && bytes < 1000000, `fixture should be ~978 KB, got ${bytes}`);
-  assert.doesNotThrow(() => assertInlineData({ rows }), "the size that broke production must pass");
+  assert.ok(bytes > 950000 && bytes < 1000000, `fixture should be just under 1 MB, got ${bytes}`);
+  assert.doesNotThrow(() => assertInlineData({ rows }), "a payload just under the limit must pass");
 });
 
 test("content host: nothing a client can reach calls this an internal tool", () => {

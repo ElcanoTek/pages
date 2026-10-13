@@ -28,8 +28,8 @@ const { pageUrls } = require("../lib/mcp");
 const SOURCE_AS_OF = "2026-09-21T00:00:00.000Z";
 const block = (id, value, type = "application/json") => `<script id="${id}" type="${type}">${JSON.stringify(value)}</script>`;
 
-// A tuple-row payload shaped like the largest production data page: a deal
-// registry and ~990 KB of [dealId, date, revenue, margin, fee, impressions, clicks].
+// A synthetic tuple-row payload near the 1 MB data limit: a deal registry and
+// ~990 KB of [dealId, date, revenue, margin, fee, impressions, clicks].
 function tupleFixture() {
   const deals = Array.from({ length: 40 }, (_, i) => [`d${i}`, `Northwind_SSP_Contoso_${i}_Fabrikam_Display_Q3_2026_Open_Web_US_Standard`]);
   const rows = [];
@@ -143,7 +143,7 @@ const bytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
 
 test("get_page_data summary: a ~1 MB payload's contract fits in 2 KB and carries no schema or rows", async (t) => {
   const tuple = publishedResult(tupleFixture());
-  assert.ok(bytes(tuple.envelope.data) > 980_000, "the fixture is the size of the largest production payload");
+  assert.ok(bytes(tuple.envelope.data) > 980_000, "the fixture is a near-limit payload");
   const full = await read(tuple, {});
   const summary = await read(tuple, { detail: "summary" });
   assert.ok(bytes(summary) <= 2048, `summary is ${bytes(summary)} bytes`);

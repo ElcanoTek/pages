@@ -501,7 +501,7 @@ function sessionCookie(res) {
     // The unlocked index lists exactly the dashboards that will actually open.
     await versions.createPage({ slug: "vw-overview", title: "Portfolio overview" }, adminCtx);
     await versions.deploy({ slug: "vw-overview", html: HTML, publish: true }, adminCtx);
-    await versions.createPage({ slug: "vw-contoso", title: "Contoso Allergex" }, adminCtx);
+    await versions.createPage({ slug: "vw-contoso", title: "Contoso Fabrikam" }, adminCtx);
     await versions.deploy({ slug: "vw-contoso", html: HTML, publish: true }, adminCtx);
     // …and three that must NOT be listed, because each would answer 404: a page
     // with nothing published, one taken down, and one soft-deleted. A dead link in

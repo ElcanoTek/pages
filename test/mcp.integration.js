@@ -2570,13 +2570,12 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     assert.equal(staleData.data.code, "stale_version");
     console.log("✓ managed data canary/publish/dedupe/coverage/schema/injection contracts");
 
-    // 19b. Issue #102. A Vandelay dashboard served wrong DSP and SSP numbers to a
-    // client and every payload had satisfied its JSON Schema perfectly: the DSP
-    // series started Jul 30 instead of Jul 21 because only the newest fast.io
-    // daily folder was read (a trailing-7-day export, not a cumulative one), and
-    // SSP totals were understated ~7% because rows were filtered to the three
-    // configured deals, dropping a fourth that carried all of Jul 6's spend.
-    // Shape validation cannot see either. This walks the incident end to end.
+    // 19b. Issue #102. A payload can satisfy its JSON Schema perfectly and still be
+    // wrong: a series that starts late because only the newest file of a
+    // trailing-window export was read, and totals understated because rows were
+    // filtered to the configured deals. Shape validation cannot see either. This
+    // walks both end to end on a synthetic dataset (every id, date and amount is
+    // invented; same fixture shape as test/unit.test.js sampleRows()).
     const rowSchema = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
@@ -2597,13 +2596,13 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     };
     const campaignRows = () => {
       const out = [];
-      for (let day = 6; day <= 36; day++) {
-        const date = day <= 31 ? `2026-07-${String(day).padStart(2, "0")}` : `2026-08-${String(day - 31).padStart(2, "0")}`;
-        if (day <= 16) out.push({ date, dealId: "1442375", spend: day === 6 ? 502.61 : 118.542 });
-        if (day >= 7) {
-          out.push({ date, dealId: "allergy", spend: 240.3364 });
-          out.push({ date, dealId: "pollen", spend: 284.9543 });
-          out.push({ date, dealId: "severe", spend: 276.551 });
+      for (let day = 1; day <= 31; day++) {
+        const date = `2026-03-${String(day).padStart(2, "0")}`;
+        if (day <= 11) out.push({ date, dealId: "example-deal-a", spend: day === 1 ? 412.37 : 97.161 });
+        if (day >= 2) {
+          out.push({ date, dealId: "example-deal-b", spend: 201.3373 });
+          out.push({ date, dealId: "example-deal-c", spend: 233.0251 });
+          out.push({ date, dealId: "example-deal-d", spend: 187.6417 });
         }
       }
       return out;
@@ -2626,20 +2625,20 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     const goodRefresh = toolData(
       await callTool("update_page_data", {
         slug: "mcp-profile",
-        data: { dataThrough: "2026-08-05", rows: campaignRows() },
+        data: { dataThrough: "2026-03-31", rows: campaignRows() },
         source_as_of: source1,
         expected_version: profileBase.version.id,
       })
     );
     assert.equal(goodRefresh.data_profile.arrays.rows.count, 101);
-    assert.equal(goodRefresh.data_profile.arrays.rows.fields.date.min, "2026-07-06");
-    assert.equal(goodRefresh.data_profile.arrays.rows.fields.date.max, "2026-08-05");
-    assert.equal(goodRefresh.data_profile.arrays.rows.fields.spend.sum, 25743.281);
+    assert.equal(goodRefresh.data_profile.arrays.rows.fields.date.min, "2026-03-01");
+    assert.equal(goodRefresh.data_profile.arrays.rows.fields.date.max, "2026-03-31");
+    assert.equal(goodRefresh.data_profile.arrays.rows.fields.spend.sum, 20044.103);
     assert.deepEqual(Object.keys(goodRefresh.data_profile.arrays.rows.fields.dealId.values).sort(), [
-      "1442375",
-      "allergy",
-      "pollen",
-      "severe",
+      "example-deal-a",
+      "example-deal-b",
+      "example-deal-c",
+      "example-deal-d",
     ]);
     // A caller's own numbers come back as the caller's own numbers. Pages
     // canonicalizes BIGINT ids to decimal strings by KEY NAME, and that
@@ -2721,24 +2720,24 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
       "and the profile still sees an integer column, not a key column"
     );
 
-    // The Vandelay incident's actual write: the FIRST payload was already truncated, so
-    // no diff could see it. A first real payload over an empty one is therefore
-    // reported as unverified rather than silently accepted.
+    // A first payload that is already truncated is invisible to any diff. A first
+    // real payload over an empty one is therefore reported as unverified rather
+    // than silently accepted.
     assert.deepEqual(
       goodRefresh.data_warnings.map((w) => `${w.code}@${w.path}`),
       ["coverage_unverified@rows"],
       JSON.stringify(goodRefresh.data_warnings)
     );
     assert.match(goodRefresh.next_step, /RECONCILE BEFORE SHARING/);
-    assert.equal(goodRefresh.data_profile.scalars.dataThrough, "2026-08-05");
+    assert.equal(goodRefresh.data_profile.scalars.dataThrough, "2026-03-31");
 
-    // The refresh that shipped. Schema-valid, and wrong in two ways at once.
+    // A refresh that is schema-valid and wrong in two ways at once.
     const badRefresh = toolData(
       await callTool("update_page_data", {
         slug: "mcp-profile",
         data: {
-          dataThrough: "2026-08-05",
-          rows: campaignRows().filter((row) => row.date >= "2026-07-30" && row.dealId !== "1442375"),
+          dataThrough: "2026-03-31",
+          rows: campaignRows().filter((row) => row.date >= "2026-03-25" && row.dealId !== "example-deal-a"),
         },
         source_as_of: source2,
         expected_version: goodRefresh.version.id,
@@ -2757,18 +2756,18 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     // get_page_data profiles the stored payload too, so a page an agent did not
     // just write can still be reconciled without pulling the envelope apart.
     const readBack = toolData(await callTool("get_page_data", { slug: "mcp-profile" }));
-    assert.equal(readBack.data_profile.arrays.rows.fields.date.min, "2026-07-30");
+    assert.equal(readBack.data_profile.arrays.rows.fields.date.min, "2026-03-25");
     assert.equal(readBack.data_profile.arrays.rows.count, 21);
 
     // expect is the stronger guarantee: state what the source said and the write
-    // is refused if the payload disagrees. This is the ~7% understatement.
+    // is refused if the payload disagrees: here, one deal dropped (~7%).
     const reconciliationFailed = toolError(
       await callTool("update_page_data", {
         slug: "mcp-profile",
-        data: { dataThrough: "2026-08-05", rows: campaignRows().filter((row) => row.dealId !== "1442375") },
+        data: { dataThrough: "2026-03-31", rows: campaignRows().filter((row) => row.dealId !== "example-deal-a") },
         source_as_of: source3,
         expected_version: badRefresh.version.id,
-        expect: { row_count: { rows: 101 }, totals: { "rows.spend": 25743.281 } },
+        expect: { row_count: { rows: 101 }, totals: { "rows.spend": 20044.103 } },
       })
     );
     assert.equal(reconciliationFailed.data.code, "data_reconciliation_failed");
@@ -2784,13 +2783,13 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     const reconciled = toolData(
       await callTool("update_page_data", {
         slug: "mcp-profile",
-        data: { dataThrough: "2026-08-05", rows: campaignRows() },
+        data: { dataThrough: "2026-03-31", rows: campaignRows() },
         source_as_of: source3,
         expected_version: badRefresh.version.id,
         expect: {
           row_count: { rows: 101 },
-          totals: { "rows.spend": 25743.281 },
-          date_range: { "rows.date": ["2026-07-06", "2026-08-05"] },
+          totals: { "rows.spend": 20044.103 },
+          date_range: { "rows.date": ["2026-03-01", "2026-03-31"] },
         },
       })
     );
@@ -2802,13 +2801,11 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
       "declaring the window in expect is stronger than warning about it, so the warning withdraws"
     );
 
-    // A refresh that added nothing. A real one went out as "Version 205 published
-    // and live" with "Data Warnings: None" and the same coverage as the version
-    // before it; the recipient asked why yesterday's data was missing. A newer
-    // source_as_of over byte-identical data is deliberately not a dedupe, so
-    // deduped:false, version_is_live:true and a fresh version id all read like new
-    // numbers landed.
-    const sameRows = { dataThrough: "2026-08-05", rows: campaignRows() };
+    // A refresh that added nothing: a new version with no warnings and the same
+    // coverage as the one before it. A newer source_as_of over byte-identical data
+    // is deliberately not a dedupe, so deduped:false, version_is_live:true and a
+    // fresh version id all read like new numbers landed.
+    const sameRows = { dataThrough: "2026-03-31", rows: campaignRows() };
     const later = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const noNewData = toolData(
       await callTool("update_page_data", {
@@ -2850,7 +2847,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     const extended = toolData(
       await callTool("update_page_data", {
         slug: "mcp-profile",
-        data: { dataThrough: "2026-08-06", rows: [...campaignRows(), { date: "2026-08-06", dealId: "allergy", spend: 12.5 }] },
+        data: { dataThrough: "2026-04-01", rows: [...campaignRows(), { date: "2026-04-01", dealId: "example-deal-b", spend: 12.5 }] },
         source_as_of: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
         expected_version: noNewData.version.id,
       })
@@ -3015,10 +3012,9 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
     assert.equal(checkAudit.rows[0].metadata.outcome, "source_not_updated");
     console.log("✓ a no-op refresh is recordable without a version, and shows up in both reads");
 
-    // 22c. Managed data gets the staged path HTML has had since #14. The
-    // payload that motivated it was 978 KB and growing 50 KB in five days, and
-    // the run that built it burned six tool searches hunting for a file-backed
-    // variant, found none, and aborted with the page unchanged (fleet 3d767956).
+    // 22c. Managed data gets the staged path HTML has had since #14, so a large
+    // payload that grows over time never leaves a caller hunting for a
+    // file-backed variant or aborting with the page unchanged.
     const stagedPayload = { count: 41, label: "staged" };
     const stagedBytes = Buffer.from(JSON.stringify(stagedPayload), "utf8");
     const beforeStaged = toolData(await callTool("get_page_data", { slug: "mcpdata" }));
@@ -3348,7 +3344,7 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
           {
             source_id: "amazon_dsp",
             mcp_server: "fastio_helpers",
-            path: "NWM_keel/Meridian/daily",
+            path: "northwind/contoso/daily",
             partition: { by: "date", format: "YYYY-MM-DD", since: "source_as_of" },
             required_tools: ["list_partitions"],
           },

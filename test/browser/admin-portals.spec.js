@@ -37,9 +37,9 @@ test("the portal list and its detail render, with the partner link to hand out",
   // The link audit: live pages the home dashboard links to but nobody added as
   // members — the drift that silently drops the nav behind a hub link.
   await expect(page.getByText("Linked from the home page, but not members")).toBeVisible();
-  await expect(page.getByTestId("portal-link-audit-nwm-lakeside")).toContainText("Lakeside campaign");
-  await expect(page.getByTestId("portal-link-audit-nwm-lakeside")).toContainText("/nwm-lakeside");
-  await expect(page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button", { name: "Add to portal" })).toBeVisible();
+  await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toContainText("Woodgrove campaign");
+  await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toContainText("/nwm-woodgrove");
+  await expect(page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" })).toBeVisible();
   // The reclassification is stated BEFORE any click, the way the file's opening
   // invariant requires: the audit payload has no has_password, so it is said
   // about all of them rather than per row.
@@ -86,7 +86,7 @@ test.describe("the link audit", () => {
       await expect(page.getByRole("heading", { level: 2, name: "Northwind Media Group" })).toBeVisible();
 
       const memberRow = memberTable(page).locator("tbody tr").first();
-      const auditRow = page.getByTestId("portal-link-audit-nwm-lakeside");
+      const auditRow = page.getByTestId("portal-link-audit-nwm-woodgrove");
       // The title, which flex-end used to push to the far right of the panel.
       const memberTitle = await memberRow.locator("td:first-child strong").boundingBox();
       const auditTitle = await auditRow.locator("td:first-child strong").boundingBox();
@@ -111,14 +111,14 @@ test.describe("the link audit", () => {
 
     // The staff-only one: adding it is what makes it readable with this portal's
     // password, and the row used to just vanish with nothing said at all.
-    await page.getByTestId("portal-link-audit-nwm-mars-petcare")
+    await page.getByTestId("portal-link-audit-nwm-tailspin-pet")
       .getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Tailspin Pet Q3 is now readable with this portal's password." }))
       .toBeVisible();
     await expect.poll(() => memberOrder(page))
-      .toEqual(["Portfolio overview", "Contoso Allergex", "Taken down", "Tailspin Pet Q3"]);
+      .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Tailspin Pet Q3"]);
     // It is a member now, so it is no longer drift.
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare")).toHaveCount(0);
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet")).toHaveCount(0);
     await expect(page.getByTestId("portal-link-audit")).toBeVisible();
   });
 
@@ -130,7 +130,7 @@ test.describe("the link audit", () => {
       contentType: "application/json",
       body: JSON.stringify({ error: "server exploded", code: "server_error" }),
     }));
-    const button = page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button", { name: "Add to portal" });
+    const button = page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" });
     await button.click();
     await expect(page.getByRole("alert").filter({ hasText: "server exploded" })).toBeVisible();
     // The old handler disabled event.target by hand and re-enabled it in a catch;
@@ -154,18 +154,18 @@ test.describe("the link audit", () => {
 
     await page.getByTestId("portal-link-audit-add-all").click();
     const confirm = page.getByRole("dialog");
-    await expect(confirm).toContainText("Lakeside campaign, Tailspin Pet Q3");
+    await expect(confirm).toContainText("Woodgrove campaign, Tailspin Pet Q3");
     await expect(confirm).toContainText("becomes readable by everyone holding this portal's password");
     await confirm.getByRole("button", { name: "Add all 2" }).click();
 
     await expect.poll(() => memberOrder(page))
-      .toEqual(["Portfolio overview", "Contoso Allergex", "Taken down", "Lakeside campaign", "Tailspin Pet Q3"]);
+      .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Woodgrove campaign", "Tailspin Pet Q3"]);
     expect(sent.map((body) => body.sort_order)).toEqual([3, 4]);
     // Only the staff-only one is named as reclassified, and it is named: with the
     // rows gone there is nothing left on screen to carry the news.
     await expect(page.getByRole("status").filter({ hasText: "Added 2 pages." })).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "Tailspin Pet Q3 is now readable" })).toBeVisible();
-    await expect(page.getByRole("status").filter({ hasText: "Lakeside campaign is now readable" })).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "Woodgrove campaign is now readable" })).toHaveCount(0);
     // Nothing left to audit.
     await expect(page.getByTestId("portal-link-audit")).toHaveCount(0);
   });
@@ -173,9 +173,9 @@ test.describe("the link audit", () => {
   test("Add all is not offered over a single row, whose own button is Add all", async ({ page }) => {
     await page.goto("/admin/portals");
     await expect(page.getByRole("heading", { level: 2, name: "Northwind Media Group" })).toBeVisible();
-    await page.getByTestId("portal-link-audit-nwm-lakeside")
+    await page.getByTestId("portal-link-audit-nwm-woodgrove")
       .getByRole("button", { name: "Add to portal" }).click();
-    await expect(page.getByTestId("portal-link-audit-nwm-lakeside")).toHaveCount(0);
+    await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toHaveCount(0);
     await expect(page.getByTestId("portal-link-audit-add-all")).toHaveCount(0);
     await expect(auditTable(page).locator("caption")).toContainText("1 linked page is not in this portal.");
   });
@@ -201,9 +201,9 @@ test.describe("the link audit", () => {
     // The first add really happened. A screen still listing it as drift would
     // send the next click at a page that is already a member.
     await expect.poll(() => memberOrder(page))
-      .toEqual(["Portfolio overview", "Contoso Allergex", "Taken down", "Lakeside campaign"]);
-    await expect(page.getByTestId("portal-link-audit-nwm-lakeside")).toHaveCount(0);
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare")).toBeVisible();
+      .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Woodgrove campaign"]);
+    await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toHaveCount(0);
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet")).toBeVisible();
   });
 
   test("each row's action names the dashboard it would add", async ({ page }) => {
@@ -211,9 +211,9 @@ test.describe("the link audit", () => {
     await expect(page.getByRole("heading", { level: 2, name: "Northwind Media Group" })).toBeVisible();
     // A column of identical "Add to portal" buttons tells a screen reader nothing
     // about which one it is standing on.
-    await expect(page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button"))
-      .toHaveAttribute("aria-label", "Add to portal: Lakeside campaign");
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button"))
+    await expect(page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button"))
+      .toHaveAttribute("aria-label", "Add to portal: Woodgrove campaign");
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button"))
       .toHaveAttribute("aria-label", "Add to portal: Tailspin Pet Q3");
     await expectNoSeriousAxeViolations(page, "/admin/portals link audit");
   });
@@ -298,7 +298,7 @@ test.describe("the link audit", () => {
     // Discarding the collected results left it said nowhere at all.
     const failure = page.getByRole("alert").filter({ hasText: "server exploded" });
     await expect(failure).toContainText("the rest were not added");
-    await expect(failure).toContainText("Lakeside campaign is now readable with this portal's password.");
+    await expect(failure).toContainText("Woodgrove campaign is now readable with this portal's password.");
   });
 
   test("Add all holds the whole section, so no row can be added twice", async ({ page }) => {
@@ -320,8 +320,8 @@ test.describe("the link audit", () => {
     // sends a second POST for a page the batch is already adding, which the API
     // refuses as portal_page_exists — aborting the rest of the batch and silently
     // skipping what was left of it.
-    await expect(page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button")).toBeDisabled();
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeDisabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button")).toBeDisabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeDisabled();
     release();
     await expect(page.getByTestId("portal-link-audit")).toHaveCount(0);
     expect(adds).toBe(2);
@@ -338,13 +338,13 @@ test.describe("the link audit", () => {
       return route.continue();
     });
 
-    await page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button", { name: "Add to portal" }).click();
+    await page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByTestId("portal-link-audit-add-all")).toBeDisabled();
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeDisabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeDisabled();
     release();
     // …and the lock lifts with the re-read, rather than leaving a dead row behind.
-    await expect(page.getByTestId("portal-link-audit-nwm-lakeside")).toHaveCount(0);
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeEnabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toHaveCount(0);
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeEnabled();
   });
 
   test("a failed add lifts the lock it took", async ({ page }) => {
@@ -355,12 +355,12 @@ test.describe("the link audit", () => {
       contentType: "application/json",
       body: JSON.stringify({ error: "server exploded", code: "server_error" }),
     }));
-    await page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button", { name: "Add to portal" }).click();
+    await page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "server exploded" })).toBeVisible();
     // A failure re-renders nothing, so the section-wide disable has to be undone
     // by hand — a row of dead controls is worse than the race it guarded against.
     await expect(page.getByTestId("portal-link-audit-add-all")).toBeEnabled();
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeEnabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeEnabled();
   });
 
   test("a successful add leaves focus in the page, not on <body>", async ({ page }) => {
@@ -371,14 +371,14 @@ test.describe("the link audit", () => {
     // setBusy disables the pressed button before the rebuild, so the browser has
     // already blurred it and keepingFocus has no id left to restore — focus fell
     // to <body>, at the top of the document, on a screen only ever driven by hand.
-    await page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button", { name: "Add to portal" }).focus();
+    await page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" }).focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByTestId("portal-link-audit-nwm-lakeside")).toHaveCount(0);
+    await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toHaveCount(0);
     await expect.poll(focusedId).toBe("portal-link-audit-heading");
 
     // Adding the last one deletes the section the user was standing in, so focus
     // lands on the heading of the table the dashboard just joined.
-    await page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button", { name: "Add to portal" }).click();
+    await page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByTestId("portal-link-audit")).toHaveCount(0);
     await expect.poll(focusedId).toBe("portal-members-heading");
     await expectNoSeriousAxeViolations(page, "/admin/portals after an add");
@@ -487,10 +487,10 @@ test("Enter submits a portal dialog, the way it does everywhere else in the admi
   // Edit membership: type a label, press Enter, and the dialog does what its
   // primary action does. Before #166 the fields sat in a plain div behind a
   // type="button", so this keystroke went nowhere.
-  await page.getByRole("row").filter({ hasText: "Contoso Allergex" }).getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("row").filter({ hasText: "Contoso Fabrikam" }).getByRole("button", { name: "Edit" }).click();
   const edit = page.getByRole("dialog");
   await expect(edit).toBeVisible();
-  await edit.getByLabel("Label for the partner").fill("Allergex — allergy season");
+  await edit.getByLabel("Label for the partner").fill("Fabrikam — allergy season");
   await edit.getByLabel("Label for the partner").press("Enter");
   await expect(page.getByRole("status").filter({ hasText: "Membership updated." })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -790,7 +790,7 @@ test.describe("membership order", () => {
     await expect(add.locator("input[type=number]")).toHaveCount(0);
     await add.getByRole("button", { name: "Cancel" }).click();
 
-    await page.getByRole("row").filter({ hasText: "Contoso Allergex" }).getByRole("button", { name: "Edit" }).click();
+    await page.getByRole("row").filter({ hasText: "Contoso Fabrikam" }).getByRole("button", { name: "Edit" }).click();
     const edit = page.getByRole("dialog");
     await expect(edit.getByLabel("Label for the partner")).toBeVisible();
     await expect(edit.getByLabel("Order")).toHaveCount(0);
@@ -801,20 +801,20 @@ test.describe("membership order", () => {
   test("a page moves up and down from its own row, and the list comes back reordered", async ({ page }) => {
     await page.goto("/admin/portals");
     await expect(page.getByRole("heading", { level: 2, name: "Northwind Media Group" })).toBeVisible();
-    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
+    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
 
     // Each control names its own row: three identical "Move up" buttons in a
     // table tell a screen reader nothing about what they would move.
-    await expect(page.getByRole("button", { name: "Move up: Contoso Allergex" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Move down: Contoso Allergex" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move up: Contoso Fabrikam" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move down: Contoso Fabrikam" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Move up: Contoso Allergex" }).click();
-    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Allergex", "Portfolio overview", "Taken down"]);
-    await expect(page.getByRole("status").filter({ hasText: "Contoso Allergex is now first." })).toBeVisible();
+    await page.getByRole("button", { name: "Move up: Contoso Fabrikam" }).click();
+    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Fabrikam", "Portfolio overview", "Taken down"]);
+    await expect(page.getByRole("status").filter({ hasText: "Contoso Fabrikam is now first." })).toBeVisible();
 
-    await page.getByRole("button", { name: "Move down: Contoso Allergex" }).click();
-    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
-    await expect(page.getByRole("status").filter({ hasText: "Contoso Allergex moved below Portfolio overview." })).toBeVisible();
+    await page.getByRole("button", { name: "Move down: Contoso Fabrikam" }).click();
+    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
+    await expect(page.getByRole("status").filter({ hasText: "Contoso Fabrikam moved below Portfolio overview." })).toBeVisible();
 
     // The ends of the list offer nothing to press, rather than a control that
     // silently does nothing.
@@ -840,8 +840,8 @@ test.describe("membership order", () => {
     await page.keyboard.press("Enter");
     // The announcement is the ONLY confirmation left: with the integer gone,
     // nothing on the row says where it now sits.
-    await expect(page.getByRole("status").filter({ hasText: "Taken down moved above Contoso Allergex." })).toBeVisible();
-    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Taken down", "Contoso Allergex"]);
+    await expect(page.getByRole("status").filter({ hasText: "Taken down moved above Contoso Fabrikam." })).toBeVisible();
+    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Taken down", "Contoso Fabrikam"]);
 
     // #146, on a control that rebuilds the row it lives in: focus stays on this
     // row, on a control that can still move it.
@@ -857,7 +857,7 @@ test.describe("membership order", () => {
     await page.getByRole("row").filter({ hasText: "/nwm-taken-down" }).getByRole("button", { name: "Edit" }).focus();
     await page.keyboard.press("Alt+ArrowDown");
     await expect(page.getByRole("status").filter({ hasText: "Taken down is now last." })).toBeVisible();
-    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
     // …and it leaves them where they were. Focus used to be relocated onto an
     // arrow — and, at the end of the list, onto the arrow with the OPPOSITE
     // effect, so the next Enter or Space undid the move just asked for.
@@ -872,7 +872,7 @@ test.describe("membership order", () => {
     await page.getByTestId("portal-move-up-73").focus();
     await page.keyboard.press("Alt+ArrowDown");
     await page.waitForTimeout(300);
-    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
+    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
 
     await expectNoSeriousAxeViolations(page, "/admin/portals reorder controls");
   });
@@ -887,23 +887,23 @@ test.describe("membership order", () => {
     const up = page.getByTestId("portal-move-up-73");
     await up.click();
     await up.click();
-    await expect.poll(() => memberOrder(page)).toEqual(["Taken down", "Portfolio overview", "Contoso Allergex"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Taken down", "Portfolio overview", "Contoso Fabrikam"]);
     await expect(page.getByRole("status").filter({ hasText: "Taken down is now first." })).toBeVisible();
   });
 
   test("a dashboard added without an Order field is appended, not dropped at 0", async ({ page }) => {
     await page.goto("/admin/portals");
     await expect(page.getByRole("heading", { level: 2, name: "Northwind Media Group" })).toBeVisible();
-    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
+    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
 
     // Three members already, so the fourth goes AFTER them. Sending 0 — which the
     // dialog's default and the link audit both did — is how two rows came to share
     // a position. Asserted on the order that comes BACK rather than on the request
     // body: while the fixture's add handler persisted nothing, asserting the body
     // read 3 twice in a row only because the first add never took effect.
-    await page.getByTestId("portal-link-audit-nwm-lakeside").getByRole("button", { name: "Add to portal" }).click();
+    await page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" }).click();
     await expect.poll(() => memberOrder(page))
-      .toEqual(["Portfolio overview", "Contoso Allergex", "Taken down", "Lakeside campaign"]);
+      .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Woodgrove campaign"]);
 
     // And the fifth lands after the fourth — the assertion a stub could not make.
     await page.getByRole("button", { name: "Add a page" }).click();
@@ -919,13 +919,13 @@ test.describe("membership order", () => {
     await expect(memberTable(page).locator("tbody tr").last()).toContainText(`/${slug}`);
     // …and the four already there keep the order they had.
     expect((await memberOrder(page)).slice(0, 4))
-      .toEqual(["Portfolio overview", "Contoso Allergex", "Taken down", "Lakeside campaign"]);
+      .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Woodgrove campaign"]);
   });
 
   test("a renumber that fails part-way leaves the screen showing what the server holds", async ({ page }) => {
     await page.goto("/admin/portals");
     await expect(page.getByRole("heading", { level: 2, name: "Northwind Media Group" })).toBeVisible();
-    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
+    expect(await memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
 
     // A move renumbers by position, so it is more than one write. The second one
     // failing used to leave the screen rendering the order it HOPED for while the
@@ -942,7 +942,7 @@ test.describe("membership order", () => {
       });
     });
 
-    await page.getByRole("button", { name: "Move up: Contoso Allergex" }).click();
+    await page.getByRole("button", { name: "Move up: Contoso Fabrikam" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "server exploded" })).toBeVisible();
     expect(writes, "the plan really was more than one write").toBe(2);
 
@@ -958,7 +958,7 @@ test.describe("membership order", () => {
     // of place rather than swapping two values — which is why the honest re-read
     // is enough on its own.
     await page.getByTestId("portal-move-up-73").click();
-    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Allergex", "Taken down", "Portfolio overview"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Fabrikam", "Taken down", "Portfolio overview"]);
   });
 
   test("a second press in the very same spot moves the next row, not nothing", async ({ page }) => {
@@ -977,9 +977,9 @@ test.describe("membership order", () => {
     const box = await page.getByTestId("portal-move-up-73").boundingBox();
     const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await page.mouse.click(spot.x, spot.y);
-    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Taken down", "Contoso Allergex"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Taken down", "Contoso Fabrikam"]);
 
-    // Row 3 is now Contoso Allergex, which unlike Taken down carries a "Make home"
+    // Row 3 is now Contoso Fabrikam, which unlike Taken down carries a "Make home"
     // button — the exact width difference that used to shift the arrows.
     const under = await page.evaluate(({ x, y }) => {
       const node = document.elementFromPoint(x, y);
@@ -988,7 +988,7 @@ test.describe("membership order", () => {
     }, spot);
     expect(under, "the pointer must still be over a move control").toBe("portal-move-up-72");
     await page.mouse.click(spot.x, spot.y);
-    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Contoso Allergex", "Taken down"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down"]);
   });
 
   test("moving the home page down never claims this table is home-first", async ({ page }) => {
@@ -1000,9 +1000,9 @@ test.describe("membership order", () => {
     // true. The arrows move it, and they report success, so the sentence has to be
     // about the partner's index instead of about this table.
     await page.getByTestId("portal-move-down-71").click();
-    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Allergex", "Portfolio overview", "Taken down"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Fabrikam", "Portfolio overview", "Taken down"]);
     await page.getByTestId("portal-move-down-71").click();
-    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Allergex", "Taken down", "Portfolio overview"]);
+    await expect.poll(() => memberOrder(page)).toEqual(["Contoso Fabrikam", "Taken down", "Portfolio overview"]);
     await expect(page.getByRole("status").filter({ hasText: "Portfolio overview is now last." })).toBeVisible();
 
     // The HOME badge is on the LAST row, and the caption above it says nothing to

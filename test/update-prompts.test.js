@@ -153,9 +153,9 @@ test("every requirement is one a strict scheduler accepts, and covers every tool
 });
 
 test("a binding whose server or tool a scheduler cannot parse is refused at preparation", async () => {
-  // fleet dead-lettered tasks whose prepared block carried "fast_io + fastio_helpers".
+  // A scheduler refuses a task whose prepared block names two servers as one.
   for (const bad of [
-    { source_id: "ssp", mcp_server: "fast_io + fastio_helpers" },
+    { source_id: "ssp", mcp_server: "file_store + file_helpers" },
     { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download download_url"] },
     { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download,download_url"] },
   ]) {
@@ -170,7 +170,7 @@ test("a binding whose server or tool a scheduler cannot parse is refused at prep
   assert.equal(
     updatePrompts.sourcesFromWorkflow({
       sources: [
-        { source_id: "combined", mcp_server: "fast_io + fastio_helpers" },
+        { source_id: "combined", mcp_server: "file_store + file_helpers" },
         { source_id: "ssp", mcp_server: "fast_io", required_tools: ["mcp_fast_io_download"] },
       ],
     }),
@@ -356,10 +356,10 @@ test("a request that is only scheduling prose is kept rather than emptied", () =
   );
 });
 
-// Before these rules a quarter of production refresh runs stopped at the first
-// gap — a vendor report no longer generated, a fee column one exchange never
-// fills, two deals CONFIG did not list yet, a DSP feed a day behind — while the
-// sources held real new data, and each was recorded as a successful task.
+// An unattended refresh should distinguish reportable source gaps (a report no
+// longer generated, a column a source never fills, an identifier CONFIG does not
+// list yet, one feed a day behind) from hard blockers, publish what the sources
+// verifiably report, and report its outcome accurately.
 test("a recurring prompt blocks only on hard stops and publishes around other gaps", () => {
   const sources = updatePrompts.normalizeSources(SOURCES);
   const common = { slug: SLUG, instructions: "Refresh from the Northwind export.", schemaSha256: "a".repeat(64), sources, publish: true };
@@ -379,8 +379,7 @@ test("a recurring prompt blocks only on hard stops and publishes around other ga
   // A metric the schema never had is not a gap: a run blocked on exactly that.
   assert.match(rules, /that the page's schema has no field for: it is not published and is noted, never a reason to block/);
   assert.match(five, /a field the schema requires that no source can fill, or a grain that does not match, without a schema change/);
-  // The discovery window is where to look, not a coverage deadline (a run
-  // blocked at 14:30 UTC because the sources "only" reached yesterday).
+  // The discovery window is where to look, not a coverage deadline.
   assert.match(step(recurring, 4), /it is not coverage the sources must reach/);
   assert.match(rules, /an unallocated row's channel, that CONFIG does not map/);
   assert.match(rules, /in the update's note/);

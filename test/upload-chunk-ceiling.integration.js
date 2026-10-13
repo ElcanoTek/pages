@@ -93,7 +93,7 @@ const html = "<!doctype html><html><head><title>Northwind</title></head><body><h
   block("pages-data", { contract_version: 1, refreshed_at: sourceAsOf, source_as_of: sourceAsOf, data: { rows: [] } }) +
   "</body></html>";
 
-// A dashboard payload the size of the largest production data file (~990 KB):
+// A synthetic dashboard payload near the 1 MB data limit (~990 KB):
 // 21 appends at the 48 KiB default, one at this ceiling.
 function largeData() {
   const rows = [];
