@@ -27,15 +27,15 @@ const hoursAgo = (h) => new Date(Date.now() - h * 3600e3).toISOString();
 
 test("count-up numbers land on their exact formatted values", async ({ page }) => {
   await openKitPage(page, { body: `
-    <span id="usd" data-fm-count="1478.05" data-fm-format="usd"></span>
+    <span id="usd" data-fm-count="1450.75" data-fm-format="usd"></span>
     <span id="pct" data-fm-count="0.1234" data-fm-format="pct1"></span>
-    <span id="compact" data-fm-count="1395658" data-fm-format="compact"></span>
+    <span id="compact" data-fm-count="1425000" data-fm-format="compact"></span>
     <span id="text" data-fm-count data-fm-format="int">12,345</span>` });
-  await expect(page.locator("#usd")).toHaveText("$1,478.05");
+  await expect(page.locator("#usd")).toHaveText("$1,450.75");
   await expect(page.locator("#pct")).toHaveText("12.3%");
   await expect(page.locator("#compact")).toHaveText("1.4M");
   await expect(page.locator("#text")).toHaveText("12,345");
-  await expect(page.locator("#usd")).toHaveAttribute("aria-label", "$1,478.05");
+  await expect(page.locator("#usd")).toHaveAttribute("aria-label", "$1,450.75");
 });
 
 test("freshness reads the page's own refresh stamps, and says so when there are none", async ({ page }) => {
@@ -55,7 +55,7 @@ test("freshness reads the page's own refresh stamps, and says so when there are 
 
 test("provenance: a number opens what it is, how it is computed and where it came from", async ({ page }) => {
   await openKitPage(page, {
-    body: `<p>Spend <b id="spend" data-fm-metric="revenue">$1,478.05</b> · CTR <b id="ctr" data-fm-metric="ctr">0.62%</b>
+    body: `<p>Spend <b id="spend" data-fm-metric="revenue">$1,450.75</b> · CTR <b id="ctr" data-fm-metric="ctr">0.62%</b>
       · <b id="both" data-fm-metric="revenue" data-fm-count="9876" data-fm-format="usd0"></b></p>`,
     envelope: { contract_version: 1, refreshed_at: hoursAgo(2), source_as_of: "2026-10-06T23:59:59Z", data: {} },
     provenance: {
@@ -71,7 +71,7 @@ test("provenance: a number opens what it is, how it is computed and where it cam
   await spend.click();
   const pop = page.getByRole("dialog", { name: /SSP spend/ });
   await expect(pop).toBeVisible();
-  await expect(pop).toContainText("$1,478.05");
+  await expect(pop).toContainText("$1,450.75");
   await expect(pop).toContainText("What buyers spent");
   await expect(pop).toContainText("Σ Spend ($) over in-scope deals");
   await expect(pop).toContainText("Example SSP report");
@@ -159,8 +159,8 @@ const explainerSpec = {
   title: "Example campaign in 4 seconds", brand: "Northwind Media", filename: "example-recap", source: "Example SSP report",
   scenes: [
     { type: "title", duration: 900, kicker: "Campaign recap", title: "Example campaign — first week" },
-    { type: "kpis", duration: 900, title: "Delivery", items: [{ label: "Spend", value: 1478.05, format: "usd" }, { label: "Impressions", value: 1395658, format: "compact", delta: 0.12 }] },
-    { type: "bars", duration: 900, title: "Top deals", items: [{ label: "Index — Crisp Fall Air", value: 620 }, { label: "Magnite — Cardigan", value: 410 }], format: "usd0" },
+    { type: "kpis", duration: 900, title: "Delivery", items: [{ label: "Spend", value: 1450.75, format: "usd" }, { label: "Impressions", value: 1425000, format: "compact", delta: 0.12 }] },
+    { type: "bars", duration: 900, title: "Top deals", items: [{ label: "example-deal-a", value: 620 }, { label: "example-deal-b", value: 410 }], format: "usd0" },
     { type: "line", duration: 900, title: "Daily spend", labels: ["2026-10-01", "2026-10-02", "2026-10-03"], series: [{ name: "Spend", values: [120, 260, 310] }], format: "usd0" },
   ],
 };
@@ -170,7 +170,7 @@ test("explainer: a timeline of scenes that scrubs, plays to the end and reads as
   const x = page.locator("#x");
   await expect(x.locator("canvas")).toHaveAttribute("width", "1920");
   await expect(x.locator(".fm-ex-chip")).toHaveText(["Example campaign — first week", "Delivery", "Top deals", "Daily spend"]);
-  await expect(x.locator("ol.fm-sr li").nth(1)).toContainText("Spend: $1,478.05");
+  await expect(x.locator("ol.fm-sr li").nth(1)).toContainText("Spend: $1,450.75");
   await expect(x.locator("ol.fm-sr li").nth(1)).toContainText("Impressions: 1.4M (+12.0%)");
   const state = () => page.evaluate(() => FlagMotion.registry.explainers[0].state());
   expect((await state()).duration).toBe(3600);
@@ -218,7 +218,7 @@ test("the kit follows the page's real background, not only the theme flag", asyn
 });
 
 test("explainers lay out for square and vertical formats", async ({ page }) => {
-  const long = "Example Brand A was 76% of September spend and logged no delivery on Sep 29–30, so the book is concentrated in one brand";
+  const long = "This invented campaign represents 60% of the sample total, and two example reporting periods are incomplete, so verify coverage first";
   for (const aspect of ["1:1", "9:16"]) {
     await openKitPage(page, { body: `<div id="x" data-fm-explainer='${JSON.stringify({
       aspect, autoplay: false, brand: "Northwind Media", source: "Example performers report · day rows · Sep 1–30 vs Aug 1–31, 2026",

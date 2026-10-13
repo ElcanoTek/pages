@@ -78,7 +78,7 @@ test("inspecting a template shows its contract, revisions and the pages behind i
   await expect(detail).toContainText("Revision 2");
 
   // Pages built from it, with the stale one flagged.
-  await expect(detail).toContainText("contoso-fabrikam-acct00156");
+  await expect(detail).toContainText("contoso-fabrikam-example");
   // One vocabulary across the admin now: sentence case, and "behind" is a warning
   // tone rather than the pending tone it borrowed.
   // One vocabulary across the admin now: sentence case, "Behind" is a warning

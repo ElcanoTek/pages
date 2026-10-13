@@ -111,14 +111,14 @@ test.describe("the link audit", () => {
 
     // The staff-only one: adding it is what makes it readable with this portal's
     // password, and the row used to just vanish with nothing said at all.
-    await page.getByTestId("portal-link-audit-nwm-mars-petcare")
+    await page.getByTestId("portal-link-audit-nwm-tailspin-pet")
       .getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Tailspin Pet Q3 is now readable with this portal's password." }))
       .toBeVisible();
     await expect.poll(() => memberOrder(page))
       .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Tailspin Pet Q3"]);
     // It is a member now, so it is no longer drift.
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare")).toHaveCount(0);
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet")).toHaveCount(0);
     await expect(page.getByTestId("portal-link-audit")).toBeVisible();
   });
 
@@ -203,7 +203,7 @@ test.describe("the link audit", () => {
     await expect.poll(() => memberOrder(page))
       .toEqual(["Portfolio overview", "Contoso Fabrikam", "Taken down", "Woodgrove campaign"]);
     await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toHaveCount(0);
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare")).toBeVisible();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet")).toBeVisible();
   });
 
   test("each row's action names the dashboard it would add", async ({ page }) => {
@@ -213,7 +213,7 @@ test.describe("the link audit", () => {
     // about which one it is standing on.
     await expect(page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button"))
       .toHaveAttribute("aria-label", "Add to portal: Woodgrove campaign");
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button"))
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button"))
       .toHaveAttribute("aria-label", "Add to portal: Tailspin Pet Q3");
     await expectNoSeriousAxeViolations(page, "/admin/portals link audit");
   });
@@ -321,7 +321,7 @@ test.describe("the link audit", () => {
     // refuses as portal_page_exists — aborting the rest of the batch and silently
     // skipping what was left of it.
     await expect(page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button")).toBeDisabled();
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeDisabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeDisabled();
     release();
     await expect(page.getByTestId("portal-link-audit")).toHaveCount(0);
     expect(adds).toBe(2);
@@ -340,11 +340,11 @@ test.describe("the link audit", () => {
 
     await page.getByTestId("portal-link-audit-nwm-woodgrove").getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByTestId("portal-link-audit-add-all")).toBeDisabled();
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeDisabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeDisabled();
     release();
     // …and the lock lifts with the re-read, rather than leaving a dead row behind.
     await expect(page.getByTestId("portal-link-audit-nwm-woodgrove")).toHaveCount(0);
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeEnabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeEnabled();
   });
 
   test("a failed add lifts the lock it took", async ({ page }) => {
@@ -360,7 +360,7 @@ test.describe("the link audit", () => {
     // A failure re-renders nothing, so the section-wide disable has to be undone
     // by hand — a row of dead controls is worse than the race it guarded against.
     await expect(page.getByTestId("portal-link-audit-add-all")).toBeEnabled();
-    await expect(page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button")).toBeEnabled();
+    await expect(page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button")).toBeEnabled();
   });
 
   test("a successful add leaves focus in the page, not on <body>", async ({ page }) => {
@@ -378,7 +378,7 @@ test.describe("the link audit", () => {
 
     // Adding the last one deletes the section the user was standing in, so focus
     // lands on the heading of the table the dashboard just joined.
-    await page.getByTestId("portal-link-audit-nwm-mars-petcare").getByRole("button", { name: "Add to portal" }).click();
+    await page.getByTestId("portal-link-audit-nwm-tailspin-pet").getByRole("button", { name: "Add to portal" }).click();
     await expect(page.getByTestId("portal-link-audit")).toHaveCount(0);
     await expect.poll(focusedId).toBe("portal-members-heading");
     await expectNoSeriousAxeViolations(page, "/admin/portals after an add");

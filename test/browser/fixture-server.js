@@ -235,8 +235,8 @@ function templateDetail(template) {
       { version_id: "1", revision: 1, content_sha256: "0".repeat(64), config_schema_sha256: "a".repeat(64), data_schema_sha256: "b".repeat(64), author: "qa-admin@elcanotek.com", source: "admin", note: null, created_at: NOW, has_sample_data: false, is_current: false },
     ],
     pages: [
-      { slug: "contoso-fabrikam-acct00156", title: "Contoso", live_version_id: "10", revision: 2, behind: false, page_is_live: true, config_sha256: "1".repeat(64) },
-      { slug: "nwm-vandelay-acct00142", title: "Vandelay", live_version_id: "11", revision: 1, behind: true, page_is_live: true, config_sha256: "2".repeat(64) },
+      { slug: "contoso-fabrikam-example", title: "Contoso", live_version_id: "10", revision: 2, behind: false, page_is_live: true, config_sha256: "1".repeat(64) },
+      { slug: "nwm-vandelay-example", title: "Vandelay", live_version_id: "11", revision: 1, behind: true, page_is_live: true, config_sha256: "2".repeat(64) },
     ],
   };
 }
@@ -448,7 +448,7 @@ const portalDetailDelay = {};
 // staff-only page and the screen has something true to confirm afterwards.
 const fixtureLinkedPages = [
   { page_id: 81, slug: "nwm-woodgrove", title: "Woodgrove campaign", has_password: true },
-  { page_id: 82, slug: "nwm-mars-petcare", title: "Tailspin Pet Q3", has_password: false },
+  { page_id: 82, slug: "nwm-tailspin-pet", title: "Tailspin Pet Q3", has_password: false },
 ];
 
 // What lib/portals.linkAudit actually sends: id, slug, title — and only the ones
