@@ -961,9 +961,8 @@ test("update prompts: a one-time data run reports coverage instead of blocking o
   assert.match(prompt, /deliberate republish of already-covered data is allowed here/);
 });
 
-// Watched failing twice in production: a scheduled run built a complete,
-// reconciled payload (978 KB once, 44 KB once), judged the inline `data`
-// argument unsafe to carry it, and ended with the live page untouched. The
+// A scheduled run can build a complete, reconciled payload, judge the inline
+// `data` argument unsafe to carry it, and end with the live page untouched. The
 // prompt must name the by-reference transport so payload size is a routing
 // decision, never a reason to abort.
 test("update prompts: the managed-data prompt routes payloads by size instead of leaving transport to guesswork", () => {
@@ -4268,8 +4267,14 @@ test("templates: the NWM template ships example data so its preview is populated
   for (const leaked of ["Contoso", "Fabrikam", "Initech", "9900001", "9900002"]) {
     assert.ok(!identity.includes(leaked), `reference config still names ${leaked}`);
   }
-  // Any account code other than the ACCT00000 placeholder is a real-looking one.
-  assert.deepEqual(identity.match(/ACCT(?!00000)\d+/g) || [], [], "reference config carries a real-looking account code");
+  // Any account code other than the exact ACCT00000 placeholder is a
+  // real-looking one.
+  const realLookingCodes = (text) => (text.match(/\bacct\d+\b/gi) || []).filter((code) => code !== "ACCT00000");
+  assert.deepEqual(realLookingCodes(identity), [], "reference config carries a real-looking account code");
+  assert.deepEqual(realLookingCodes('{"accountCode":"ACCT00000"}'), [], "fixture: the placeholder passes");
+  for (const leak of ["ACCT00000123", "acct00123", "ACCT12345"]) {
+    assert.deepEqual(realLookingCodes(`{"accountCode":"${leak}"}`), [leak], `fixture: ${leak} is caught`);
+  }
 });
 
 // ── design/data separation as the default page shape ─────────────────────────
@@ -5101,8 +5106,8 @@ test("update prompts: execution requirements name what a scheduler must supply",
   assert.ok(req.required_tools.includes("list_partitions"));
   assert.ok(req.required_tools.includes("mcp_pages_update_page_data_upload"));
   assert.equal(req.network, false, "MCP chunk transport does not require outbound file HTTP");
-  // The five Pages autoupdate tasks dead-lettered because no model was ever
-  // assigned. A scheduler can refuse up front if this is stated.
+  // A task with no model assigned fails at dispatch. A scheduler can refuse it
+  // up front when this is stated.
   assert.equal(req.model_required, true);
   assert.equal(req.mode, "managed_data");
 });
