@@ -12,9 +12,9 @@
 //      staff-only to client-readable. The API reports that; this screen says so
 //      BEFORE the click and confirms it after, because the moment of adding is the
 //      only moment the person deciding is present.
-//   2. A portal password exists in plaintext exactly once, in the response that
-//      mints it. It cannot be read back, so that one render has to be a dialog the
-//      admin dismisses deliberately — not a toast that scrolls away.
+//   2. A portal password is shown in a dialog the admin dismisses deliberately —
+//      not a toast that scrolls away — both when it is minted and when staff ask
+//      to see the current one again (Show password, audited server-side).
 
 // describeMember — the warnings an admin needs about one membership row, in the
 // order they matter: first anything that means a partner cannot open it at all,
@@ -398,13 +398,15 @@ if (typeof document !== "undefined") (function () {
     return modal;
   }
 
-  // The one render of a freshly minted credential.
-  function showCredential(portal, password) {
+  // A portal credential: freshly minted, or the current one shown again on
+  // request (`current`). Either way a dialog the admin dismisses deliberately.
+  function showCredential(portal, password, { current = false } = {}) {
     const modal = makeDialog({
       title: `Password for ${portal.name}`,
-      kicker: "Copy this now",
-      description:
-        "This is the only time Pages will show this password. It cannot be read back — losing it means rotating, which signs every partner out.",
+      kicker: current ? "Current password" : "Copy this now",
+      description: current
+        ? "This is the password partners use today. Showing it changes nothing and is recorded in the audit log."
+        : "Copy it now. Staff can show it again later from this portal's Show password button.",
       closeLabel: "Close password",
       onClose() {
         modal.dialog.remove();
@@ -494,7 +496,7 @@ if (typeof document !== "undefined") (function () {
     formDialog({
       title: "New partner portal",
       closeLabel: "Close new portal",
-      description: "Pages generates the password and shows it once, on the next screen.",
+      description: "Pages generates the password and shows it on the next screen.",
       fields: [
         field({ id: "portal-name", label: "Partner name", control: name, help: "What the partner sees at the top of their page." }),
         field({
@@ -974,6 +976,23 @@ if (typeof document !== "undefined") (function () {
     const members = state.detail.members || [];
     const openable = members.filter((member) => describeMember(member).openable).length;
 
+    // Show the current password so it can be resent without rotating, which
+    // would sign out every partner. Each reveal is audited server-side.
+    const reveal = el("button", { class: "btn btn-sm", type: "button", "data-testid": "portal-reveal-password" }, "Show password");
+    reveal.addEventListener("click", async () => {
+      const { ok, result } = await runAction({
+        button: reveal,
+        success: null,
+        run: () => api(`/portals/${portal.id}/reveal-password`, { body: {} }),
+      });
+      if (!ok) return;
+      if (!result.available) {
+        toast("Pages doesn't have a copy of this password yet. It appears after a partner next signs in with it, or rotate it to set a new one.", { tone: "error" });
+        return;
+      }
+      showCredential(portal, result.password, { current: true });
+    });
+
     const rotate = el("button", { class: "btn btn-sm", type: "button" }, "Rotate password");
     rotate.addEventListener("click", async () => {
       // No success toast: the credential dialog IS the confirmation, and a toast
@@ -1029,6 +1048,7 @@ if (typeof document !== "undefined") (function () {
         el("div", { class: "row-actions" },
           copyButton(portal.url, "Link"),
           el("button", { class: "btn btn-sm", type: "button", onclick: () => renameDialog(portal) }, "Rename"),
+          reveal,
           rotate,
           retire)),
       el("div", { class: "section-heading section-heading--row" },

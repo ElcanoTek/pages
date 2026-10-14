@@ -428,7 +428,7 @@ test("adding a staff-only page warns BEFORE the click, and confirms after", asyn
   await expect(page.getByRole("status").filter({ hasText: "now readable with this portal's password" })).toBeVisible();
 });
 
-test("a new portal's password is shown once, in a dialog that has to be dismissed", async ({ page }) => {
+test("a new portal's password is shown in a dialog that has to be dismissed", async ({ page }) => {
   await page.goto("/admin/portals");
   await page.getByRole("button", { name: "New portal" }).click();
   const create = page.getByRole("dialog");
@@ -440,11 +440,23 @@ test("a new portal's password is shown once, in a dialog that has to be dismisse
 
   const credential = page.getByRole("dialog").filter({ hasText: "Copy this now" });
   await expect(credential).toBeVisible();
-  await expect(credential).toContainText("only time Pages will show this password");
+  await expect(credential).toContainText("Staff can show it again later");
   await expect(credential.getByText("pr7k-9mfx-t2qd-w4hn")).toBeVisible();
   await expect(credential).toContainText("a forwarded password is as good as the holder's");
   // It is modal: the screen behind it cannot be used until it is acknowledged.
   await expect(credential.getByRole("button", { name: "Done" })).toBeVisible();
+});
+
+test("Show password brings back the current portal password without rotating it", async ({ page }) => {
+  await page.goto("/admin/portals");
+  await page.getByRole("button", { name: "Show password" }).click();
+  const credential = page.getByRole("dialog").filter({ hasText: "Current password" });
+  await expect(credential).toBeVisible();
+  await expect(credential.getByText("pr7k-9mfx-t2qd-w4hn")).toBeVisible();
+  await expect(credential).toContainText("Showing it changes nothing");
+  await expect(credential).toContainText("recorded in the audit log");
+  await credential.getByRole("button", { name: "Done" }).click();
+  await expect(credential).toBeHidden();
 });
 
 test("retiring and rotating both say what they do to a partner mid-session", async ({ page }) => {

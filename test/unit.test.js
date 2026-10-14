@@ -2101,6 +2101,7 @@ const PORTAL_MUTATION_CALLS = {
   removePage: { id: 1, slug: "nwm-contoso-fabrikam" },
   setHome: { id: 1, slug: "nwm-client-overview" },
   remove: { id: 1 },
+  revealPassword: { id: 1 },
 };
 
 // Design decision 2: an agent may never change which dashboards a partner
@@ -5820,4 +5821,31 @@ test("freshness separates recorded failures from the latest live refresh", () =>
     assert.equal(failedLater.checked_at, failedLater.last_check_at);
   }
   assert.equal(versions.freshnessOf({ last_check_at: row.last_check_at, last_check_outcome: "failed" }).latest_outcome, "failed");
+});
+
+// lib/passwordvault.js — the staff-readable copy of a client password. Each copy
+// opens only for the password_hash it was sealed with, so a hash changed without
+// resealing can never surface a stale password as the current one.
+test("passwordvault: a copy opens only for its own hash and resists tampering", () => {
+  const passwordvault = require("../lib/passwordvault");
+  const hash = "scrypt$16384$8$1$c2FsdA==$aGFzaA==";
+  const sealed = passwordvault.seal("northwind-client-pass", hash);
+  assert.match(sealed, /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  assert.doesNotMatch(sealed, /northwind-client-pass/);
+  assert.equal(passwordvault.open(sealed, hash), "northwind-client-pass");
+  assert.notEqual(passwordvault.seal("northwind-client-pass", hash), sealed, "a fresh IV every time");
+
+  assert.equal(passwordvault.open(sealed, "scrypt$16384$8$1$b3RoZXI=$aGFzaA=="), null, "another hash");
+  const [v, iv, body, tag] = sealed.split(".");
+  const flipped = Buffer.from(body, "base64url");
+  flipped[0] ^= 1;
+  assert.equal(passwordvault.open([v, iv, flipped.toString("base64url"), tag].join("."), hash), null, "tampered ciphertext");
+  for (const bad of [null, undefined, "", "v1.a.b", "v2.a.b.c", "not.a.sealed.value"]) {
+    assert.equal(passwordvault.open(bad, hash), null, `malformed ${JSON.stringify(bad)}`);
+  }
+  assert.equal(passwordvault.open(sealed, null), null, "no hash, nothing to open against");
+  assert.equal(passwordvault.seal("", hash), null);
+  assert.equal(passwordvault.seal("x", ""), null);
+  assert.equal(passwordvault.open(passwordvault.seal("p".repeat(600), hash), hash).length, 512,
+    "bounded like the KDF input, so a copy always matches what the hash verifies");
 });

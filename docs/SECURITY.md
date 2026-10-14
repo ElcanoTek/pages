@@ -165,8 +165,8 @@
     (not clear) a client password, rename, soft-delete **open** pages, and create/
     rename/assign one-level workspaces.
   - *Humans (admin cookie + CSRF):* approve/reject, toggle the approval gate,
-    disable, set theme, **clear** a password, and delete/restore **approval-gated**
-    pages. Workspace deletion is also human-only because it changes organization
+    disable, set theme, **clear** or **show** a password, and delete/restore
+    **approval-gated** pages. Workspace deletion is also human-only because it changes organization
     for every member at once.
   - *Humans only, with no agent equivalent at all:* **partner portals**
     (`lib/portals.js`). A portal is one shared client credential over a curated
@@ -194,6 +194,31 @@
   is agent-capable (the "make this dashboard client-accessible" step). **Clearing**
   a password is admin-only — on a live client page a clear silently flips it back
   to staff-only and 403s every real client, so a stray agent must not be able to.
+- **Client passwords staff can show.** A page or portal password is a shared
+  access code Elcano creates and hands to a client, not a person's own login, and
+  staff can already open every page with View live. So the admin shell can show
+  the current one (Client access → Current password; a portal's Show password),
+  letting staff resend it instead of rotating it and locking out everyone else at
+  the client. How that stays narrow (`lib/passwordvault.js`):
+  - `password_hash` (scrypt) is still the only thing the gate checks. Next to it,
+    `password_ciphertext` holds an AES-256-GCM copy keyed by HKDF from
+    `PAGE_COOKIE_SECRET`, which lives in the server environment and never in the
+    database, so a dump or backup alone opens nothing.
+  - Each copy is bound to the `password_hash` it was sealed with (GCM additional
+    data). A hash changed without resealing, such as by an older release during a
+    rolling deploy, leaves a copy that no longer opens, and the shell says "not
+    available" rather than showing a stale password. Rotating
+    `PAGE_COOKIE_SECRET` makes every copy unreadable the same way.
+  - The only readers are `POST /api/v1/admin/pages/:slug/reveal-password` and
+    `POST /api/v1/admin/portals/:id/reveal-password`: admin cookie + CSRF,
+    `actorType === "user"`, `Cache-Control: no-store`, and an audit row for
+    every call. No bearer, MCP or content-host route returns a password or its
+    ciphertext, so an agent still cannot learn which password opens which
+    client's dashboards.
+  - Passwords set before copies were kept have only a hash. The content host
+    seals a copy the next time a client signs in with that password, with an
+    `UPDATE` conditional on the same hash, so nothing has to be rotated to become
+    visible. That write is best effort and can never fail a correct sign-in.
 - **Tokens.** `pgs_…` bearer tokens are stored only as `HMAC-SHA256(token, pepper)`
   with a short display prefix; independently revocable. Missing, invalid, or
   revoked credentials at `/mcp` return a standard
@@ -390,14 +415,14 @@ Actions written to `audit_log`:
 
 - **Pages and versions** — `create_page`, `deploy`, `data_update`, `config_update`,
   `publish`, `rollback`, `approve`, `reject`, `disable`/`enable`, `set_approval`,
-  `set_theme`, `set_password`/`clear_password`, `set_title`, `delete_page`,
-  `restore_page`, `record_refresh_check`.
+  `set_theme`, `set_password`/`clear_password`, `reveal_password`, `set_title`,
+  `delete_page`, `restore_page`, `record_refresh_check`.
 - **Templates** — `create_template`, `register_template`, `update_template_metadata`, `delete_template`,
   `template_build`, `template_rerender`.
 - **Workspaces** — `create_workspace`, `rename_workspace`, `delete_workspace`,
   `set_workspace`.
 - **Partner portals** (human admins only) — `create_portal`, `rename_portal`,
-  `set_portal_password`, `add_portal_page`, `update_portal_page`,
+  `set_portal_password`, `reveal_portal_password`, `add_portal_page`, `update_portal_page`,
   `remove_portal_page`, `set_portal_home`, `delete_portal`.
 
 Those bullets are the machine-checked part: a unit test compares them against the
