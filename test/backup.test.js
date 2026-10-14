@@ -143,9 +143,14 @@ test("backup capture connects exactly where the application's DATABASE_URL point
   // The shape bootstrap writes.
   assert.deepEqual(pg("postgres://pages:0f3a@127.0.0.1:5432/pages?sslmode=disable"),
     { PGHOST: "127.0.0.1", PGPORT: "5432", PGUSER: "pages", PGPASSWORD: "0f3a", PGDATABASE: "pages", PGSSLMODE: "disable" });
-  // The URL is the only source: inherited libpq overrides cannot redirect it.
-  assert.deepEqual(pg("postgres://pages:p@db.test/pages", { PGHOSTADDR: "192.0.2.9", PGSERVICE: "northwind", PGPASSFILE: "/x" }),
-    { PGHOST: "db.test", PGUSER: "pages", PGPASSWORD: "p", PGDATABASE: "pages", PGSSLMODE: "disable" });
+  // The URL is the only source. The driver falls back to PG* (PGSSLMODE among
+  // them) for anything the URL leaves out, so PG* beside a URL is refused rather
+  // than guessed at: otherwise a service-level PGSSLMODE=verify-full could leave
+  // the app on TLS and the backup on plaintext.
+  for (const extra of [{ PGSSLMODE: "verify-full" }, { PGHOSTADDR: "192.0.2.9" }, { PGUSER: "northwind" }, { PGSERVICE: "northwind" }]) {
+    assert.throws(() => backup.dumpEnvironment({ DATABASE_URL: "postgres://pages:p@db.test/pages", ...extra }),
+      /set together with PG\* variables/, JSON.stringify(extra));
+  }
   assert.equal(backup.dumpEnvironment({ DATABASE_URL: "postgres://p:q@h/d", KEEP: "kept" }).KEEP, "kept");
   assert.equal(backup.dumpEnvironment({ DATABASE_URL: "postgres://p:q@h/d" }).DATABASE_URL, undefined);
   // Decoding and precedence follow the driver: encoded socket host, hostless
@@ -166,14 +171,23 @@ test("backup capture connects exactly where the application's DATABASE_URL point
   for (const [url, why] of [
     ["not a url", /is not a postgres:\/\/ connection URL/],
     ["mysql://pages:hunter-fixture@host/pages", /is not a postgres:\/\/ connection URL/],
-    ["postgres://pages:hunter-fixture@host/pages?sslrootcert=/etc/northwind.crt", /option "sslrootcert" is not supported/],
-    ["postgres://pages:hunter-fixture@host/pages?options=-c%20x", /option "options" is not supported/],
+    ["postgres://pages:hunter-fixture@host/pages?sslrootcert=/etc/northwind.crt", /unsupported or repeated option/],
+    ["postgres://pages:hunter-fixture@host/pages?options=-c%20x", /unsupported or repeated option/],
+    // The parser keeps the LAST copy, so either order of a repeat is refused.
+    ["postgres://pages:hunter-fixture@host/pages?sslmode=disable&sslmode=verify-full", /unsupported or repeated option/],
+    ["postgres://pages:hunter-fixture@host/pages?sslmode=verify-full&sslmode=disable", /unsupported or repeated option/],
+    ["postgres://pages:hunter-fixture@host/pages?sslmode=disable&sslmode=require", /unsupported or repeated option/],
+    ["postgres://pages:hunter-fixture@host/pages?port=5432&port=6543", /unsupported or repeated option/],
+    // Option names are URL text and never quoted back, even secret-shaped or
+    // carrying an encoded newline that would forge a log line.
+    ["postgres://pages:hunter-fixture@host/pages?hunter-fixture-in-a-key=1", /unsupported or repeated option/],
+    ["postgres://pages:hunter-fixture@host/pages?x%0Aforged-line%20hunter-fixture=1", /unsupported or repeated option/],
     ["postgres://pages:hunter-fixture@host/pages?sslmode=require", /sslmode must be disable or verify-full/],
     ["postgres://pages:hunter-fixture@host/pages?sslmode=prefer", /sslmode must be disable or verify-full/],
   ]) {
     assert.throws(() => backup.dumpEnvironment({ DATABASE_URL: url }), (error) => {
       assert.match(error.message, why);
-      assert.doesNotMatch(error.message, /hunter-fixture|\/etc\/northwind|mysql:/);
+      assert.doesNotMatch(error.message, /hunter-fixture|forged|\/etc\/northwind|mysql:|\n/);
       return true;
     }, url);
   }
@@ -197,6 +211,11 @@ test("backup errors never echo a connection string or part of a secret", () => {
     assert.equal(out, "[line removed: it may contain a credential]", line);
   }
   assert.equal(backup.redact("token northwind-raw-fixture-value refused\nplain context", env), "token [redacted] refused\nplain context");
+  // A whole value and a cut copy on one line: replacing the whole one must not
+  // let the cut one through, whichever secret comes first.
+  assert.equal(backup.redact(`full=${minted} cut=${minted.slice(0, 20)}`, env), "[line removed: it may contain a credential]");
+  assert.equal(backup.redact("a=northwind-raw-fixture-value b=northwind-raw-fix", env), "[line removed: it may contain a credential]");
+  assert.equal(backup.redact(`b=northwind-raw-fix a=${minted}`, env), "[line removed: it may contain a credential]");
 
   // Split across chunks: the URL arrives in pieces and is still removed.
   const split = backup.stderrCollector(env);
@@ -213,6 +232,14 @@ test("backup errors never echo a connection string or part of a secret", () => {
   big.push("a".repeat(150));
   big.push(`${minted.slice(12)} tail of the oversized line\nnext line\n`);
   assert.equal(big.text(), "[line removed: it may contain a credential]\nnext line");
+  // The same oversized line is dropped however it arrives: in one chunk with
+  // its newline, split before the newline, or a character at a time.
+  const oversized = `${"x".repeat(150)}tail\nnext line\n`;
+  for (const pieces of [[oversized], [oversized.slice(0, 154), oversized.slice(154)], [...oversized]]) {
+    const collector = backup.stderrCollector(env, 100);
+    for (const piece of pieces) collector.push(piece);
+    assert.equal(collector.text(), "[line removed: it may contain a credential]\nnext line", `${pieces.length} chunk(s)`);
+  }
   // A final unterminated line is still redacted.
   const last = backup.stderrCollector(env);
   last.push(`FATAL: "${url}`);

@@ -26,12 +26,11 @@ const REMOVED_LINE = "[line removed: it may contain a credential]";
 // than trimmed; exact sensitive values elsewhere are replaced.
 function redactLine(line, env) {
   if (CONNECTION_STRING.test(line)) return REMOVED_LINE;
+  const sensitive = Object.entries(env).filter(([key, value]) => value && SENSITIVE_KEY.test(key)).map(([, value]) => value);
   let result = line;
-  for (const [key, value] of Object.entries(env)) {
-    if (!value || !SENSITIVE_KEY.test(key)) continue;
-    if (value.length >= 12 && result.includes(value.slice(0, 12)) && !result.includes(value)) return REMOVED_LINE;
-    result = result.split(value).join("[redacted]");
-  }
+  for (const value of sensitive) result = result.split(value).join("[redacted]");
+  // After whole values are gone, any surviving start of one is a cut copy.
+  if (sensitive.some((value) => value.length >= 12 && result.includes(value.slice(0, 12)))) return REMOVED_LINE;
   return result;
 }
 
@@ -54,7 +53,7 @@ function stderrCollector(env, limit = 8000) {
         const line = partial.slice(0, index);
         partial = partial.slice(index + 1);
         if (skipping) skipping = false;
-        else keep(redactLine(line, env));
+        else keep(line.length > limit ? REMOVED_LINE : redactLine(line, env));
       }
       if (partial.length > limit) {
         if (!skipping) keep(REMOVED_LINE);
@@ -79,7 +78,7 @@ const DUMP_URL_OPTIONS = new Set(["host", "port", "user", "password", "sslmode"]
 // connection URI only as a dbname argument, never from PGDATABASE, so the
 // service's DATABASE_URL is parsed with the same parser the application's pg
 // driver uses and handed over as PG* variables (never argv, which ps shows).
-// The URL is then the only source: inherited PG* settings are cleared, and the
+// The URL must be the only source (PG* alongside it are refused), and the
 // driver's defaults stand in for parts the URL leaves out.
 function dumpEnvironment(env) {
   const result = { ...env };
@@ -88,9 +87,18 @@ function dumpEnvironment(env) {
   const url = String(env.DATABASE_URL);
   const invalid = (detail) => new Error(`DATABASE_URL ${detail}; backup needs the service's postgres:// URL`);
   if (!/^postgres(?:ql)?:\/\//i.test(url)) throw invalid("is not a postgres:// connection URL");
+  // The driver also falls back to PG* variables (PGSSLMODE among them) for
+  // whatever the URL leaves out. Rather than guess which one wins, refuse both.
+  if (Object.keys(env).some((key) => key.startsWith("PG"))) {
+    throw invalid("is set together with PG* variables; keep the connection in DATABASE_URL alone");
+  }
   const query = new URLSearchParams(url.includes("?") ? url.slice(url.indexOf("?") + 1).split("#")[0] : "");
-  for (const option of query.keys()) {
-    if (!DUMP_URL_OPTIONS.has(option)) throw invalid(`option "${option.slice(0, 40)}" is not supported by backup`);
+  const options = [...query.keys()];
+  // Option names are URL text, so they are never quoted back (they could hold
+  // a pasted secret). A repeated option is refused: the parser takes the last
+  // one, so validating any single copy could pass a different effective value.
+  if (options.some((option) => !DUMP_URL_OPTIONS.has(option)) || new Set(options).size !== options.length) {
+    throw invalid(`has an unsupported or repeated option; backup accepts each of ${[...DUMP_URL_OPTIONS].join(", ")} at most once`);
   }
   const sslmode = query.get("sslmode");
   if (sslmode !== null && sslmode !== "disable" && sslmode !== "verify-full") {
@@ -98,13 +106,15 @@ function dumpEnvironment(env) {
   }
   let parsed;
   try { parsed = parseConnectionString(url); } catch { throw invalid("could not be parsed"); }
-  for (const key of Object.keys(result)) if (key.startsWith("PG")) delete result[key];
   result.PGHOST = (parsed.host || "localhost").replace(/^\[(.*)\]$/, "$1"); // libpq wants IPv6 bare
   if (parsed.port) result.PGPORT = String(parsed.port);
   if (parsed.user) result.PGUSER = parsed.user;
   if (parsed.password) result.PGPASSWORD = parsed.password;
   if (parsed.database) result.PGDATABASE = parsed.database;
-  // node-postgres speaks no TLS unless asked, and verifies fully when asked.
+  // node-postgres speaks no TLS unless asked (nothing else can ask: PG* are
+  // refused above), and verifies fully when asked. sslrootcert=system needs
+  // libpq 16+; an older libpq reads "system" as a missing file and refuses to
+  // connect, so it fails closed rather than skipping verification.
   if (sslmode === "verify-full") Object.assign(result, { PGSSLMODE: "verify-full", PGSSLROOTCERT: "system" });
   else result.PGSSLMODE = "disable";
   return result;
