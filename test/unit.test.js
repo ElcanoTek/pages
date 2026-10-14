@@ -5826,8 +5826,25 @@ test("freshness separates recorded failures from the latest live refresh", () =>
 // lib/passwordvault.js — the staff-readable copy of a client password. Each copy
 // opens only for the password_hash it was sealed with, so a hash changed without
 // resealing can never surface a stale password as the current one.
+// The vault derives its key when loaded, so each case loads a fresh copy under
+// the secret it needs and puts the environment back.
+function loadPasswordvault(secret) {
+  const saved = process.env.PAGE_COOKIE_SECRET;
+  const modulePath = require.resolve("../lib/passwordvault");
+  delete require.cache[modulePath];
+  if (secret === undefined) delete process.env.PAGE_COOKIE_SECRET;
+  else process.env.PAGE_COOKIE_SECRET = secret;
+  try {
+    return require(modulePath);
+  } finally {
+    delete require.cache[modulePath];
+    if (saved === undefined) delete process.env.PAGE_COOKIE_SECRET;
+    else process.env.PAGE_COOKIE_SECRET = saved;
+  }
+}
+
 test("passwordvault: a copy opens only for its own hash and resists tampering", () => {
-  const passwordvault = require("../lib/passwordvault");
+  const passwordvault = loadPasswordvault("unit-test-vault-secret");
   const hash = "scrypt$16384$8$1$c2FsdA==$aGFzaA==";
   const sealed = passwordvault.seal("northwind-client-pass", hash);
   assert.match(sealed, /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
@@ -5848,4 +5865,19 @@ test("passwordvault: a copy opens only for its own hash and resists tampering", 
   assert.equal(passwordvault.seal("x", ""), null);
   assert.equal(passwordvault.open(passwordvault.seal("p".repeat(600), hash), hash).length, 512,
     "bounded like the KDF input, so a copy always matches what the hash verifies");
+});
+
+// An empty secret would give every install the same public key, so a copy sealed
+// with it would open for anyone holding the database. No secret means no copy.
+test("passwordvault: without PAGE_COOKIE_SECRET nothing is sealed or opened", async () => {
+  const hash = "scrypt$16384$8$1$c2FsdA==$aGFzaA==";
+  const sealed = loadPasswordvault("unit-test-vault-secret").seal("northwind-client-pass", hash);
+  for (const secret of [undefined, ""]) {
+    const keyless = loadPasswordvault(secret);
+    assert.equal(keyless.seal("northwind-client-pass", hash), null);
+    assert.equal(keyless.open(sealed, hash), null);
+    // Nothing to keep, so no database round trip on sign-in either.
+    await keyless.rememberOnSignIn("page", 1, hash, "northwind-client-pass");
+  }
+  assert.equal(loadPasswordvault("a-different-secret").open(sealed, hash), null, "another key opens nothing");
 });
