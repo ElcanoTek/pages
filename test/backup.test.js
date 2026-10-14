@@ -182,12 +182,18 @@ test("backup capture connects exactly where the application's DATABASE_URL point
     // carrying an encoded newline that would forge a log line.
     ["postgres://pages:hunter-fixture@host/pages?hunter-fixture-in-a-key=1", /unsupported or repeated option/],
     ["postgres://pages:hunter-fixture@host/pages?x%0Aforged-line%20hunter-fixture=1", /unsupported or repeated option/],
+    // A decoded NUL, in any part, is refused before it can reach a child.
+    ["postgres://pages:hunter-fixture%00tail@host/pages", /NUL character/],
+    ["postgres://pages@host/pages?password=hunter-fixture%00tail", /NUL character/],
+    ["postgres://hunter-fixture%00tail:p@host/pages", /NUL character/],
+    ["postgres://pages:p@hunter-fixture%00tail/pages", /NUL character/],
+    ["postgres://pages:p@host/hunter-fixture%00tail", /NUL character/],
     ["postgres://pages:hunter-fixture@host/pages?sslmode=require", /sslmode must be disable or verify-full/],
     ["postgres://pages:hunter-fixture@host/pages?sslmode=prefer", /sslmode must be disable or verify-full/],
   ]) {
     assert.throws(() => backup.dumpEnvironment({ DATABASE_URL: url }), (error) => {
       assert.match(error.message, why);
-      assert.doesNotMatch(error.message, /hunter-fixture|forged|\/etc\/northwind|mysql:|\n/);
+      assert.doesNotMatch(error.message, /hunter-fixture|tail|%00|\0|forged|\/etc\/northwind|mysql:|\n/);
       return true;
     }, url);
   }
@@ -259,4 +265,17 @@ test("restore rehearsal never carries central sign-in settings", (t) => {
   for (const key of ["PAGES_PUBLIC_URL", "AUTH_ISSUER_URL", "AUTH_CLIENT_ID", "AUTH_CLIENT_SECRET", "PAGES_AUTH_COOKIE_SECURE", "AUTH_COOKIE_NAME"]) {
     assert.equal(env[key], undefined, key);
   }
+});
+
+// Node rejects a bad child environment before starting it, quoting the value it
+// rejected. A start failure is reported by tool and code only.
+test("a child that cannot start never reports the values it was given", async () => {
+  await assert.rejects(backup.run(process.execPath, ["-e", "0"], { env: { PGPASSWORD: "hunter-fixture\0tail" } }), (error) => {
+    assert.equal(error.message, `${path.basename(process.execPath)} could not start (ERR_INVALID_ARG_VALUE)`);
+    assert.doesNotMatch(String(error.stack), /hunter-fixture|tail/);
+    assert.equal(error.cause, undefined);
+    return true;
+  });
+  await assert.rejects(backup.run("/nonexistent/northwind-tool", [], { env: { PGPASSWORD: "hunter-fixture" } }),
+    { message: "northwind-tool could not start (ENOENT)" });
 });

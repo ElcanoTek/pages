@@ -106,6 +106,11 @@ function dumpEnvironment(env) {
   }
   let parsed;
   try { parsed = parseConnectionString(url); } catch { throw invalid("could not be parsed"); }
+  // A decoded %00 can never reach a connection, and the error Node raises for
+  // it would quote the value around it. Refuse it here, without the value.
+  if ([parsed.host, parsed.port, parsed.user, parsed.password, parsed.database].some((part) => String(part ?? "").includes("\0"))) {
+    throw invalid("has a NUL character in a connection setting");
+  }
   result.PGHOST = (parsed.host || "localhost").replace(/^\[(.*)\]$/, "$1"); // libpq wants IPv6 bare
   if (parsed.port) result.PGPORT = String(parsed.port);
   if (parsed.user) result.PGUSER = parsed.user;
@@ -120,12 +125,27 @@ function dumpEnvironment(env) {
   return result;
 }
 
+// startFailure — a child that could not start, reported by tool and error code
+// only. Node's own message can quote the option values it rejected, and here
+// those include the connection settings, so it is never passed on.
+function startFailure(command, error) {
+  const code = typeof error?.code === "string" && /^[A-Z0-9_]{1,40}$/.test(error.code) ? error.code : "unknown";
+  const failure = new Error(`${path.basename(command)} could not start (${code})`);
+  failure.code = code;
+  return failure;
+}
+
 async function run(command, args, { env = process.env, cleanup = false, outputFile } = {}) {
   if (!cleanup) abort.signal.throwIfAborted();
   const output = outputFile ? await fs.open(outputFile, "wx", 0o600) : null;
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { env, stdio: ["ignore", output ? output.fd : "pipe", "pipe"],
-      ...(cleanup ? {} : { signal: abort.signal }) });
+    let child;
+    try {
+      child = spawn(command, args, { env, stdio: ["ignore", output ? output.fd : "pipe", "pipe"],
+        ...(cleanup ? {} : { signal: abort.signal }) });
+    } catch (error) {
+      return reject(startFailure(command, error));
+    }
     let out = "", spawnError;
     const err = stderrCollector(env);
     child.stdout?.on("data", (data) => { out += data; });
@@ -135,7 +155,7 @@ async function run(command, args, { env = process.env, cleanup = false, outputFi
     // removing any directory that this process may still be writing.
     child.on("error", (error) => { spawnError = error; });
     child.on("close", (code) => {
-      if (spawnError) return reject(spawnError);
+      if (spawnError) return reject(startFailure(command, spawnError));
       if (code === 0) return resolve(out.trim());
       const error = new Error(`${path.basename(command)} failed (${code}): ${err.text()}`);
       error.exitCode = code;
@@ -358,4 +378,4 @@ if (require.main === module) {
     .catch((error) => { console.error(`backup: ${error.message}`); process.exitCode = 1; });
 }
 
-module.exports = { create, check, verifyFiles, inventory, isolatedEnv, rehearse, dumpEnvironment, redact, stderrCollector };
+module.exports = { create, check, verifyFiles, inventory, isolatedEnv, rehearse, dumpEnvironment, redact, stderrCollector, run };
