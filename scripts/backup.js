@@ -14,6 +14,40 @@ const abort = new AbortController();
 const RUNTIME_SETTING = /^(PAGES_DATA_[A-Z_]+|PAGES_MCP_[A-Z_]+|PAGES_SOURCE_FUTURE_TOLERANCE_MS|MAX_HTML_BYTES)$/;
 const runtimeSettings = (env) => Object.fromEntries(Object.entries(env).filter(([key, value]) => RUNTIME_SETTING.test(key) && typeof value === "string"));
 
+// PostgreSQL diagnostics can echo connection strings, cut to 63 bytes when they
+// were taken as a database name, so removing exact values alone is not enough.
+// Never print the service environment or credentials in a backup command's
+// error output.
+function redact(text, env) {
+  let result = String(text);
+  for (const [key, value] of Object.entries(env)) {
+    if (value && /PASSWORD|SECRET|TOKEN|PEPPER|DATABASE_URL|PGDATABASE/i.test(key)) result = result.split(value).join("[redacted]");
+  }
+  return result.replace(/postgres(?:ql)?:\/\/[^\s"']*/gi, "[redacted connection string]");
+}
+
+// libpq reads a connection URI only as a dbname argument, never from
+// PGDATABASE, so the service's DATABASE_URL becomes the PG* variables pg_dump
+// does read. Passing it in argv instead would put the password in ps output.
+function dumpEnvironment(env) {
+  const result = { ...env };
+  delete result.DATABASE_URL;
+  if (!env.DATABASE_URL) return result;
+  let url;
+  try { url = new URL(env.DATABASE_URL); } catch { url = null; }
+  if (!url || !/^postgres(?:ql)?:$/.test(url.protocol)) throw new Error("DATABASE_URL is not a postgres:// connection URL");
+  const decode = (value) => decodeURIComponent(value);
+  const host = url.searchParams.get("host") || url.hostname.replace(/^\[(.*)\]$/, "$1");
+  if (host) result.PGHOST = host;
+  if (url.port || url.searchParams.get("port")) result.PGPORT = url.port || url.searchParams.get("port");
+  if (url.username) result.PGUSER = decode(url.username);
+  if (url.password) result.PGPASSWORD = decode(url.password);
+  const database = decode(url.pathname.replace(/^\//, ""));
+  if (database) result.PGDATABASE = database;
+  if (url.searchParams.get("sslmode")) result.PGSSLMODE = url.searchParams.get("sslmode");
+  return result;
+}
+
 async function run(command, args, { env = process.env, cleanup = false, outputFile } = {}) {
   if (!cleanup) abort.signal.throwIfAborted();
   const output = outputFile ? await fs.open(outputFile, "wx", 0o600) : null;
@@ -29,12 +63,7 @@ async function run(command, args, { env = process.env, cleanup = false, outputFi
     child.on("close", (code) => {
       if (spawnError) return reject(spawnError);
       if (code === 0) return resolve(out.trim());
-      // PostgreSQL diagnostics can echo connection strings. Never print the
-      // service environment or credentials in a backup command's error output.
-      for (const [key, value] of Object.entries(env)) {
-        if (value && /PASSWORD|SECRET|TOKEN|PEPPER|DATABASE_URL|PGDATABASE/i.test(key)) err = err.split(value).join("[redacted]");
-      }
-      const error = new Error(`${path.basename(command)} failed (${code}): ${err.trim()}`);
+      const error = new Error(`${path.basename(command)} failed (${code}): ${redact(err, env).trim()}`);
       error.exitCode = code;
       reject(error);
     });
@@ -180,8 +209,7 @@ async function create(destination, application, environment, installConfig) {
         configurationSources.push([name, source]);
       } catch (error) { if (error.code !== "ENOENT") throw error; optional[name] = false; }
     }
-    const dumpEnv = { ...process.env };
-    if (dumpEnv.DATABASE_URL) dumpEnv.PGDATABASE = dumpEnv.DATABASE_URL;
+    const dumpEnv = dumpEnvironment(process.env);
     const pgdump = await postgresTool("pg_dump");
     const dumpArgs = ["--format=custom", "--no-owner", "--no-acl"];
     const outputFile = path.join(temporary, "database.dump");
@@ -251,4 +279,4 @@ if (require.main === module) {
     .catch((error) => { console.error(`backup: ${error.message}`); process.exitCode = 1; });
 }
 
-module.exports = { create, check, verifyFiles, inventory, isolatedEnv, rehearse };
+module.exports = { create, check, verifyFiles, inventory, isolatedEnv, rehearse, dumpEnvironment, redact };

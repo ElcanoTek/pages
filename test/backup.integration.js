@@ -110,7 +110,10 @@ async function main() {
     fs.symlinkSync(localEnv, path.join(app, ".env"));
     const serviceEnv = path.join(dir, "service.env"), installEnv = path.join(dir, "install.env");
     const serviceValues = {
-      PGHOST: env.PGHOST, PGPORT: env.PGPORT, PGUSER: env.PGUSER, PGDATABASE: database,
+      // The shape bootstrap writes: one URL with a password, no PG* variables.
+      // libpq takes a URI only as a dbname argument, so this proves capture
+      // turns it into settings pg_dump reads (the socket rides in ?host=).
+      DATABASE_URL: `postgres://${encodeURIComponent(env.PGUSER || os.userInfo().username)}:northwind-fixture-pass@localhost:${env.PGPORT || 5432}/${database}?host=${encodeURIComponent(env.PGHOST || "/var/run/postgresql")}&sslmode=disable`,
       RAW_TOKEN_SECRET: "northwind-backup-raw-fixture", API_TOKEN_PEPPER: "northwind-backup-token-fixture",
       PAGE_COOKIE_SECRET: "northwind-backup-cookie-fixture", DASHBOARD_HOST: "localhost", CONTENT_HOST: "content.localhost",
     };

@@ -133,3 +133,36 @@ for (const retainsRunningCluster of [false, true]) {
     }
   });
 }
+
+// The service env holds DATABASE_URL, which libpq never reads from PGDATABASE,
+// so capture hands pg_dump the URL's parts instead (and never via argv).
+test("backup capture turns the service DATABASE_URL into libpq settings", () => {
+  const env = backup.dumpEnvironment({ DATABASE_URL: "postgres://pages:fix%40ture-pass@127.0.0.1:5432/pages?sslmode=disable",
+    PGDATABASE: "northwind_stale", KEEP: "kept" });
+  assert.equal(env.DATABASE_URL, undefined);
+  assert.deepEqual({ host: env.PGHOST, port: env.PGPORT, user: env.PGUSER, password: env.PGPASSWORD, database: env.PGDATABASE, ssl: env.PGSSLMODE },
+    { host: "127.0.0.1", port: "5432", user: "pages", password: "fix@ture-pass", database: "pages", ssl: "disable" });
+  assert.equal(env.KEEP, "kept");
+  const socket = backup.dumpEnvironment({ DATABASE_URL: "postgresql://pages:p@localhost:5497/northwind?host=%2Ftmp%2Fpg-sock" });
+  assert.equal(socket.PGHOST, "/tmp/pg-sock");
+  assert.equal(socket.PGPORT, "5497");
+  assert.deepEqual(backup.dumpEnvironment({ PGDATABASE: "northwind" }), { PGDATABASE: "northwind" }, "no URL, settings untouched");
+  for (const bad of ["not a url", "mysql://pages:p@host/pages"]) {
+    assert.throws(() => backup.dumpEnvironment({ DATABASE_URL: bad }), (error) => {
+      assert.match(error.message, /DATABASE_URL is not a postgres:\/\/ connection URL/);
+      assert.doesNotMatch(error.message, /mysql|pages:p/);
+      return true;
+    });
+  }
+});
+
+// PostgreSQL cuts a name to 63 bytes in its diagnostics, so a URL taken as a
+// database name came back shortened and slipped past exact-value redaction.
+test("backup errors never echo a connection string, even a truncated one", () => {
+  const url = "postgres://pages:0123456789abcdef0123456789abcdef0123456789abcdef@127.0.0.1:5432/pages?sslmode=disable";
+  const truncated = `FATAL:  database "${url.slice(0, 63)}" does not exist`;
+  const message = backup.redact(truncated, { DATABASE_URL: url, PGPASSWORD: "northwind-pass" });
+  assert.doesNotMatch(message, /0123456789abcdef|postgres:\/\//);
+  assert.match(message, /database "\[redacted connection string\]" does not exist/);
+  assert.equal(backup.redact("password northwind-pass rejected", { PGPASSWORD: "northwind-pass" }), "password [redacted] rejected");
+});
