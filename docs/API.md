@@ -442,6 +442,7 @@ automatically.
 | `POST /api/v1/admin/workspaces/:id/rename` | `{name}` | rename a workspace |
 | `POST /api/v1/admin/workspaces/:id/delete` | `{}` | remove a workspace and move every member to Ungrouped; pages are never deleted |
 | `POST /api/v1/admin/pages/:slug/workspace` | `{workspace_id}` | assign/move a page; pass `null` for Ungrouped |
+| `POST /api/v1/admin/pages/:slug/reveal-password` | `{}` | the page's current client password: `{has_password, available, password}`. Admin cookie + CSRF only, `Cache-Control: no-store`, and every call writes a `reveal_password` audit row. `available: false` means Pages has no copy yet (see [SECURITY.md](SECURITY.md), "Client passwords staff can show"). No bearer or MCP route returns a password |
 
 The admin source editor's **Save as new version** saves the HTML, render mode
 and note present when the button is clicked. You can keep editing while the
@@ -484,9 +485,10 @@ admin (`403 portal_admin_only`).
 |---------------|------|---------|
 | `GET /api/v1/admin/portals` | — | live portals with `page_count`, the home page, and the partner `url` |
 | `GET /api/v1/admin/portals/:id` | — | one portal, its partner `url`, and its ordered membership |
-| `POST /api/v1/admin/portals` | `{slug, name, password?}` | create. `slug` is ONE url-safe segment; omit `password` and Pages generates a ~79-bit one. **The plaintext is in this response and nowhere else** |
+| `POST /api/v1/admin/portals` | `{slug, name, password?}` | create. `slug` is ONE url-safe segment; omit `password` and Pages generates a ~79-bit one. The plaintext is in this response, never in the audit log |
 | `POST /api/v1/admin/portals/:id/rename` | `{name}` | rename (case-insensitively unique among live portals) |
 | `POST /api/v1/admin/portals/:id/password` | `{password?}` | rotate the credential — which is also how every live session for the portal is revoked |
+| `POST /api/v1/admin/portals/:id/reveal-password` | `{}` | the current portal password: `{id, available, password}`, so staff can resend it without rotating. `Cache-Control: no-store`; every call writes a `reveal_portal_password` audit row |
 | `POST /api/v1/admin/portals/:id/pages` | `{slug, label?, sort_order?}` | add a page; returns `reclassifies_staff_only` |
 | `POST /api/v1/admin/portals/:id/pages/update` | `{slug\|page_id, label?, sort_order?}` | edit the curated label/order. Absent fields are left alone; `label: null` falls back to the page title |
 | `POST /api/v1/admin/portals/:id/pages/remove` | `{slug\|page_id}` | remove one page from this portal |
@@ -496,9 +498,9 @@ admin (`403 portal_admin_only`).
 Portals are managed on the **`/admin/portals`** screen — the only surface anywhere
 that changes which dashboards a credential opens. It shows the partner link to hand
 out, warns *before* the click when adding a dashboard that has no client password of
-its own (that add is what makes it readable), shows a generated password exactly
-once in a dialog that must be dismissed, and flags any member a partner cannot open
-or that will show no `Page` menu.
+its own (that add is what makes it readable), shows a password in a dialog that
+must be dismissed (when it is generated, and again on **Show password**), and flags
+any member a partner cannot open or that will show no `Page` menu.
 
 `GET /api/v1/admin/pages/:slug` also returns `portals[]`, every portal that
 exposes that page — because a page missing from one audience's portal is
@@ -562,8 +564,9 @@ the index does not ask for anything again. What that does and does not mean:
 
 The ordering matters, because two of these steps sign people out:
 
-1. **Create the portal** and copy the password. It is shown once; if you lose it,
-   rotate (which signs out anyone already using the old one).
+1. **Create the portal** and copy the password. If you lose it, **Show password**
+   on the portal screen shows the current one again; rotate only when it has been
+   shared too widely, because rotating signs out anyone already using it.
 2. **Add their dashboards**, labelling each one the way the partner should read it.
    Set the macro view as the home dashboard so it sorts first. If a dashboard has no
    client password of its own, adding it here is what makes it readable — the screen

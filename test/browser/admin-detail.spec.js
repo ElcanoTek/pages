@@ -84,9 +84,7 @@ test("client access supports URL copy, password generation/update, and confirmed
   await expect(password).toHaveValue(/^[A-Za-z2-9]{20}$/);
   const generated = await password.inputValue();
   await page.getByRole("button", { name: "Update password" }).click();
-  // A password is confirmed by being shown once, not by a four-second toast: the
-  // help text promises it is never shown again, so this is the only chance to
-  // read it.
+  // A password is confirmed in a dialog, not by a four-second toast.
   await expect(page.getByRole("dialog", { name: "New client password" })).toBeVisible();
   await page.getByRole("dialog", { name: "New client password" }).getByRole("button", { name: "Done" }).click();
 
@@ -1416,7 +1414,7 @@ test("when nothing can copy, the message is a sentence, not an exception", async
   await expect(failure).not.toContainText("Failed to execute");
 });
 
-test("a password is shown once, and Generate does not leave the field readable", async ({ page }) => {
+test("a new password is confirmed in a dialog, and Generate does not leave the field readable", async ({ page }) => {
   await openDetail(page);
   // By id, not by label: the field is labelled "New client password" only while
   // the page HAS one, and an earlier test in this file clears it.
@@ -1426,32 +1424,55 @@ test("a password is shown once, and Generate does not leave the field readable",
   // Generate used to flip the input to type="text" and never flip it back.
   await page.getByRole("button", { name: "Generate" }).click();
   await expect(password).toHaveAttribute("type", "text");
-  await expect(page.getByRole("button", { name: "Hide" })).toHaveAttribute("aria-pressed", "true");
+  // exact: the Current password row has its own "Show current password".
+  await expect(page.getByRole("button", { name: "Hide", exact: true })).toHaveAttribute("aria-pressed", "true");
 
   // Showing the value is its own decision, and it is reversible.
-  await page.getByRole("button", { name: "Hide" }).click();
+  await page.getByRole("button", { name: "Hide", exact: true }).click();
   await expect(password).toHaveAttribute("type", "password");
-  await expect(page.getByRole("button", { name: "Show" })).toHaveAttribute("aria-pressed", "false");
-  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page.getByRole("button", { name: "Show", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Show", exact: true }).click();
   await expect(password).toHaveAttribute("type", "text");
 
   const generated = await password.inputValue();
   expect(generated.length).toBeGreaterThan(8);
   await page.getByRole("button", { name: /^(Update|Set) password$/ }).click();
 
-  // The help text promises the password is never shown again, which is exactly why
-  // it has to be shown once — a four-second toast plus a clipboard write that may
-  // have been overwritten is not a record.
+  // A dialog, not a four-second toast plus a clipboard write that may have been
+  // overwritten: this is the moment the admin is about to send it.
   const shown = page.getByRole("dialog", { name: /client password/i });
   await expect(shown).toBeVisible();
   await expect(shown).toContainText(generated);
-  await expect(shown).toContainText("only time Pages will show it");
+  await expect(shown).toContainText("Staff can show it again later under Current password");
   await expect(shown).toContainText("Client link:");
   await shown.getByRole("button", { name: "Done" }).click();
 
   // And the field is back to being a password field, emptied.
   await expect(password).toHaveValue("");
   await expect(password).toHaveAttribute("type", "password");
+});
+
+test("staff can show and copy the current client password without setting a new one", async ({ page, request }) => {
+  await openDetail(page);
+  const current = page.locator("#current-password");
+  await expect(current).toHaveAttribute("type", "password");
+  await expect(current).toHaveValue("");
+  const revealsSoFar = async () =>
+    (await (await request.get("/__fixture/events")).json()).events.filter((event) => event.path.endsWith("/reveal-password")).length;
+  expect(await revealsSoFar(), "nothing is fetched until someone asks").toBe(0);
+
+  await page.getByRole("button", { name: "Show current password" }).click();
+  await expect(current).toHaveAttribute("type", "text");
+  await expect(current).toHaveValue("fixture-client-pass");
+  await page.getByRole("button", { name: "Hide current password" }).click();
+  await expect(current).toHaveAttribute("type", "password");
+  await expect(page.getByRole("button", { name: "Show current password" })).toHaveAttribute("aria-pressed", "false");
+
+  // Copy reuses the value already fetched: one audited reveal, not one per click.
+  await page.getByRole("button", { name: "Copy current password" }).click();
+  expect(await revealsSoFar()).toBe(1);
+  // The new-password field is untouched by any of this.
+  await expect(page.locator("#client-password")).toHaveValue("");
 });
 
 test("clearing a password is not standing beside the things that set one", async ({ page }) => {

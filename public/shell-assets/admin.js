@@ -660,6 +660,83 @@
     return Array.from(buffer, (value) => alphabet[value % alphabet.length]).join("");
   }
 
+  // currentPasswordField — "Current password" with Show/Hide and Copy. Nothing
+  // is fetched until one of them is pressed.
+  function currentPasswordField() {
+    const input = el("input", {
+      id: "current-password",
+      type: "password",
+      readonly: true,
+      autocomplete: "off",
+      placeholder: "Hidden",
+    });
+    const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
+    // Visible text matches the new-password row's Show/Copy; the accessible names
+    // say which password, since both rows sit in the same form.
+    const show = el("button", {
+      id: "show-current-password",
+      class: "btn",
+      type: "button",
+      "aria-label": "Show current password",
+      "aria-pressed": "false",
+      "aria-controls": "current-password",
+    }, "Show");
+    const copy = el("button", {
+      id: "copy-current-password",
+      class: "btn",
+      type: "button",
+      "aria-label": "Copy current password",
+    }, icon("copy"), "Copy");
+
+    let loaded = null;
+    async function load(button) {
+      if (loaded !== null) return loaded;
+      setBusy(button, true, "Loading…");
+      try {
+        const result = await post("/reveal-password");
+        if (!result.available) {
+          status.textContent = "Pages doesn't have a copy of this password yet. It appears after a client next signs in with it, or set a new one below.";
+          return null;
+        }
+        loaded = result.password;
+        input.value = loaded;
+        return loaded;
+      } catch (error) {
+        status.textContent = error.message;
+        return null;
+      } finally {
+        setBusy(button, false);
+      }
+    }
+    function setShown(on) {
+      input.type = on ? "text" : "password";
+      show.setAttribute("aria-pressed", on ? "true" : "false");
+      show.setAttribute("aria-label", on ? "Hide current password" : "Show current password");
+      show.textContent = on ? "Hide" : "Show";
+    }
+    show.addEventListener("click", async () => {
+      if (input.type === "text") return setShown(false);
+      if ((await load(show)) !== null) setShown(true);
+    });
+    copy.addEventListener("click", async () => {
+      const value = await load(copy);
+      if (value === null) return;
+      try { await copyText(value); toast("Password copied"); }
+      catch (error) { toast(error.message, { tone: "error" }); }
+    });
+
+    return el("div", { class: "form-stack" },
+      field({
+        id: "current-password",
+        label: "Current password",
+        control: input,
+        help: "The password clients use today. Showing it is recorded in the audit log.",
+        wrap: "label",
+      }),
+      el("div", { class: "password-actions" }, show, copy),
+      status);
+  }
+
   function clientAccessSection(page) {
     const liveUrl = contentOrigin ? `${contentOrigin.replace(/\/+$/, "")}/${slugPath(page.slug)}` : "";
     const urlInput = el("input", { id: "live-url", type: "url", value: liveUrl, readonly: true });
@@ -712,12 +789,21 @@
       catch (error) { toast(error.message, { tone: "error" }); }
     });
 
+    // The password clients use today, so staff can resend it without setting a
+    // new one and locking out everyone else at the client. Fetched only on
+    // request: each fetch is an audited admin action (POST /reveal-password),
+    // and the value never rides along in the page payload.
+    const current = page.has_password ? currentPasswordField() : null;
+
     const form = el("form", { class: "form-stack" },
+      current,
       field({
         id: "client-password",
         label: page.has_password ? "New client password" : "Client password",
         control: password,
-        help: "Passwords are submitted once and never shown again.",
+        help: page.has_password
+          ? "Setting a new one replaces the current password for every client."
+          : "Clients open the address with this password.",
         wrap: "label",
       }),
       // Clear password leaves the row of things that set one: it is the opposite
@@ -734,12 +820,11 @@
         await post("/password", { password: password.value });
         password.value = "";
         setRevealed(false);
-        // The help text promises this is never shown again, and it is not — which
-        // is exactly why it has to be shown ONCE, here, rather than confirmed by a
-        // four-second toast and a clipboard write that may have been overwritten.
+        // A dialog rather than a four-second toast and a clipboard write that may
+        // have been overwritten: this is the moment the admin is about to send it.
         credentialDialog({
           title: page.has_password ? "New client password" : "Client password",
-          description: "This is the only time Pages will show it. Send it to the client separately from the link.",
+          description: "Send it to the client separately from the link. Staff can show it again later under Current password.",
           value: submitted,
           notes: [
             `Client link: ${liveUrl}`,

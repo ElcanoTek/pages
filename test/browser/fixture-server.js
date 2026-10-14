@@ -583,6 +583,9 @@ app.post("/api/v1/admin/portals/:id/rename", (req, res) => {
 app.post("/api/v1/admin/portals/:id/password", (_req, res) =>
   res.json({ portal: fixturePortals[0], password: "zc4m-8kdq-r3vp-h7ns", password_generated: true })
 );
+app.post("/api/v1/admin/portals/:id/reveal-password", (req, res) =>
+  res.json({ id: Number(req.params.id), available: true, password: "pr7k-9mfx-t2qd-w4hn" })
+);
 app.post("/api/v1/admin/portals/:id/delete", (req, res) => {
   // Retire the NAMED portal, not the whole table: with a second portal in the
   // fixture, wiping the array made one Retire look like every portal vanishing
@@ -993,6 +996,14 @@ app.use("/api/v1/admin", (req, res, next) => {
   if (suffix === "/disable") { page.disabled = true; page.is_live = false; return res.json(page); }
   if (suffix === "/enable") { page.disabled = false; page.is_live = Boolean(page.published_version_id); return res.json(page); }
   if (suffix === "/password") { page.has_password = Boolean(req.body.password); return res.json(page); }
+  if (suffix === "/reveal-password") {
+    return res.json({
+      slug: page.slug,
+      has_password: Boolean(page.has_password),
+      available: Boolean(page.has_password),
+      password: page.has_password ? "fixture-client-pass" : null,
+    });
+  }
   if (suffix === "/delete") {
     state.pages = state.pages.filter((item) => item !== page);
     return res.json({ deleted: true });

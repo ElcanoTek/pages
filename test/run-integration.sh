@@ -185,6 +185,9 @@ node "$ROOT/test/upload-replay.integration.js"
 echo "▸ admin integration"
 node "$ROOT/test/admin.integration.js"
 
+echo "▸ password reveal integration"
+node "$ROOT/test/password-reveal.integration.js"
+
 echo "▸ view integration"
 node "$ROOT/test/view.integration.js"
 
