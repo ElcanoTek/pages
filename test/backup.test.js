@@ -183,15 +183,15 @@ test("backup capture connects exactly where the application's DATABASE_URL point
 // slipped past exact-value redaction. Lines that show a connection string, or
 // the start of a secret, are dropped whole; exact secrets are replaced.
 test("backup errors never echo a connection string or part of a secret", () => {
-  const secret = "0123456789abcdef0123456789abcdef0123456789abcdef";
-  const url = `postgres://pages:${secret}@127.0.0.1:5432/pages?sslmode=disable`;
-  const env = { DATABASE_URL: url, PGPASSWORD: secret, RAW_TOKEN_SECRET: "northwind-raw-fixture-value" };
+  const minted = "0123456789abcdef".repeat(3); // 48 hex, the shape bootstrap mints
+  const url = `postgres://pages:${minted}@127.0.0.1:5432/pages?sslmode=disable`;
+  const env = { DATABASE_URL: url, PGPASSWORD: minted, RAW_TOKEN_SECRET: "northwind-raw-fixture-value" };
   const leaks = (text) => /0123456789ab|postgres(ql)?:\/\/|northwind-raw/i.test(text);
   for (const line of [
     `FATAL:  database "${url.slice(0, 63)}" does not exist`,
     `FATAL:  database "${`postgres://pages:alpha'${"x".repeat(70)}@h/p`.slice(0, 63)}" does not exist`,
-    `error at "PostgreSQL://pages:${secret.slice(0, 20)}"`,
-    `password authentication failed; tried ${secret.slice(0, 30)}`,
+    `error at "PostgreSQL://pages:${minted.slice(0, 20)}"`,
+    `password authentication failed; tried ${minted.slice(0, 30)}`,
   ]) {
     const out = backup.redact(line, env);
     assert.equal(out, "[line removed: it may contain a credential]", line);
@@ -211,7 +211,7 @@ test("backup errors never echo a connection string or part of a secret", () => {
   // An oversized line is dropped whole, including the rest arriving later.
   const big = backup.stderrCollector(env, 100);
   big.push("a".repeat(150));
-  big.push(`${secret.slice(12)} tail of the oversized line\nnext line\n`);
+  big.push(`${minted.slice(12)} tail of the oversized line\nnext line\n`);
   assert.equal(big.text(), "[line removed: it may contain a credential]\nnext line");
   // A final unterminated line is still redacted.
   const last = backup.stderrCollector(env);
