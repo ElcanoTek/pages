@@ -135,34 +135,101 @@ for (const retainsRunningCluster of [false, true]) {
 }
 
 // The service env holds DATABASE_URL, which libpq never reads from PGDATABASE,
-// so capture hands pg_dump the URL's parts instead (and never via argv).
-test("backup capture turns the service DATABASE_URL into libpq settings", () => {
-  const env = backup.dumpEnvironment({ DATABASE_URL: "postgres://pages:fix%40ture-pass@127.0.0.1:5432/pages?sslmode=disable",
-    PGDATABASE: "northwind_stale", KEEP: "kept" });
-  assert.equal(env.DATABASE_URL, undefined);
-  assert.deepEqual({ host: env.PGHOST, port: env.PGPORT, user: env.PGUSER, password: env.PGPASSWORD, database: env.PGDATABASE, ssl: env.PGSSLMODE },
-    { host: "127.0.0.1", port: "5432", user: "pages", password: "fix@ture-pass", database: "pages", ssl: "disable" });
-  assert.equal(env.KEEP, "kept");
-  const socket = backup.dumpEnvironment({ DATABASE_URL: "postgresql://pages:p@localhost:5497/northwind?host=%2Ftmp%2Fpg-sock" });
-  assert.equal(socket.PGHOST, "/tmp/pg-sock");
-  assert.equal(socket.PGPORT, "5497");
-  assert.deepEqual(backup.dumpEnvironment({ PGDATABASE: "northwind" }), { PGDATABASE: "northwind" }, "no URL, settings untouched");
-  for (const bad of ["not a url", "mysql://pages:p@host/pages"]) {
-    assert.throws(() => backup.dumpEnvironment({ DATABASE_URL: bad }), (error) => {
-      assert.match(error.message, /DATABASE_URL is not a postgres:\/\/ connection URL/);
-      assert.doesNotMatch(error.message, /mysql|pages:p/);
+// so capture parses it with the application's own parser and hands pg_dump the
+// parts as PG* variables, never argv.
+test("backup capture connects exactly where the application's DATABASE_URL points", () => {
+  const pg = (url, extra = {}) => Object.fromEntries(Object.entries(backup.dumpEnvironment({ DATABASE_URL: url, ...extra }))
+    .filter(([key]) => key.startsWith("PG")));
+  // The shape bootstrap writes.
+  assert.deepEqual(pg("postgres://pages:0f3a@127.0.0.1:5432/pages?sslmode=disable"),
+    { PGHOST: "127.0.0.1", PGPORT: "5432", PGUSER: "pages", PGPASSWORD: "0f3a", PGDATABASE: "pages", PGSSLMODE: "disable" });
+  // The URL is the only source: inherited libpq overrides cannot redirect it.
+  assert.deepEqual(pg("postgres://pages:p@db.test/pages", { PGHOSTADDR: "192.0.2.9", PGSERVICE: "northwind", PGPASSFILE: "/x" }),
+    { PGHOST: "db.test", PGUSER: "pages", PGPASSWORD: "p", PGDATABASE: "pages", PGSSLMODE: "disable" });
+  assert.equal(backup.dumpEnvironment({ DATABASE_URL: "postgres://p:q@h/d", KEEP: "kept" }).KEEP, "kept");
+  assert.equal(backup.dumpEnvironment({ DATABASE_URL: "postgres://p:q@h/d" }).DATABASE_URL, undefined);
+  // Decoding and precedence follow the driver: encoded socket host, hostless
+  // ?host=, query values over userinfo, bare IPv6, its localhost default.
+  assert.deepEqual(pg("postgresql://pages:fix%40ture@%2Ftmp%2Fpg-sock/north%20wind"),
+    { PGHOST: "/tmp/pg-sock", PGUSER: "pages", PGPASSWORD: "fix@ture", PGDATABASE: "north wind", PGSSLMODE: "disable" });
+  assert.equal(pg("postgres://pages:p@/pages?host=%2Ftmp%2Fpg-sock&port=5497").PGHOST, "/tmp/pg-sock");
+  assert.deepEqual(pg("postgres://old:old@localhost:5432/pages?user=new&password=new&port=5497"),
+    { PGHOST: "localhost", PGPORT: "5497", PGUSER: "new", PGPASSWORD: "new", PGDATABASE: "pages", PGSSLMODE: "disable" });
+  assert.equal(pg("postgres://p:q@[::1]:5433/d").PGHOST, "::1");
+  assert.equal(pg("postgres://p:q@/d").PGHOST, "localhost");
+  // TLS: off unless asked, full verification when asked (as node-postgres).
+  assert.deepEqual([pg("postgres://p:q@h/d?sslmode=verify-full").PGSSLMODE, pg("postgres://p:q@h/d?sslmode=verify-full").PGSSLROOTCERT],
+    ["verify-full", "system"]);
+  // Without a URL the PG* settings are the source, untouched.
+  assert.deepEqual(backup.dumpEnvironment({ PGDATABASE: "northwind", PGHOST: "/s" }), { PGDATABASE: "northwind", PGHOST: "/s" });
+  // Refused, never silently dropped or weakened, and never quoting the URL.
+  for (const [url, why] of [
+    ["not a url", /is not a postgres:\/\/ connection URL/],
+    ["mysql://pages:hunter-fixture@host/pages", /is not a postgres:\/\/ connection URL/],
+    ["postgres://pages:hunter-fixture@host/pages?sslrootcert=/etc/northwind.crt", /option "sslrootcert" is not supported/],
+    ["postgres://pages:hunter-fixture@host/pages?options=-c%20x", /option "options" is not supported/],
+    ["postgres://pages:hunter-fixture@host/pages?sslmode=require", /sslmode must be disable or verify-full/],
+    ["postgres://pages:hunter-fixture@host/pages?sslmode=prefer", /sslmode must be disable or verify-full/],
+  ]) {
+    assert.throws(() => backup.dumpEnvironment({ DATABASE_URL: url }), (error) => {
+      assert.match(error.message, why);
+      assert.doesNotMatch(error.message, /hunter-fixture|\/etc\/northwind|mysql:/);
       return true;
-    });
+    }, url);
   }
 });
 
-// PostgreSQL cuts a name to 63 bytes in its diagnostics, so a URL taken as a
-// database name came back shortened and slipped past exact-value redaction.
-test("backup errors never echo a connection string, even a truncated one", () => {
-  const url = "postgres://pages:0123456789abcdef0123456789abcdef0123456789abcdef@127.0.0.1:5432/pages?sslmode=disable";
-  const truncated = `FATAL:  database "${url.slice(0, 63)}" does not exist`;
-  const message = backup.redact(truncated, { DATABASE_URL: url, PGPASSWORD: "northwind-pass" });
-  assert.doesNotMatch(message, /0123456789abcdef|postgres:\/\//);
-  assert.match(message, /database "\[redacted connection string\]" does not exist/);
-  assert.equal(backup.redact("password northwind-pass rejected", { PGPASSWORD: "northwind-pass" }), "password [redacted] rejected");
+// PostgreSQL cut the URL it took as a database name to 63 bytes, so the echo
+// slipped past exact-value redaction. Lines that show a connection string, or
+// the start of a secret, are dropped whole; exact secrets are replaced.
+test("backup errors never echo a connection string or part of a secret", () => {
+  const secret = "0123456789abcdef0123456789abcdef0123456789abcdef";
+  const url = `postgres://pages:${secret}@127.0.0.1:5432/pages?sslmode=disable`;
+  const env = { DATABASE_URL: url, PGPASSWORD: secret, RAW_TOKEN_SECRET: "northwind-raw-fixture-value" };
+  const leaks = (text) => /0123456789ab|postgres(ql)?:\/\/|northwind-raw/i.test(text);
+  for (const line of [
+    `FATAL:  database "${url.slice(0, 63)}" does not exist`,
+    `FATAL:  database "${`postgres://pages:alpha'${"x".repeat(70)}@h/p`.slice(0, 63)}" does not exist`,
+    `error at "PostgreSQL://pages:${secret.slice(0, 20)}"`,
+    `password authentication failed; tried ${secret.slice(0, 30)}`,
+  ]) {
+    const out = backup.redact(line, env);
+    assert.equal(out, "[line removed: it may contain a credential]", line);
+  }
+  assert.equal(backup.redact("token northwind-raw-fixture-value refused\nplain context", env), "token [redacted] refused\nplain context");
+
+  // Split across chunks: the URL arrives in pieces and is still removed.
+  const split = backup.stderrCollector(env);
+  for (const piece of ["pg_dump: error: FATAL: database \"postg", "res://pages:0123", "456789ab\" does not exist\n", "pg_dump: hint\n"]) split.push(piece);
+  assert.equal(split.text(), "[line removed: it may contain a credential]\npg_dump: hint");
+
+  // The tail is cut AFTER redaction, so a cut cannot strip the identifying prefix.
+  const tail = backup.stderrCollector(env, 200);
+  tail.push(`${"noise ".repeat(40)}\nFATAL: database "${url.slice(0, 63)}"\n${"z".repeat(150)}\n`);
+  assert.ok(!leaks(tail.text()), tail.text());
+
+  // An oversized line is dropped whole, including the rest arriving later.
+  const big = backup.stderrCollector(env, 100);
+  big.push("a".repeat(150));
+  big.push(`${secret.slice(12)} tail of the oversized line\nnext line\n`);
+  assert.equal(big.text(), "[line removed: it may contain a credential]\nnext line");
+  // A final unterminated line is still redacted.
+  const last = backup.stderrCollector(env);
+  last.push(`FATAL: "${url}`);
+  assert.equal(last.text(), "[line removed: it may contain a credential]");
+});
+
+// Every client box signs in centrally, and those settings name the live host,
+// which the localhost probe would fail. Rehearsal pins the self-contained mode.
+test("restore rehearsal never carries central sign-in settings", (t) => {
+  environment(t, { PAGES_AUTH_MODE: "central", PAGES_PUBLIC_URL: "https://pages.northwind.example",
+    AUTH_ISSUER_URL: "https://auth.northwind.example", AUTH_CLIENT_ID: "pages",
+    AUTH_CLIENT_SECRET: "northwind-central-client-fixture-0000000000", AUTH_SIGNING_PUBKEY: "northwind-key-fixture",
+    PAGES_AUTH_COOKIE_SECURE: "1", AUTH_COOKIE_NAME: "northwind_auth" });
+  const env = backup.isolatedEnv("/tmp/northwind-private");
+  assert.equal(env.PAGES_AUTH_MODE, "elcano");
+  assert.equal(env.AUTH_SIGNING_PUBKEY, "", "admin requests fail closed");
+  for (const key of ["PAGES_PUBLIC_URL", "AUTH_ISSUER_URL", "AUTH_CLIENT_ID", "AUTH_CLIENT_SECRET", "PAGES_AUTH_COOKIE_SECURE", "AUTH_COOKIE_NAME"]) {
+    assert.equal(env[key], undefined, key);
+  }
 });

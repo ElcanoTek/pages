@@ -116,6 +116,10 @@ async function main() {
       DATABASE_URL: `postgres://${encodeURIComponent(env.PGUSER || os.userInfo().username)}:northwind-fixture-pass@localhost:${env.PGPORT || 5432}/${database}?host=${encodeURIComponent(env.PGHOST || "/var/run/postgresql")}&sslmode=disable`,
       RAW_TOKEN_SECRET: "northwind-backup-raw-fixture", API_TOKEN_PEPPER: "northwind-backup-token-fixture",
       PAGE_COOKIE_SECRET: "northwind-backup-cookie-fixture", DASHBOARD_HOST: "localhost", CONTENT_HOST: "content.localhost",
+      // Central sign-in, as on every client box. Its settings name the live host,
+      // which the localhost restore probe must not inherit.
+      PAGES_AUTH_MODE: "central", PAGES_PUBLIC_URL: "https://pages.northwind.example",
+      AUTH_ISSUER_URL: "https://auth.northwind.example", AUTH_CLIENT_SECRET: "northwind-central-client-fixture-0000000000",
     };
     fs.writeFileSync(serviceEnv, Object.entries(serviceValues).filter(([, value]) => value !== undefined)
       .map(([key, value]) => `${key}=${quoteShell(value)}`).join("\n") + "\n", { mode: 0o600 });
