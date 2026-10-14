@@ -5831,13 +5831,15 @@ test("freshness separates recorded failures from the latest live refresh", () =>
 function loadPasswordvault(secret) {
   const saved = process.env.PAGE_COOKIE_SECRET;
   const modulePath = require.resolve("../lib/passwordvault");
+  const cached = require.cache[modulePath];
   delete require.cache[modulePath];
   if (secret === undefined) delete process.env.PAGE_COOKIE_SECRET;
   else process.env.PAGE_COOKIE_SECRET = secret;
   try {
     return require(modulePath);
   } finally {
-    delete require.cache[modulePath];
+    if (cached) require.cache[modulePath] = cached;
+    else delete require.cache[modulePath];
     if (saved === undefined) delete process.env.PAGE_COOKIE_SECRET;
     else process.env.PAGE_COOKIE_SECRET = saved;
   }
