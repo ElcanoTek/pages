@@ -203,7 +203,11 @@
   - `password_hash` (scrypt) is still the only thing the gate checks. Next to it,
     `password_ciphertext` holds an AES-256-GCM copy keyed by HKDF from
     `PAGE_COOKIE_SECRET`, which lives in the server environment and never in the
-    database, so a dump or backup alone opens nothing.
+    database, so a database dump alone opens nothing. A full `pages backup`
+    archive carries the service environment beside the dump, so it can open
+    every copy: store and share it as secret material. With no
+    `PAGE_COOKIE_SECRET` set, no copy is kept at all (an empty key would be
+    public), and the shell reports every password as not available.
   - Each copy is bound to the `password_hash` it was sealed with (GCM additional
     data). A hash changed without resealing, such as by an older release during a
     rolling deploy, leaves a copy that no longer opens, and the shell says "not
