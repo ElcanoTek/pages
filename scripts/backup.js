@@ -8,33 +8,156 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
 const { createReadStream, constants } = require("node:fs");
+const { parse: parseConnectionString } = require("pg-connection-string");
 const ROOT = path.resolve(__dirname, "..");
 const EXCLUDED = new Set([".git", "node_modules", "assets", ".env", ".devdata", "test-results", "playwright-report"]);
 const abort = new AbortController();
 const RUNTIME_SETTING = /^(PAGES_DATA_[A-Z_]+|PAGES_MCP_[A-Z_]+|PAGES_SOURCE_FUTURE_TOLERANCE_MS|MAX_HTML_BYTES)$/;
 const runtimeSettings = (env) => Object.fromEntries(Object.entries(env).filter(([key, value]) => RUNTIME_SETTING.test(key) && typeof value === "string"));
 
+const SENSITIVE_KEY = /PASSWORD|SECRET|TOKEN|PEPPER|DATABASE_URL|PGDATABASE/i;
+const CONNECTION_STRING = /postgres(?:ql)?:\/\//i;
+const REMOVED_LINE = "[line removed: it may contain a credential]";
+
+// redactLine — one complete line of child diagnostics, safe to print. PostgreSQL
+// can echo a connection string, cut to 63 bytes when it was taken as a name,
+// and the cut can land anywhere, even inside quotes. So any line that shows a
+// connection string, or the start of a sensitive value, is dropped whole rather
+// than trimmed; exact sensitive values elsewhere are replaced.
+function redactLine(line, env) {
+  if (CONNECTION_STRING.test(line)) return REMOVED_LINE;
+  const sensitive = Object.entries(env).filter(([key, value]) => value && SENSITIVE_KEY.test(key)).map(([, value]) => value);
+  let result = line;
+  for (const value of sensitive) result = result.split(value).join("[redacted]");
+  // After whole values are gone, any surviving start of one is a cut copy.
+  if (sensitive.some((value) => value.length >= 12 && result.includes(value.slice(0, 12)))) return REMOVED_LINE;
+  return result;
+}
+
+function redact(text, env) {
+  return String(text).split("\n").map((line) => redactLine(line, env)).join("\n");
+}
+
+// stderrCollector — keeps a bounded tail of a child's stderr, redacted line by
+// line BEFORE anything is kept, so trimming to the tail can never cut a secret
+// away from the text that identifies it. A line longer than the limit is
+// dropped whole, including the rest of it that arrives later.
+function stderrCollector(env, limit = 8000) {
+  let kept = "", partial = "", skipping = false;
+  const keep = (line) => { kept = (kept + line + "\n").slice(-limit); };
+  return {
+    push(chunk) {
+      partial += chunk;
+      let index;
+      while ((index = partial.indexOf("\n")) !== -1) {
+        const line = partial.slice(0, index);
+        partial = partial.slice(index + 1);
+        if (skipping) skipping = false;
+        else keep(line.length > limit ? REMOVED_LINE : redactLine(line, env));
+      }
+      if (partial.length > limit) {
+        if (!skipping) keep(REMOVED_LINE);
+        skipping = true;
+        partial = "";
+      }
+    },
+    text() {
+      if (partial && !skipping) keep(redactLine(partial, env));
+      partial = "";
+      return kept.trim();
+    },
+  };
+}
+
+// The URL options a backup reproduces exactly. Anything else, such as client
+// certificate paths, is refused rather than dropped, so a capture can never
+// quietly connect differently from the running application.
+const DUMP_URL_OPTIONS = new Set(["host", "port", "user", "password", "sslmode"]);
+
+// dumpEnvironment — the environment pg_dump connects with. libpq reads a
+// connection URI only as a dbname argument, never from PGDATABASE, so the
+// service's DATABASE_URL is parsed with the same parser the application's pg
+// driver uses and handed over as PG* variables (never argv, which ps shows).
+// The URL must be the only source (PG* alongside it are refused), and the
+// driver's defaults stand in for parts the URL leaves out.
+function dumpEnvironment(env) {
+  const result = { ...env };
+  delete result.DATABASE_URL;
+  if (!env.DATABASE_URL) return result;
+  const url = String(env.DATABASE_URL);
+  const invalid = (detail) => new Error(`DATABASE_URL ${detail}; backup needs the service's postgres:// URL`);
+  if (!/^postgres(?:ql)?:\/\//i.test(url)) throw invalid("is not a postgres:// connection URL");
+  // The driver also falls back to PG* variables (PGSSLMODE among them) for
+  // whatever the URL leaves out. Rather than guess which one wins, refuse both.
+  if (Object.keys(env).some((key) => key.startsWith("PG"))) {
+    throw invalid("is set together with PG* variables; keep the connection in DATABASE_URL alone");
+  }
+  const query = new URLSearchParams(url.includes("?") ? url.slice(url.indexOf("?") + 1).split("#")[0] : "");
+  const options = [...query.keys()];
+  // Option names are URL text, so they are never quoted back (they could hold
+  // a pasted secret). A repeated option is refused: the parser takes the last
+  // one, so validating any single copy could pass a different effective value.
+  if (options.some((option) => !DUMP_URL_OPTIONS.has(option)) || new Set(options).size !== options.length) {
+    throw invalid(`has an unsupported or repeated option; backup accepts each of ${[...DUMP_URL_OPTIONS].join(", ")} at most once`);
+  }
+  const sslmode = query.get("sslmode");
+  if (sslmode !== null && sslmode !== "disable" && sslmode !== "verify-full") {
+    throw invalid("sslmode must be disable or verify-full for backup");
+  }
+  let parsed;
+  try { parsed = parseConnectionString(url); } catch { throw invalid("could not be parsed"); }
+  // A decoded %00 can never reach a connection, and the error Node raises for
+  // it would quote the value around it. Refuse it here, without the value.
+  if ([parsed.host, parsed.port, parsed.user, parsed.password, parsed.database].some((part) => String(part ?? "").includes("\0"))) {
+    throw invalid("has a NUL character in a connection setting");
+  }
+  result.PGHOST = (parsed.host || "localhost").replace(/^\[(.*)\]$/, "$1"); // libpq wants IPv6 bare
+  if (parsed.port) result.PGPORT = String(parsed.port);
+  if (parsed.user) result.PGUSER = parsed.user;
+  if (parsed.password) result.PGPASSWORD = parsed.password;
+  if (parsed.database) result.PGDATABASE = parsed.database;
+  // node-postgres speaks no TLS unless asked (nothing else can ask: PG* are
+  // refused above), and verifies fully when asked. sslrootcert=system needs
+  // libpq 16+; an older libpq reads "system" as a missing file and refuses to
+  // connect, so it fails closed rather than skipping verification.
+  if (sslmode === "verify-full") Object.assign(result, { PGSSLMODE: "verify-full", PGSSLROOTCERT: "system" });
+  else result.PGSSLMODE = "disable";
+  return result;
+}
+
+// startFailure — a child that could not start, reported by tool and error code
+// only. Node's own message can quote the option values it rejected, and here
+// those include the connection settings, so it is never passed on.
+function startFailure(command, error) {
+  const code = typeof error?.code === "string" && /^[A-Z0-9_]{1,40}$/.test(error.code) ? error.code : "unknown";
+  const failure = new Error(`${path.basename(command)} could not start (${code})`);
+  failure.code = code;
+  return failure;
+}
+
 async function run(command, args, { env = process.env, cleanup = false, outputFile } = {}) {
   if (!cleanup) abort.signal.throwIfAborted();
   const output = outputFile ? await fs.open(outputFile, "wx", 0o600) : null;
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { env, stdio: ["ignore", output ? output.fd : "pipe", "pipe"],
-      ...(cleanup ? {} : { signal: abort.signal }) });
-    let out = "", err = "", spawnError;
+    let child;
+    try {
+      child = spawn(command, args, { env, stdio: ["ignore", output ? output.fd : "pipe", "pipe"],
+        ...(cleanup ? {} : { signal: abort.signal }) });
+    } catch (error) {
+      return reject(startFailure(command, error));
+    }
+    let out = "", spawnError;
+    const err = stderrCollector(env);
     child.stdout?.on("data", (data) => { out += data; });
-    child.stderr.on("data", (data) => { err = (err + data).slice(-8000); });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (data) => { err.push(data); });
     // Abort can emit error before the OS process exits. Wait for close before
     // removing any directory that this process may still be writing.
     child.on("error", (error) => { spawnError = error; });
     child.on("close", (code) => {
-      if (spawnError) return reject(spawnError);
+      if (spawnError) return reject(startFailure(command, spawnError));
       if (code === 0) return resolve(out.trim());
-      // PostgreSQL diagnostics can echo connection strings. Never print the
-      // service environment or credentials in a backup command's error output.
-      for (const [key, value] of Object.entries(env)) {
-        if (value && /PASSWORD|SECRET|TOKEN|PEPPER|DATABASE_URL|PGDATABASE/i.test(key)) err = err.split(value).join("[redacted]");
-      }
-      const error = new Error(`${path.basename(command)} failed (${code}): ${err.trim()}`);
+      const error = new Error(`${path.basename(command)} failed (${code}): ${err.text()}`);
       error.exitCode = code;
       reject(error);
     });
@@ -90,8 +213,13 @@ async function verifyFiles(directory, manifest) {
 function isolatedEnv(socket, runtime = {}) {
   // No archived environment is sourced during rehearsal. Clear every libpq
   // override, including service files and options, before targeting the cluster.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("PG") && key !== "DATABASE_URL" && !RUNTIME_SETTING.test(key)));
+  // Sign-in is pinned to the self-contained elcano mode with no signing key, so
+  // the probe never needs, reads or reaches a central Auth (whose settings name
+  // the live host and would refuse localhost) and every admin request fails closed.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("PG") && key !== "DATABASE_URL"
+    && !RUNTIME_SETTING.test(key) && !key.startsWith("AUTH_") && !key.startsWith("PAGES_AUTH_") && key !== "PAGES_PUBLIC_URL"));
   return { ...env, ...runtimeSettings(runtime), PGHOST: socket, PGPORT: "5432", PGUSER: "pages_backup", PGDATABASE: "pages",
+    PAGES_AUTH_MODE: "elcano",
     NODE_ENV: "production", RAW_TOKEN_SECRET: crypto.randomUUID(), API_TOKEN_PEPPER: crypto.randomUUID(),
     PAGE_COOKIE_SECRET: crypto.randomUUID(), RL_CONTENT_PER_MIN: "1000", PAGES_DEV_LOGIN: "0", AUTH_SIGNING_PUBKEY: "",
     DASHBOARD_HOST: "localhost", CONTENT_HOST: "content.localhost",
@@ -180,8 +308,7 @@ async function create(destination, application, environment, installConfig) {
         configurationSources.push([name, source]);
       } catch (error) { if (error.code !== "ENOENT") throw error; optional[name] = false; }
     }
-    const dumpEnv = { ...process.env };
-    if (dumpEnv.DATABASE_URL) dumpEnv.PGDATABASE = dumpEnv.DATABASE_URL;
+    const dumpEnv = dumpEnvironment(process.env);
     const pgdump = await postgresTool("pg_dump");
     const dumpArgs = ["--format=custom", "--no-owner", "--no-acl"];
     const outputFile = path.join(temporary, "database.dump");
@@ -251,4 +378,4 @@ if (require.main === module) {
     .catch((error) => { console.error(`backup: ${error.message}`); process.exitCode = 1; });
 }
 
-module.exports = { create, check, verifyFiles, inventory, isolatedEnv, rehearse };
+module.exports = { create, check, verifyFiles, inventory, isolatedEnv, rehearse, dumpEnvironment, redact, stderrCollector, run };
