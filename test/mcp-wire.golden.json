@@ -1,0 +1,795 @@
+{
+ "initialize latest": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:b918b80aa7136a7b3aec4fb84cb17533aeb97577c8a42a311749432862d6ee33 bytes:4423"
+ },
+ "initialize 2025-06-18": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:21224cf1775a361c7d97ed52bb01c9db4cc77d217b12accd85bc7ae24b37812d bytes:4423"
+ },
+ "initialize 2025-03-26": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:82c134ac787eccdc2abf2d65070ff462142b3d747223e65307a06f1e542779a8 bytes:4423"
+ },
+ "initialize 2024-11-05": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:c107e57e3bcda3e49a96f751ca41ea22644ce813c79b992e85b217739592566e bytes:4423"
+ },
+ "initialize 2024-10-07": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:253ab3d6b3e855e8285f7235b4857d3f09e4edb5e234c92ef04d68d7bc84b041 bytes:4423"
+ },
+ "initialize unknown version falls back to latest": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:b918b80aa7136a7b3aec4fb84cb17533aeb97577c8a42a311749432862d6ee33 bytes:4423"
+ },
+ "initialize ignores a bogus protocol header": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:b918b80aa7136a7b3aec4fb84cb17533aeb97577c8a42a311749432862d6ee33 bytes:4423"
+ },
+ "initialize with client capabilities": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:b918b80aa7136a7b3aec4fb84cb17533aeb97577c8a42a311749432862d6ee33 bytes:4423"
+ },
+ "initialize missing capabilities": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-5IzRDivJCC4eLwDA2kAQzVp/iU8\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid params for initialize\"}}"
+ },
+ "initialize bad clientInfo": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-5IzRDivJCC4eLwDA2kAQzVp/iU8\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid params for initialize\"}}"
+ },
+ "initialize bad capability shape": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-5IzRDivJCC4eLwDA2kAQzVp/iU8\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid params for initialize\"}}"
+ },
+ "initialize string id": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:2d77ea6b7cdbafcdbc823e070ac26175a7261da0debd4622a55a68c680124747 bytes:4427"
+ },
+ "initialize as a notification": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "initialized notification": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "initialized notification with params": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "unknown notification": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "request method sent as a notification": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "notification with an unsupported protocol header": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Bad Request: Unsupported protocol version: 2099-01-01 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)\"},\"id\":null}"
+ },
+ "client result response": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "client error response": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "ping": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":2}"
+ },
+ "ping without a protocol header": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":2}"
+ },
+ "ping with empty params": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":2}"
+ },
+ "ping with _meta": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":2}"
+ },
+ "ping with bad _meta": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "ping with task augmentation": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32603,\"message\":\"Server does not support task creation (required for ping)\"}}"
+ },
+ "ping with array params": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "ping negative id": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":-4}"
+ },
+ "ping float id": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "ping null id": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "ping with an extra top-level key": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "ping unsupported protocol header": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Bad Request: Unsupported protocol version: 2099-01-01 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)\"},\"id\":null}"
+ },
+ "ping empty protocol header": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Bad Request: Unsupported protocol version:  (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)\"},\"id\":null}"
+ },
+ "ping legacy protocol header": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":2}"
+ },
+ "unknown method": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+ },
+ "unknown method without params": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+ },
+ "notification-shaped method with an id": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"72-zzBTIZB3D6tMZzp9F0ZsJETbC8E\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"code\":-32600,\"message\":\"Invalid Request: notifications must not include an id\"}}"
+ },
+ "wrong jsonrpc version": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "missing method": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "tools/list": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:2f56f22ca7255ed2baca596e09b247f215f5e39eafe510d25d60272186e3b020 bytes:228481"
+ },
+ "tools/list with _meta": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:2f56f22ca7255ed2baca596e09b247f215f5e39eafe510d25d60272186e3b020 bytes:228481"
+ },
+ "tools/list cursor": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"72-20Myn2u+1vqnsv8s9PYO/Tc14WI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":4,\"error\":{\"code\":-32602,\"message\":\"Invalid cursor: the static tool list has no next page\"}}"
+ },
+ "tools/list bad cursor type": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-CPLevgyApgziMMGj711CCpfxa0c\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":4,\"error\":{\"code\":-32602,\"message\":\"Invalid params for tools/list\"}}"
+ },
+ "tools/call unknown tool": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-P7xYUB6ubyttY/25x1FIjRPwwzc\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32602,\"message\":\"Unknown tool: nope\"}}"
+ },
+ "tools/call prototype tool name": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"54-XEq11hyeetwiSu1fD7I9stjj5+I\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32602,\"message\":\"Unknown tool: __proto__\"}}"
+ },
+ "tools/call missing name": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-l+55zx1dO9BHFN+/t0DvTArZZZI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32602,\"message\":\"Invalid params for tools/call\"}}"
+ },
+ "tools/call array arguments": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-l+55zx1dO9BHFN+/t0DvTArZZZI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32602,\"message\":\"Invalid params for tools/call\"}}"
+ },
+ "tools/call without params": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-l+55zx1dO9BHFN+/t0DvTArZZZI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32602,\"message\":\"Invalid params for tools/call\"}}"
+ },
+ "tools/call invalid arguments": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool get_page: Unrecognized key: \\\"bogus\\\"\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":5}"
+ },
+ "tools/call missing required argument": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool get_page: Invalid input: expected string, received undefined at slug\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":5}"
+ },
+ "tools/call omitted arguments": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool get_page: Invalid input: expected string, received undefined at slug\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":5}"
+ },
+ "tools/call nested invalid argument": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool patch_page: Invalid input: expected string, received number at edits[0].find\\nInvalid input: expected string, received undefined at edits[0].replace\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":5}"
+ },
+ "tools/call domain error": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"ok\\\":false,\\\"error\\\":\\\"page not found: wire-no-such-page\\\",\\\"code\\\":\\\"page_not_found\\\"}\"}],\"structuredContent\":{\"ok\":false,\"error\":\"page not found: wire-no-such-page\",\"code\":\"page_not_found\"},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":5}"
+ },
+ "tools/call success": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"themes\\\":[{\\\"id\\\":\\\"1\\\",\\\"name\\\":\\\"flag\\\",\\\"default_mode\\\":\\\"system\\\"}]}\"}],\"structuredContent\":{\"themes\":[{\"id\":\"1\",\"name\":\"flag\",\"default_mode\":\"system\"}]}},\"jsonrpc\":\"2.0\",\"id\":5}"
+ },
+ "tools/call task augmentation": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32603,\"message\":\"Server does not support task creation (required for tools/call)\"}}"
+ },
+ "tools/call bad task": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"5a-l+55zx1dO9BHFN+/t0DvTArZZZI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":5,\"error\":{\"code\":-32602,\"message\":\"Invalid params for tools/call\"}}"
+ },
+ "tools/call as a notification": {
+  "status": 202,
+  "headers": {
+   "cache-control": "no-store",
+   "content-type": "text/plain; charset=UTF-8"
+  },
+  "body": ""
+ },
+ "tools/call unsupported protocol header": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Bad Request: Unsupported protocol version: 2099-01-01 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)\"},\"id\":null}"
+ },
+ "malformed JSON": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"59-ikj0OxFp4I3xPXCUYACkWhKRWpY\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32700,\"message\":\"Parse error: invalid JSON\"}}"
+ },
+ "empty body": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "JSON null": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "JSON string": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "JSON number": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"4f-WsRy3HPwJEwgqZ4b/5iKylto4rI\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+ },
+ "empty batch": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"73-lErwGGS9eclb82jYokWtpTcAfHw\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request: JSON-RPC batches are not supported\"}}"
+ },
+ "batch of one": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"73-lErwGGS9eclb82jYokWtpTcAfHw\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request: JSON-RPC batches are not supported\"}}"
+ },
+ "batch of notifications": {
+  "status": 400,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"73-lErwGGS9eclb82jYokWtpTcAfHw\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request: JSON-RPC batches are not supported\"}}"
+ },
+ "Content-Type with charset": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":7}"
+ },
+ "Content-Type upper case": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":7}"
+ },
+ "Content-Type text/plain": {
+  "status": 415,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"7d-xkAMWYjmLzkBwWHhA6t79ILrC1M\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Unsupported Media Type: Content-Type must be application/json\"}}"
+ },
+ "Content-Type missing": {
+  "status": 415,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"7d-xkAMWYjmLzkBwWHhA6t79ILrC1M\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Unsupported Media Type: Content-Type must be application/json\"}}"
+ },
+ "Accept JSON only": {
+  "status": 406,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"8e-ko8Ts7GDObZl1L2722LNdzKRzlk\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: client must accept both application/json and text/event-stream\"}}"
+ },
+ "Accept wildcard": {
+  "status": 406,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"8e-ko8Ts7GDObZl1L2722LNdzKRzlk\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: client must accept both application/json and text/event-stream\"}}"
+ },
+ "Accept upper case": {
+  "status": 406,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: Client must accept both application/json and text/event-stream\"},\"id\":null}"
+ },
+ "Accept with q=0": {
+  "status": 406,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"8e-ko8Ts7GDObZl1L2722LNdzKRzlk\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: client must accept both application/json and text/event-stream\"}}"
+ },
+ "Accept missing": {
+  "status": 406,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"8e-ko8Ts7GDObZl1L2722LNdzKRzlk\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Not Acceptable: client must accept both application/json and text/event-stream\"}}"
+ },
+ "GET": {
+  "status": 405,
+  "headers": {
+   "allow": "POST, OPTIONS",
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"69-8Q3Jri+XwYfOu+DRacl1LJszMxY\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Method not allowed; POST JSON-RPC to /mcp\"}}"
+ },
+ "DELETE": {
+  "status": 405,
+  "headers": {
+   "allow": "POST, OPTIONS",
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"69-8Q3Jri+XwYfOu+DRacl1LJszMxY\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Method not allowed; POST JSON-RPC to /mcp\"}}"
+ },
+ "PUT": {
+  "status": 405,
+  "headers": {
+   "allow": "POST, OPTIONS",
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"69-8Q3Jri+XwYfOu+DRacl1LJszMxY\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32000,\"message\":\"Method not allowed; POST JSON-RPC to /mcp\"}}"
+ },
+ "unauthenticated": {
+  "status": 401,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json; charset=utf-8",
+   "etag": "W/\"54-b0H4nMIddWJ+qCuVibrhA7CJ5VM\"",
+   "www-authenticate": "Bearer realm=\"pages\""
+  },
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32001,\"message\":\"missing bearer token\"}}"
+ },
+ "scoped tools/list": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "sha256:8deadab10b54ebae97d818a934c1a770a78171881432a254b1ef500d8c0f4325 bytes:33582"
+ },
+ "scoped call to an unregistered tool": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool deploy_page not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":9}"
+ },
+ "scoped call to a registered tool": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"ok\\\":false,\\\"error\\\":\\\"page not found: wire-no-such-page\\\",\\\"code\\\":\\\"page_not_found\\\"}\"}],\"structuredContent\":{\"ok\":false,\"error\":\"page not found: wire-no-such-page\",\"code\":\"page_not_found\"},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":9}"
+ },
+ "scoped initialize": {
+  "status": 200,
+  "headers": {
+   "cache-control": "no-store",
+   "content-length": "<body length>",
+   "content-type": "application/json"
+  },
+  "body": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"pages\",\"title\":\"Elcano Pages\",\"version\":\"<package.json version>\"},\"instructions\":\"This token is restricted to Pages managed-data automation for exact granted slugs. Call get_page_data with detail='summary' first and use its live_version_id as update_page_data.expected_version. Read the schema and rows once per run: detail='export' returns short-lived URLs for a host-side download into files; detail='full' (the default) returns them inline. Gather every required source and enforce freshness/completeness before writing. Never guess, send credentials, or update partial/stale data. Map a complete data object against the returned self-contained JSON Schema. source_as_of is the latest represented source coverage; Pages separately generates refreshed_at. update_page_data preserves all layout and schema bytes, rejects regression/future coverage, serializes writers, and dedupes exact template+data+source retries. publish defaults true; publish:false creates a canary. On stale_version or an ambiguous write, reread and compare schema/data hashes, then retry at most once only if the intended source coverage is not already represented.\"},\"jsonrpc\":\"2.0\",\"id\":1}"
+ },
+ "(dashboard security headers on every response)": {
+  "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self';form-action 'self' https://auth.elcanotek.com;frame-ancestors 'none';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' 'unsafe-inline';frame-src http://content.localhost:3101;connect-src 'self'",
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+  "origin-agent-cluster": "?1",
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+  "x-dns-prefetch-control": "off",
+  "x-download-options": "noopen",
+  "x-frame-options": "SAMEORIGIN",
+  "x-permitted-cross-domain-policies": "none",
+  "x-xss-protection": "0"
+ }
+}
