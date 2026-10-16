@@ -1,54 +1,51 @@
+# Dependabot proposes updates for Pages' two dependency surfaces: the npm
+# package at the repo root (production AND dev dependencies — playwright, axe
+# and the MCP SDK the conformance tests drive get updates too) and the GitHub
+# Actions the workflows use. Modelled on fleet's .github/dependabot.yml, which
+# carries the long-form reasoning.
+#
+# Cadence: polled daily, with a supply-chain `cooldown` on npm so a freshly
+# published release waits a few days (7 for majors and minors, 3 for patches)
+# before it is proposed — a compromised version is usually flagged and yanked
+# inside that window. Cooldown applies to version updates only, never to
+# security updates. Minor + patch bumps are grouped into one PR per ecosystem;
+# majors stay separate so a breaking change gets its own review and CI run.
+#
+# Proposing is not merging: a human merges a bump only when it earns it (see
+# AGENTS.md "Dependencies and in-housed code"). In-housed code is ours and is
+# not tracked here. Dependabot cannot see the node runtime: the CI matrix in
+# ci.yml tracks the `engines.node` range in package.json and moves by hand.
 version: 2
 updates:
-  # ── npm ───────────────────────────────────────────────────────────────
-  - package-ecosystem: "npm"
+  - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      timezone: "Etc/UTC"
-    open-pull-requests-limit: 5
-    # Production deps only; dev tooling (playwright/axe, and the MCP SDK the
-    # conformance tests drive) is pinned and bumped deliberately. See
-    # AGENTS.md "Dependencies and in-housed code" for when a bump is worth it.
-    allow:
-      - dependency-type: "production"
+      interval: daily
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 3
+    commit-message:
+      prefix: "deps(npm)"
     groups:
-      # One branch for the routine bumps. Every open PR pays for a full CI
-      # run — unit tests, 238 browser specs, and a throwaway Postgres — and
-      # five of them at once is twenty minutes of runner time to land the
-      # kind of update nobody reads line by line.
-      #
-      # `applies-to: version-updates` keeps SECURITY updates out of the
-      # group: an advisory fix should arrive on its own branch, mergeable
-      # without waiting on whatever else happened to bump that week.
-      npm-routine:
-        applies-to: version-updates
-        update-types: ["minor", "patch"]
-    # No `update-types: major` group, deliberately. Both majors in the first
-    # batch changed documented behaviour — parse5 7→8, and express-rate-limit
-    # 7→8, which now keys IPv6 clients by /56 subnet rather than by address.
-    # A major sharing a branch with four routine bumps is a major nobody
-    # reviews, so each one keeps its own PR and its own CI run.
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
 
-  # ── GitHub Actions ────────────────────────────────────────────────────
-  # Nothing watched these. checkout, setup-node and upload-artifact all sat
-  # at v4 until the runner itself started warning that they execute on the
-  # deprecated Node 20 — a warning printed on every CI run with no PR behind
-  # it, because the npm block above is the only thing Dependabot was told to
-  # look at. The workflow is the only thing standing between a bad commit
-  # and main, so it gets watched too.
-  #
-  # Grouped with no update-types filter, majors included: a workflow's
-  # actions are bumped together or the job runs a mix of runtimes, and the
-  # blast radius of a bad action bump is one red CI run, not a shipped bug.
-  - package-ecosystem: "github-actions"
+  # GitHub Actions referenced by .github/workflows/*, pinned by commit SHA.
+  # No cooldown, matching fleet.
+  - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      timezone: "Etc/UTC"
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps(actions)"
     groups:
-      github-actions:
-        patterns: ["*"]
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
