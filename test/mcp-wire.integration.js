@@ -7,6 +7,7 @@
 // TypeScript SDK transport (1.32.1) before Pages replaced it with its own
 // handler (lib/mcp-protocol.js), so any drift from the SDK's wire behaviour —
 // a status, an error code, a message, a key order, a Content-Type — fails here.
+// The two deliberate departures are listed, with their reasons, in expectedFor.
 //
 // Re-record ONLY for a deliberate, reviewed change:
 //   MCP_WIRE_CAPTURE=1 node test/mcp-wire.integration.js
@@ -198,6 +199,27 @@ const CASES = [
   ["scoped initialize", { scoped: true, body: init(V) }],
 ];
 
+// Deliberate, reviewed departures from the recorded SDK behaviour. Everything
+// else must match exactly.
+function expectedFor(name, golden) {
+  // Media types are case-insensitive (RFC 9110). lib/mcp.js always parsed
+  // Accept that way and meant to hand the SDK a lower-cased copy, but the SDK
+  // transport re-read the raw header and refused upper case with its own 406.
+  if (name === "Accept upper case") {
+    return {
+      status: 200,
+      headers: { "cache-control": "no-store", "content-length": "<body length>", "content-type": "application/json" },
+      body: '{"result":{},"jsonrpc":"2.0","id":7}',
+    };
+  }
+  // A 202 (notification or client response) now ends with Content-Length: 0
+  // rather than an empty chunked body.
+  if (golden.status === 202) {
+    return { ...golden, headers: { ...golden.headers, "content-length": "<body length>" } };
+  }
+  return golden;
+}
+
 (async () => {
   const server = app.listen(PORT);
   let failed = false;
@@ -220,10 +242,17 @@ const CASES = [
     } else {
       const golden = JSON.parse(fs.readFileSync(GOLDEN, "utf8"));
       assert.deepEqual(Object.keys(observed), Object.keys(golden), "the case list matches the golden");
+      const drifted = [];
       for (const name of Object.keys(golden)) {
-        assert.deepEqual(observed[name], golden[name], `wire case "${name}" drifted`);
+        const expected = name === SHELL_KEY ? golden[name] : expectedFor(name, golden[name]);
+        try {
+          assert.deepEqual(observed[name], expected);
+        } catch (error) {
+          drifted.push(`wire case "${name}" drifted:\n${error.message}`);
+        }
       }
-      console.log(`✓ ${CASES.length} MCP wire cases match the recorded SDK behaviour byte for byte`);
+      assert.deepEqual(drifted, [], drifted.join("\n\n"));
+      console.log(`✓ ${CASES.length} MCP wire cases match the recorded SDK behaviour (bar the listed deviations)`);
     }
   } catch (error) {
     failed = true;
