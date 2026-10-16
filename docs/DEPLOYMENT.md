@@ -420,7 +420,7 @@ then ignored.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `MAX_HTML_BYTES` | `2mb` | Whole HTTP request limit for dashboard, `/api/v1`, MCP and raw edits (an Express size string); includes RPC fields and `expect` |
+| `MAX_HTML_BYTES` | `2mb` | Whole HTTP request limit for dashboard, `/api/v1`, MCP and raw edits: bytes, or a number with `b`/`kb`/`mb`/`gb` (1024-based, case-insensitive, decimals allowed). Any other value stops startup with an error naming it. Includes RPC fields and `expect` |
 | `PAGE_UPLOAD_MAX_CHUNK_BYTES` | `49152` (48 KiB) | Largest raw chunk one `append_page_upload` accepts, returned as `max_chunk_bytes` and advertised as the `chunk_base64` `maxLength`. Accepts 4096–1048576 (1 MiB, which a database CHECK also enforces) and no more than `MAX_HTML_BYTES` can carry as base64; any other value falls back to 48 KiB and logs a startup `WARNING` naming the value, the reason and the size in effect. The default is held to the same `MAX_HTML_BYTES` bound (4 KiB floor). See below |
 | `PAGE_UPLOAD_TICKET_TTL_MINUTES` | `15` | Upload-ticket lifetime |
 | `PAGES_MCP_MAX_INLINE_DATA_BYTES` | `1500000` | Inline compact JSON transport budget only; data and escaped-envelope limits also apply |
@@ -468,7 +468,8 @@ expand the stored bytes substantially. Staged files have a separate fixed
 and data-upload responses report these resolved startup limits.
 
 Byte overrides must resolve to positive safe integers; invalid or nonpositive
-values fall back to the defaults (`MAX_HTML_BYTES` uses the Express size parser).
+values fall back to the defaults, except `MAX_HTML_BYTES`, which refuses to
+start on a value it cannot read rather than guess.
 Changing settings requires restarting Pages. See [managed-data size measurements](API.md#managed-data-size-limits)
 for preflight checks that preserve complete datasets.
 
