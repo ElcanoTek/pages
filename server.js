@@ -20,10 +20,9 @@ const { MAX_REQUEST_BYTES } = require("./lib/data-limits");
 
 const path = require("node:path");
 const express = require("express");
-const helmet = require("helmet");
 
 const auth = require("./lib/auth");
-const { shellHelmetOptions, contentBaseHeaders, rawHeaders, rawEditHeaders, CONTENT_ORIGIN } = require("./lib/csp");
+const { shellHeadersMiddleware, contentBaseHeaders, rawHeaders, rawEditHeaders, CONTENT_ORIGIN } = require("./lib/csp");
 const rawtoken = require("./lib/rawtoken");
 const render = require("./lib/render");
 const bento = require("./lib/bento");
@@ -95,16 +94,16 @@ dashboardApp.set("trust proxy", trustProxy);
 // ===========================================================================
 // CONTENT HOST (cookieless, untrusted render zone)
 // ===========================================================================
-// No helmet shell CSP here — we set the strict sandbox headers by hand so the
+// No shell CSP here — we set the strict sandbox headers by hand so the
 // `sandbox` directive binds even on a direct navigation. NEVER read cookies.
 //
 // contentApp is a SEPARATE Express app, so the parent app's settings never reach
-// it: `x-powered-by` has to be disabled here too (the dashboard was only clean
-// because helmet strips it), and the zone's header floor is applied as the first
-// middleware so EVERY response carries it — including the ones no route of ours
-// produces: the 301 express.static emits for a directory (its `setHeaders` hook
-// runs only on the file path), a Set-Cookie redirect, /healthz, and anything the
-// error handler catches. Routes that render layer rawHeaders()/gateHeaders() on
+// it: `x-powered-by` has to be disabled here too, as on the dashboard app, and
+// the zone's header floor is applied as the first middleware so EVERY response
+// carries it — including the ones no route of ours produces: the 301
+// express.static emits for a directory (its `setHeaders` hook runs only on the
+// file path), a Set-Cookie redirect, /healthz, and anything the error handler
+// catches. Routes that render layer rawHeaders()/gateHeaders() on
 // top; express.static replaces the floor's Cache-Control with its revalidating
 // default, which is what we want for a static file.
 contentApp.disable("x-powered-by");
@@ -375,7 +374,8 @@ contentApp.use((err, _req, res, next) => {
 // ===========================================================================
 // DASHBOARD HOST (trusted auth zone)
 // ===========================================================================
-dashboardApp.use(helmet(shellHelmetOptions(auth.AUTH_ORIGIN)));
+dashboardApp.disable("x-powered-by");
+dashboardApp.use(shellHeadersMiddleware(auth.AUTH_ORIGIN));
 
 // MCP is its own remote-protocol security boundary. Mount it BEFORE the broad
 // dashboard body parsers so Host/Origin validation, rate limiting, and bearer
