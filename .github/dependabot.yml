@@ -8,8 +8,9 @@ updates:
       day: "monday"
       timezone: "Etc/UTC"
     open-pull-requests-limit: 5
-    # Production deps only; dev tooling (playwright/axe) is pinned by the
-    # browser test job and bumped deliberately.
+    # Production deps only; dev tooling (playwright/axe, and the MCP SDK the
+    # conformance tests drive) is pinned and bumped deliberately. See
+    # AGENTS.md "Dependencies and in-housed code" for when a bump is worth it.
     allow:
       - dependency-type: "production"
     groups:

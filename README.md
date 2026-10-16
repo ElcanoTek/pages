@@ -246,8 +246,9 @@ stored only as `HMAC-SHA256(token, pepper)`, and both share the state machine.
 a client password, rename, soft-delete, read the version list, run preflight.
 
 **MCP-over-HTTP** (`/mcp`) — stateless Streamable HTTP with JSON responses,
-built on the official MCP TypeScript SDK and tracking the protocol version that
-SDK reports as current (a legacy transport path remains for older clients). It
+served by a small in-house JSON-RPC handler that answers exactly as the official
+MCP TypeScript SDK did (it negotiates every protocol version SDK 1.32.1 supports,
+and the SDK's own client is the test suite's conformance check). It
 exposes a typed tool catalog covering the same state machine plus workspace
 discovery and organization, theme discovery, filtered cursor pagination,
 optimistic-concurrency checks, schema-validated data-only dashboard updates,

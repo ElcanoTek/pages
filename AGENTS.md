@@ -40,8 +40,9 @@ If `initdb` is not on `PATH`, add it first — for example
   // SPDX-License-Identifier: BUSL-1.1
   // Copyright (c) 2026 ElcanoTek, Inc.
   ```
-  Do not add one under `public/assets/flag/` (vendored) or to
-  `lib/preflight-shadowed-names.js` (generated).
+  Do not add one under `public/assets/flag/` or `lib/vendor/` (vendored; they
+  keep their upstream licence header) or to `lib/preflight-shadowed-names.js`
+  (generated).
 - **Never edit an applied migration.** Add a new numbered file in `migrations/`.
 - **`public/assets/flag/` is vendored.** Do not hand-edit it.
 - **Use invented names in tests, docs and examples** — "Northwind", "Contoso",
@@ -59,3 +60,33 @@ admin UI all route through it. [`docs/SECURITY.md`](docs/SECURITY.md) explains
 the security model and is required reading before touching anything under
 `lib/csp.js`, `lib/rawtoken.js`, `lib/pagecookie.js`, `lib/tokens.js` or
 `lib/portals.js`. The full doc index is in the [README](README.md).
+
+## Dependencies and in-housed code
+
+Prefer the standard library or a small piece of owned code to a new package;
+add a dependency only when it clearly earns its place. Do not bump a
+dependency for its own sake: update one only for a specific upstream change we
+need, or for a CVE whose code path Pages actually reaches. On an advisory,
+check reachability first; if the affected code is unused, delete our use of it
+instead of upgrading; if it is used, take or adapt the fix. Code copied from
+another project keeps its licence text beside it and an entry in
+[`NOTICE`](NOTICE).
+
+| What | Lives in | Replaces | Licence |
+| --- | --- | --- | --- |
+| Stateless MCP server (JSON-RPC 2.0: initialize, ping, tools/list, tools/call) | `lib/mcp-protocol.js`, `lib/mcp.js` | `@modelcontextprotocol/sdk` 1.32.1 McpServer + StreamableHTTPServerTransport | own code |
+| MCP envelope schemas and protocol versions | `lib/vendor/mcp-sdk/types.js` | adapted from `@modelcontextprotocol/sdk` 1.32.1 `src/types.ts` | MIT, `lib/vendor/mcp-sdk/LICENSE` |
+| Fixed-window rate limiter, draft-7 headers, IPv6 /56 keys | `lib/ratelimit.js` | `express-rate-limit` 8.7.1 | own code |
+| Dashboard security headers | `lib/csp.js` (`shellHeaders`) | `helmet` 8.3.0 | own code |
+| `MAX_HTML_BYTES` size parser | `lib/data-limits.js` (`parseByteSize`) | `bytes` 3.1.2 | own code |
+
+The MCP SDK stays a **devDependency** as the conformance gate:
+`test/mcp-protocol.test.js` answers a corpus side by side with the SDK's
+`McpServer`, `test/mcp.integration.js` drives `/mcp` with the SDK's `Client`,
+and `test/mcp-wire.integration.js` compares every response byte with
+`test/mcp-wire.golden.json`, recorded from the SDK transport. Re-record that
+golden (`MCP_WIRE_CAPTURE=1`, inside the integration environment) only for a
+deliberate, reviewed wire change. To adopt a new MCP protocol version, re-adapt
+`lib/vendor/mcp-sdk/types.js` from the matching SDK release and bump the SDK
+devDependency so the side-by-side tests compare against it. There are no data
+files to refresh.

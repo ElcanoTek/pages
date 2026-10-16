@@ -60,5 +60,5 @@ Pages depends on npm packages that are NOT vendored into this repository; they
 are fetched by `npm ci` and each carries its own licence. See package.json for
 the declared set and `npm ls --omit=dev` / `node_modules/*/LICENSE` in an
 installed tree for the full list and texts. The production tree includes, among
-others: express, helmet, express-rate-limit, pg, ajv, ajv-formats, parse5, zod,
-and @modelcontextprotocol/sdk.
+others: express, pg, pg-connection-string, ajv, ajv-formats, acorn, parse5 and
+zod. The MCP TypeScript SDK is a development dependency used only by tests.
