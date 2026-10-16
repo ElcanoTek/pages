@@ -8,9 +8,11 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same PR supersedes the running check; main runs to completion.
+# A newer push to the same PR supersedes its running check. Every other event
+# (each push to main, the schedule) gets its own per-commit group, so no main
+# commit is skipped by a later push replacing its pending run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

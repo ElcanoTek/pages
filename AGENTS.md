@@ -65,14 +65,14 @@ the security model and is required reading before touching anything under
 
 Prefer the standard library or a small piece of owned code to a new package;
 add a dependency only when it clearly earns its place. Dependabot proposes
-updates (daily, 7-day cooldown, minor and patch grouped;
-[`.github/dependabot.yml`](.github/dependabot.yml)); a human merges one only
-when the bump earns it — a security fix whose code path we use, or a specific
-commit we need. In-housed code is ours and is not tracked by Dependabot. On an
-advisory, check reachability first; if the affected code is unused, delete our
-use of it instead of upgrading; if it is used, take or adapt the fix. Code copied from
-another project keeps its licence text beside it and an entry in
-[`NOTICE`](NOTICE).
+updates daily, after a cooldown of 7 days (3 for patch releases), with minor
+and patch grouped ([`.github/dependabot.yml`](.github/dependabot.yml)); a human
+merges one only when the bump earns it — a security fix whose code path we use,
+or a specific commit we need. In-housed code is ours and is not tracked by
+Dependabot. On an advisory, check reachability first; if the affected code is
+unused, delete our use of it instead of upgrading; if it is used, take or adapt
+the fix. Code copied from another project keeps its licence text beside it and
+an entry in [`NOTICE`](NOTICE).
 
 | What | Lives in | Replaces | Licence |
 | --- | --- | --- | --- |

@@ -5,8 +5,8 @@
 # carries the long-form reasoning.
 #
 # Cadence: polled daily, with a supply-chain `cooldown` on npm so a freshly
-# published release waits a few days (7 for majors and minors, 3 for patches)
-# before it is proposed — a compromised version is usually flagged and yanked
+# published release waits 7 days (3 for patch releases) before it is
+# proposed — a compromised version is usually flagged and yanked
 # inside that window. Cooldown applies to version updates only, never to
 # security updates. Minor + patch bumps are grouped into one PR per ecosystem;
 # majors stay separate so a breaking change gets its own review and CI run.
