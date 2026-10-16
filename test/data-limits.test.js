@@ -97,3 +97,54 @@ test("startup overrides use one HTTP parser and retain validated defaults", () =
   assert.equal(resolved.max_inline_bytes, 1500000);
   assert.equal(resolved.max_request_bytes, 1572864);
 });
+
+test("byte-size settings parse b/kb/mb/gb (1024-based) and refuse anything else", () => {
+  const { parseByteSize } = limits;
+  for (const [text, bytes] of [
+    ["999", 999],
+    ["999b", 999],
+    ["4kb", 4096],
+    ["4KB", 4096],
+    ["2mb", 2 * 1024 * 1024],
+    ["2 Mb", 2 * 1024 * 1024],
+    [" 3mb ", 3 * 1024 * 1024],
+    ["1.5mb", 1572864],
+    ["0.5kb", 512],
+    ["1.0001kb", 1024],
+    ["1gb", 1024 ** 3],
+  ]) {
+    assert.equal(parseByteSize(text, "MAX_HTML_BYTES"), bytes, text);
+  }
+  // Each of these the old `bytes` parser read as something (often 1 or 2
+  // bytes) or silently replaced with the default.
+  for (const text of ["", "0", "0.1b", "garbage", "2mbx", "2MB2", "1e6", "-1mb", "+2mb", "1tb", "2 m b", ".5mb", "1.", "0x10", "Infinity", "99999999999gb"]) {
+    assert.throws(
+      () => parseByteSize(text, "MAX_HTML_BYTES"),
+      (err) => {
+        assert.match(err.message, /^MAX_HTML_BYTES=".*" is not a positive byte size; use a number of bytes or a value such as 512kb, 2mb or 1gb$/);
+        return true;
+      },
+      JSON.stringify(text)
+    );
+  }
+});
+
+test("an unreadable MAX_HTML_BYTES stops startup with the setting named", () => {
+  const { spawnSync } = require("node:child_process");
+  const env = { ...process.env, MAX_HTML_BYTES: "2 megabytes" };
+  delete env.NODE_TEST_CONTEXT;
+  const run = spawnSync(process.execPath, ["-e", "require('./lib/data-limits')"], {
+    cwd: require("node:path").resolve(__dirname, ".."),
+    env,
+    encoding: "utf8",
+  });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stderr, /MAX_HTML_BYTES="2 megabytes" is not a positive byte size/);
+  env.MAX_HTML_BYTES = "";
+  const unset = spawnSync(process.execPath, ["-e", "process.stdout.write(String(require('./lib/data-limits').MAX_REQUEST_BYTES))"], {
+    cwd: require("node:path").resolve(__dirname, ".."),
+    env,
+    encoding: "utf8",
+  });
+  assert.equal(unset.stdout, String(2 * 1024 * 1024), "empty means unset: the 2mb default");
+});

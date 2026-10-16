@@ -353,6 +353,28 @@ async function postEnvelope(body, opts = {}) {
       const invalid = await postEnvelope(envelope);
       assert.equal(invalid.json.error.code, -32600, `invalid envelope rejected: ${JSON.stringify(envelope)}`);
     }
+    // The in-house handler's edge cases, over the wire (test/mcp-wire.integration.js
+    // pins the exact bytes of these and many more).
+    const negotiated = await initialize("2099-01-01");
+    assert.equal(negotiated.json.result.protocolVersion, PROTOCOL_VERSION, "unsupported version -> latest");
+    const notificationBatch = await postEnvelope([{ jsonrpc: "2.0", method: "notifications/initialized" }]);
+    assert.equal(notificationBatch.status, 400, "a notification-only batch is still a batch");
+    assert.equal(notificationBatch.json.error.code, -32600);
+    const emptyBody = await request("POST", "/mcp", { rawBody: "", headers: { "MCP-Protocol-Version": PROTOCOL_VERSION } });
+    assert.equal(emptyBody.status, 400);
+    assert.equal(emptyBody.json.error.code, -32600);
+    const clientResponse = await postEnvelope({ jsonrpc: "2.0", id: 4242, result: {} });
+    assert.equal(clientResponse.status, 202, "a client's JSON-RPC response is accepted without a reply");
+    assert.equal(clientResponse.body, "");
+    const unknownNotification = await rpc("notifications/frobnicated", {}, { notification: true });
+    assert.equal(unknownNotification.status, 202);
+    const unknownNoParams = await rpc("resources/list", undefined);
+    assert.equal(unknownNoParams.json.error.code, -32601);
+    assert.equal(unknownNoParams.json.error.message, "Method not found");
+    const taskAugmented = await rpc("ping", { task: {} });
+    assert.equal(taskAugmented.json.error.code, -32603, "task augmentation is refused: no tasks capability");
+    const pinged = await rpc("ping", {});
+    assert.deepEqual(pinged.json, { result: {}, jsonrpc: "2.0", id: pinged.json.id });
     console.log("✓ parse, batch, request-envelope, and request-ID validation");
 
     // 6. A request-only method shaped as a notification gets no result and,
@@ -2141,6 +2163,11 @@ document.getElementById('total').textContent = DATA.rows.length ? String(DATA.ro
       const binaryChunk = sdkTools.tools.find((tool) => tool.name === "append_page_upload").inputSchema.properties.chunk_base64;
       assert.equal(binaryChunk.type, "string");
       assert.equal(binaryChunk.contentEncoding, "base64", "file-capable clients can forward original bytes");
+      await sdkClient.ping();
+      const sdkInvalid = await sdkClient.callTool({ name: "get_page", arguments: { slug: "mcpdemo", bogus: 1 } });
+      assert.equal(sdkInvalid.isError, true, "argument validation reaches an SDK client as a tool error");
+      assert.match(sdkInvalid.content[0].text, /Invalid arguments for tool get_page/);
+      await assert.rejects(sdkClient.callTool({ name: "no_such_tool", arguments: {} }), (error) => error.code === -32602);
       const sdkRead = await sdkClient.callTool({ name: "get_page", arguments: { slug: "mcpdemo" } });
       assert.equal(sdkRead.isError, undefined);
       assert.equal(sdkRead.structuredContent.page.slug, "mcpdemo");

@@ -179,6 +179,9 @@ done
 echo "▸ mcp integration"
 node "$ROOT/test/mcp.integration.js"
 
+echo "▸ mcp wire contract"
+node "$ROOT/test/mcp-wire.integration.js"
+
 echo "▸ upload replay integration"
 node "$ROOT/test/upload-replay.integration.js"
 

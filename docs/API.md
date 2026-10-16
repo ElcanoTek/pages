@@ -39,7 +39,10 @@ See [DATA_UPDATES.md](DATA_UPDATES.md).
 ## MCP
 
 Pages targets the stable [MCP `2025-11-25` specification](https://modelcontextprotocol.io/specification/2025-11-25)
-using `@modelcontextprotocol/sdk` v1.29.0. It is a **stateless Streamable HTTP**
+and also negotiates `2025-06-18`, `2025-03-26`, `2024-11-05` and `2024-10-07`
+(an unknown version is answered with `2025-11-25`). The handler is Pages' own
+(`lib/mcp-protocol.js`), held to the behaviour of `@modelcontextprotocol/sdk`
+1.32.1 by tests that use that SDK's client. It is a **stateless Streamable HTTP**
 server at one `POST /mcp` endpoint: each request is independent, responses use
 `application/json`, and there is no session ID or server-sent event stream to
 retain. `GET` and `DELETE` return `405`.

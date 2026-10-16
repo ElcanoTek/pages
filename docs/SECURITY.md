@@ -276,7 +276,7 @@
   through to an HTML error page. Browser Origins default to the dashboard origin;
   exceptional origins/hosts must be added explicitly with `MCP_ALLOWED_ORIGINS`
   and `MCP_ALLOWED_HOSTS`.
-- **MCP typed tools.** The official SDK validates each call against a strict
+- **MCP typed tools.** `lib/mcp-protocol.js` validates each call against a strict
   `inputSchema` (`additionalProperties:false`) before dispatch. Every advertised
   tool also has a title, `outputSchema`, and standard behavioral annotations;
   successful `structuredContent` is validated against that output contract and

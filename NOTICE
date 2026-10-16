@@ -36,6 +36,15 @@ public/assets/flag/fonts/hack/LICENSE.md.
 https://sourcefoundry.org/hack/
 
 -------------------------------------------------------------------------------
+MCP TypeScript SDK — lib/vendor/mcp-sdk/types.js
+-------------------------------------------------------------------------------
+Protocol constants and JSON-RPC/MCP envelope schemas adapted (trimmed, CommonJS)
+from @modelcontextprotocol/sdk 1.32.1, src/types.ts.
+Copyright (c) 2024 Anthropic, PBC — MIT License. The full licence text is
+bundled at lib/vendor/mcp-sdk/LICENSE.
+https://github.com/modelcontextprotocol/typescript-sdk
+
+-------------------------------------------------------------------------------
 ElcanoTek brand assets — public/assets/flag/logos/*.svg, public/shell-assets/favicon.svg
 -------------------------------------------------------------------------------
 The ElcanoTek name and the Elcano mark are trademarks of ElcanoTek, Inc. They
@@ -51,5 +60,5 @@ Pages depends on npm packages that are NOT vendored into this repository; they
 are fetched by `npm ci` and each carries its own licence. See package.json for
 the declared set and `npm ls --omit=dev` / `node_modules/*/LICENSE` in an
 installed tree for the full list and texts. The production tree includes, among
-others: express, helmet, express-rate-limit, pg, ajv, ajv-formats, parse5, zod,
-and @modelcontextprotocol/sdk.
+others: express, pg, pg-connection-string, ajv, ajv-formats, acorn, parse5 and
+zod. The MCP TypeScript SDK is a development dependency used only by tests.

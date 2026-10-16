@@ -1125,7 +1125,11 @@ test("an unwanted draft can be discarded, not only published", async ({ page, re
   const dialog = page.getByRole("dialog", { name: "Discard version 4?" });
   await expect(dialog).toContainText("can no longer be published");
   await expect(dialog).toContainText("Nothing a client sees changes");
+  // Wait for the reject call itself: reading the fixture's event log the moment
+  // the button is clicked raced the request and failed intermittently.
+  const rejected = page.waitForResponse((response) => response.url().endsWith("/versions/104/reject"));
   await dialog.getByRole("button", { name: "Discard draft" }).click();
+  await rejected;
 
   const events = (await (await request.get("/__fixture/events")).json()).events;
   expect(events.find((event) => event.path.endsWith("/versions/104/reject"))).toBeTruthy();
