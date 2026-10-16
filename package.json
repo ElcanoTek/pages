@@ -7,7 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/mcp-protocol.test.js test/backup.test.js test/data-limits.test.js test/page-data-read.test.js test/update-prompts.test.js test/unit.test.js test/theme.test.js test/install-config.test.js test/bootstrap-env.test.js test/runtime.test.js test/update.test.js test/migration-compatibility.test.js test/doctor.test.js test/central-auth.test.js test/agent-guide.test.js",
+    "test": "node --test test/mcp-protocol.test.js test/ratelimit.test.js test/backup.test.js test/data-limits.test.js test/page-data-read.test.js test/update-prompts.test.js test/unit.test.js test/theme.test.js test/install-config.test.js test/bootstrap-env.test.js test/runtime.test.js test/update.test.js test/migration-compatibility.test.js test/doctor.test.js test/central-auth.test.js test/agent-guide.test.js",
     "test:browser": "playwright test",
     "preinstall": "node scripts/check-node.js"
   },
@@ -20,7 +20,6 @@
     "ajv-formats": "^3.0.1",
     "bytes": "3.1.2",
     "express": "^5.3.0",
-    "express-rate-limit": "^8.7.1",
     "helmet": "^8.3.0",
     "parse5": "^8.0.1",
     "pg": "^8.23.1",
