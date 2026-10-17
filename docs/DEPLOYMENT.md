@@ -299,6 +299,20 @@ environment supplies update readiness checks unless `PAGES_PORT` was explicitly
 set. Rerun bootstrap when changing the port so the Caddy configuration is
 regenerated too. Existing default installations work before this file exists.
 
+Bootstrap also names the box after the service: when the static hostname is an
+unset cloud-image default (exactly `vultr.guest`, `localhost` or
+`localhost.localdomain`) it runs `hostnamectl set-hostname` with the dashboard hostname,
+writes `/etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg` so cloud-init does not
+reset it, and points the loopback lines in `/etc/hosts` at the new name. Any
+other hostname is treated as deliberate and left alone (bootstrap prints the
+command to change it). `PAGES_SET_HOSTNAME=1` forces the rename;
+`PAGES_SET_HOSTNAME=0` skips the step.
+
+Bootstrap also uninstalls Cockpit (`dnf -y remove 'cockpit*'`) when `cockpit-ws`
+is installed: the Vultr Fedora image ships its root-capable web login on :9090,
+and these boxes are administered over ssh only. `PAGES_KEEP_COCKPIT=1` keeps it;
+without rpm or Cockpit the step does nothing, and a failure only warns.
+
 ### The initial agent token
 
 On the **first** bootstrap only — specifically, when the `api_tokens` table has
@@ -711,6 +725,9 @@ Paths follow the configured application directory for non-default installs.
 
 There is a brief stop/start outage at activation. Template sync happens only
 after readiness and remains nonfatal (`PAGES_SKIP_TEMPLATE_SYNC=1` skips it).
+After a successful update the login banner `/etc/motd` is re-installed from the
+source checkout's `deploy/motd` when it differs; bootstrap installs it on every
+run, replacing whatever the image shipped.
 Rerunning bootstrap on this release layout refreshes instance configuration,
 service/CLI and Caddy settings while preserving the active code release; use
 `pages update` or `pages rebuild` to change code.

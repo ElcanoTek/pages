@@ -12,7 +12,8 @@
 #      generated PAGE_COOKIE_SECRET / RAW_TOKEN_SECRET / API_TOKEN_PEPPER), runs
 #      migrations, and mints the initial agent API token (first run only).
 #      Flag design-system assets are committed in-repo — no vendoring step.
-#   5. Installs systemd unit + /usr/local/bin/pages CLI; enables + starts
+#   5. Installs systemd unit + /usr/local/bin/pages CLI + /etc/motd login
+#      banner (from deploy/motd); removes Cockpit; enables + starts
 #   6. Caddy + auto-TLS for BOTH hostnames; health-checks /readyz
 #
 # Idempotent: re-runs preserve existing secrets, the DB role/password, and data.
@@ -220,6 +221,100 @@ step "5/6  Installing systemd unit + CLI + starting"
 install_rendered config "$PAGES_INSTALL_CONFIG" 0644
 install_rendered service /etc/systemd/system/pages.service 0644
 install_rendered cli "$CLI_TARGET" 0755
+# Login banner: deploy/motd is the single source, installed unconditionally so
+# the image's own /etc/motd (cloud-init's notice) does not survive. update.sh
+# keeps it in sync on existing boxes.
+install -m 0644 "$INSTALL_SRC_DIR/deploy/motd" /etc/motd
+# The Vultr Fedora image ships Cockpit's root-capable web login on :9090; our boxes are administered over ssh only.
+remove_cockpit() {
+  if [[ "${PAGES_KEEP_COCKPIT:-0}" == "1" ]]; then
+    info "PAGES_KEEP_COCKPIT=1: leaving Cockpit installed"
+    return 0
+  fi
+  command -v rpm >/dev/null 2>&1 && rpm -q cockpit-ws >/dev/null 2>&1 || return 0
+  if dnf -y remove 'cockpit*' >/dev/null 2>&1; then
+    ok "Cockpit removed"
+  else
+    warn "could not remove Cockpit (dnf -y remove 'cockpit*'); continuing"
+  fi
+  return 0
+}
+remove_cockpit
+# Name the box after its service. Vultr images boot as "vultr.guest", so every
+# prompt read root@vultr. Renames only an unset cloud-image default (exactly
+# vultr.guest, localhost or localhost.localdomain); any other name is a
+# deliberate one and is left alone with a hint. PAGES_SET_HOSTNAME=1 forces the
+# rename, PAGES_SET_HOSTNAME=0 skips the step. Pins the name against cloud-init and
+# points the loopback lines in /etc/hosts at it. Idempotent; never fails the
+# install.
+set_box_hostname() {
+  local fqdn="$1" current short tmp
+  [[ "${PAGES_SET_HOSTNAME:-1}" != "0" ]] || return 0
+  command -v hostnamectl >/dev/null 2>&1 || return 0
+  # A dotted DNS name, not an IP address.
+  [[ "$fqdn" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ && ! "$fqdn" =~ ^[0-9.]+$ ]] || return 0
+  current="$(hostnamectl --static 2>/dev/null || true)"
+  [[ "$current" != "$fqdn" ]] || return 0
+  if [[ "${PAGES_SET_HOSTNAME:-}" != "1" ]]; then
+    case "$current" in
+      vultr.guest|localhost|localhost.localdomain) ;;
+      *) info "hostname is ${current:-unset}; to name the box after the service: hostnamectl set-hostname $fqdn"; return 0 ;;
+    esac
+  fi
+  short="${fqdn%%.*}"
+  if ! hostnamectl set-hostname "$fqdn"; then
+    warn "could not set the hostname to $fqdn"
+    return 0
+  fi
+  ok "hostname set to $fqdn (was ${current:-unset})"
+  if [[ -d /etc/cloud ]]; then
+    if mkdir -p /etc/cloud/cloud.cfg.d && printf '%s\n' \
+      '# The hostname is set by hand; do not let cloud-init reset it from Vultr metadata.' \
+      'preserve_hostname: true' \
+      'manage_etc_hosts: false' > /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg; then
+      chmod 0644 /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg || true
+    else
+      warn "could not write /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg"
+    fi
+  fi
+  # On loopback lines, the old hostname (and its short form) is replaced by
+  # "<fqdn> <short>"; every other alias on the line is kept. A localhost name
+  # is never replaced (the new lines are appended instead).
+  [[ -f /etc/hosts ]] || return 0
+  tmp="$(mktemp)" || { warn "could not update /etc/hosts"; return 0; }
+  if awk -v old="$current" -v fqdn="$fqdn" -v short="$short" '
+      BEGIN {
+        oldshort = old; sub(/\..*/, "", oldshort)
+        if (old ~ /^localhost/) old = ""
+        if (oldshort ~ /^localhost/) oldshort = ""
+      }
+      ($1 == "127.0.0.1" || $1 == "::1") && old != "" {
+        out = $1; hit = 0
+        for (i = 2; i <= NF; i++) {
+          if ($i ~ /^#/) { for (; i <= NF; i++) out = out " " $i; break }
+          if ($i == old || $i == oldshort) {
+            if (!hit) out = out " " fqdn " " short
+            hit = 1
+            continue
+          }
+          if ($i == fqdn || $i == short) continue
+          out = out " " $i
+        }
+        if (hit) { print out; next }
+      }
+      { print }' /etc/hosts > "$tmp"; then
+    if ! awk -v fqdn="$fqdn" '$1 !~ /^#/ { for (i = 2; i <= NF; i++) if ($i == fqdn) found = 1 } END { exit !found }' "$tmp"; then
+      printf '127.0.0.1 %s %s\n::1 %s %s\n' "$fqdn" "$short" "$fqdn" "$short" >> "$tmp"
+    fi
+    # cat, not mv: keeps the file's owner, mode and SELinux label.
+    cmp -s "$tmp" /etc/hosts || cat "$tmp" > /etc/hosts || warn "could not update /etc/hosts"
+  else
+    warn "could not update /etc/hosts"
+  fi
+  rm -f "$tmp"
+  return 0
+}
+set_box_hostname "$DASHBOARD_HOST"
 systemctl daemon-reload
 systemctl enable pages.service >/dev/null 2>&1 || true
 systemctl restart pages.service
