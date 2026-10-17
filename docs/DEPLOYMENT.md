@@ -713,7 +713,9 @@ There is a brief stop/start outage at activation. Template sync happens only
 after readiness and remains nonfatal (`PAGES_SKIP_TEMPLATE_SYNC=1` skips it).
 After a successful update the login banner `/etc/motd` is re-installed from the
 source checkout's `deploy/motd` when it differs; bootstrap installs it on every
-run, replacing whatever the image shipped.
+run, replacing whatever the image shipped. Both also keep Cockpit off: they
+mask `cockpit.socket` and remove the `cockpit` service from a running firewalld
+(a no-op where Cockpit or systemd is absent; never fatal).
 Rerunning bootstrap on this release layout refreshes instance configuration,
 service/CLI and Caddy settings while preserving the active code release; use
 `pages update` or `pages rebuild` to change code.
