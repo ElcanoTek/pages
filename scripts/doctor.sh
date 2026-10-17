@@ -219,7 +219,7 @@ EOF
     info "[dry-run] Readiness: /readyz → 200 on :$PORT (15 tries after a repair start/restart)"
     info "[dry-run] Caddy/TLS: caddy active, configuration valid, certificates for BOTH hostnames chain + hostname verified and more than 14 days from expiry"
     info "[dry-run] Disk: at least 1 GiB free on $APP_DIR"
-    info "[dry-run] Host: OS support window, pending dnf updates, reboot-needed kernel check, Fedora vs latest stable"
+    info "[dry-run] Host: OS support window, pending dnf updates, reboot-needed kernel check, Fedora vs latest stable; as root, sshd -T must not accept passwords"
     info "[dry-run] Source: checkout clean, on main, compared with origin via git ls-remote (read-only — no fetch)"
     exit 0
   fi
@@ -551,6 +551,13 @@ EOF
     elif [[ -n "$latest_kernel" ]]; then
       pass "running kernel matches the newest installed"
     fi
+  fi
+  # Read-only: bootstrap makes SSH key-only; this only reports a box where
+  # passwords still work. `sshd -T` needs root to read the host keys.
+  # Captured first: under pipefail an early-exiting grep -q can SIGPIPE sshd.
+  if [[ $EUID -eq 0 ]] && command -v sshd >/dev/null 2>&1 \
+      && grep -qiE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) yes$' <<<"$(sshd -T 2>/dev/null || true)"; then
+    advise "sshd accepts passwords — see production-support README, Access: SSH keys"
   fi
   os_id="$(env_get ID "$OS_RELEASE")"
   os_version="$(env_get VERSION_ID "$OS_RELEASE")"

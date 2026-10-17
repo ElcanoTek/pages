@@ -13,7 +13,8 @@
 #      migrations, and mints the initial agent API token (first run only).
 #      Flag design-system assets are committed in-repo — no vendoring step.
 #   5. Installs systemd unit + /usr/local/bin/pages CLI + /etc/motd login
-#      banner (from deploy/motd); removes Cockpit; enables + starts
+#      banner (from deploy/motd); removes Cockpit; makes SSH key-only;
+#      enables + starts
 #   6. Caddy + auto-TLS for BOTH hostnames; health-checks /readyz
 #
 # Idempotent: re-runs preserve existing secrets, the DB role/password, and data.
@@ -240,6 +241,13 @@ remove_cockpit() {
   return 0
 }
 remove_cockpit
+# Key-only SSH (scripts/lib/key-only-ssh.sh): Vultr's cloud-init turns SSH
+# password login on. Writes /etc/ssh/sshd_config.d/01-no-password-login.conf
+# when at least one authorized key is installed; PAGES_KEEP_SSH_PASSWORDS=1
+# skips it. Never fails the install.
+# shellcheck source=scripts/lib/key-only-ssh.sh
+. "$PAGES_SCRIPT_ROOT/scripts/lib/key-only-ssh.sh"
+ssh_key_only
 # Name the box after its service. Vultr images boot as "vultr.guest", so every
 # prompt read root@vultr. Renames only an unset cloud-image default (exactly
 # vultr.guest, localhost or localhost.localdomain); any other name is a

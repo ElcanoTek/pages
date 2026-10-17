@@ -313,6 +313,25 @@ is installed: the Vultr Fedora image ships its root-capable web login on :9090,
 and these boxes are administered over ssh only. `PAGES_KEEP_COCKPIT=1` keeps it;
 without rpm or Cockpit the step does nothing, and a failure only warns.
 
+Bootstrap also makes SSH key-only, as a safety net for the Vultr startup script
+`elcano-key-only-ssh` (Vultr's cloud-init writes
+`/etc/ssh/sshd_config.d/50-cloud-init.conf` with `PasswordAuthentication yes`).
+It writes `/etc/ssh/sshd_config.d/01-no-password-login.conf` (mode 0600:
+`PasswordAuthentication no`, `KbdInteractiveAuthentication no`,
+`PermitRootLogin prohibit-password`), which sorts first and so wins, checks it
+with `sshd -t` (removing it again on failure), and reloads sshd. It refuses to
+touch sshd while root and `/home/*` have no authorized key (counted against the
+effective `AuthorizedKeysFile`) or while `sshd -T` reports
+`pubkeyauthentication no`, since that would lock everyone out; it warns
+instead. An identical file already in place is not rewritten, and when `sshd -T`
+still reports `passwordauthentication`, `kbdinteractiveauthentication` or
+`permitrootlogin yes` afterwards (an earlier directive in `sshd_config`, such as
+`PermitRootLogin yes` above its `Include`) it warns rather than editing
+`sshd_config`. Without sshd or `sshd_config.d` the step does nothing;
+`PAGES_KEEP_SSH_PASSWORDS=1` skips it; it never fails the install. Run as root,
+`pages doctor` reports a warning when `sshd -T` still accepts passwords (the
+same three settings).
+
 ### The initial agent token
 
 On the **first** bootstrap only — specifically, when the `api_tokens` table has
