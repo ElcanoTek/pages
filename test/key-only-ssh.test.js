@@ -48,7 +48,7 @@ printf 'RC=%s\\n' "$?"`, "ssh", LIB], {
   const conf = path.join(root, CONF);
   const addKey = () => {
     fs.mkdirSync(path.join(root, "etc/ssh/keys"), { recursive: true });
-    fs.writeFileSync(path.join(root, "etc/ssh/keys/contoso"), "ssh-ed25519 AAAAC3Nza contoso@northwind\n");
+    fs.writeFileSync(path.join(root, "etc/ssh/keys/contoso"), '# ssh-ed25519 AAAAold retired\nrestrict,from="10.0.0.0/8" ssh-ed25519 AAAAC3Nza contoso@northwind\n');
   };
   return { dir, root, conf, run, addKey };
 }
@@ -88,6 +88,14 @@ test("sshd -t failure restores the previous file and only warns", () => {
   assert.match(out, /RC=0/);
   assert.equal(fs.readFileSync(f.conf, "utf8"), "PasswordAuthentication no\n");
   assert.doesNotMatch(calls, /systemctl/);
+});
+
+test("a commented-out key does not count", () => {
+  const f = fixture();
+  fs.mkdirSync(path.join(f.root, "etc/ssh/keys"), { recursive: true });
+  fs.writeFileSync(path.join(f.root, "etc/ssh/keys/contoso"), "# ssh-ed25519 AAAAC3Nza contoso@northwind\n");
+  assert.match(f.run().out, /WARN no SSH authorized keys found/);
+  assert.equal(fs.existsSync(f.conf), false);
 });
 
 test("an earlier directive that still allows passwords is reported", () => {

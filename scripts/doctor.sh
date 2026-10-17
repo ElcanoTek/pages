@@ -555,7 +555,7 @@ EOF
   # Read-only: bootstrap makes SSH key-only; this only reports a box where
   # passwords still work. `sshd -T` needs root to read the host keys.
   if [[ $EUID -eq 0 ]] && command -v sshd >/dev/null 2>&1 \
-      && sshd -T 2>/dev/null | grep -qiE '^(passwordauthentication|permitrootlogin) yes$'; then
+      && sshd -T 2>/dev/null | grep -qiE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) yes$'; then
     advise "sshd accepts passwords — see production-support README, Access: SSH keys"
   fi
   os_id="$(env_get ID "$OS_RELEASE")"

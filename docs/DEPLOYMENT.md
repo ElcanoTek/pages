@@ -323,11 +323,13 @@ with `sshd -t` (removing it again on failure), and reloads sshd. It refuses to
 touch sshd while root and `/home/*` have no authorized key (counted against the
 effective `AuthorizedKeysFile`), since that would lock everyone out; it warns
 instead. An identical file already in place is left alone, and when `sshd -T`
-still reports passwords afterwards (an earlier directive in `sshd_config`, such
-as `PermitRootLogin yes` above its `Include`) it warns rather than editing
+still reports `passwordauthentication`, `kbdinteractiveauthentication` or
+`permitrootlogin yes` afterwards (an earlier directive in `sshd_config`, such as
+`PermitRootLogin yes` above its `Include`) it warns rather than editing
 `sshd_config`. Without sshd or `sshd_config.d` the step does nothing;
 `PAGES_KEEP_SSH_PASSWORDS=1` skips it; it never fails the install. Run as root,
-`pages doctor` reports a warning when `sshd -T` still accepts passwords.
+`pages doctor` reports a warning when `sshd -T` still accepts passwords (the
+same three settings).
 
 ### The initial agent token
 

@@ -35,7 +35,9 @@ ssh_count_authorized_keys() {
       [[ "$path" != /* ]] && path="$rel/$path"
       path="$root$path"
       [[ -r "$path" ]] || continue
-      count=$(( count + $(grep -cE '^[[:space:]]*(ssh-|ecdsa-|sk-)' "$path" || true) ))
+      # A key line may start with options (restrict, from=, command=...).
+      count=$(( count + $(grep -vE '^[[:space:]]*#' "$path" \
+        | grep -cE '(^|[[:space:]])(ssh-|ecdsa-|sk-)[^[:space:]]+[[:space:]]+AAAA' || true) ))
     done
   done
   printf '%s' "$count"
@@ -84,7 +86,7 @@ ssh_key_only() {
   else
     warn "wrote $conf but could not reload sshd — run: systemctl reload sshd"
   fi
-  if sshd -T 2>/dev/null | grep -qiE '^(passwordauthentication|permitrootlogin) yes$'; then
+  if sshd -T 2>/dev/null | grep -qiE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) yes$'; then
     warn "sshd still accepts passwords: an earlier directive wins (e.g. 'PermitRootLogin yes' above the Include line in /etc/ssh/sshd_config) — fix it by hand"
   fi
   return 0
