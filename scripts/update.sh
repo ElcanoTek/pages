@@ -12,6 +12,7 @@ pages_update() (
   SRC_DIR="$INSTALL_SRC_DIR"
   SERVICE="pages.service"
   SERVICE_FILE="${PAGES_SERVICE_FILE:-/etc/systemd/system/pages.service}"
+  MOTD_FILE="${PAGES_MOTD_FILE:-/etc/motd}"
   RELEASE_ROOT="${APP_DIR}.releases"
   SHARED_ASSETS="${APP_DIR}.assets"
   SHARED_ENV="${APP_DIR}.env"
@@ -171,6 +172,17 @@ pages_update() (
 
   if [[ "${PAGES_SKIP_TEMPLATE_SYNC:-0}" != 1 && -f "$APP_DIR/scripts/template.js" && -d "$APP_DIR/templates" ]]; then
     app_command "$APP_DIR" node scripts/template.js sync || warn "template sync reported problems; previous revisions remain current"
+  fi
+  # Keep the login banner in sync with deploy/motd: boxes bootstrapped before
+  # the banner existed kept the image's motd. Read from the root-owned source
+  # checkout the release was built from (release directories belong to the
+  # service user); nonfatal, the release is already active.
+  if [[ -f "$SRC_DIR/deploy/motd" ]] && ! cmp -s "$SRC_DIR/deploy/motd" "$MOTD_FILE"; then
+    if install -m 0644 "$SRC_DIR/deploy/motd" "$MOTD_FILE"; then
+      info "motd installed/refreshed"
+    else
+      warn "could not install the login banner to $MOTD_FILE"
+    fi
   fi
   info "update complete"
 )

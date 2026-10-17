@@ -15,7 +15,7 @@ function fixture(failure) {
   const write = (name, text, mode) => { fs.mkdirSync(path.dirname(name), { recursive: true }); fs.writeFileSync(name, text, mode ? { mode } : undefined); };
   fs.mkdirSync(path.join(source, ".git"), { recursive: true });
   fs.mkdirSync(bin);
-  for (const name of ["scripts/preflight-install.js", "scripts/check-migration-compatibility.js", "scripts/render-install.js", "deploy/pages.service", "deploy/pages-cli", "migrations/compatibility.json"]) write(path.join(source, name), fs.readFileSync(path.join(root, name)));
+  for (const name of ["scripts/preflight-install.js", "scripts/check-migration-compatibility.js", "scripts/render-install.js", "deploy/pages.service", "deploy/pages-cli", "deploy/motd", "migrations/compatibility.json"]) write(path.join(source, name), fs.readFileSync(path.join(root, name)));
   write(path.join(source, "scripts/check-node.js"), '"use strict";\n');
   // The fixture reexecutes the real update function without privileged service
   // calls; the production entrypoint's root gate remains unchanged.
@@ -47,6 +47,7 @@ function fixture(failure) {
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, APP_DIR: app, APP_USER: os.userInfo().username,
     PAGES_SRC_DIR: source, PAGES_ENV_FILE: path.join(dir, "pages.env"), PAGES_CLI_TARGET: path.join(dir, "pages-cli"),
     PAGES_INSTALL_CONFIG: path.join(dir, "install"), PAGES_SERVICE_FILE: path.join(dir, "pages.service"),
+    PAGES_MOTD_FILE: path.join(dir, "motd"),
     PAGES_UPDATE_NO_PULL: failure === "self-update" ? "0" : "1", PAGES_UPDATE_YES: "1", PAGES_SKIP_TEMPLATE_SYNC: "1",
     UPDATE_TEST_FAILURE: failure, UPDATE_TEST_LOG: path.join(dir, "actions.log"),
   };
@@ -81,6 +82,10 @@ for (const failure of ["copy", "npm", "module", "compatibility", "activate", "st
       if (succeeds) {
         assert.ok(fs.lstatSync(app).isSymbolicLink());
         assert.equal(fs.readFileSync(path.join(app + ".releases", "previous", "release-marker"), "utf8"), "original");
+        assert.equal(fs.readFileSync(path.join(dir, "motd"), "utf8"), fs.readFileSync(path.join(root, "deploy/motd"), "utf8"));
+        assert.equal(fs.statSync(path.join(dir, "motd")).mode & 0o777, 0o644);
+      } else {
+        assert.ok(!fs.existsSync(path.join(dir, "motd")), "a failed update must not touch the login banner");
       }
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });

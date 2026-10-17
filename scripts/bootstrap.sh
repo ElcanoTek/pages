@@ -12,7 +12,8 @@
 #      generated PAGE_COOKIE_SECRET / RAW_TOKEN_SECRET / API_TOKEN_PEPPER), runs
 #      migrations, and mints the initial agent API token (first run only).
 #      Flag design-system assets are committed in-repo — no vendoring step.
-#   5. Installs systemd unit + /usr/local/bin/pages CLI; enables + starts
+#   5. Installs systemd unit + /usr/local/bin/pages CLI + /etc/motd login
+#      banner (from deploy/motd); enables + starts
 #   6. Caddy + auto-TLS for BOTH hostnames; health-checks /readyz
 #
 # Idempotent: re-runs preserve existing secrets, the DB role/password, and data.
@@ -220,6 +221,10 @@ step "5/6  Installing systemd unit + CLI + starting"
 install_rendered config "$PAGES_INSTALL_CONFIG" 0644
 install_rendered service /etc/systemd/system/pages.service 0644
 install_rendered cli "$CLI_TARGET" 0755
+# Login banner: deploy/motd is the single source, installed unconditionally so
+# the image's own /etc/motd (cloud-init's notice) does not survive. update.sh
+# keeps it in sync on existing boxes.
+install -m 0644 "$INSTALL_SRC_DIR/deploy/motd" /etc/motd
 systemctl daemon-reload
 systemctl enable pages.service >/dev/null 2>&1 || true
 systemctl restart pages.service

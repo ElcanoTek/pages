@@ -1,0 +1,15 @@
+     ┌──────────────────┐
+     │  ELCANO  PAGES   │
+     │  ▤ ▤ ▤  ▥ ▥ ▥    │
+     └──────────────────┘
+
+Elcano Pages: hosted dashboards and report pages (Node + Postgres).
+
+  health    pages doctor
+  logs      pages logs
+  update    pages update
+  content   pages page --help · pages template --help
+  tokens    pages token --help
+  more      pages --help
+
+  app /opt/pages (current release) · unit pages.service
