@@ -299,6 +299,15 @@ environment supplies update readiness checks unless `PAGES_PORT` was explicitly
 set. Rerun bootstrap when changing the port so the Caddy configuration is
 regenerated too. Existing default installations work before this file exists.
 
+Bootstrap also names the box after the service: when the static hostname is an
+unset cloud-image default (exactly `vultr.guest`, `localhost` or
+`localhost.localdomain`) it runs `hostnamectl set-hostname` with the dashboard hostname,
+writes `/etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg` so cloud-init does not
+reset it, and points the loopback lines in `/etc/hosts` at the new name. Any
+other hostname is treated as deliberate and left alone (bootstrap prints the
+command to change it). `PAGES_SET_HOSTNAME=1` forces the rename;
+`PAGES_SET_HOSTNAME=0` skips the step.
+
 ### The initial agent token
 
 On the **first** bootstrap only — specifically, when the `api_tokens` table has
