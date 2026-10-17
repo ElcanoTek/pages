@@ -61,7 +61,9 @@ ssh_key_only() {
     ssh_key_only_effective_check
     return 0
   fi
-  if sshd -T 2>/dev/null | grep -qix 'pubkeyauthentication no'; then
+  # Capture, then grep: under pipefail `sshd -T | grep -q` can read as no
+  # match when grep exits early and sshd dies of SIGPIPE.
+  if grep -qix 'pubkeyauthentication no' <<<"$(sshd -T 2>/dev/null || true)"; then
     warn "sshd has PubkeyAuthentication no: leaving password login on so nobody is locked out"
     return 0
   fi
@@ -99,7 +101,7 @@ ssh_key_only() {
 # ssh_key_only_effective_check: warn when the effective config still accepts
 # passwords although the drop-in is in place (an earlier directive wins).
 ssh_key_only_effective_check() {
-  if sshd -T 2>/dev/null | grep -qiE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) yes$'; then
+  if grep -qiE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) yes$' <<<"$(sshd -T 2>/dev/null || true)"; then
     warn "sshd still accepts passwords: an earlier directive wins (e.g. 'PermitRootLogin yes' above the Include line in /etc/ssh/sshd_config) — fix it by hand"
   fi
   return 0
