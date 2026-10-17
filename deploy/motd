@@ -5,7 +5,7 @@
 
 Elcano Pages: hosted dashboards and report pages (Node + Postgres).
 
-  health    pages doctor
+  health    pages doctor --check
   logs      pages logs
   update    pages update
   templates pages template list
