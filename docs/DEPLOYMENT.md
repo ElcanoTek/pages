@@ -323,7 +323,7 @@ with `sshd -t` (removing it again on failure), and reloads sshd. It refuses to
 touch sshd while root and `/home/*` have no authorized key (counted against the
 effective `AuthorizedKeysFile`) or while `sshd -T` reports
 `pubkeyauthentication no`, since that would lock everyone out; it warns
-instead. An identical file already in place is left alone, and when `sshd -T`
+instead. An identical file already in place is not rewritten, and when `sshd -T`
 still reports `passwordauthentication`, `kbdinteractiveauthentication` or
 `permitrootlogin yes` afterwards (an earlier directive in `sshd_config`, such as
 `PermitRootLogin yes` above its `Include`) it warns rather than editing

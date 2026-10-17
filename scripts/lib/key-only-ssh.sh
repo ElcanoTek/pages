@@ -58,6 +58,7 @@ ssh_key_only() {
   local conf="$dir/01-no-password-login.conf" keys tmp old=""
   command -v sshd >/dev/null 2>&1 && [[ -d "$dir" ]] || return 0
   if [[ -f "$conf" ]] && printf '%s\n' "$SSH_KEY_ONLY_CONF" | cmp -s - "$conf"; then
+    ssh_key_only_effective_check
     return 0
   fi
   if sshd -T 2>/dev/null | grep -qix 'pubkeyauthentication no'; then
@@ -80,7 +81,8 @@ ssh_key_only() {
   fi
   rm -f "$tmp"
   if ! sshd -t >/dev/null 2>&1; then
-    if [[ -n "$old" ]]; then mv -f "$old" "$conf"; else rm -f "$conf"; fi
+    # install, not mv: a file from mktemp would carry /tmp's SELinux label.
+    if [[ -n "$old" ]]; then install -m 0600 "$old" "$conf"; rm -f "$old"; else rm -f "$conf"; fi
     warn "sshd -t rejected the key-only drop-in — reverted $conf; sshd left as it was"
     return 0
   fi
@@ -90,6 +92,13 @@ ssh_key_only() {
   else
     warn "wrote $conf but could not reload sshd — run: systemctl reload sshd"
   fi
+  ssh_key_only_effective_check
+  return 0
+}
+
+# ssh_key_only_effective_check: warn when the effective config still accepts
+# passwords although the drop-in is in place (an earlier directive wins).
+ssh_key_only_effective_check() {
   if sshd -T 2>/dev/null | grep -qiE '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin) yes$'; then
     warn "sshd still accepts passwords: an earlier directive wins (e.g. 'PermitRootLogin yes' above the Include line in /etc/ssh/sshd_config) — fix it by hand"
   fi

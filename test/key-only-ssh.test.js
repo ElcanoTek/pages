@@ -77,6 +77,10 @@ test("with a key (via AuthorizedKeysFile %u): writes 0600 drop-in, validates, re
   ({ out, calls } = f.run());
   assert.equal(out.trim(), "RC=0");
   assert.doesNotMatch(calls, /systemctl|sshd -t/);
+  // Identical file: no write or reload, but an earlier winning directive is still reported.
+  ({ out, calls } = f.run({ STUB_PA: "yes" }));
+  assert.match(out, /WARN sshd still accepts passwords/);
+  assert.doesNotMatch(calls, /systemctl|sshd -t/);
 });
 
 test("sshd -t failure restores the previous file and only warns", () => {
