@@ -42,8 +42,9 @@ If `initdb` is not on `PATH`, add it first — for example
   ```
   Do not add one under `public/assets/flag/` or `lib/vendor/` (vendored; they
   keep their upstream licence header), to `lib/preflight-shadowed-names.js`
-  (generated), or to `deploy/motd` (the login banner, installed verbatim as
-  `/etc/motd`, so a header would print at every ssh login).
+  (generated), to `deploy/motd` (the login banner, installed verbatim as
+  `/etc/motd`, so a header would print at every ssh login), or to
+  `deploy/cockpit-ws.tmpfiles.conf` (an exact-content host override).
 - **Never edit an applied migration.** Add a new numbered file in `migrations/`.
 - **`public/assets/flag/` is vendored.** Do not hand-edit it.
 - **Use invented names in tests, docs and examples** — "Northwind", "Contoso",
