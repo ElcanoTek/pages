@@ -26,7 +26,7 @@ function fixture() {
   stub("sshd", [
     'case "$1" in',
     '  -t) exit "${STUB_T_RC:-0}" ;;',
-    '  -T) echo "authorizedkeysfile .ssh/authorized_keys /etc/ssh/keys/%u"; echo "passwordauthentication ${STUB_PA:-no}" ;;',
+    '  -T) echo "authorizedkeysfile .ssh/authorized_keys /etc/ssh/keys/%u"; echo "passwordauthentication ${STUB_PA:-no}"; echo "pubkeyauthentication ${STUB_PUBKEY:-yes}" ;;',
     "esac",
   ].join("\n"));
   stub("systemctl", 'exit "${STUB_RELOAD_RC:-0}"');
@@ -96,6 +96,15 @@ test("a commented-out key does not count", () => {
   fs.writeFileSync(path.join(f.root, "etc/ssh/keys/contoso"), "# ssh-ed25519 AAAAC3Nza contoso@northwind\n");
   assert.match(f.run().out, /WARN no SSH authorized keys found/);
   assert.equal(fs.existsSync(f.conf), false);
+});
+
+test("PubkeyAuthentication no: warns and leaves sshd alone", () => {
+  const f = fixture();
+  f.addKey();
+  const { out, calls } = f.run({ STUB_PUBKEY: "no" });
+  assert.match(out, /WARN sshd has PubkeyAuthentication no/);
+  assert.equal(fs.existsSync(f.conf), false);
+  assert.doesNotMatch(calls, /systemctl|sshd -t/);
 });
 
 test("an earlier directive that still allows passwords is reported", () => {

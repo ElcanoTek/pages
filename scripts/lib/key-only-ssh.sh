@@ -60,6 +60,10 @@ ssh_key_only() {
   if [[ -f "$conf" ]] && printf '%s\n' "$SSH_KEY_ONLY_CONF" | cmp -s - "$conf"; then
     return 0
   fi
+  if sshd -T 2>/dev/null | grep -qix 'pubkeyauthentication no'; then
+    warn "sshd has PubkeyAuthentication no: leaving password login on so nobody is locked out"
+    return 0
+  fi
   keys="$(ssh_count_authorized_keys)"
   if [[ "${keys:-0}" -lt 1 ]]; then
     warn "no SSH authorized keys found — leaving password login on so nobody is locked out; add a key, then re-run bootstrap"

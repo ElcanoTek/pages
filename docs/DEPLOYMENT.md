@@ -321,7 +321,8 @@ It writes `/etc/ssh/sshd_config.d/01-no-password-login.conf` (mode 0600:
 `PermitRootLogin prohibit-password`), which sorts first and so wins, checks it
 with `sshd -t` (removing it again on failure), and reloads sshd. It refuses to
 touch sshd while root and `/home/*` have no authorized key (counted against the
-effective `AuthorizedKeysFile`), since that would lock everyone out; it warns
+effective `AuthorizedKeysFile`) or while `sshd -T` reports
+`pubkeyauthentication no`, since that would lock everyone out; it warns
 instead. An identical file already in place is left alone, and when `sshd -T`
 still reports `passwordauthentication`, `kbdinteractiveauthentication` or
 `permitrootlogin yes` afterwards (an earlier directive in `sshd_config`, such as
