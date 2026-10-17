@@ -226,41 +226,53 @@ install_rendered cli "$CLI_TARGET" 0755
 # keeps it in sync on existing boxes.
 install -m 0644 "$INSTALL_SRC_DIR/deploy/motd" /etc/motd
 # cockpit.socket served a root-capable web login on :9090 on an internet-facing
-# box whose only admin path is ssh. Keep it off: socket masked, service out of
-# a running firewalld. Idempotent; a no-op without systemd or cockpit; never
+# box whose only admin path is ssh. Keep it off: socket stopped and masked,
+# service out of every firewalld zone, and its "Activate the web console" line
+# out of the login banner. Idempotent; a no-op without systemd or cockpit; never
 # fails the run, never installs or removes packages, never touches ufw/iptables.
 disable_cockpit() {
-  local fw=0 services
+  local zones=() zone tmpf_src="$INSTALL_SRC_DIR/deploy/cockpit-ws.tmpfiles.conf" tmpf_dst=/etc/tmpfiles.d/cockpit-ws.conf
   command -v systemctl >/dev/null 2>&1 || return 0
   [[ -n "$(systemctl list-unit-files cockpit.socket --no-legend 2>/dev/null || true)" ]] || return 0
-  if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-    services="$(firewall-cmd --permanent --list-services 2>/dev/null || true)"
-    [[ " $services " != *" cockpit "* ]] || fw=1
-  fi
   if [[ "$(systemctl is-enabled cockpit.socket 2>/dev/null || true)" != "masked" ]]; then
     if systemctl disable --now cockpit.socket >/dev/null 2>&1 && systemctl mask cockpit.socket >/dev/null 2>&1; then
       ok "cockpit.socket disabled and masked"
     else
       warn "could not disable and mask cockpit.socket"
     fi
+  elif systemctl is-active --quiet cockpit.socket 2>/dev/null; then
+    # Masked without --now leaves an active socket listening.
+    if systemctl stop cockpit.socket >/dev/null 2>&1; then
+      ok "stopped the masked cockpit.socket"
+    else
+      warn "could not stop cockpit.socket"
+    fi
+  fi
+  if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+    for zone in $(firewall-cmd --permanent --get-zones 2>/dev/null || true); do
+      if firewall-cmd --permanent --zone="$zone" --query-service=cockpit >/dev/null 2>&1; then zones+=("$zone"); fi
+    done
+    if [[ ${#zones[@]} -gt 0 ]]; then
+      for zone in "${zones[@]}"; do
+        firewall-cmd --permanent --zone="$zone" --remove-service=cockpit >/dev/null 2>&1 \
+          || warn "could not remove cockpit from firewalld zone $zone"
+      done
+      if firewall-cmd --reload >/dev/null 2>&1; then
+        ok "firewalld: cockpit removed from ${zones[*]}"
+      else
+        warn "firewalld reload failed; cockpit stays open until the next reload"
+      fi
+    fi
   fi
   # Masking leaves cockpit-ws's "Activate the web console" line in the login
   # banner (/etc/motd.d/cockpit -> /run/cockpit/issue, made at boot by the
   # package's tmpfiles.d entry). A same-named /etc/tmpfiles.d copy overrides it.
-  local tmpf_src="$INSTALL_SRC_DIR/deploy/cockpit-ws.tmpfiles.conf" tmpf_dst=/etc/tmpfiles.d/cockpit-ws.conf
   if [[ -f /usr/lib/tmpfiles.d/cockpit-ws.conf && -f "$tmpf_src" ]] && command -v systemd-tmpfiles >/dev/null 2>&1 \
      && ! cmp -s "$tmpf_src" "$tmpf_dst"; then
     if install -m 0644 "$tmpf_src" "$tmpf_dst" && systemd-tmpfiles --create "$tmpf_dst"; then
       ok "Cockpit login notice blanked ($tmpf_dst)"
     else
       warn "could not install $tmpf_dst to blank the Cockpit login notice"
-    fi
-  fi
-  if [[ "$fw" == 1 ]]; then
-    if firewall-cmd --permanent --remove-service=cockpit >/dev/null && firewall-cmd --reload >/dev/null; then
-      ok "firewalld: cockpit removed"
-    else
-      warn "could not remove cockpit from firewalld"
     fi
   fi
   return 0
@@ -303,19 +315,30 @@ set_box_hostname() {
       warn "could not write /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg"
     fi
   fi
-  # Loopback lines that name the old hostname now name the new one. A line
-  # that also carries localhost is kept as is (the new lines are appended
-  # instead), so localhost always still resolves.
+  # On loopback lines, the old hostname (and its short form) is replaced by
+  # "<fqdn> <short>"; every other alias on the line is kept. A localhost name
+  # is never replaced (the new lines are appended instead).
   [[ -f /etc/hosts ]] || return 0
   tmp="$(mktemp)" || { warn "could not update /etc/hosts"; return 0; }
   if awk -v old="$current" -v fqdn="$fqdn" -v short="$short" '
+      BEGIN {
+        oldshort = old; sub(/\..*/, "", oldshort)
+        if (old ~ /^localhost/) old = ""
+        if (oldshort ~ /^localhost/) oldshort = ""
+      }
       ($1 == "127.0.0.1" || $1 == "::1") && old != "" {
-        named = 0; local_ = 0
+        out = $1; hit = 0
         for (i = 2; i <= NF; i++) {
-          if ($i == old) named = 1
-          if ($i ~ /^localhost/) local_ = 1
+          if ($i ~ /^#/) { for (; i <= NF; i++) out = out " " $i; break }
+          if ($i == old || $i == oldshort) {
+            if (!hit) out = out " " fqdn " " short
+            hit = 1
+            continue
+          }
+          if ($i == fqdn || $i == short) continue
+          out = out " " $i
         }
-        if (named && !local_) { print $1 " " fqdn " " short; next }
+        if (hit) { print out; next }
       }
       { print }' /etc/hosts > "$tmp"; then
     if ! awk -v fqdn="$fqdn" '$1 !~ /^#/ { for (i = 2; i <= NF; i++) if ($i == fqdn) found = 1 } END { exit !found }' "$tmp"; then
