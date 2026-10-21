@@ -676,16 +676,22 @@ re-invokes itself through `sudo`, keeping the installation settings.
 
 `pages token`, `pages template` and `pages access` connect with `DATABASE_URL`
 and (for tokens) hash with `API_TOKEN_PEPPER` from the environment they run in,
-so they must run with the **service's** environment file loaded, as the `pages`
-user — the way bootstrap and `pages update` run them:
+so they must run with the **service's** environment file, as the `pages` user.
+On an installed box they arrange that themselves: when neither `DATABASE_URL`
+nor `API_TOKEN_PEPPER` is set and the environment file exists, they re-run as
+the service account (`runuser` from root, `sudo -u pages` otherwise) and read
+`/etc/default/pages` — parsed, never sourced, and never passed on a command
+line. So this is all it takes:
 
 ```bash
-sudo runuser -u pages -- bash -c \
-  'set -a; . /etc/default/pages; set +a; exec /opt/pages/pages token list'
+sudo pages token add ci-publisher deploy
+sudo pages template sync
 ```
 
-That wiring is load-bearing: a token minted with a different `API_TOKEN_PEPPER`
-than the server verifies with is a token the server rejects.
+With `DATABASE_URL` or `API_TOKEN_PEPPER` already in the environment (`pages
+dev`, the test cluster, bootstrap and `pages update`'s own calls) they use it
+as is. That wiring is load-bearing: a token minted with a different
+`API_TOKEN_PEPPER` than the server verifies with is a token the server rejects.
 
 ---
 

@@ -17,12 +17,13 @@ import (
 // `pages access` — the central-mode access list (PAGES_AUTH_MODE=central).
 // Auth keeps it current through signed access events once the Pages app has
 // a back-channel URL; this command is for bootstrap and break-glass.
-// Everyone on the list is a Pages admin. Reads DATABASE_URL (or PG*).
+// Everyone on the list is a Pages admin. Reads DATABASE_URL (or PG*); on an
+// installed box, from the service environment file (serviceenv.go).
 func init() {
 	Register(&Command{
 		Name:    "access",
 		Summary: "central sign-in access list: grant <email> | revoke <email> | list",
-		Run:     runAccess,
+		Run:     serviceVerb("access", runAccess),
 	})
 }
 
@@ -45,8 +46,8 @@ func runAccess(args []string) int {
 	return accessMain(context.Background(), central.NewStore(d), args, os.Stdout, os.Stderr)
 }
 
-// accessMain is the verb against a store, writing to stdout/stderr like
-// scripts/access.js.
+// accessMain is the verb against a store, writing to stdout/stderr as the
+// Node release's access script did.
 func accessMain(ctx context.Context, store *central.Store, args []string, stdout, stderr io.Writer) int {
 	cmd, email := "", ""
 	if len(args) > 0 {

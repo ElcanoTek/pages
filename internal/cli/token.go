@@ -21,7 +21,8 @@ import (
 // `pages token` mints, lists and revokes agent API tokens (PLAN.md §9). It
 // needs DATABASE_URL (or PG*) and the SERVICE's API_TOKEN_PEPPER: a token
 // minted with a different or absent pepper hashes to something the server
-// never matches.
+// never matches. On an installed box it runs as the service account with the
+// service environment file (serviceenv.go), so `sudo pages token add` works.
 //
 //	pages token add <label> [scope] [slug ...]
 //	  scope: deploy (default) | admin | data_update (may start with no grants)
@@ -36,7 +37,7 @@ func init() {
 	Register(&Command{
 		Name:    "token",
 		Summary: "add, list or revoke agent API tokens",
-		Run:     func(args []string) int { return runToken(context.Background(), args, os.Stdout, os.Stderr) },
+		Run:     serviceVerb("token", func(args []string) int { return runToken(context.Background(), args, os.Stdout, os.Stderr) }),
 	})
 }
 
@@ -141,7 +142,7 @@ func tokenVerb(ctx context.Context, d *db.DB, cmd string, args []string, out io.
 	return nil
 }
 
-// jsInteger is Number.isInteger(Number(s)) as scripts/token.js checked its
+// jsInteger is Number.isInteger(Number(s)), as the Node release checked the
 // id: surrounding whitespace is ignored, "" is 0, and 0x/0o/0b prefixes are
 // accepted. present is false when no argument was given (Number(undefined)
 // is NaN).

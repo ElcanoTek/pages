@@ -25,7 +25,7 @@ import (
 )
 
 // `pages template` registers page templates from FILES, without an agent
-// (scripts/template.js):
+// (the Node release's scripts/template.js):
 //
 //	pages template list
 //	pages template show <name> [--revision N]
@@ -45,7 +45,8 @@ import (
 // from. That is what makes "git push + pages update" a safe way to ship a
 // design fix.
 //
-// Requires DATABASE_URL (or PG*) matching the running server.
+// Requires DATABASE_URL (or PG*) matching the running server; on an installed
+// box it is read from the service environment file (serviceenv.go).
 
 const templateUsage = "usage: pages template list | show <name> [--revision N] | register <file> [--name X] | sync [dir]"
 
@@ -53,9 +54,9 @@ func init() {
 	Register(&Command{
 		Name:    "template",
 		Summary: "list, register or sync page templates from files",
-		Run: func(args []string) int {
+		Run: serviceVerb("template", func(args []string) int {
 			return runTemplate(context.Background(), args, os.Stdout, os.Stderr, db.OpenFromEnv)
-		},
+		}),
 	})
 }
 
