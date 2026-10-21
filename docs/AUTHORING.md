@@ -60,7 +60,7 @@ problem. If you must keep an inline handler, qualify the call
 
 Pages are served from a separate, cookieless registrable domain under
 `sandbox allow-scripts allow-downloads allow-modals` plus a strict CSP
-(`lib/csp.js` is the source of truth). In practice:
+(`internal/csp` is the source of truth). In practice:
 
 | You want to | Works? | Notes |
 |---|---|---|
@@ -81,7 +81,7 @@ Pages are served from a separate, cookieless registrable domain under
 | Submit a form | ❌ | `form-action 'none'` |
 
 The two navigation rows are measured, not inferred: `test/browser/sandbox-nav.spec.js`
-drives real Chromium against the real `rawHeaders()` and asserts both — that a
+drives real Chromium against the real `/raw` headers (`csp.RawHeaders()`) and asserts both — that a
 same-tab link and `location.assign` reach the sibling, that `target="_blank"`
 does not, and that the viewer's session cookie survives the hop so they are not
 asked for a password again. **Chromium only** — `playwright.config.js` declares
@@ -147,8 +147,8 @@ that means:
   material in a shareable document. Remove the block with your authoring tool
   before distributing the file.
 - **Size.** A deck is ~690KB before any content. The inline body cap and the
-  upload-ticket cap are both 2MB, so a deck with embedded images needs the upload
-  path and has to stay under it. Embedded video must be `data:` or `blob:`.
+  upload-ticket cap are both 32 MiB by default, so a deck with embedded images
+  fits either path; the upload path keeps the bytes out of your context. Embedded video must be `data:` or `blob:`.
 
 `readonly: true` in the deck's document makes a **player** file that boots
 straight into the presentation with no editor — set it on a hand-out copy.
@@ -176,7 +176,7 @@ signed, eight-hour, page-bound token that names who opened it. In that session:
   response — their deck stays `connect-src 'none'` and Save downloads.
 - **Only a deck can be saved through it**, only to the page the token names, and
   only as a draft. The `collab` block Bento mints on save is removed before
-  storage (`lib/bento.js`), so the stored version carries no keys.
+  storage (`internal/render`), so the stored version carries no keys.
 - **Saves follow the latest draft.** Each request names the version the editor
   started from in `X-Pages-Base-Version`. Saves from one tab run in order and
   advance that base only when acknowledged. If another editor or source update
@@ -191,8 +191,10 @@ Agents do not use this channel — `deploy_page_upload` is theirs, and it is the
 same state machine underneath.
 
 The boot mechanism is pinned by `test/browser/bento-deck.spec.js` with a
-synthetic deck. `node test/manual/bento-deck-check.js Deck.bento.html` runs the
-same probes against a real one — run it when the deck runtime is upgraded.
+synthetic deck. `test/browser/bento-deck-real.spec.js` runs the same probes
+against a real one — run it when the deck runtime is upgraded:
+`PAGES_FIXTURE_BENTO_DECK=Deck.bento.html npx playwright test bento-deck-real`
+(it skips when the variable is unset).
 
 ## Giving a partner a menu of their other dashboards
 
@@ -338,14 +340,14 @@ chance a turn dies mid-deploy.
   dashboard costs the same as a 30 KB one.
 - **Larger, with no outbound HTTP:** `start_page_upload` → `append_page_upload`
   → `deploy_page_upload`. Chunks may be up to the `max_chunk_bytes` the start
-  call returns (**49,152** by default — a 65 KB dashboard is two calls).
+  call returns (**1,048,576** by default — most documents are one call).
 
 `max_chunk_bytes` is a ceiling, not a quota: smaller chunks are accepted and
 sequence numbers do not depend on size. Each append is a full round trip, so use
 as few appends as it allows. A client that reads a `workspace_file` reference
-host-side sends the bytes without the model emitting them; a deployment serving
-only such clients may raise the ceiling to 1 MiB, which makes most documents a
-single append.
+host-side sends the bytes without the model emitting them, which is what the
+default is sized for; a deployment whose clients have the model emit the base64
+may lower the ceiling, and a smaller `max_chunk_bytes` then means more appends.
 
 **Never shrink a working dashboard to fit the transport.** Dropping rows,
 columns or date granularity to save chunks trades away the thing the client
@@ -386,7 +388,7 @@ Inline classic scripts and `type="module"` scripts are syntax-checked in their
 respective grammars without running code or resolving imports. Modules support
 imports, exports and top-level `await`; a syntax pass does not prove referenced
 resources exist or that the browser will allow them. Each script retains the
-1 MiB analysis limit.
+8 MiB analysis limit.
 
 1. Check the `preflight` field on your deploy result. `ok: false` means part of
    the page does not work — fix it and redeploy before sharing the link.

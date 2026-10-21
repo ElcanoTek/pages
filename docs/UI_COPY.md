@@ -58,7 +58,7 @@ not for who is pressing it.
 
 ## The content host is a different audience
 
-Everything above is for operators. `lib/contentview.js`, `lib/render.js` and the
+Everything above is for operators. `internal/contentview`, `internal/render` and the
 templates speak to a **partner**, and the rule there is one line: *no word a
 partner would not use*.
 
@@ -76,12 +76,12 @@ partner would not use*.
 - One deliberate exception: the staff line on a protected page addresses Elcano
   staff by name, so it may name the dashboard they should open instead.
 
-Unlike the rest of this file, that rule *is* enforced — `test/unit.test.js`
-renders every partner-facing page and fails on the words above, and pins the two
-page switchers to the same strings.
+Unlike the rest of this file, that rule *is* enforced — the `internal/contentview`
+tests render every partner-facing page and fail on the words above, and the two
+page switchers are pinned to the same strings.
 
 ## Where this is enforced
 
 Nowhere automatically — it is a review checklist, not a test. The one piece that
-*is* enforced is the design system: `test/theme.test.js` fails the build on a
-colour literal or an unresolvable token. Copy is still a human call.
+*is* enforced is the design system: `internal/shell`'s asset tests fail the
+build on a colour literal or an unresolvable token. Copy is still a human call.

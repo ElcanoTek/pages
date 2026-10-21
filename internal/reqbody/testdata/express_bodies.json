@@ -1,0 +1,670 @@
+[
+{
+"name": "json object",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJzbHVnIjoiYSIsIm4iOjEuNSwiYiI6dHJ1ZSwieiI6bnVsbH0=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"slug\":\"a\",\"n\":1.5,\"b\":true,\"z\":null}}"
+},
+{
+"name": "json array",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "WzEsMl0=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":[1,2]}"
+},
+{
+"name": "json string strict",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "InN0ciI=",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+},
+{
+"name": "json number strict",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "NQ==",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+},
+{
+"name": "json null strict",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "bnVsbA==",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+},
+{
+"name": "json leading ws",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "IAoJeyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "json empty",
+"headers": {
+"Content-Type": "application/json",
+"Content-Length": "0"
+},
+"bodyB64": "",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{}}"
+},
+{
+"name": "json ws only",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "ICAg",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+},
+{
+"name": "json bom",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "77u/eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "json invalid",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJodG1sIjogbWFsZm9ybWVk",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+},
+{
+"name": "json trailing garbage",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJhIjoxfXg=",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+},
+{
+"name": "json dup keys",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJhIjoxLCJiIjoyLCJhIjozfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":3,\"b\":2}}"
+},
+{
+"name": "json proto key",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJfX3Byb3RvX18iOnsieCI6MX0sInNsdWciOiJwIn0=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"__proto__\":{\"x\":1},\"slug\":\"p\"}}"
+},
+{
+"name": "json numeric keys",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJiIjoxLCIyIjoyLCIxIjozfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"1\":3,\"2\":2,\"b\":1}}"
+},
+{
+"name": "json charset utf-8 quoted",
+"headers": {
+"Content-Type": "application/json; charset=\"UTF-8\""
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "json charset latin1",
+"headers": {
+"Content-Type": "application/json; charset=latin1"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 415,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "json charset utf8",
+"headers": {
+"Content-Type": "application/json; charset=utf8"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 415,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "json charset utf-foo",
+"headers": {
+"Content-Type": "application/json; charset=utf-foo"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 415,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "json charset utf-16le",
+"headers": {
+"Content-Type": "application/json; charset=utf-16le"
+},
+"bodyB64": "ewAiAGEAIgA6ACIA6QAiAH0A",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"\u00e9\"}}"
+},
+{
+"name": "json charset utf-16 bom",
+"headers": {
+"Content-Type": "application/json; charset=utf-16"
+},
+"bodyB64": "//57ACIAYQAiADoAMgB9AA==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":2}}"
+},
+{
+"name": "json uppercase type",
+"headers": {
+"Content-Type": "Application/JSON"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "json vnd+json",
+"headers": {
+"Content-Type": "application/vnd.api+json"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"name": "json text/plain",
+"headers": {
+"Content-Type": "text/plain"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"name": "no content type",
+"headers": {},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"name": "malformed content type",
+"headers": {
+"Content-Type": "application/json;;"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "malformed param",
+"headers": {
+"Content-Type": "application/json; charset"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "json gzip",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "gzip"
+},
+"bodyB64": "H4sIAAAAAAAAA6tWSlSyUkqvUqoFAJ4FNm0KAAAA",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"gz\"}}"
+},
+{
+"name": "json deflate",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "deflate"
+},
+"bodyB64": "eJyrVkpUslJKSVOqBQAPiQLm",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"df\"}}"
+},
+{
+"name": "json GZIP upper",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "GZIP"
+},
+"bodyB64": "H4sIAAAAAAAAA6tWSlSyUkqvUqoFAJ4FNm0KAAAA",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"gz\"}}"
+},
+{
+"name": "json bad gzip",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "gzip"
+},
+"bodyB64": "bm90Z3ppcA==",
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "json unknown encoding",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "foo"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 415,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "json identity encoding",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "identity"
+},
+"bodyB64": "eyJhIjoxfQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":1}}"
+},
+{
+"name": "json oversized",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": null,
+"status": 413,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"request body too large\",\"code\":\"body_too_large\"}"
+},
+{
+"name": "json exactly limit",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": null,
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "<2097182 bytes>"
+},
+{
+"name": "json gzip oversized inflated",
+"headers": {
+"Content-Type": "application/json",
+"Content-Encoding": "gzip"
+},
+"bodyB64": "H4sIAAAAAAAAA+3BMQ0AIBAEMC8nA0UMz8ZAQvD+Mlja3sy9KiMHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4LO8BoSvL+YLACAA",
+"status": 413,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"request body too large\",\"code\":\"body_too_large\"}"
+},
+{
+"name": "json invalid utf8",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "eyJhIjoi/yJ9",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"\ufffd\"}}"
+},
+{
+"name": "json deep",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "W1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tbW1tdXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}"
+},
+{
+"name": "form basic",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "c2x1Zz1hJnRpdGxlPWIrYyZ4PSU0MSV6eg==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"slug\":\"a\",\"title\":\"b c\",\"x\":\"%41%zz\"}}"
+},
+{
+"name": "form repeated",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YT0xJmE9MiZhPTM=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":[\"1\",\"2\",\"3\"]}}"
+},
+{
+"name": "form brackets",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YVtdPTEmYVtdPTImYltjXT0zJmQuZT00",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a[]\":[\"1\",\"2\"],\"b[c]\":\"3\",\"d.e\":\"4\"}}"
+},
+{
+"name": "form empty pieces",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YT0xJiZiJj1jJmQ9",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"1\",\"b\":\"\",\"d\":\"\"}}"
+},
+{
+"name": "form proto",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "X19wcm90b19fPTEmY29uc3RydWN0b3I9MiZoYXNPd25Qcm9wZXJ0eT0z",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"constructor\":\"2\",\"hasOwnProperty\":\"3\"}}"
+},
+{
+"name": "form utf8",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "dD0lQzMlQTklRTIlODIlQUM=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"t\":\"\u00e9\u20ac\"}}"
+},
+{
+"name": "form bad utf8",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "dD0lRkYlQzM=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"t\":\"%FF%C3\"}}"
+},
+{
+"name": "form latin1",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded; charset=iso-8859-1"
+},
+"bodyB64": "dD0lRTk=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"t\":\"\u00e9\"}}"
+},
+{
+"name": "form charset utf8",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded; charset=utf8"
+},
+"bodyB64": "dD0x",
+"status": 415,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "form charset latin1 alias",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded; charset=latin1"
+},
+"bodyB64": "dD0x",
+"status": 415,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "form empty",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded",
+"Content-Length": "0"
+},
+"bodyB64": "",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{}}"
+},
+{
+"name": "form oversized",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": null,
+"status": 413,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"request body too large\",\"code\":\"body_too_large\"}"
+},
+{
+"name": "form 1000 params",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": null,
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "<10921 bytes>"
+},
+{
+"name": "form 1001 params",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": null,
+"status": 413,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid request\",\"code\":\"bad_request\"}"
+},
+{
+"name": "form trailing amps",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YT0xJg==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"1\"}}"
+},
+{
+"name": "form question",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "P2E9MQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"?a\":\"1\"}}"
+},
+{
+"name": "form eq in value",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YT1iPWM=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"b=c\"}}"
+},
+{
+"name": "form number-like keys",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "Yj0xJjI9eCYxPXk=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"1\":\"y\",\"2\":\"x\",\"b\":\"1\"}}"
+},
+{
+"name": "form a and a[]",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YT0xJmFbXT0y",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"1\",\"a[]\":\"2\"}}"
+},
+{
+"name": "form semicolon",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YT0xO2I9Mg==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a\":\"1;b=2\"}}"
+},
+{
+"name": "form plus key",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "YStiPWMrZCYlMjBrPXY=",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"a b\":\"c d\",\" k\":\"v\"}}"
+},
+{
+"name": "form unicode raw",
+"headers": {
+"Content-Type": "application/x-www-form-urlencoded"
+},
+"bodyB64": "dD3DqQ==",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":{\"t\":\"\u00e9\"}}"
+},
+{
+"name": "invalid json no auth",
+"headers": {
+"Content-Type": "application/json"
+},
+"bodyB64": "e2JhZA==",
+"noAuth": true,
+"status": 400,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"invalid JSON request body\",\"code\":\"bad_json\"}"
+}
+]

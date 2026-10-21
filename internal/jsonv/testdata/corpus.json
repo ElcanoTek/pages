@@ -1,0 +1,350 @@
+{
+ "texts": [
+  {
+   "in": "MA==",
+   "out": "0"
+  },
+  {
+   "in": "LTA=",
+   "out": "0"
+  },
+  {
+   "in": "MQ==",
+   "out": "1"
+  },
+  {
+   "in": "MS4w",
+   "out": "1"
+  },
+  {
+   "in": "MWUy",
+   "out": "100"
+  },
+  {
+   "in": "MUUrMg==",
+   "out": "100"
+  },
+  {
+   "in": "MWUyMQ==",
+   "out": "1e+21"
+  },
+  {
+   "in": "MWUyMA==",
+   "out": "100000000000000000000"
+  },
+  {
+   "in": "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAx",
+   "out": "123456789012345680000"
+  },
+  {
+   "in": "MC4x",
+   "out": "0.1"
+  },
+  {
+   "in": "MC4wMDAwMDE=",
+   "out": "0.000001"
+  },
+  {
+   "in": "MC4wMDAwMDAx",
+   "out": "1e-7"
+  },
+  {
+   "in": "MS41ZS03",
+   "out": "1.5e-7"
+  },
+  {
+   "in": "LTEuNWUtNw==",
+   "out": "-1.5e-7"
+  },
+  {
+   "in": "NWUtMzI0",
+   "out": "5e-324"
+  },
+  {
+   "in": "MS43OTc2OTMxMzQ4NjIzMTU3ZTMwOA==",
+   "out": "1.7976931348623157e+308"
+  },
+  {
+   "in": "MWU0MDA=",
+   "out": "null"
+  },
+  {
+   "in": "LTFlNDAw",
+   "out": "null"
+  },
+  {
+   "in": "MWUtNDAw",
+   "out": "0"
+  },
+  {
+   "in": "OTAwNzE5OTI1NDc0MDk5Mw==",
+   "out": "9007199254740992"
+  },
+  {
+   "in": "MC4zMDAwMDAwMDAwMDAwMDAwNA==",
+   "out": "0.30000000000000004"
+  },
+  {
+   "in": "MTIzLjQ1Ng==",
+   "out": "123.456"
+  },
+  {
+   "in": "MWUtNg==",
+   "out": "0.000001"
+  },
+  {
+   "in": "MTJlLTc=",
+   "out": "0.0000012"
+  },
+  {
+   "in": "Mi41ZSsyNQ==",
+   "out": "2.5e+25"
+  },
+  {
+   "in": "MTAw",
+   "out": "100"
+  },
+  {
+   "in": "NDI5NDk2NzI5NQ==",
+   "out": "4294967295"
+  },
+  {
+   "in": "MS4yMzQ1Njc4OTAxMjM0NTY3ZS0yMA==",
+   "out": "1.2345678901234567e-20"
+  },
+  {
+   "in": "InBsYWluIg==",
+   "out": "\"plain\""
+  },
+  {
+   "in": "Ijw+Jici",
+   "out": "\"<>&'\""
+  },
+  {
+   "in": "Ilx1MjAyOFx1MjAyOSI=",
+   "out": "\"  \""
+  },
+  {
+   "in": "IuKAqCI=",
+   "out": "\" \""
+  },
+  {
+   "in": "Ilx1MDAwMFx1MDAxZlx1MDA3Zlx1MDA4MCI=",
+   "out": "\"\\u0000\\u001f\""
+  },
+  {
+   "in": "IlxiXGZcblxyXHRcL1wiXFwi",
+   "out": "\"\\b\\f\\n\\r\\t/\\\"\\\\\""
+  },
+  {
+   "in": "Ilx1ZDgwMCI=",
+   "out": "\"\\ud800\""
+  },
+  {
+   "in": "Ilx1ZGMwMCI=",
+   "out": "\"\\udc00\""
+  },
+  {
+   "in": "Ilx1ZDgzZFx1ZGUwMCI=",
+   "out": "\"😀\""
+  },
+  {
+   "in": "Ilx1ZDgzZCI=",
+   "out": "\"\\ud83d\""
+  },
+  {
+   "in": "ImFcdWQ4MDBiXHVkZmZmYyI=",
+   "out": "\"a\\ud800b\\udfffc\""
+  },
+  {
+   "in": "Ilx1RDgzRFx1REUwMCI=",
+   "out": "\"😀\""
+  },
+  {
+   "in": "IvCfmIDDqSI=",
+   "out": "\"😀é\""
+  },
+  {
+   "in": "eyJiIjoxLCJhIjoyLCIxIjozLCIwIjo0LCIwMSI6NSwiNDI5NDk2NzI5NCI6NiwiNDI5NDk2NzI5NSI6NywiLTEiOjgsIjEuNSI6OX0=",
+   "out": "{\"0\":4,\"1\":3,\"4294967294\":6,\"b\":1,\"a\":2,\"01\":5,\"4294967295\":7,\"-1\":8,\"1.5\":9}"
+  },
+  {
+   "in": "eyJhIjoxLCJiIjoyLCJhIjozfQ==",
+   "out": "{\"a\":3,\"b\":2}"
+  },
+  {
+   "in": "eyJfX3Byb3RvX18iOjEsIngiOnsiX19wcm90b19fIjp7InkiOjF9fX0=",
+   "out": "{\"__proto__\":1,\"x\":{\"__proto__\":{\"y\":1}}}"
+  },
+  {
+   "in": "eyIxMCI6MSwiOSI6MiwiMiI6MywieCI6NCwiMyI6NX0=",
+   "out": "{\"2\":3,\"3\":5,\"9\":2,\"10\":1,\"x\":4}"
+  },
+  {
+   "in": "WzEsImEiLG51bGwsdHJ1ZSxmYWxzZSx7fSxbXV0=",
+   "out": "[1,\"a\",null,true,false,{},[]]"
+  },
+  {
+   "in": "IAkNCnsgImEiIDogWyAxICwgMiBdIH0gCg==",
+   "out": "{\"a\":[1,2]}"
+  },
+  {
+   "in": "eyIiOjF9",
+   "out": "{\"\":1}"
+  },
+  {
+   "in": "W1tbW1tdXV1dXQ==",
+   "out": "[[[[[]]]]]"
+  },
+  {
+   "in": "",
+   "error": true
+  },
+  {
+   "in": "ew==",
+   "error": true
+  },
+  {
+   "in": "WzEsXQ==",
+   "error": true
+  },
+  {
+   "in": "eydhJzoxfQ==",
+   "error": true
+  },
+  {
+   "in": "MDE=",
+   "error": true
+  },
+  {
+   "in": "MS4=",
+   "error": true
+  },
+  {
+   "in": "LjU=",
+   "error": true
+  },
+  {
+   "in": "KzE=",
+   "error": true
+  },
+  {
+   "in": "TmFO",
+   "error": true
+  },
+  {
+   "in": "Igki",
+   "error": true
+  },
+  {
+   "in": "Ilx4Ig==",
+   "error": true
+  },
+  {
+   "in": "dHJ1",
+   "error": true
+  },
+  {
+   "in": "WzFdIHg=",
+   "error": true
+  },
+  {
+   "in": "Ilx1MTIi",
+   "error": true
+  },
+  {
+   "in": "LQ==",
+   "error": true
+  },
+  {
+   "in": "MWU=",
+   "error": true
+  },
+  {
+   "in": "eyJhIiAxfQ==",
+   "error": true
+  },
+  {
+   "in": "wqAx",
+   "error": true
+  },
+  {
+   "in": "Iv8i",
+   "out": "\"�\""
+  },
+  {
+   "in": "IuKCIg==",
+   "out": "\"�\""
+  },
+  {
+   "in": "Iu2ggCI=",
+   "out": "\"���\""
+  },
+  {
+   "in": "IvCfmCI=",
+   "out": "\"�\""
+  },
+  {
+   "in": "IsCvIg==",
+   "out": "\"��\""
+  },
+  {
+   "in": "IvSQgIAi",
+   "out": "\"����\""
+  },
+  {
+   "in": "IuCAgEEi",
+   "out": "\"���A\""
+  },
+  {
+   "in": "IoCAIg==",
+   "out": "\"��\""
+  }
+ ],
+ "numbers": [
+  {
+   "hex": "555555555555d53f",
+   "out": "0.3333333333333333"
+  },
+  {
+   "hex": "555555555555e53f",
+   "out": "0.6666666666666666"
+  },
+  {
+   "hex": "50efe2d6e41a4b44",
+   "out": "1e+21"
+  },
+  {
+   "hex": "8e8b14c282b0363c",
+   "out": "1.23e-18"
+  },
+  {
+   "hex": "000000000000e03f",
+   "out": "0.5"
+  },
+  {
+   "hex": "48afbc9af2d77a3e",
+   "out": "1e-7"
+  },
+  {
+   "hex": "010000000000f03f",
+   "out": "1.0000000000000002"
+  },
+  {
+   "hex": "0000000000004043",
+   "out": "9007199254740992"
+  },
+  {
+   "hex": "000000000000f043",
+   "out": "18446744073709552000"
+  },
+  {
+   "hex": "000000000000e0c1",
+   "out": "-2147483648"
+  },
+  {
+   "hex": "0000df80e774a642",
+   "out": "12345678000000"
+  }
+ ]
+}

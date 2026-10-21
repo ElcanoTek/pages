@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/shell-assets/flag/logos/elcano-mark-favicon.svg" type="image/svg+xml">
+<title>Client pages · Pages</title>
+<link rel="stylesheet" href="/shell-assets/flag/fonts/fonts.css">
+<link rel="stylesheet" href="/shell-assets/flag/tokens/design-tokens.css">
+<link rel="stylesheet" href="/shell-assets/shell.css">
+<script src="/shell-assets/flag/theme/theme-controller.js"></script>
+<script type="application/json" id="pages-bootstrap">{"admin":"ops@example.com","contentOrigin":"https://content.example.com","csrf":"csrf.tok-4","compose":true}</script>
+<script src="/shell-assets/primitives.js" defer></script>
+<script src="/shell-assets/welcome.js" defer></script>
+</head>
+<body>
+<header class="page-header">
+  <div class="ds-app-header shell-header">
+    <a class="ds-app-header__brand brand-link" href="/admin" aria-label="Pages home">
+      <img class="ds-app-header__mark" src="/shell-assets/flag/logos/elcano-mark-primary.svg" alt="">
+      <span class="ds-app-header__text">
+        <span class="ds-app-header__title">Pages</span>
+      </span>
+    </a>
+    <div class="ds-app-header__actions">
+      <span class="session-user" title="ops@example.com">ops@example.com</span>
+      <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="Switch theme" aria-pressed="false" title="Change color theme">
+        <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
+        <svg class="icon-inline theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#moon"></use></svg>
+      </button>
+      <!-- The label is hidden on narrow viewports, so the accessible name has to
+           come from aria-label or the link becomes an unnamed icon. -->
+      <a class="btn btn-ghost header-signout" href="/logout" aria-label="Sign out"><svg class="icon-inline" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#logout"></use></svg><span>Sign out</span></a>
+    </div>
+  </div>
+</header>
+<main class="shell">
+  <div class="context-bar">
+    <nav class="context-nav" aria-label="Pages sections">
+    <a class="context-tab" href="/admin" aria-current="page">Client pages</a>
+    <a class="context-tab" href="/admin/templates">Template library</a>
+    <a class="context-tab" href="/admin/portals">Partner portals</a>
+  </nav>
+  </div>
+  <div id="app" class="screen-stack">
+    <div class="state-panel state-panel--loading" role="status" aria-live="polite">
+  <span class="spinner spinner--panel" aria-hidden="true"></span>
+  <p>Loading page operations…</p>
+</div>
+  </div>
+</main>
+</body>
+</html>

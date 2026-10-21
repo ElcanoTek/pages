@@ -36,12 +36,12 @@ public/assets/flag/fonts/hack/LICENSE.md.
 https://sourcefoundry.org/hack/
 
 -------------------------------------------------------------------------------
-MCP TypeScript SDK — lib/vendor/mcp-sdk/types.js
+MCP TypeScript SDK — internal/mcpproto/envelope.go
 -------------------------------------------------------------------------------
-Protocol constants and JSON-RPC/MCP envelope schemas adapted (trimmed, CommonJS)
-from @modelcontextprotocol/sdk 1.32.1, src/types.ts.
+Protocol constants and JSON-RPC/MCP envelope schemas adapted (trimmed, ported
+to Go predicates) from @modelcontextprotocol/sdk 1.32.1, src/types.ts.
 Copyright (c) 2024 Anthropic, PBC — MIT License. The full licence text is
-bundled at lib/vendor/mcp-sdk/LICENSE.
+bundled at internal/mcpproto/LICENSE.mcp-sdk.
 https://github.com/modelcontextprotocol/typescript-sdk
 
 -------------------------------------------------------------------------------
@@ -56,9 +56,11 @@ derivative work must replace these assets with its own branding.
 -------------------------------------------------------------------------------
 Runtime dependencies
 -------------------------------------------------------------------------------
-Pages depends on npm packages that are NOT vendored into this repository; they
-are fetched by `npm ci` and each carries its own licence. See package.json for
-the declared set and `npm ls --omit=dev` / `node_modules/*/LICENSE` in an
-installed tree for the full list and texts. The production tree includes, among
-others: express, pg, pg-connection-string, ajv, ajv-formats, acorn, parse5 and
-zod. The MCP TypeScript SDK is a development dependency used only by tests.
+Pages is built with Go modules that are NOT vendored into this repository;
+they are fetched by the Go toolchain (pinned by go.sum) and compiled into the
+binary, and each carries its own licence. See go.mod for the declared set and
+`go list -m all` / the module cache for the full list and texts. The set
+includes github.com/jackc/pgx/v5 (MIT), github.com/santhosh-tekuri/jsonschema/v6
+(Apache-2.0), github.com/tdewolff/parse/v2 (MIT) and golang.org/x/{crypto,net,
+sync,text} (BSD-3-Clause). The npm packages in package.json (Playwright, axe)
+are test tooling only and are not distributed with Pages.

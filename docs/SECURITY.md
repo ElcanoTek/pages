@@ -85,8 +85,9 @@
     the lowest portal id wins, deterministically, so the answer cannot flip
     between loads.
   - **Injected, not substituted, and `#pages-nav` is Pages' id.** Nothing is
-    located or parsed on the serve path (`parse5` with source locations on a 2 MiB
-    document is ~369 ms of blocked event loop; the head splice is ~0.006 ms), and a
+    located or parsed on the serve path (a full HTML parse with source locations
+    on a 2 MiB document measured ~369 ms in the Node release; the head splice is a
+    constant-time string operation), and a
     document that ships its own copy of the block has it stripped at deploy time —
     before the content hash — so the served bytes can only ever carry ours. `<head>`
     precedes `<body>`, so `getElementById` returns ours regardless.
@@ -109,8 +110,8 @@
   whose content is derived entirely from admin-curated membership, and `themed`
   renders were already not byte-identical to their stored source.
 - **The content-host sandbox allow-list is a deliberate, minimal set.**
-  `sandbox allow-scripts allow-downloads allow-modals` (`lib/csp.js`,
-  `sandboxTokens()`). `allow-scripts` is what makes a dashboard a dashboard; the
+  `sandbox allow-scripts allow-downloads allow-modals` (`internal/csp`,
+  `SandboxTokens()`). `allow-scripts` is what makes a dashboard a dashboard; the
   other two exist because without them an "Export CSV" click produced no file
   and a "Download PDF" button was answered with Chromium's
   `Ignored call to print()` — both failing silently, in production. Neither
@@ -122,8 +123,9 @@
   it is the single token that would hand agent HTML a real origin, storage and
   cookies. `allow-popups`, `allow-forms` and `allow-top-navigation` are withheld
   as navigation/redirect surfaces; add one only against a concrete need.
-  `lib/preflight.js` reads `sandboxTokens()` directly, so authoring guidance and
-  the served header cannot drift apart.
+  The server hands preflight the live `/raw` policy value
+  (`preflight.Options.ContentPolicy`), so authoring guidance and the served
+  header cannot drift apart.
   **`script-src` grants `blob:`** (2026-09) so a document may `import()` a module
   or start a Worker from bytes it already holds. A Bento deck ships its runtime
   deflate-compressed and boots exactly this way; without the grant it died with a
@@ -138,11 +140,11 @@
   A deck is the one raw document Pages does not serve byte-for-byte: it gains a
   single head tag that removes the native file-picker API, because the sandbox
   refuses pickers and Bento's Save silently did nothing on Chrome without it
-  (`lib/render.js`, `adaptDeckToHost`). The tag is stripped again at deploy.
+  (`internal/render`, `AdaptDeckToHost`). The tag is stripped again at deploy.
 - **The deck edit session is the one response on the content host that may talk
   back to Pages — and it is a token, not a sandbox change.** `/raw/<slug>?t=<edit
   token>` serves a Bento deck with `connect-src` opened to `CONTENT_ORIGIN` alone
-  (`rawEditHeaders()`; the deck's own guard meta is widened identically for that
+  (`csp.RawEditHeaders()`; the deck's own guard meta is widened identically for that
   response and restored in stored bytes on save) and a save channel that POSTs
   the serialised deck to `/raw/<slug>/versions`. The sandbox is untouched: the
   document is still an opaque origin, so the request arrives with `Origin: null`
@@ -155,9 +157,10 @@
   non-deck body. A leaked edit URL therefore yields junk drafts in one page's
   history and nothing else. Bento's minted `collab` keys are stripped before
   storage. Pinned in `test/browser/bento-deck.spec.js` (a save posts, a failed
-  save downloads, a viewer's deck cannot connect) and `test/unit.test.js`.
+  save downloads, a viewer's deck cannot connect) and the `internal/render` and
+  `internal/csp` tests.
 - **One state machine, no backdoor.** REST, MCP, and the admin UI all route through
-  `lib/versions.js`. Every mutation runs `SELECT … FOR UPDATE` first, honors
+  `internal/versions`. Every mutation runs `SELECT … FOR UPDATE` first, honors
   optimistic concurrency (`expected_version`), and writes an `audit_log` row in the
   same transaction.
 - **Authority split.**
@@ -169,7 +172,7 @@
     **approval-gated** pages. Workspace deletion is also human-only because it changes organization
     for every member at once.
   - *Humans only, with no agent equivalent at all:* **partner portals**
-    (`lib/portals.js`). A portal is one shared client credential over a curated
+    (`internal/portals`). A portal is one shared client credential over a curated
     set of dashboards, so its membership decides which client's numbers a given
     password opens — the one question a mis-scoped or injected agent must never be
     able to answer. Every mutation asserts `actorType === "user"` first
@@ -199,7 +202,7 @@
   staff can already open every page with View live. So the admin shell can show
   the current one (Client access → Current password; a portal's Show password),
   letting staff resend it instead of rotating it and locking out everyone else at
-  the client. How that stays narrow (`lib/passwordvault.js`):
+  the client. How that stays narrow (`internal/passwordvault`):
   - `password_hash` (scrypt) is still the only thing the gate checks. Next to it,
     `password_ciphertext` holds an AES-256-GCM copy keyed by HKDF from
     `PAGE_COOKIE_SECRET`, which lives in the server environment and never in the
@@ -227,36 +230,45 @@
   with a short display prefix; independently revocable. Missing, invalid, or
   revoked credentials at `/mcp` return a standard
   `WWW-Authenticate: Bearer realm="pages"` challenge.
-- **Fail-closed secrets.** In `NODE_ENV=production`, an empty `PAGE_COOKIE_SECRET`,
-  `API_TOKEN_PEPPER`, or `RAW_TOKEN_SECRET` throws at startup (an empty signing key
-  would let anyone forge page-session/`/raw` tokens or brute token hashes offline).
+- **Fail-closed secrets.** With `PAGES_ENV=production` (the systemd unit sets it;
+  `NODE_ENV=production` is still honoured), an empty `PAGE_COOKIE_SECRET`,
+  `API_TOKEN_PEPPER`, or `RAW_TOKEN_SECRET` stops the server at startup (an empty
+  signing key would let anyone forge page-session/`/raw` tokens or brute token
+  hashes offline). The same mode refuses `PAGES_DEV_LOGIN=1` outright: the
+  unauthenticated dev-login route is not mounted in production even if the flag
+  is set.
 - **The content zone's header contract is a floor, not a per-route habit.**
-  `contentBaseHeaders()` (`lib/csp.js`) is applied as the content host's first
-  middleware, so every response Express emits on that host carries
+  `csp.ContentBaseHeaders()` is applied as the content host's first handler
+  wrapper, so every response the server emits on that host carries
   `Referrer-Policy: no-referrer`, `X-Content-Type-Options`, `X-Robots-Tag`, a
   CSP, and `Cache-Control: no-store`. Routes that render layer `rawHeaders()` or
   `gateHeaders()` on top; `/assets` widens the CSP and sets a revalidating
-  `Cache-Control` explicitly — `express.static` only supplies its own when the
-  header is absent, so relying on it would have left every asset `no-store` and
-  made each dashboard load re-download the fonts. `sandbox` covers everything that renders
+  `Cache-Control` explicitly — a static file server only supplies its own when
+  the header is absent, so relying on it would have left every asset `no-store`
+  and made each dashboard load re-download the fonts. `sandbox` covers everything that renders
   untrusted HTML — the gate pages omit it so the password form can submit, and an
   asset omits it because `default-src 'none'` already neutralises a *directly
   navigated* asset document (an SVG can carry script), which is the only case
   where a CSP on a subresource response applies at all.
   **The floor exists because per-route headers kept missing shapes nobody had
-  decided about:** the terminal 404 was bare `text/plain`; `/assets` carried only
-  `nosniff`, and the 301 `express.static` emits for a directory never ran its
-  `setHeaders` hook at all; the two `Set-Cookie` redirects that hand out a page
-  session carried nothing; `/healthz` carried nothing; the read limiter answered a
-  client's browser with a JSON error; and a thrown handler fell through to
-  Express's default error document — which outside `NODE_ENV=production` includes
-  the stack trace, on a public URL. Each was an accident of how a middleware was
-  mounted, and an exception nobody chose is one nobody can find.
-  **The honest limit:** a request Node rejects before Express sees it (a malformed
-  request line, a truncated body) is answered by the HTTP server itself and
-  carries none of this; Caddy's own header block covers that layer in production.
-  An integration test asserts the contract per response shape, and pins the asset
-  CSP and cache policy by *value* — a presence check would accept a wide-open CSP.
+  decided about** (all found in the Node release, which is why the Go server
+  wraps the whole host rather than each route): the terminal 404 was bare
+  `text/plain`; `/assets` carried only `nosniff`, and the 301 the static handler
+  emitted for a directory never ran its header hook at all; the two `Set-Cookie`
+  redirects that hand out a page session carried nothing; `/healthz` carried
+  nothing; the read limiter answered a client's browser with a JSON error; and a
+  thrown handler fell through to the framework's default error document — which
+  outside production included the stack trace, on a public URL. Each was an
+  accident of how a middleware was mounted, and an exception nobody chose is one
+  nobody can find. Today a panicking handler is recovered into the same
+  generic error page as any other 500, in every mode; no error response carries
+  a stack trace.
+  **The honest limit:** a request `net/http` rejects before any handler sees it
+  (a malformed request line, an oversized header block) is answered by the HTTP
+  server itself and carries none of this; Caddy's own header block covers that
+  layer in production. The `internal/server` and `internal/contentview` tests
+  assert the contract per response shape, and pin the asset CSP and cache policy
+  by *value* — a presence check would accept a wide-open CSP.
 - **Rate limits + DoS guards.** Per-IP limits on `/api/v1`, `/mcp`, `/raw`, and a
   strict brute-force guard on the password form, backed by a **progressive
   per-page backoff** (one shared failure counter per page across all source
@@ -276,7 +288,7 @@
   through to an HTML error page. Browser Origins default to the dashboard origin;
   exceptional origins/hosts must be added explicitly with `MCP_ALLOWED_ORIGINS`
   and `MCP_ALLOWED_HOSTS`.
-- **MCP typed tools.** `lib/mcp-protocol.js` validates each call against a strict
+- **MCP typed tools.** `internal/mcpproto` validates each call against a strict
   `inputSchema` (`additionalProperties:false`) before dispatch. Every advertised
   tool also has a title, `outputSchema`, and standard behavioral annotations;
   successful `structuredContent` is validated against that output contract and
@@ -287,28 +299,35 @@
   tells callers to fail closed on incomplete sources. Pages holds no scheduler
   or MOC credentials. The legacy-named compatibility tools are also read-only.
 - **CPU-bounded managed-data validation.** Embedded JSON Schemas compile once
-  per process (bounded LRU keyed by schema hash) instead of per call, and
-  `pattern` regexes with two catastrophic-backtracking shapes are rejected at
-  compile time — a quantifier nested inside another (`(a+)+`, `(\d+)*`), and a
-  repeated group with two identical alternatives (`(a|a)+`, 14.5 seconds of
-  blocked event loop on a 29-character non-matching input). No database timeout
-  would catch either. The screen errs conservative and keeps the delimited idiom
-  `(-[a-z0-9]+)*`, where every pass must consume a literal the inner repetition
-  cannot, so matches partition linearly.
+  per process (bounded LRU keyed by schema hash) instead of per call. A schema
+  `pattern` is parsed as the JavaScript regular expression its author wrote and
+  matched with Go's RE2 engine, which runs in linear time and cannot backtrack;
+  the few constructs RE2 cannot express (lookaround, backreferences) run in a
+  backtracking matcher with a step and depth budget, and a match that exhausts
+  the budget reports no match instead of stalling the request
+  (`internal/pagedata`, `jsregex.go`). The compile-time screen from the Node
+  release still rejects the two catastrophic-backtracking shapes it found there —
+  a quantifier nested inside another (`(a+)+`, `(\d+)*`), and a repeated group
+  with two identical alternatives (`(a|a)+`, which blocked Node's event loop for
+  14.5 seconds on a 29-character non-matching input) — because which schemas are
+  accepted is part of the contract clients see. It keeps the delimited idiom
+  `(-[a-z0-9]+)*`.
 - **Bounded staged page uploads.** Large MCP-authored HTML uses explicit upload
   handles stored in PostgreSQL, not transport sessions or server-local files.
   Handles are bearer-token-bound, expire after 24 hours of inactivity, and are
-  capped at five active/2 MiB each. Every canonical-base64 chunk is limited to
-  48 KiB by default (`PAGE_UPLOAD_MAX_CHUNK_BYTES`, hard-bounded at 1 MiB by
-  both the application clamp and a `page_content_upload_chunks` CHECK, and never
-  above what `MAX_HTML_BYTES` can carry as base64 — the default included — down to
+  capped at twenty active per token and 32 MiB each (`PAGES_UPLOAD_MAX_BYTES`,
+  hard-bounded at 64 MiB by both the application and a `page_content_uploads`
+  CHECK). Every canonical-base64 chunk is limited to 1 MiB by default
+  (`PAGE_UPLOAD_MAX_CHUNK_BYTES`, hard-bounded at 8 MiB by both the application
+  clamp and a `page_content_upload_chunks` CHECK, and never above what
+  `MAX_HTML_BYTES` can carry as base64 — the default included — down to
   a 4 KiB floor that needs `MAX_HTML_BYTES` of at least 21,848 bytes; a setting
   that is not honoured logs a startup warning) and ordered with
   idempotent sequence retries. Pages verifies the exact
   byte count, SHA-256, and UTF-8 before atomically committing the immutable
   version, pointer/audit writes, and saved retry result; committed chunks are
   deleted. An explicit token-bound cancellation frees abandoned active uploads
-  without touching a page/version; when a caller is *at* the five-upload cap, a
+  without touching a page/version; when a caller is *at* the active-upload cap, a
   fresh `start_page_upload` first reaps only that caller's own uploads that have
   been idle for an hour, so an abandoned turn cannot hold the cap for a day
   while an in-flight upload is never destroyed underneath its owner. Broad
@@ -325,7 +344,7 @@
   so the only byte string it will ever accept is the one already committed to;
   bound to one `upload_id`; spent on first use, with a re-send of the identical
   document treated as an idempotent no-op; and expiring in
-  `PAGE_UPLOAD_TICKET_TTL_MINUTES` (15). Stored as
+  `PAGE_UPLOAD_TICKET_TTL_MINUTES` (60). Stored as
   `HMAC-SHA256(ticket, API_TOKEN_PEPPER)` like an `api_tokens` row, looked up by
   hash, with one non-revealing 401 for a wrong, unknown, foreign, or expired
   ticket. The endpoint sits behind the same per-IP limiter as `/api/v1` and
@@ -341,7 +360,7 @@
   - **Read-only and version-pinned.** GET/HEAD of three derived JSON documents
     for the page id and immutable version id that were live at mint time. An
     append-only version cannot change underneath a URL.
-  - **10 minutes** (`EXPORT_TTL_SECONDS`).
+  - **10 minutes** (`dataexport.ExportTTLSeconds`).
   - **Never wider than its minting token.** Every fetch re-reads the minting
     `api_tokens` row: a revoked token, or a `data_update` token whose grant no
     longer holds that page, fails. So does a deleted page.
@@ -359,13 +378,17 @@
   - **Visible where URLs are logged.** Like `/upload/<ticket>`, the token is in
     the request path, so it sits in the model transcript and in the dashboard
     site's Caddy access log (journald on the host) for its 10-minute life.
-- **Deploy-time preflight is advisory, never a gate.** `lib/preflight.js`
+- **Deploy-time preflight is advisory, never a gate.** `internal/preflight`
   statically checks each deployed document against the exact CSP/sandbox it will
-  be served under and returns findings on the deploy result. It parses with
-  `parse5` and syntax-checks inline classic scripts with `node:vm`'s **compile-only**
-  path and modules with Acorn (no evaluation or import resolution, bounded to
-  1 MiB per script). It cannot block a publish —
+  be served under and returns findings on the deploy result. It tokenizes with
+  `golang.org/x/net/html` and syntax-checks inline classic scripts and modules
+  with a **parse-only** JavaScript grammar (`github.com/tdewolff/parse/v2/js`: no
+  evaluation path exists, no import resolution, recursion and bracket nesting
+  bounded, 8 MiB per script). It cannot block a publish —
   humans own that, and a false positive must never be able to wedge an agent.
+  Known parser differences, all on legacy sloppy-mode syntax: legacy octal
+  literals (`010`), `await` as an identifier in a classic script, and Annex B
+  function declarations as an `if` body are reported as syntax errors.
 
 ## Known follow-ups (ranked)
 
@@ -383,24 +406,21 @@
    set a password it controls and then read that page on the content host. The
    silent-lockout half (clearing) is already closed (admin-only); this half is
    fully mitigated only by token scoping (#1). Every password mutation is audited.
-3. **The ReDoS screen covers accidents, not a hostile author, and misses the
-   bounded-outer shape.** Two gaps, both measured:
-   - It compares alternation branches as *source text*, so `(a|[a])+`,
-     `((a)|(a))+` and `(a|(b|b))+` are accepted and each still blocks for 14–21
-     seconds. Anyone who can write a schema can write one of those.
-   - A bounded outer repetition around an unbounded inner one — `(.*a){20}`
-     (12.9s), `(a{1,10})*` (10.9s), `(\d+){5}` (15.4s at n=150) — is not
-     screened. The obvious fix (treat any `{n,m}` with max>1 as a repetition)
-     was implemented, measured, and reverted: it also files a *bounded* inner
-     quantifier as unbounded and so rejects the grouped-repetition idiom every
-     real id format uses — IPv4, IPv6, MAC, UUID, semver, cron, time ranges.
-     Nineteen false positives, none catastrophic; a client schema that stops
-     compiling breaks their dashboard.
-   **Plan:** separate "this group repeats" from "this atom is an unbounded inner
-   quantifier", and extend the delimiter proof to trailing literals and
-   complementary classes, so `(.*a){20}` can be told from `(\d{1,3}\.){3}`.
-   Until then a `pattern` is authored by whoever writes the page's schema, which
-   today is an Elcano agent, not the client.
+3. **The ReDoS screen is now a compatibility rule, and its gaps only matter on
+   the bounded path.** The Node release measured shapes its screen misses —
+   alternation compared as *source text* (`(a|[a])+`, `((a)|(a))+`, 14–21
+   seconds) and a bounded outer repetition around an unbounded inner one
+   (`(.*a){20}`, `(a{1,10})*`, `(\d+){5}`, 10–15 seconds). Every one of those is
+   expressible in RE2, so the Go server matches them in linear time. What
+   remains is the backtracking fallback for lookaround and backreferences: it is
+   bounded by a step budget, so a hostile pattern costs at most that budget per
+   value validated and then reads as "no match", failing validation rather than
+   hanging. **Plan:** measure the budget's worst case against
+   `PAGES_DATA_MAX_BYTES`-sized payloads, and decide whether the screen should
+   relax now that it no longer guards the engine (a relaxed screen accepts
+   schemas older releases refused, so it is a contract change). A `pattern` is
+   authored by whoever writes the page's schema, which today is an Elcano agent,
+   not the client.
 4. **The `session` broker token is not single-use.** It is a 120-second bearer
    value carried in a query string, so for that window it sits in the content
    host's proxy access log and the browser's redirect chain, and it is worth a
@@ -429,12 +449,15 @@ Actions written to `audit_log`:
   `set_portal_password`, `reveal_portal_password`, `add_portal_page`, `update_portal_page`,
   `remove_portal_page`, `set_portal_home`, `delete_portal`.
 
-Those bullets are the machine-checked part: a unit test compares them against the
-`action:` literals in `lib/` in both directions, because the list had already
-drifted by six actions (the whole template and config set) before the test
-existed. Keep prose out of the bullets so the comparison stays exact. The three
-actions movePointer receives as an argument (publish, rollback, approve) are named
-in the test explicitly, since no grep of a call site can see them.
+Those bullets are machine-checked: `TestAuditVocabularyIsDocumented`
+(`internal/audit/vocabulary_test.go`) parses every non-test Go file under
+`internal/` and fails unless the actions the server writes — `Action:` field
+literals, literals assigned to an `action` variable, and literals passed as a
+function's `action` parameter (which is how the pointer move receives publish,
+rollback and approve) — match these bullets in both directions. The list had
+already drifted by six actions (the whole template and config set) before a
+test compared them. Keep prose out of the bullets so the comparison stays
+exact.
 
 Portal-level rows carry the portal identity in metadata with a null page id; the
 three membership actions carry the page id as well, so "who exposed this page, and

@@ -19,9 +19,9 @@ suspected vulnerability. A public report starts a clock we cannot control.
 Include as much of the following as you have:
 
 - What you found, and what an attacker gets out of it.
-- The affected component — a file path (`lib/rawtoken.js`, `lib/csp.js`, …), a
-  route, or an MCP tool name.
-- Reproduction steps against a local `scripts/dev.sh` instance, ideally with the
+- The affected component — a package or file path (`internal/rawtoken`,
+  `internal/csp`, …), a route, or an MCP tool name.
+- Reproduction steps against a local `pages dev` instance, ideally with the
   commit SHA you tested.
 - Whether you believe it is remotely exploitable, and by whom (anonymous
   internet, a password-holding client, a partner-portal holder, a bearer-token
@@ -75,15 +75,16 @@ quiet indefinitely.
   content, deleting a version, or moving the live pointer outside the state
   machine.
 - SQL injection, authentication bypass, SSRF, or path traversal anywhere in
-  `lib/`, `server.js`, `migrations/`, or the MCP tool surface.
+  `internal/`, `cmd/`, `migrations/`, or the MCP tool surface.
 - Denial of service that a single unauthenticated request can trigger:
   unbounded CPU in schema/regex validation, unbounded memory in upload or
   render paths, exhausting the database pool.
 - Secrets leaking into logs, error pages, audit rows, `pages env` output, or
   MCP tool responses.
-- The deploy path in `scripts/` and `deploy/` — privilege escalation from the
-  `pages` service user, a world-readable secret, an unsafe systemd or Caddy
-  directive.
+- The deploy path — `pages bootstrap`, `pages update`, `pages backup` and the
+  other operator verbs (`internal/ops`, `internal/cli`), `install.sh`,
+  `scripts/` and `deploy/` — privilege escalation from the `pages` service
+  user, a world-readable secret, an unsafe systemd or Caddy directive.
 
 **Out of scope:**
 
@@ -111,7 +112,7 @@ quiet indefinitely.
 
 ## Testing guidance
 
-Test against your own local instance (`sudo bash scripts/dev.sh`), not against
+Test against your own local instance (`./pages dev`), not against
 any deployment you do not own. Do not test against `pages.elcanotek.com` or
 `elcano-pages.com`. Never use real client data, and do not attempt to access,
 modify or exfiltrate anyone else's data — if you believe you *could*, describe

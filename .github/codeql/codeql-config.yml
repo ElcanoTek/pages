@@ -1,0 +1,9 @@
+# CodeQL configuration for .github/workflows/codeql.yml (default queries).
+name: Pages CodeQL config
+
+paths-ignore:
+  # A byte-for-byte Node-era backup archive (written by the last Node
+  # release's scripts/backup.js) that internal/ops/backup restores in its
+  # legacy-format test. Its application/server.js is archived data, never run
+  # or served, and cannot be edited without breaking the archive's manifest.
+  - internal/ops/backup/testdata/nodeera

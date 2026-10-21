@@ -9,65 +9,140 @@ permissions:
   contents: read
 
 # A newer push to the same PR supersedes its running check. Every other event
-# (each push to main, the schedule) gets its own per-commit group, so no main
-# commit is skipped by a later push replacing its pending run.
+# (each push to main) gets its own per-commit group, so no main commit is
+# skipped by a later push replacing its pending run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  test:
-    # The matrix is the supported range, not a pin: its ends are package.json's
-    # `engines.node` floors (^20.19.0 || >=22.12.0), plus the newest LTS major.
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [20.19.0, 22.12.0, 24]
+  go:
+    name: Go (build, vet, lint, test)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Pulled through Google's Docker Hub mirror, not docker.io: anonymous
+        # Docker Hub pull limits have failed whole runs before any step ran.
+        # Production boxes run PostgreSQL 16 (Fedora's postgresql-server).
+        image: mirror.gcr.io/library/postgres:16
+        env:
+          POSTGRES_USER: pages
+          POSTGRES_PASSWORD: pages
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pages"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # internal/testdb creates one throwaway database per test from here, and
+      # REQUIRE turns "no Postgres" from a skip into a failure, so a green run
+      # always means the database suites ran.
+      PAGES_TEST_DATABASE_URL: postgres://pages:pages@localhost:5432/postgres?sslmode=disable
+      PAGES_TEST_REQUIRE_DB: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # go.mod is the one declaration of the toolchain.
+          go-version-file: go.mod
+          check-latest: true
+      - name: Build
+        run: make build
+      - name: Vet
+        run: go vet ./...
+      - name: Format
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: Lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+      - name: Install PostgreSQL 16 tools (pg_dump and initdb for the backup rehearsal and dev cluster tests)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-16 postgresql-client-16 >/dev/null
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+      - name: Test (race)
+        run: go test -race -count=1 ./...
+      - name: Dependency CVE scan
+        # v1.1.4's x/tools cannot build SSA for the Go 1.27 standard library.
+        # GOTOOLCHAIN pins the module's toolchain: `go run pkg@version` would
+        # otherwise build with whatever govulncheck's own go.mod asks for.
+        run: GOTOOLCHAIN="$(go env GOVERSION)" go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+  browser:
+    name: Browser (front end, Playwright, accessibility)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
           cache: npm
       - run: npm ci
-      - name: Dependency audit (production)
-        # Fail on HIGH/CRITICAL advisories in the production tree. This once
-        # carried a note about two accepted moderates in @hono/node-server,
-        # bundled by the MCP SDK. The SDK (and hono with it) has since left the
-        # production tree entirely — /mcp is served in-house and the SDK is a
-        # test-only devDependency — and the tree audits clean at every level.
-        #
-        # The threshold stays at `high` deliberately, as a policy rather than a
-        # workaround for those two: a moderate in a transitive dependency should
-        # be read and judged, not made to block every unrelated PR the moment it
-        # is published. Tighten this to `moderate` if that trade stops being the
-        # right one — the tree is clean today, so it would cost nothing now.
-        run: npm audit --omit=dev --audit-level=high
-      - name: Unit tests
-        run: npm test
-      - name: Shell syntax check
-        run: |
-          for f in install.sh scripts/*.sh test/*.sh deploy/pages-cli; do
-            bash -n "$f"
-          done
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: Front-end unit tests
+        run: node --test test/frontend.test.js
+      - name: Build the fixture server
+        run: make build
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Browser accessibility and workflow tests
-        run: npm run test:browser
+        run: npx playwright test
       - name: Upload browser report on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report-${{ matrix.node }}
+          name: playwright-report
           path: |
             playwright-report
             test-results
           retention-days: 7
-      - name: Integration suite
-        # Runs as the unprivileged runner user — exercises the non-root
-        # provisioning path (a throwaway cluster via the preinstalled PG 16).
-        run: bash test/run-integration.sh
+
+  shell:
+    name: Shell scripts and workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Workflow lint (actionlint)
+        # A workflow file GitHub cannot parse fails before any job starts and
+        # reports no checks at all, so lint every workflow here.
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+      - name: Syntax and shellcheck
+        run: |
+          shopt -s nullglob
+          files=(install.sh scripts/*.sh scripts/lib/*.sh)
+          for f in "${files[@]}"; do bash -n "$f"; done
+          shellcheck -S warning "${files[@]}"
+
+  # The single required status check: it needs every other job and always
+  # reports, so branch protection names one stable check.
+  gate:
+    name: CI gate
+    if: always()
+    needs: [go, browser, shell]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed
+        run: |
+          [[ "${{ needs.go.result }}" == success && "${{ needs.browser.result }}" == success && "${{ needs.shell.result }}" == success ]]

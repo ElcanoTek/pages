@@ -1,8 +1,11 @@
 # templates/
 
 The page templates this deployment ships. `pages template sync` registers every
-one of them, and `pages update` runs that automatically after the health check —
+one of them, and `pages update` runs that automatically once the new release passes its readiness check —
 so shipping a design fix is a git push and a deploy.
+
+The `pages` binary embeds this directory, so a bare `pages template sync`
+registers exactly the tree its release was built from.
 
 Full contract: **[../docs/TEMPLATES.md](../docs/TEMPLATES.md)**.
 
