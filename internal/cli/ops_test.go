@@ -106,7 +106,8 @@ func TestPreflightRefusesMissingProductionSecrets(t *testing.T) {
 	if err := Preflight(); err == nil {
 		t.Fatal("an unparseable DATABASE_URL must fail preflight")
 	}
-	defer func() { PreflightChecks = nil }()
+	saved := PreflightChecks
+	defer func() { PreflightChecks = saved }()
 	t.Setenv("DATABASE_URL", "")
 	PreflightChecks = append(PreflightChecks, func() error { return errors.New("server says no") })
 	if err := Preflight(); err == nil || err.Error() != "server says no" {
