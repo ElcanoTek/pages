@@ -205,8 +205,8 @@ a script on `content.example.com` can write a cookie with
 `Domain=.example.com` and have it sent to `pages.example.com`. That is cookie
 tossing, and it would let agent HTML forge session state on the trusted host.
 `SameSite` does not help; both names are the same site. So a deployment needs
-**two registered domains**. `pages bootstrap` warns if they share a parent
-(and `pages doctor` fails), and that warning should stop you.
+**two registered domains**. `pages bootstrap` refuses to configure hostnames
+that share a registrable domain, and `pages doctor` fails on them.
 
 The content host serves agent HTML under `sandbox allow-scripts allow-downloads
 allow-modals`. `allow-same-origin` is never added: combined with

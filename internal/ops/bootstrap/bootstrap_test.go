@@ -239,14 +239,19 @@ func TestBootstrapStopsOnBadInputs(t *testing.T) {
 			}
 		})
 	}
+	// Same-site hostnames are a hard stop before the environment file is
+	// written or the service is started.
 	b := newBox(t)
 	b.env["PAGES_BOOTSTRAP_CONTENT_HOST"] = "cdn.pages.contoso.example"
 	b.env["PAGES_BOOTSTRAP_SETUP_CADDY"] = "n"
-	if err := b.run(t); err != nil {
-		t.Fatal(err)
+	if err := b.run(t); err == nil || !strings.Contains(err.Error(), "shares the registrable domain contoso.example") {
+		t.Fatalf("same-site hostnames: %v\n%s", err, b.out.String())
 	}
-	if !strings.Contains(b.out.String(), "shares the registrable domain contoso.example") {
-		t.Fatal(b.out.String())
+	if _, err := os.Stat(b.settings.EnvFile); !os.IsNotExist(err) {
+		t.Fatalf("environment file written for same-site hostnames: %v", err)
+	}
+	if strings.Contains(b.fake.Log(), "systemctl restart pages.service") || strings.Contains(b.fake.Log(), "systemctl enable") {
+		t.Fatalf("service activated for same-site hostnames:\n%s", b.fake.Log())
 	}
 	// An existing URL whose password cannot be reused stops before the role is touched.
 	b = newBox(t)
@@ -290,5 +295,29 @@ func TestBootstrapStopsOnServiceManagerFailures(t *testing.T) {
 				t.Fatalf("pages.service restarted after %s failed:\n%s", tc.cmd, b.fake.Log())
 			}
 		})
+	}
+}
+
+// A rerun over an active release another account could have replaced stops:
+// root runs that binary, so bootstrap neither keeps nor starts it.
+func TestBootstrapRejectsUntrustedActiveRelease(t *testing.T) {
+	b := newBox(t)
+	if err := b.run(t); err != nil {
+		t.Fatalf("%v\n%s", err, b.out.String())
+	}
+	bin, err := filepath.EvalSymlinks(filepath.Join(b.settings.AppDir, install.BinaryName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(bin, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	before := len(b.fake.Log())
+	err = b.run(t)
+	if err == nil || !strings.Contains(err.Error(), "can be changed by an account other than root") || !strings.Contains(err.Error(), "scripts/bootstrap.sh") {
+		t.Fatalf("untrusted active release: %v\n%s", err, b.out.String())
+	}
+	if rerun := b.fake.Log()[before:]; strings.Contains(rerun, "systemctl restart pages.service") {
+		t.Fatalf("pages.service restarted on an untrusted release:\n%s", rerun)
 	}
 }

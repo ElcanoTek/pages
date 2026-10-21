@@ -53,15 +53,14 @@ are the same site.
 So you need to **register and pay for two domains**. If you only own one, do not
 deploy Pages to serve anything you care about.
 
-`pages bootstrap` checks for this against the public suffix list and warns:
+`pages bootstrap` checks for this against the public suffix list and stops
+before it writes the environment file or starts anything:
 
 ```
-! CONTENT_HOST (content.example.com) shares the registrable domain example.com with DASHBOARD_HOST (pages.example.com).
-! That defeats the isolation model (cookie-tossing). Use a different eTLD+1. Continuing, but fix before production.
+✗ CONTENT_HOST (content.example.com) shares the registrable domain example.com with DASHBOARD_HOST (pages.example.com) — that defeats the isolation model (cookie tossing). Use a content hostname on a different registrable domain (eTLD+1).
 ```
 
-It is a warning, not a hard stop. Do not continue past it. `pages doctor`
-reports the same condition as a failure.
+`pages doctor` reports the same condition as a failure.
 
 ### DNS
 
@@ -830,7 +829,12 @@ source checkout's `deploy/motd` when it differs; bootstrap installs it on every
 run, replacing whatever the image shipped.
 Rerunning bootstrap on this release layout refreshes instance configuration,
 service/CLI and Caddy settings while preserving the active code release; use
-`pages update` or `pages rebuild` to change code.
+`pages update` or `pages rebuild` to change code. If the active release's
+binary (or a directory above it) is not root's alone, bootstrap stops instead:
+root runs that binary, including as `pages update`, so do not run it. Remove
+the application link (`sudo rm /opt/pages`) and re-run
+`sudo bash scripts/bootstrap.sh` from the root-owned checkout, which installs
+a fresh root-owned release built from that checkout.
 
 ## 11. Rollback
 

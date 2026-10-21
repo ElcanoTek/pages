@@ -225,8 +225,11 @@ func (r *run) release(ctx context.Context) error {
 		root, _ := filepath.EvalSymlinks(s.ReleaseRoot())
 		if root != "" && strings.HasPrefix(target, root+"/") && exists(filepath.Join(target, install.BinaryName)) {
 			log.Info("release-managed installation: preserving active release; use pages update to change code")
+			// Root runs the active binary (the CLI links to it), so one
+			// another account could have replaced is not run or kept; nor
+			// is `pages update` the remedy, since it is that same binary.
 			if _, err := install.TrustedFile(filepath.Join(target, install.BinaryName)); err != nil {
-				log.Warn("the active release can be changed by an account other than root (" + err.Error() + "); root runs it — reinstall it root-owned with pages update")
+				return die("the active release %s can be changed by an account other than root (%v), and root runs it — do not run it: remove the %s link (sudo rm %s) and re-run sudo bash scripts/bootstrap.sh from a root-owned checkout to install a fresh root-owned release", target, err, s.AppDir, s.AppDir)
 			}
 			return nil
 		}
@@ -399,9 +402,10 @@ func (r *run) configure(ctx context.Context) error {
 	if content == "" {
 		return die("CONTENT_HOST is required — it MUST be a different registrable domain from the dashboard (PLAN.md §7).")
 	}
+	// A hard stop, before anything is written: a shared registrable domain
+	// lets agent HTML toss cookies onto the trusted host (PLAN.md §7).
 	if psl.SameSite(dashboard, content) {
-		log.Warn(fmt.Sprintf("CONTENT_HOST (%s) shares the registrable domain %s with DASHBOARD_HOST (%s).", content, psl.RegistrableDomain(content), dashboard))
-		log.Warn("That defeats the isolation model (cookie-tossing). Use a different eTLD+1. Continuing, but fix before production.")
+		return die("CONTENT_HOST (%s) shares the registrable domain %s with DASHBOARD_HOST (%s) — that defeats the isolation model (cookie tossing). Use a content hostname on a different registrable domain (eTLD+1).", content, psl.RegistrableDomain(content), dashboard)
 	}
 	r.vars["DASHBOARD_HOST"], r.vars["CONTENT_HOST"], r.vars["AUTH_SIGNING_PUBKEY"] = dashboard, content, pub
 
