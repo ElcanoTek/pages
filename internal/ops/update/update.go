@@ -196,10 +196,15 @@ func checkGitConfig(gitDir string) error {
 	if err != nil {
 		return err
 	}
-	// Join backslash-continued lines the way Git's config parser does before
-	// scanning sections and keys.
+	// Do not globally join backslash-newlines before parsing comments: in Git's
+	// config syntax a '#' or ';' comment ends at the physical newline even if
+	// it ends with '\', whereas backslash-newlines inside values continue to
+	// the next line. Refusing backslash-continued lines outright avoids any
+	// parser discrepancy on a plain clone's .git/config.
 	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
-	text = strings.ReplaceAll(text, "\\\n", "")
+	if strings.ContainsRune(text, 0) || strings.Contains(text, "\\\n") || strings.Contains(text, "\\\r") {
+		return errors.New("disallowed line continuation or NUL in .git/config")
+	}
 	section := ""
 	for i := 0; i < len(text); {
 		for i < len(text) && (text[i] == ' ' || text[i] == '\t' || text[i] == '\n') {
@@ -222,9 +227,10 @@ func checkGitConfig(gitDir string) error {
 					i += 2
 					continue
 				}
-				if text[i] == '"' {
+				switch text[i] {
+				case '"':
 					inQuote = !inQuote
-				} else if text[i] == '\n' {
+				case '\n':
 					return errors.New("malformed section header in .git/config")
 				}
 				i++

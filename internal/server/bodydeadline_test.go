@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,5 +107,32 @@ func TestIgnoredBodyDrainHitsReadDeadline(t *testing.T) {
 		if elapsed := time.Since(start); elapsed > 3*time.Second {
 			t.Fatalf("%s %s: connection stayed open for %v", c.method, c.path, elapsed)
 		}
+	}
+
+	// A chunked request that exceeds the parser's limit (triggering 413
+	// before EOF) and then stalls without sending the final 0-length chunk
+	// must also hit BodyReadBase during WriteHeader's unread-body drain.
+	conn, err := net.Dial("tcp", e.srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	payload := strings.Repeat("a", 65537)
+	fmt.Fprintf(conn, "POST /nope HTTP/1.1\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded\r\nTransfer-Encoding: chunked\r\n\r\n%x\r\n%s\r\n", dashHost, len(payload), payload)
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	br := bufio.NewReader(conn)
+	res, err := http.ReadResponse(br, nil)
+	if err != nil {
+		conn.Close()
+		t.Fatalf("chunked 413: read response: %v", err)
+	}
+	_, _ = io.ReadAll(res.Body)
+	res.Body.Close()
+	conn.Close()
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("chunked 413 = %d, want 413", res.StatusCode)
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("chunked 413 answered after %v", elapsed)
 	}
 }

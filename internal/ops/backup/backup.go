@@ -312,11 +312,11 @@ type copyBudget struct {
 	bytes        int64
 }
 
-func (b *copyBudget) takeEntry() error {
-	if b == nil {
+func (b *copyBudget) takeEntries(n int) error {
+	if b == nil || n <= 0 {
 		return nil
 	}
-	b.files++
+	b.files += n
 	if b.maxFiles > 0 && b.files > b.maxFiles {
 		return fmt.Errorf("backup exceeds snapshot file limit (%d entries)", b.maxFiles)
 	}
@@ -332,11 +332,12 @@ func (b *copyBudget) takeBytes(size int64, targetDir string) error {
 	}
 	if b.minFreeBytes > 0 {
 		var st syscall.Statfs_t
-		if err := syscall.Statfs(targetDir, &st); err == nil {
-			avail := st.Bavail * uint64(max(st.Bsize, 0))
-			if avail < uint64(size)+b.minFreeBytes {
-				return fmt.Errorf("insufficient free space for check-integrity snapshot (%d bytes available)", avail)
-			}
+		if err := syscall.Statfs(targetDir, &st); err != nil {
+			return fmt.Errorf("check snapshot free space: %w", err)
+		}
+		avail := st.Bavail * uint64(max(st.Bsize, 0))
+		if avail < uint64(size)+b.minFreeBytes {
+			return fmt.Errorf("insufficient free space for check-integrity snapshot (%d bytes available)", avail)
 		}
 	}
 	b.bytes += size
@@ -374,8 +375,25 @@ func copyTreeBounded(ctx context.Context, source, target string, exclude map[str
 // directory and opening its entries: the window another account races.
 var afterListing func(dir string)
 
+func readDirBounded(dir *os.File, budget *copyBudget) ([]os.DirEntry, error) {
+	var entries []os.DirEntry
+	for {
+		batch, err := dir.ReadDir(1024)
+		if berr := budget.takeEntries(len(batch)); berr != nil {
+			return nil, berr
+		}
+		entries = append(entries, batch...)
+		if errors.Is(err, io.EOF) {
+			return entries, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+}
+
 func copyDir(ctx context.Context, dir *os.File, target string, exclude map[string]bool, budget *copyBudget) error {
-	entries, err := dir.ReadDir(-1)
+	entries, err := readDirBounded(dir, budget)
 	if err != nil {
 		return err
 	}
@@ -389,9 +407,6 @@ func copyDir(ctx context.Context, dir *os.File, target string, exclude map[strin
 		}
 		if exclude[e.Name()] {
 			continue
-		}
-		if err := budget.takeEntry(); err != nil {
-			return err
 		}
 		from, to := filepath.Join(dir.Name(), e.Name()), filepath.Join(target, e.Name())
 		if !e.IsDir() && !e.Type().IsRegular() {

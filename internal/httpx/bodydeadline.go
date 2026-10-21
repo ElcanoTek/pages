@@ -5,6 +5,7 @@ package httpx
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 )
@@ -30,7 +31,21 @@ type bodyCtlKey struct{}
 
 type bodyControl struct {
 	rc      *http.ResponseController
+	eof     bool
 	expired bool
+}
+
+type eofTrackingBody struct {
+	io.ReadCloser
+	ctl *bodyControl
+}
+
+func (b *eofTrackingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err == io.EOF {
+		b.ctl.eof = true
+	}
+	return n, err
 }
 
 func hasRequestBody(r *http.Request) bool {
@@ -42,28 +57,31 @@ func hasRequestBody(r *http.Request) bool {
 
 // WithBodyReadControl records w's ResponseController on r's context so body
 // readers deeper in the stack (which see only the request) can arm a read
-// deadline on the underlying connection. When r declares a body, it also arms
-// a baseline BodyReadBase deadline immediately so routes that reject or ignore
-// the body without calling a parser cannot leave net/http's post-handler body
-// drain unbounded. The server's root handler calls it with the connection's
-// own ResponseWriter and defers BoundUnreadBody(r).
+// deadline on the underlying connection. When r declares a body, it also wraps
+// r.Body to track EOF and arms a baseline BodyReadBase deadline immediately so
+// routes that reject or ignore the body without calling a parser cannot leave
+// net/http's unread-body drain unbounded. The server's root handler calls it
+// with the connection's own ResponseWriter and defers BoundUnreadBody(r).
 func WithBodyReadControl(w http.ResponseWriter, r *http.Request) *http.Request {
 	ctl := &bodyControl{rc: http.NewResponseController(w)}
+	r = r.WithContext(context.WithValue(r.Context(), bodyCtlKey{}, ctl))
 	if hasRequestBody(r) {
+		r.Body = &eofTrackingBody{ReadCloser: r.Body, ctl: ctl}
 		_ = ctl.rc.SetReadDeadline(time.Now().Add(BodyReadBase))
+	} else {
+		ctl.eof = true
 	}
-	return r.WithContext(context.WithValue(r.Context(), bodyCtlKey{}, ctl))
+	return r
 }
 
 // BoundUnreadBody ensures a baseline read deadline is armed when ServeHTTP
-// returns on a request with a body, bounding net/http's post-handler drain of
-// any unread body bytes (for example after a 413 early return where disarm
-// cleared the read deadline, or a route that never read r.Body). When a body
-// reader's deadline already expired, the expired deadline is left in place so
-// the drain fails immediately.
+// returns on a request whose body has not reached EOF, bounding net/http's
+// post-handler drain of any unread body bytes. When a body reader's deadline
+// already expired, the expired deadline is left in place so the drain fails
+// immediately.
 func BoundUnreadBody(r *http.Request) {
 	ctl, _ := r.Context().Value(bodyCtlKey{}).(*bodyControl)
-	if ctl == nil || ctl.expired || !hasRequestBody(r) {
+	if ctl == nil || ctl.expired || ctl.eof || !hasRequestBody(r) {
 		return
 	}
 	_ = ctl.rc.SetReadDeadline(time.Now().Add(BodyReadBase))
@@ -90,13 +108,14 @@ func BodyReadTimeout(n int64) time.Duration {
 
 // ArmBodyReadDeadline sets a read deadline on r's connection sized for a body
 // of at most limit bytes (or the declared Content-Length, when smaller) and
-// returns the function that clears it again; callers defer it around their
-// read. Once the deadline has passed the clear is skipped: the body is then
-// incomplete, and net/http's post-handler drain of the unread remainder must
-// fail fast too (so the connection is closed) rather than block on the same
-// stalled client. It is a no-op when the request carries no
-// ResponseController (WithBodyReadControl did not run) or the writer does not
-// support deadlines (httptest.ResponseRecorder).
+// returns the function that clears or re-bounds it; callers defer it around
+// their read. When the body was read to EOF before the deadline, disarm clears
+// the read deadline so long streaming responses are unaffected. When the body
+// reader stops early before EOF (for example on a 413 after limit+1 bytes,
+// before WriteHeader drains unread request data), disarm restores the baseline
+// BodyReadBase deadline so that drain cannot block indefinitely. Once the
+// deadline has passed the clear is skipped: the body is then incomplete, and
+// net/http's drain of the unread remainder must fail fast too.
 func ArmBodyReadDeadline(r *http.Request, limit int64) (disarm func()) {
 	ctl, _ := r.Context().Value(bodyCtlKey{}).(*bodyControl)
 	if ctl == nil || ctl.rc == nil {
@@ -111,10 +130,14 @@ func ArmBodyReadDeadline(r *http.Request, limit int64) (disarm func()) {
 		return func() {}
 	}
 	return func() {
-		if time.Now().Before(deadline) {
+		if !time.Now().Before(deadline) {
+			ctl.expired = true
+			return
+		}
+		if ctl.eof {
 			_ = ctl.rc.SetReadDeadline(time.Time{})
 		} else {
-			ctl.expired = true
+			_ = ctl.rc.SetReadDeadline(time.Now().Add(BodyReadBase))
 		}
 	}
 }
