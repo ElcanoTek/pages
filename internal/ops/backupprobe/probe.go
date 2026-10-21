@@ -375,7 +375,8 @@ func httpProbes(ctx context.Context, pool *pgxpool.Pool, s *server, res *Result)
 	}
 	rawToken, pageSession, portalSession := minters()
 
-	rows, err := pool.Query(ctx, `SELECT p.id, p.slug, p.disabled, p.deleted_at IS NOT NULL, p.password_hash, p.published_version_id IS NOT NULL FROM pages p
+	rows, err := pool.Query(ctx, `SELECT p.id, p.slug, p.disabled, p.deleted_at IS NOT NULL, p.password_hash, p.published_version_id IS NOT NULL,
+    EXISTS (SELECT 1 FROM page_portal_members m JOIN page_portals pp ON pp.id = m.portal_id WHERE m.page_id = p.id AND pp.deleted_at IS NULL) FROM pages p
     WHERE p.deleted_at IS NULL OR NOT EXISTS (SELECT 1 FROM pages live WHERE live.slug=p.slug AND live.deleted_at IS NULL)
     ORDER BY (p.deleted_at IS NULL AND NOT p.disabled AND p.published_version_id IS NOT NULL) DESC, p.id LIMIT 5`)
 	if err != nil {
@@ -386,11 +387,12 @@ func httpProbes(ctx context.Context, pool *pgxpool.Pool, s *server, res *Result)
 		slug                       string
 		disabled, deleted, publish bool
 		hash                       *string
+		inPortal                   bool
 	}
 	var pages []page
 	for rows.Next() {
 		var p page
-		if err := rows.Scan(&p.id, &p.slug, &p.disabled, &p.deleted, &p.hash, &p.publish); err != nil {
+		if err := rows.Scan(&p.id, &p.slug, &p.disabled, &p.deleted, &p.hash, &p.publish, &p.inPortal); err != nil {
 			rows.Close()
 			return err
 		}
@@ -404,6 +406,10 @@ func httpProbes(ctx context.Context, pool *pgxpool.Pool, s *server, res *Result)
 			expected = 404
 		case p.hash != nil:
 			expected = 200
+		case p.inPortal:
+			// No page password, but a live portal holds it: the content host
+			// answers with the portal's password gate (401), not "not shared".
+			expected = 401
 		}
 		cookie := ""
 		if p.hash != nil {
