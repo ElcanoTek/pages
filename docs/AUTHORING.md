@@ -191,8 +191,10 @@ Agents do not use this channel — `deploy_page_upload` is theirs, and it is the
 same state machine underneath.
 
 The boot mechanism is pinned by `test/browser/bento-deck.spec.js` with a
-synthetic deck. `node test/manual/bento-deck-check.js Deck.bento.html` runs the
-same probes against a real one — run it when the deck runtime is upgraded.
+synthetic deck. `test/browser/bento-deck-real.spec.js` runs the same probes
+against a real one — run it when the deck runtime is upgraded:
+`PAGES_FIXTURE_BENTO_DECK=Deck.bento.html npx playwright test bento-deck-real`
+(it skips when the variable is unset).
 
 ## Giving a partner a menu of their other dashboards
 

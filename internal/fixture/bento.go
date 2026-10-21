@@ -20,7 +20,7 @@ import (
 // the bootstrap below is that code, copied from an upstream v1.0.18 deck. That
 // mechanism is the part Pages has to get right — the blob: grant in the raw
 // headers and the verbatim, no-switcher render — and it is testable without
-// vendoring the app. test/manual/bento-deck-check.js runs the same probes
+// vendoring the app. test/browser/bento-deck-real.spec.js runs the same probes
 // against a real deck.
 const bentoBootstrap = `(async () => {
   var fail = function (msg) {

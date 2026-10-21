@@ -29,6 +29,7 @@ func (a *App) buildRoutes() []route {
 	routes = append(routes, a.contentRoutes()...)
 	routes = append(routes, route{pattern: "/api/v1/admin", mount: true, mw: a.adminAPI})
 	routes = append(routes, a.bentoRoutes()...)
+	routes = append(routes, a.realBentoRoutes()...)
 	return routes
 }
 
