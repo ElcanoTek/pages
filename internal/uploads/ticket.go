@@ -29,8 +29,9 @@ package uploads
 // Deploying the staged bytes still requires the real agent token.
 
 import (
-	"compress/flate"
+	"bufio"
 	"compress/gzip"
+	"compress/zlib"
 	"errors"
 	"fmt"
 	"io"
@@ -196,7 +197,18 @@ func readRawBody(r *http.Request, limit int) ([]byte, error) {
 		defer zr.Close()
 		src = zr
 	case "deflate":
-		zr := flate.NewReader(r.Body)
+		// HTTP deflate is the zlib format (RFC 1950), which is all
+		// body-parser's zlib.createInflate accepted; raw DEFLATE is refused.
+		// An empty body has no header to read and stays empty.
+		br := bufio.NewReader(r.Body)
+		if _, err := br.Peek(1); errors.Is(err, io.EOF) {
+			src = br
+			break
+		}
+		zr, err := zlib.NewReader(br)
+		if err != nil {
+			return nil, apierror.New(http.StatusBadRequest, "request body could not be decoded", "upload_encoding_invalid", nil)
+		}
 		defer zr.Close()
 		src = zr
 	default:

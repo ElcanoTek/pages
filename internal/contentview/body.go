@@ -4,8 +4,8 @@
 package contentview
 
 import (
-	"compress/flate"
 	"compress/gzip"
+	"compress/zlib"
 	"errors"
 	"io"
 	"mime"
@@ -77,7 +77,12 @@ func readLimited(r *http.Request, limit int64) ([]byte, error) {
 		defer zr.Close()
 		src = zr
 	case "deflate":
-		zr := flate.NewReader(r.Body)
+		// HTTP deflate is the zlib format (RFC 1950), which is all
+		// body-parser's zlib.createInflate accepted; raw DEFLATE is refused.
+		zr, err := zlib.NewReader(r.Body)
+		if err != nil {
+			return nil, &statusError{status: http.StatusBadRequest, msg: "invalid deflate body"}
+		}
 		defer zr.Close()
 		src = zr
 	default:
