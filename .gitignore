@@ -32,3 +32,7 @@ screenshots/
 # suite hunts for initdb under the Homebrew kegs — so these turn up.
 .DS_Store
 *.swp
+
+# Go build output
+/pages
+/coverage.out
