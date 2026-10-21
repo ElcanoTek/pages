@@ -316,6 +316,7 @@ func read(r *http.Request, limit int64) ([]byte, *Error) {
 	if enc == "" {
 		enc = "identity"
 	}
+	defer httpx.ArmBodyReadDeadline(r, limit)()
 	var src io.Reader = r.Body
 	switch enc {
 	case "identity":

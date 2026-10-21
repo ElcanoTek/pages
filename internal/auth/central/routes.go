@@ -354,6 +354,7 @@ func parseBackchannelForm(r *http.Request) (map[string][]string, error) {
 	if r.ContentLength > maxBackchannelBody {
 		return nil, tooLarge
 	}
+	defer httpx.ArmBodyReadDeadline(r, maxBackchannelBody)()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, maxBackchannelBody+1))
 	if err != nil {
 		return nil, apierror.New(http.StatusBadRequest, "invalid request", "bad_request", nil)

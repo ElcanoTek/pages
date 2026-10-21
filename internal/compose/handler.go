@@ -166,6 +166,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request) (map[string]any, error) 
 	if mt != "application/json" || r.Body == nil {
 		return map[string]any{}, nil
 	}
+	defer httpx.ArmBodyReadDeadline(r, bodyLimit())()
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bodyLimit()))
 	if err != nil {
 		return nil, err

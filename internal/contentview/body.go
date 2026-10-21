@@ -66,6 +66,7 @@ func readLimited(r *http.Request, limit int64) ([]byte, error) {
 	if cl := r.ContentLength; cl > limit {
 		return nil, tooLarge()
 	}
+	defer httpx.ArmBodyReadDeadline(r, limit)()
 	var src io.Reader = r.Body
 	switch enc := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Encoding"))); enc {
 	case "", "identity":

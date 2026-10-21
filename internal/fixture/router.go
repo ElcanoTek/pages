@@ -150,6 +150,7 @@ func parseBody(w http.ResponseWriter, r *http.Request, text bool) (any, bool) {
 	default:
 		return undef, true
 	}
+	defer httpx.ArmBodyReadDeadline(r, jsonLimit)()
 	raw, err := io.ReadAll(io.LimitReader(r.Body, jsonLimit+1))
 	if err != nil {
 		sendError(w, r, http.StatusBadRequest, "BadRequestError: request aborted")

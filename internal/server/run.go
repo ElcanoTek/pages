@@ -125,7 +125,13 @@ func Run(ctx context.Context, ln net.Listener, o RunOptions) error {
 	}
 	defer s.Close()
 
-	// Node's defaults: a 60 s header timeout and 5 s keep-alive.
+	// Node's defaults: a 60 s header timeout and 5 s keep-alive. There is
+	// deliberately no ReadTimeout: it would cap slow but legitimate large
+	// uploads, and once a body is read it would also fire on the server's
+	// background read and cancel long streaming responses. Instead every
+	// body reader arms a read deadline scaled to its size limit
+	// (httpx.ArmBodyReadDeadline, via the controller ServeHTTP records), so a
+	// declared but stalled body fails like a truncated one.
 	hs := &http.Server{
 		Handler:           s,
 		ReadHeaderTimeout: 60 * time.Second,

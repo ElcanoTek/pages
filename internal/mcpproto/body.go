@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
@@ -69,6 +70,7 @@ func ReadJSONBody(r *http.Request, limit int64) (any, error) {
 	if encoding == "" {
 		encoding = "identity"
 	}
+	defer httpx.ArmBodyReadDeadline(r, limit)()
 	var stream io.Reader = r.Body
 	switch encoding {
 	case "identity":

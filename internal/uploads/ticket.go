@@ -186,6 +186,7 @@ func readRawBody(r *http.Request, limit int) ([]byte, error) {
 	if (enc == "" || enc == "identity") && r.ContentLength > int64(limit) {
 		return nil, errTooLarge
 	}
+	defer httpx.ArmBodyReadDeadline(r, int64(limit))()
 	var src io.Reader = r.Body
 	switch enc {
 	case "", "identity":
