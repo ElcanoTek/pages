@@ -3,14 +3,21 @@
 "use strict";
 
 const { test, expect } = require("@playwright/test");
-const { analyze } = require("../../lib/preflight");
-const { rawHeaders, CONTENT_ORIGIN } = require("../../lib/csp");
+
+// The preflight verdict and the served CSP both come from the fixture server —
+// the Go binary — so this pins the implementation that ships, and the browser
+// suite needs nothing from the server's own dependencies. An own-origin URL is a
+// function of the content origin the server reports.
+let policy;
+test.beforeAll(async ({ request }) => {
+  policy = await (await request.get("/__fixture/content-policy")).json();
+});
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=";
 const cases = [
   { name: "relative script", tag: "script", url: "/asset.js", directive: "script-src", allowed: true },
-  { name: "absolute own-origin script", tag: "script", url: `${CONTENT_ORIGIN}/asset.js`, directive: "script-src", allowed: true },
-  { name: "protocol-relative own-origin script", tag: "script", url: `//${new URL(CONTENT_ORIGIN).host}/asset.js`, directive: "script-src", allowed: true },
+  { name: "absolute own-origin script", tag: "script", url: (origin) => `${origin}/asset.js`, directive: "script-src", allowed: true },
+  { name: "protocol-relative own-origin script", tag: "script", url: (origin) => `//${new URL(origin).host}/asset.js`, directive: "script-src", allowed: true },
   { name: "protocol-relative external script", tag: "script", url: "//northwind.invalid/asset.js", directive: "script-src", allowed: false },
   { name: "data script", tag: "script", url: "data:text/javascript,globalThis.resourceLoaded=true", directive: "script-src", allowed: false },
   { name: "blob script", tag: "script", blob: "script", directive: "script-src", allowed: true },
@@ -23,11 +30,12 @@ const cases = [
 ];
 
 for (const resource of cases) {
-  test(`preflight agrees with the served CSP for a ${resource.name}`, async ({ page }) => {
+  test(`preflight agrees with the served CSP for a ${resource.name}`, async ({ page, request }) => {
+    const CONTENT_ORIGIN = policy.content_origin;
     // Every request is fulfilled locally, including synthetic external origins.
     await page.route("**/*", route => {
       if (new URL(route.request().url()).pathname === "/preflight-resource-fixture") {
-        return route.fulfill({ contentType: "text/html", headers: rawHeaders(), body: `<!doctype html><html><head><script>
+        return route.fulfill({ contentType: "text/html", headers: policy.raw_headers, body: `<!doctype html><html><head><script>
           globalThis.violations=[]; globalThis.resourceLoaded=false;
           document.addEventListener('securitypolicyviolation',event=>violations.push(event.effectiveDirective));
         </script></head><body></body></html>` });
@@ -40,11 +48,12 @@ for (const resource of cases) {
         ? new Blob([Uint8Array.from(atob(pixel), char => char.charCodeAt(0))], { type: "image/png" })
         : new Blob([kind === "script" ? "globalThis.resourceLoaded=true;" : "font fixture"], { type: kind === "script" ? "text/javascript" : "font/woff2" });
       return URL.createObjectURL(blob);
-    }, { kind: resource.blob, pixel: PIXEL }) : resource.url;
+    }, { kind: resource.blob, pixel: PIXEL }) : typeof resource.url === "function" ? resource.url(CONTENT_ORIGIN) : resource.url;
     const html = resource.tag === "font"
       ? `<style>@font-face{font-family:Northwind;src:url('${url}')}</style>`
       : resource.tag === "link" ? `<link rel="stylesheet" href="${url}">` : `<${resource.tag} src="${url}"></${resource.tag}>`;
-    const blocked = analyze(html).errors.some(finding => finding.code === "remote_subresource_blocked");
+    const report = await (await request.post("/__fixture/preflight", { data: { html } })).json();
+    const blocked = report.errors.some(finding => finding.code === "remote_subresource_blocked");
     expect(blocked).toBe(!resource.allowed);
     await page.evaluate(({ tag, url }) => {
       if (tag === "font") {
