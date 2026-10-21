@@ -28,7 +28,8 @@ func wantCode(t *testing.T, err error, status int, code string) {
 }
 
 func TestSHA256(t *testing.T) {
-	if SHA256("hello") != SHA256("hello") || SHA256("hello") == SHA256("hello!") {
+	a, b := SHA256("hello"), SHA256("hello")
+	if a != b || a == SHA256("hello!") {
 		t.Fatal("sha256 must be stable and content-sensitive")
 	}
 	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(SHA256("x")) {
@@ -37,10 +38,10 @@ func TestSHA256(t *testing.T) {
 }
 
 func TestNormalizeSlug(t *testing.T) {
-	for in, want := range map[string]string{"Northwind": "northwind", "northwind/q2-report": "northwind/q2-report", " acme_co ": "acme_co"} {
-		got, err := NormalizeSlug(in)
-		if err != nil || got != want {
-			t.Fatalf("NormalizeSlug(%q) = %q, %v", in, got, err)
+	for _, c := range [][2]string{{"Northwind", "northwind"}, {"northwind/q2-report", "northwind/q2-report"}, {"\tacme_co ", "acme_co"}} {
+		got, err := NormalizeSlug(c[0])
+		if err != nil || got != c[1] {
+			t.Fatalf("NormalizeSlug(%q) = %q, %v", c[0], got, err)
 		}
 	}
 	for _, bad := range []any{"", "/leading", "trailing/", "has space", "bad//seg", "../etc", "İstanbul"} {
@@ -310,9 +311,9 @@ func TestAssertExpectedVersion(t *testing.T) {
 
 func TestParseTime(t *testing.T) {
 	for in, want := range map[string]string{
-		"2026-08-01T00:00:00Z":          "2026-08-01T00:00:00.000Z",
+		"2026-08-01T00:00:00Z":           "2026-08-01T00:00:00.000Z",
 		"2026-08-01T02:00:00.1234+02:00": "2026-08-01T00:00:00.123Z",
-		"2026-08-01":                    "2026-08-01T00:00:00.000Z",
+		"2026-08-01":                     "2026-08-01T00:00:00.000Z",
 	} {
 		if got := isoString(ParseTime(in)); got != want {
 			t.Fatalf("%s: %s", in, got)

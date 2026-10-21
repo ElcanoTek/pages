@@ -14,6 +14,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/pagedata"
 )
@@ -90,7 +91,7 @@ func normalizeSearchQuery(q *string) (string, error) {
 		return "", nil
 	}
 	s := jsTrim(*q)
-	if jsonv.UTF16Len(s) > 200 {
+	if jsstr.UTF16Len(s) > 200 {
 		return "", apierror.BadRequest("query must be 200 characters or fewer", "query_too_long", nil)
 	}
 	return s, nil
@@ -255,7 +256,7 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 			&e.lastCheck.LastCheckAt, &e.lastCheck.LastCheckOutcome, &e.lastCheck.LastCheckDetail, &e.lastCheck.LastCheckSourceAsOf}
 		if o.IncludeVersionNumbers {
 			p.VersionNumbers = &VersionNumbers{}
-			dest = append(dest, &p.VersionNumbers.VersionCount, &p.VersionNumbers.PublishedVersionNumber)
+			dest = append(dest, &p.VersionCount, &p.PublishedVersionNumber)
 		}
 		if err := rows.Scan(dest...); err != nil {
 			return nil, err

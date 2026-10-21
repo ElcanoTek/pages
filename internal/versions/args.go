@@ -13,6 +13,7 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
 )
 
@@ -283,7 +284,7 @@ func normalizeNote(v any) (*string, error) {
 	if !ok {
 		return nil, apierror.BadRequest("note must be a string or null", "bad_note", nil)
 	}
-	if jsonv.UTF16Len(s) > 500 {
+	if jsstr.UTF16Len(s) > 500 {
 		return nil, apierror.BadRequest("note must be 500 characters or fewer", "note_too_long", nil)
 	}
 	return &s, nil

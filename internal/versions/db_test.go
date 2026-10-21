@@ -33,12 +33,22 @@ func setup(t *testing.T) (*db.DB, context.Context) {
 	return testdb.New(t), context.Background()
 }
 
-func must[T any](t *testing.T, v T, err error) T {
+// must(f())(t) fails the test on f's error and returns its value.
+func must[T any](v T, err error) func(*testing.T) T {
+	return func(t *testing.T) T {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		return v
+	}
+}
+
+func noErr(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	return v
 }
 
 func pageHTML(n int) string {
@@ -60,19 +70,19 @@ func counts(t *testing.T, d *db.DB) [3]int {
 
 func getPage(t *testing.T, d *db.DB, slug string) *PageView {
 	t.Helper()
-	return must(t, GetPage(context.Background(), d, slug))
+	return must(GetPage(context.Background(), d, slug))(t)
 }
 
 func deploy(t *testing.T, d *db.DB, a Actor, in DeployInput) *DeployResult {
 	t.Helper()
-	return must(t, Deploy(context.Background(), d, in, a))
+	return must(Deploy(context.Background(), d, in, a))(t)
 }
 
 // The REST agent loop (test/api.integration.js), at the state-machine layer.
 func TestAgentLoop(t *testing.T) {
 	d, ctx := setup(t)
 
-	created := must(t, CreatePage(ctx, d, CreatePageInput{Slug: "acme", Title: "Acme"}, agent))
+	created := must(CreatePage(ctx, d, CreatePageInput{Slug: "acme", Title: "Acme"}, agent))(t)
 	if created.Slug != "acme" || created.PublishedVersionID != 0 || created.WorkspaceName != nil {
 		t.Fatalf("%+v", created)
 	}
@@ -94,12 +104,12 @@ func TestAgentLoop(t *testing.T) {
 	if v2 == v1 || getPage(t, d, "acme").Page.PublishedVersionID != v2 {
 		t.Fatal("v2 moves the pointer")
 	}
-	hist := must(t, ListVersions(ctx, d, "acme", ListVersionsOptions{}))
+	hist := must(ListVersions(ctx, d, "acme", ListVersionsOptions{}))(t)
 	if len(hist) != 2 || hist[0].ID != v2 || !hist[0].IsPublished || !hist[0].IsLive || hist[1].IsPublished {
 		t.Fatalf("history newest-first: %+v", hist)
 	}
 
-	rb := must(t, Rollback(ctx, d, RollbackInput{Slug: "acme", VersionID: v1}, agent))
+	rb := must(Rollback(ctx, d, RollbackInput{Slug: "acme", VersionID: v1}, agent))(t)
 	if rb.ID != v1 || rb.Status != "approved" || getPage(t, d, "acme").Page.PublishedVersionID != v1 {
 		t.Fatal("rollback moves the pointer back to v1")
 	}
@@ -113,7 +123,7 @@ func TestAgentLoop(t *testing.T) {
 	wantCode(t, err, 409, "stale_version")
 
 	// Approval gate: an agent's deploy+publish lands pending; publish is forbidden.
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "gated", Title: "Gated", RequireApproval: true}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "gated", Title: "Gated", RequireApproval: true}, agent))(t)
 	gd := deploy(t, d, agent, DeployInput{Slug: "gated", HTML: pageHTML(9), Publish: true})
 	if !gd.Gated || gd.Published || gd.Version.Status != "pending" || gd.Live {
 		t.Fatalf("%+v", gd)
@@ -125,18 +135,18 @@ func TestAgentLoop(t *testing.T) {
 	}
 
 	// rename + soft delete + slug reuse
-	if r := must(t, SetTitle(ctx, d, "acme", "  Acme Renamed  ", agent)); r.Title != "Acme Renamed" {
+	if r := must(SetTitle(ctx, d, "acme", "  Acme Renamed  ", agent))(t); r.Title != "Acme Renamed" {
 		t.Fatal(r)
 	}
-	if r := must(t, DeletePage(ctx, d, "acme", agent)); !r.Deleted {
+	if r := must(DeletePage(ctx, d, "acme", agent))(t); !r.Deleted {
 		t.Fatal(r)
 	}
 	_, err = GetPage(ctx, d, "acme")
 	wantCode(t, err, 404, "page_not_found")
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "acme", Title: "Acme 2"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "acme", Title: "Acme 2"}, agent))(t)
 
 	// password: agents set; clearing is admin-only
-	if r := must(t, SetPassword(ctx, d, "acme", "letmein", agent)); !r.HasPassword {
+	if r := must(SetPassword(ctx, d, "acme", "letmein", agent))(t); !r.HasPassword {
 		t.Fatal(r)
 	}
 	if !getPage(t, d, "acme").Page.HasPassword {
@@ -147,14 +157,14 @@ func TestAgentLoop(t *testing.T) {
 
 	_, err = DeletePage(ctx, d, "gated", agent)
 	wantCode(t, err, 403, "approval_required")
-	must(t, d.Exec(ctx, "UPDATE pages SET disabled = true WHERE slug = 'acme'"))
+	must(d.Exec(ctx, "UPDATE pages SET disabled = true WHERE slug = 'acme'"))(t)
 	_, err = DeletePage(ctx, d, "acme", agent)
 	wantCode(t, err, 403, "disabled_takedown")
 
 	// nested slugs are first-class
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "nested/q2", Title: "Nested"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "nested/q2", Title: "Nested"}, agent))(t)
 	nd := deploy(t, d, agent, DeployInput{Slug: "nested/q2", HTML: pageHTML(7), Publish: true})
-	if must(t, GetVersion(ctx, d, "nested/q2", nd.Version.ID)).ID != nd.Version.ID {
+	if must(GetVersion(ctx, d, "nested/q2", nd.Version.ID))(t).ID != nd.Version.ID {
 		t.Fatal("nested get version")
 	}
 	// A real version id asked for on the wrong page is a 404, never another page's html.
@@ -184,7 +194,7 @@ func TestBooleanIntentHasNoSideEffects(t *testing.T) {
 	if counts(t, d) != before {
 		t.Fatal("invalid booleans have no mutation side effects")
 	}
-	p := must(t, CreatePage(ctx, d, CreatePageInput{Slug: "northwind/bools", RequireApproval: false}, agent))
+	p := must(CreatePage(ctx, d, CreatePageInput{Slug: "northwind/bools", RequireApproval: false}, agent))(t)
 	if p.RequireApproval {
 		t.Fatal("require_approval")
 	}
@@ -203,7 +213,7 @@ func TestBooleanIntentHasNoSideEffects(t *testing.T) {
 // rejected content re-enters as a fresh publishable row.
 func TestDedupeScoping(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "dedup"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "dedup"}, agent))(t)
 	w1 := deploy(t, d, agent, DeployInput{Slug: "dedup", HTML: pageHTML(42)})
 	w2 := deploy(t, d, agent, DeployInput{Slug: "dedup", HTML: pageHTML(42)})
 	if !w2.Deduped || w2.Version.ID != w1.Version.ID {
@@ -213,7 +223,7 @@ func TestDedupeScoping(t *testing.T) {
 	if w3.Deduped || w3.Version.RenderMode != "raw" || w3.Version.ID == w1.Version.ID {
 		t.Fatal("render mode change → new version")
 	}
-	rejected := must(t, Reject(ctx, d, ReviewInput{Slug: "dedup", VersionID: w1.Version.ID, Note: "no"}, admin))
+	rejected := must(Reject(ctx, d, ReviewInput{Slug: "dedup", VersionID: w1.Version.ID, Note: "no"}, admin))(t)
 	if rejected.Status != "rejected" || *rejected.ReviewedBy != admin.Actor {
 		t.Fatal(rejected)
 	}
@@ -230,13 +240,13 @@ func TestDedupeScoping(t *testing.T) {
 // expected_version must hold on EVERY deploy, not only pointer moves.
 func TestExpectedVersionOnEveryDeploy(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "stalegate"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "stalegate"}, agent))(t)
 	stale := deploy(t, d, agent, DeployInput{Slug: "stalegate", HTML: "<h1>one</h1>", Publish: true}).Version.ID
 	deploy(t, d, agent, DeployInput{Slug: "stalegate", HTML: "<h1>two</h1>", Publish: true})
 
 	_, err := Deploy(ctx, d, DeployInput{Slug: "stalegate", HTML: "<h1>three</h1>", Publish: false, ExpectedVersion: stale.String()}, agent)
 	wantCode(t, err, 409, "stale_version")
-	must(t, SetApproval(ctx, d, "stalegate", true, admin))
+	must(SetApproval(ctx, d, "stalegate", true, admin))(t)
 	_, err = Deploy(ctx, d, DeployInput{Slug: "stalegate", HTML: "<h1>four</h1>", Publish: true, ExpectedVersion: float64(stale)}, agent)
 	wantCode(t, err, 409, "stale_version")
 	if e, _ := apierror.As(err); !strings.Contains(e.Message, "retry once with expected_version") {
@@ -248,8 +258,8 @@ func TestExpectedVersionOnEveryDeploy(t *testing.T) {
 		t.Fatal("a current expected_version is accepted on a gated page")
 	}
 	// A stale expected_version on a disabled page answers stale_version, not takedown.
-	must(t, SetApproval(ctx, d, "stalegate", false, admin))
-	must(t, SetDisabled(ctx, d, "stalegate", true, admin))
+	must(SetApproval(ctx, d, "stalegate", false, admin))(t)
+	must(SetDisabled(ctx, d, "stalegate", true, admin))(t)
 	_, err = Deploy(ctx, d, DeployInput{Slug: "stalegate", HTML: "<h1>six</h1>", Publish: true, ExpectedVersion: stale.String()}, agent)
 	wantCode(t, err, 409, "stale_version")
 }
@@ -258,14 +268,14 @@ func TestExpectedVersionOnEveryDeploy(t *testing.T) {
 // fast with a clean 503 while other pages keep working.
 func TestLockTimeoutIs503(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "wedged"}, agent))
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "other"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "wedged"}, agent))(t)
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "other"}, agent))(t)
 	wedge, err := d.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = wedge.Rollback(ctx) }()
-	must(t, wedge.Exec(ctx, "SELECT id FROM pages WHERE slug = 'wedged' FOR UPDATE"))
+	must(wedge.Exec(ctx, "SELECT id FROM pages WHERE slug = 'wedged' FOR UPDATE"))(t)
 	start := time.Now()
 	_, err = SetTitle(ctx, d, "wedged", "Blocked", agent)
 	waited := time.Since(start)
@@ -276,14 +286,14 @@ func TestLockTimeoutIs503(t *testing.T) {
 	if waited < 900*time.Millisecond || waited > 10*time.Second {
 		t.Fatalf("waited %v", waited)
 	}
-	must(t, SetTitle(ctx, d, "other", "Unaffected", agent))
+	must(SetTitle(ctx, d, "other", "Unaffected", agent))(t)
 }
 
 // Two writers racing from the same expected version: the page lock
 // serializes them and exactly one moves the pointer.
 func TestConcurrentPublishRace(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "race"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "race"}, agent))(t)
 	base := deploy(t, d, agent, DeployInput{Slug: "race", HTML: pageHTML(1), Publish: true}).Version.ID
 	a := deploy(t, d, agent, DeployInput{Slug: "race", HTML: pageHTML(2)}).Version.ID
 	b := deploy(t, d, agent, DeployInput{Slug: "race", HTML: pageHTML(3)}).Version.ID
@@ -387,8 +397,8 @@ func TestCreateAndDeploy(t *testing.T) {
 	if !called {
 		t.Fatal("assertExistingPage ran")
 	}
-	r := must(t, CreateAndDeployWithTxForTest(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "brand-new", HTML: pageHTML(51)}, RequireApproval: true},
-		func(context.Context, *LockedPage) error { return fmt.Errorf("must not run for a created page") }))
+	r := must(CreateAndDeployWithTxForTest(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "brand-new", HTML: pageHTML(51)}, RequireApproval: true},
+		func(context.Context, *LockedPage) error { return fmt.Errorf("must not run for a created page") }))(t)
 	if !r.Created || !r.Gated || r.Version.Status != "pending" {
 		t.Fatalf("%+v", r)
 	}
@@ -410,9 +420,9 @@ func CreateAndDeployWithTxForTest(ctx context.Context, d *db.DB, in CreateAndDep
 // A gate added after a live release; then removed again.
 func TestApprovalGateTransitions(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "mcpgated"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "mcpgated"}, agent))(t)
 	prior := deploy(t, d, agent, DeployInput{Slug: "mcpgated", HTML: pageHTML(10), Publish: true})
-	must(t, d.Exec(ctx, "UPDATE pages SET require_approval = true WHERE slug = 'mcpgated'"))
+	must(d.Exec(ctx, "UPDATE pages SET require_approval = true WHERE slug = 'mcpgated'"))(t)
 	gated := deploy(t, d, agent, DeployInput{Slug: "mcpgated", HTML: pageHTML(11), Publish: true})
 	if gated.Version.Status != "pending" || gated.Published || gated.Live {
 		t.Fatalf("%+v", gated)
@@ -420,15 +430,15 @@ func TestApprovalGateTransitions(t *testing.T) {
 	if getPage(t, d, "mcpgated").Page.PublishedVersionID != prior.Version.ID {
 		t.Fatal("prior stays live")
 	}
-	must(t, d.Exec(ctx, "UPDATE pages SET require_approval = false WHERE slug = 'mcpgated'"))
+	must(d.Exec(ctx, "UPDATE pages SET require_approval = false WHERE slug = 'mcpgated'"))(t)
 	draft := deploy(t, d, agent, DeployInput{Slug: "mcpgated", HTML: pageHTML(11)})
 	if draft.Deduped || draft.Version.Status != "draft" {
 		t.Fatal("open page skips an unusable gated-era pending row")
 	}
-	must(t, Publish(ctx, d, PublishInput{Slug: "mcpgated", VersionID: draft.Version.ID, ExpectedVersion: prior.Version.String()}, agent))
+	must(Publish(ctx, d, PublishInput{Slug: "mcpgated", VersionID: draft.Version.ID, ExpectedVersion: prior.Version.ID.String()}, agent))(t)
 	// …and symmetrically a gated page skips open-era drafts.
 	open := deploy(t, d, agent, DeployInput{Slug: "mcpgated", HTML: pageHTML(12)})
-	must(t, SetApproval(ctx, d, "mcpgated", true, admin))
+	must(SetApproval(ctx, d, "mcpgated", true, admin))(t)
 	again := deploy(t, d, agent, DeployInput{Slug: "mcpgated", HTML: pageHTML(12)})
 	if again.Deduped || again.Version.ID == open.Version.ID || again.Version.Status != "pending" {
 		t.Fatalf("%+v", again)
@@ -437,9 +447,9 @@ func TestApprovalGateTransitions(t *testing.T) {
 
 func TestTakedownAndDedupeOntoOlderApproved(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "auto"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "auto"}, agent))(t)
 	deploy(t, d, agent, DeployInput{Slug: "auto", HTML: pageHTML(20), Publish: true})
-	must(t, SetDisabled(ctx, d, "auto", true, admin))
+	must(SetDisabled(ctx, d, "auto", true, admin))(t)
 	_, err := DeletePage(ctx, d, "auto", agent)
 	wantCode(t, err, 403, "disabled_takedown")
 	_, err = Deploy(ctx, d, DeployInput{Slug: "auto", HTML: pageHTML(22), Publish: true}, agent)
@@ -448,15 +458,15 @@ func TestTakedownAndDedupeOntoOlderApproved(t *testing.T) {
 	if saved.Live || saved.Version.Status != "draft" {
 		t.Fatal("a draft may still be saved on a disabled page")
 	}
-	hist := must(t, ListVersions(ctx, d, "auto", ListVersionsOptions{}))
+	hist := must(ListVersions(ctx, d, "auto", ListVersionsOptions{}))(t)
 	if !hist[1].IsPublished || hist[1].IsLive {
 		t.Fatal("published means pointer equality; live also requires not disabled")
 	}
 	_, err = Rollback(ctx, d, RollbackInput{Slug: "auto"}, agent)
 	wantCode(t, err, 403, "disabled_takedown")
-	must(t, SetDisabled(ctx, d, "auto", false, admin))
+	must(SetDisabled(ctx, d, "auto", false, admin))(t)
 
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "dedupe"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "dedupe"}, agent))(t)
 	v1 := deploy(t, d, agent, DeployInput{Slug: "dedupe", HTML: pageHTML(30), Publish: true})
 	if live := deploy(t, d, agent, DeployInput{Slug: "dedupe", HTML: pageHTML(30)}); !live.Live {
 		t.Fatal("live duplicate")
@@ -467,16 +477,16 @@ func TestTakedownAndDedupeOntoOlderApproved(t *testing.T) {
 		t.Fatalf("%+v", older)
 	}
 	// rollback with no version: the most recent approved version that isn't live
-	rb := must(t, Rollback(ctx, d, RollbackInput{Slug: "dedupe", Note: "revert the chart change"}, agent))
+	rb := must(Rollback(ctx, d, RollbackInput{Slug: "dedupe", Note: "revert the chart change"}, agent))(t)
 	if rb.ID != v1.Version.ID {
 		t.Fatal("default rollback target")
 	}
 	var meta map[string]any
-	must(t, 0, d.QueryRow(ctx, `SELECT metadata FROM audit_log WHERE action = 'rollback' ORDER BY id DESC LIMIT 1`).Scan(&meta))
+	noErr(t, d.QueryRow(ctx, `SELECT metadata FROM audit_log WHERE action = 'rollback' ORDER BY id DESC LIMIT 1`).Scan(&meta))
 	if meta["note"] != "revert the chart change" || meta["to"] != v1.Version.ID.String() || meta["from"] == nil {
 		t.Fatalf("%v", meta)
 	}
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "single"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "single"}, agent))(t)
 	deploy(t, d, agent, DeployInput{Slug: "single", HTML: pageHTML(1), Publish: true})
 	_, err = Rollback(ctx, d, RollbackInput{Slug: "single"}, agent)
 	wantCode(t, err, 409, "no_rollback_target")
@@ -485,18 +495,18 @@ func TestTakedownAndDedupeOntoOlderApproved(t *testing.T) {
 // test/admin.integration.js state-machine parts.
 func TestAdminFlow(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "adm"}, admin))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "adm"}, admin))(t)
 	v1 := deploy(t, d, admin, DeployInput{Slug: "adm", HTML: pageHTML(1), Publish: true}).Version.ID
 	v2 := deploy(t, d, admin, DeployInput{Slug: "adm", HTML: pageHTML(2)}).Version.ID
-	must(t, Publish(ctx, d, PublishInput{Slug: "adm", VersionID: v2, ExpectedVersion: v1}, admin))
-	must(t, Rollback(ctx, d, RollbackInput{Slug: "adm", VersionID: v1, ExpectedVersion: v2}, admin))
+	must(Publish(ctx, d, PublishInput{Slug: "adm", VersionID: v2, ExpectedVersion: v1}, admin))(t)
+	must(Rollback(ctx, d, RollbackInput{Slug: "adm", VersionID: v1, ExpectedVersion: v2}, admin))(t)
 	if getPage(t, d, "adm").Page.PublishedVersionID != v1 {
 		t.Fatal("rolled back")
 	}
 	_, err := Rollback(ctx, d, RollbackInput{Slug: "adm", VersionID: v2, ExpectedVersion: 999999}, admin)
 	wantCode(t, err, 409, "stale_version")
 
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "admg", RequireApproval: true}, admin))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "admg", RequireApproval: true}, admin))(t)
 	p1 := deploy(t, d, agent, DeployInput{Slug: "admg", HTML: pageHTML(1), Publish: true}).Version
 	p2 := deploy(t, d, agent, DeployInput{Slug: "admg", HTML: pageHTML(2)}).Version
 	if p1.Status != "pending" || p2.Status != "pending" {
@@ -504,20 +514,20 @@ func TestAdminFlow(t *testing.T) {
 	}
 	_, err = Approve(ctx, d, ReviewInput{Slug: "admg", VersionID: p1.ID}, agent)
 	wantCode(t, err, 403, "admin_only")
-	ap := must(t, Approve(ctx, d, ReviewInput{Slug: "admg", VersionID: p1.ID}, admin))
+	ap := must(Approve(ctx, d, ReviewInput{Slug: "admg", VersionID: p1.ID}, admin))(t)
 	if ap.Status != "approved" || *ap.ReviewedBy != admin.Actor || getPage(t, d, "admg").Page.PublishedVersionID != p1.ID {
 		t.Fatal("approve publishes")
 	}
 	_, err = Approve(ctx, d, ReviewInput{Slug: "admg", VersionID: p1.ID}, admin)
 	wantCode(t, err, 409, "not_pending")
-	must(t, Reject(ctx, d, ReviewInput{Slug: "admg", VersionID: p2.ID, Note: "no"}, admin))
+	must(Reject(ctx, d, ReviewInput{Slug: "admg", VersionID: p2.ID, Note: "no"}, admin))(t)
 	_, err = Approve(ctx, d, ReviewInput{Slug: "admg", VersionID: 999999}, admin)
 	wantCode(t, err, 404, "version_not_found")
 	// An admin may publish/delete a gated page.
-	if r := must(t, DeletePage(ctx, d, "admg", admin)); !r.Deleted {
+	if r := must(DeletePage(ctx, d, "admg", admin))(t); !r.Deleted {
 		t.Fatal(r)
 	}
-	if r := must(t, RestorePage(ctx, d, "admg", admin)); !r.Restored {
+	if r := must(RestorePage(ctx, d, "admg", admin))(t); !r.Restored {
 		t.Fatal(r)
 	}
 	if getPage(t, d, "admg").Page.PublishedVersionID != 0 {
@@ -529,30 +539,30 @@ func TestAdminFlow(t *testing.T) {
 	wantCode(t, err, 404, "page_not_found")
 	_, err = RestorePage(ctx, d, "admg", agent)
 	wantCode(t, err, 403, "admin_only")
-	must(t, d.Exec(ctx, `INSERT INTO pages (slug, title, deleted_at) VALUES ('portal/legacy', 'Predates the reservation', now())`))
+	must(d.Exec(ctx, `INSERT INTO pages (slug, title, deleted_at) VALUES ('portal/legacy', 'Predates the reservation', now())`))(t)
 	_, err = RestorePage(ctx, d, "portal/legacy", admin)
 	wantCode(t, err, 400, "reserved_slug")
 
-	if r := must(t, SetApproval(ctx, d, "adm", true, admin)); !r.RequireApproval {
+	if r := must(SetApproval(ctx, d, "adm", true, admin))(t); !r.RequireApproval {
 		t.Fatal(r)
 	}
 	_, err = SetApproval(ctx, d, "adm", false, agent)
 	wantCode(t, err, 403, "admin_only")
 	_, err = SetApproval(ctx, d, "adm", Null, admin)
 	wantCode(t, err, 400, "bad_boolean")
-	if r := must(t, SetDisabled(ctx, d, "adm", true, admin)); !r.Disabled || !getPage(t, d, "adm").Page.Disabled {
+	if r := must(SetDisabled(ctx, d, "adm", true, admin))(t); !r.Disabled || !getPage(t, d, "adm").Page.Disabled {
 		t.Fatal(r)
 	}
-	must(t, SetDisabled(ctx, d, "adm", false, admin))
+	must(SetDisabled(ctx, d, "adm", false, admin))(t)
 
 	// themes
-	themes := must(t, ListThemes(ctx, d))
+	themes := must(ListThemes(ctx, d))(t)
 	if len(themes) == 0 || themes[0].Name != "flag" {
 		t.Fatalf("%+v", themes)
 	}
 	_, err = SetTheme(ctx, d, "adm", "no-such-theme", admin)
 	wantCode(t, err, 400, "unknown_theme")
-	if r := must(t, SetTheme(ctx, d, "adm", "", admin)); r.Theme != "flag" {
+	if r := must(SetTheme(ctx, d, "adm", "", admin))(t); r.Theme != "flag" {
 		t.Fatal(r)
 	}
 	if getPage(t, d, "adm").Page.ThemeName != "flag" {
@@ -580,50 +590,50 @@ func TestAdminFlow(t *testing.T) {
 func TestListPagination(t *testing.T) {
 	d, ctx := setup(t)
 	for i := 0; i < 3; i++ {
-		must(t, CreatePage(ctx, d, CreatePageInput{Slug: fmt.Sprintf("northwind/p%d", i), Title: "Northwind", ClientID: "northwind"}, agent))
+		must(CreatePage(ctx, d, CreatePageInput{Slug: fmt.Sprintf("northwind/p%d", i), Title: "Northwind", ClientID: "northwind"}, agent))(t)
 	}
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "contoso", Title: "Contoso"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "contoso", Title: "Contoso"}, agent))(t)
 	deploy(t, d, agent, DeployInput{Slug: "contoso", HTML: pageHTML(1), Publish: true})
 	deploy(t, d, agent, DeployInput{Slug: "contoso", HTML: pageHTML(2)})
-	all := must(t, ListPages(ctx, d, ListPagesOptions{}))
+	all := must(ListPages(ctx, d, ListPagesOptions{}))(t)
 	if len(all) != 4 || all[0].Slug != "contoso" || !all[0].IsLive {
 		t.Fatalf("%+v", all)
 	}
 	two := 2
-	first := must(t, ListPages(ctx, d, ListPagesOptions{Limit: &two}))
+	first := must(ListPages(ctx, d, ListPagesOptions{Limit: &two}))(t)
 	last := first[len(first)-1]
-	next := must(t, ListPages(ctx, d, ListPagesOptions{Limit: &two, After: &After{CreatedAt: last.CreatedAt.Time, ID: last.ID.String()}}))
+	next := must(ListPages(ctx, d, ListPagesOptions{Limit: &two, After: &After{CreatedAt: last.CreatedAt.Time, ID: last.ID.String()}}))(t)
 	if len(first) != 2 || len(next) != 2 || next[0].ID == last.ID || next[1].Slug != "northwind/p0" {
 		t.Fatal("keyset pagination")
 	}
 	q := "NORTH"
-	if got := must(t, ListPages(ctx, d, ListPagesOptions{Query: &q})); len(got) != 3 {
+	if got := must(ListPages(ctx, d, ListPagesOptions{Query: &q}))(t); len(got) != 3 {
 		t.Fatal("query")
 	}
 	cid := "northwind"
-	if got := must(t, ListPages(ctx, d, ListPagesOptions{ClientIDSet: true, ClientID: &cid})); len(got) != 3 {
+	if got := must(ListPages(ctx, d, ListPagesOptions{ClientIDSet: true, ClientID: &cid}))(t); len(got) != 3 {
 		t.Fatal("client")
 	}
 	live := true
-	if got := must(t, ListPages(ctx, d, ListPagesOptions{IsLive: &live})); len(got) != 1 {
+	if got := must(ListPages(ctx, d, ListPagesOptions{IsLive: &live}))(t); len(got) != 1 {
 		t.Fatal("is_live")
 	}
-	if got := must(t, ListPages(ctx, d, ListPagesOptions{WorkspaceFilterSet: true, WorkspaceID: "ungrouped"})); len(got) != 4 {
+	if got := must(ListPages(ctx, d, ListPagesOptions{WorkspaceFilterSet: true, WorkspaceID: "ungrouped"}))(t); len(got) != 4 {
 		t.Fatal("ungrouped")
 	}
-	numbered := must(t, ListPages(ctx, d, ListPagesOptions{IncludeVersionNumbers: true}))
-	if numbered[0].VersionNumbers.VersionCount != 2 || *numbered[0].VersionNumbers.PublishedVersionNumber != 1 ||
-		numbered[1].VersionNumbers.PublishedVersionNumber != nil {
+	numbered := must(ListPages(ctx, d, ListPagesOptions{IncludeVersionNumbers: true}))(t)
+	if numbered[0].VersionCount != 2 || *numbered[0].PublishedVersionNumber != 1 ||
+		numbered[1].PublishedVersionNumber != nil {
 		t.Fatalf("%+v %+v", numbered[0].VersionNumbers, numbered[1].VersionNumbers)
 	}
 	one := 1
-	h1 := must(t, ListVersions(ctx, d, "contoso", ListVersionsOptions{Limit: &one}))
-	h2 := must(t, ListVersions(ctx, d, "contoso", ListVersionsOptions{Limit: &one, After: &After{CreatedAt: h1[0].CreatedAt.Time, ID: h1[0].ID}}))
+	h1 := must(ListVersions(ctx, d, "contoso", ListVersionsOptions{Limit: &one}))(t)
+	h2 := must(ListVersions(ctx, d, "contoso", ListVersionsOptions{Limit: &one, After: &After{CreatedAt: h1[0].CreatedAt.Time, ID: h1[0].ID}}))(t)
 	if len(h2) != 1 || h2[0].ID == h1[0].ID {
 		t.Fatal("version pagination")
 	}
 	status := "approved"
-	if got := must(t, ListVersions(ctx, d, "contoso", ListVersionsOptions{Status: &status})); len(got) != 1 || !got[0].IsLive {
+	if got := must(ListVersions(ctx, d, "contoso", ListVersionsOptions{Status: &status}))(t); len(got) != 1 || !got[0].IsLive {
 		t.Fatal("status filter")
 	}
 	bad := "live"
@@ -661,13 +671,13 @@ func jv(t *testing.T, s string) any {
 
 func TestManagedData(t *testing.T) {
 	d, ctx := setup(t)
-	minted := must(t, tokens.Mint(ctx, d, tokens.MintParams{Label: "data-agent"}))
+	minted := must(tokens.Mint(ctx, d, tokens.MintParams{Label: "data-agent"}))(t)
 	bot := Actor{Actor: "data-agent", ActorType: "agent", TokenID: minted.ID, IP: "127.0.0.1"}
 	source0, source1, source2, source3 := hoursAgo(4), hoursAgo(3), hoursAgo(2), hoursAgo(1)
 	initialHTML := managedHTML(source0, `{"count":1,"label":"initial"}`)
-	base := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "mcpdata", HTML: initialHTML, Source: SourceMCP, Publish: true}, Title: "Managed Data"}, bot))
+	base := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "mcpdata", HTML: initialHTML, Source: SourceMCP, Publish: true}, Title: "Managed Data"}, bot))(t)
 	v0 := base.Version.ID
-	read := must(t, GetPageData(ctx, d, "mcpdata"))
+	read := must(GetPageData(ctx, d, "mcpdata"))(t)
 	if read.Version.ID != v0 || jsonv.Stringify(read.Envelope.Value("data")) != `{"count":1,"label":"initial"}` || len(read.DataSHA256) != 64 {
 		t.Fatalf("%+v", read)
 	}
@@ -685,13 +695,13 @@ func TestManagedData(t *testing.T) {
 	wantCode(t, err, 400, "expected_version_required")
 
 	injected := `{"count":2,"label":"</script><img src=x onerror=alert(1)>"}`
-	canary := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source1, ExpectedVersion: v0.String(), Publish: false, Note: "canary"}, bot))
+	canary := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source1, ExpectedVersion: v0.String(), Publish: false, Note: "canary"}, bot))(t)
 	if canary.Published || canary.Live || canary.Version.Status != "draft" || *canary.Version.Note != "canary" {
 		t.Fatalf("%+v", canary)
 	}
-	stored := must(t, GetVersion(ctx, d, "mcpdata", canary.Version.ID))
-	pi := must(t, pagedata.ParseManagedHTML(initialHTML))
-	pc := must(t, pagedata.ParseManagedHTML(stored.HTML))
+	stored := must(GetVersion(ctx, d, "mcpdata", canary.Version.ID))(t)
+	pi := must(pagedata.ParseManagedHTML(initialHTML))(t)
+	pc := must(pagedata.ParseManagedHTML(stored.HTML))(t)
 	if stored.HTML[:pc.DataBlock.ContentStart] != initialHTML[:pi.DataBlock.ContentStart] ||
 		!strings.HasSuffix(stored.HTML, initialHTML[pi.DataBlock.ContentEnd:]) {
 		t.Fatal("bytes around the data block are preserved")
@@ -700,7 +710,7 @@ func TestManagedData(t *testing.T) {
 		t.Fatal("data is escaped")
 	}
 
-	retry := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source1, ExpectedVersion: v0.String(), Publish: false}, bot))
+	retry := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source1, ExpectedVersion: v0.String(), Publish: false}, bot))(t)
 	if !retry.Deduped || retry.Version.ID != canary.Version.ID || retry.Envelope.Value("refreshed_at") != canary.Envelope.Value("refreshed_at") {
 		t.Fatal("exact retries dedupe and return the stored bytes")
 	}
@@ -709,17 +719,17 @@ func TestManagedData(t *testing.T) {
 			t.Fatal("a dedupe drops the stale-refresh pair")
 		}
 	}
-	pub := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source1, ExpectedVersion: v0.String()}, bot))
+	pub := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source1, ExpectedVersion: v0.String()}, bot))(t)
 	if !pub.Deduped || !pub.Published || pub.Version.ID != canary.Version.ID || !pub.Live {
 		t.Fatalf("publishing the canary: %+v", pub)
 	}
-	adv := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source2, ExpectedVersion: canary.Version.ID}, bot))
+	adv := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source2, ExpectedVersion: canary.Version.ID}, bot))(t)
 	if adv.Deduped || adv.Version.ID == canary.Version.ID {
 		t.Fatal("new coverage creates a version")
 	}
 	v2 := adv.Version.ID
 	beforeAudit := counts(t, d)[2]
-	exact := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source2, ExpectedVersion: v2}, bot))
+	exact := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, injected), SourceAsOf: source2, ExpectedVersion: v2}, bot))(t)
 	if !exact.Deduped || exact.Published || !exact.Live || counts(t, d)[2] != beforeAudit {
 		t.Fatal("an exact live retry does not rewrite the pointer/audit row")
 	}
@@ -766,7 +776,7 @@ func TestManagedData(t *testing.T) {
 	var action string
 	var tokenID jsx.ID
 	var meta map[string]any
-	must(t, 0, d.QueryRow(ctx, `SELECT action, token_id, metadata FROM audit_log WHERE version_id = $1 AND action = 'data_update'`, winner.Version.ID).Scan(&action, &tokenID, &meta))
+	noErr(t, d.QueryRow(ctx, `SELECT action, token_id, metadata FROM audit_log WHERE version_id = $1 AND action = 'data_update'`, winner.Version.ID).Scan(&action, &tokenID, &meta))
 	if tokenID != minted.ID || meta["source_as_of"] != source3 || meta["deduped"] != false {
 		t.Fatalf("audit attribution %v %v", tokenID, meta)
 	}
@@ -776,7 +786,7 @@ func TestManagedData(t *testing.T) {
 	}
 
 	// Unmanaged pages fail with the bounded opt-in error.
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "plain"}, bot))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "plain"}, bot))(t)
 	_, err = GetPageData(ctx, d, "plain")
 	wantCode(t, err, 409, "page_not_data_managed")
 	deploy(t, d, bot, DeployInput{Slug: "plain", HTML: pageHTML(1), Publish: true})
@@ -784,31 +794,31 @@ func TestManagedData(t *testing.T) {
 	wantCode(t, err, 409, "page_not_data_managed")
 
 	// Gated and disabled pages keep their governance.
-	gb := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "gateddata", HTML: managedHTML(source0, `{"count":1,"label":"a"}`), Publish: true}}, bot))
-	must(t, d.Exec(ctx, "UPDATE pages SET require_approval = true WHERE slug = 'gateddata'"))
-	gd := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "gateddata", Data: jv(t, `{"count":2,"label":"pending"}`), SourceAsOf: source1, ExpectedVersion: gb.Version.ID}, bot))
+	gb := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "gateddata", HTML: managedHTML(source0, `{"count":1,"label":"a"}`), Publish: true}}, bot))(t)
+	must(d.Exec(ctx, "UPDATE pages SET require_approval = true WHERE slug = 'gateddata'"))(t)
+	gd := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "gateddata", Data: jv(t, `{"count":2,"label":"pending"}`), SourceAsOf: source1, ExpectedVersion: gb.Version.ID}, bot))(t)
 	if !gd.Gated || gd.Version.Status != "pending" || gd.Live {
 		t.Fatal("gated data lands pending")
 	}
-	must(t, d.Exec(ctx, "UPDATE pages SET disabled = true WHERE slug = 'mcpdata'"))
+	must(d.Exec(ctx, "UPDATE pages SET disabled = true WHERE slug = 'mcpdata'"))(t)
 	_, err = UpdatePageData(ctx, d, DataUpdateInput{Slug: "mcpdata", Data: jv(t, `{"count":6,"label":"disabled"}`), SourceAsOf: hoursAgo(0.5), ExpectedVersion: winner.Version.ID}, bot)
 	wantCode(t, err, 403, "disabled_takedown")
-	disabledRead := must(t, GetPageData(ctx, d, "mcpdata"))
+	disabledRead := must(GetPageData(ctx, d, "mcpdata"))(t)
 	if disabledRead.Page.PublishedVersionID != winner.Version.ID || !disabledRead.Page.Disabled {
 		t.Fatal("published pointer is retained during takedown")
 	}
-	must(t, d.Exec(ctx, "UPDATE pages SET disabled = false WHERE slug = 'mcpdata'"))
+	must(d.Exec(ctx, "UPDATE pages SET disabled = false WHERE slug = 'mcpdata'"))(t)
 
 	// A no-op refresh is recordable without a version.
-	beforeCheck := must(t, GetPageData(ctx, d, "mcpdata"))
+	beforeCheck := must(GetPageData(ctx, d, "mcpdata"))(t)
 	nv := counts(t, d)[1]
-	rec := must(t, RecordRefreshCheck(ctx, d, RefreshCheckInput{Slug: "mcpdata", Outcome: "source_not_updated",
-		Detail: "  upstream max date unchanged  ", SourceAsOfSeen: beforeCheck.Envelope.Value("source_as_of")}, bot))
+	rec := must(RecordRefreshCheck(ctx, d, RefreshCheckInput{Slug: "mcpdata", Outcome: "source_not_updated",
+		Detail: "  upstream max date unchanged  ", SourceAsOfSeen: beforeCheck.Envelope.Value("source_as_of")}, bot))(t)
 	if *rec.Freshness.LastCheckOutcome != "source_not_updated" || *rec.Freshness.DaysSinceCheck != 0 ||
 		rec.Freshness.SourceAsOf != beforeCheck.Freshness.SourceAsOf || *rec.Freshness.LatestOutcome != "source_not_updated" {
 		t.Fatalf("%+v", rec.Freshness)
 	}
-	after := must(t, GetPageData(ctx, d, "mcpdata"))
+	after := must(GetPageData(ctx, d, "mcpdata"))(t)
 	if after.DataSHA256 != beforeCheck.DataSHA256 || after.Page.PublishedVersionID != beforeCheck.Page.PublishedVersionID ||
 		*after.Freshness.LastCheckDetail != "upstream max date unchanged" || after.Freshness.CheckedAt.Before(after.Freshness.RefreshedAt.Time) {
 		t.Fatalf("%+v", after.Freshness)
@@ -816,7 +826,7 @@ func TestManagedData(t *testing.T) {
 	if counts(t, d)[1] != nv {
 		t.Fatal("recording a check creates no version")
 	}
-	listed := must(t, ListPages(ctx, d, ListPagesOptions{}))
+	listed := must(ListPages(ctx, d, ListPagesOptions{}))(t)
 	for _, p := range listed {
 		if p.Slug == "mcpdata" {
 			lb, _ := json.Marshal(p.Freshness)
@@ -827,7 +837,7 @@ func TestManagedData(t *testing.T) {
 		}
 	}
 	var checkMeta map[string]any
-	must(t, 0, d.QueryRow(ctx, `SELECT token_id, metadata FROM audit_log WHERE action = 'record_refresh_check'`).Scan(&tokenID, &checkMeta))
+	noErr(t, d.QueryRow(ctx, `SELECT token_id, metadata FROM audit_log WHERE action = 'record_refresh_check'`).Scan(&tokenID, &checkMeta))
 	if tokenID != minted.ID || checkMeta["outcome"] != "source_not_updated" || checkMeta["detail"] != "upstream max date unchanged" {
 		t.Fatal(checkMeta)
 	}
@@ -843,74 +853,70 @@ func TestSourceMetadataAndLegacyRows(t *testing.T) {
 		var dataSHA, tplSHA *string
 		var refreshed, source jsx.Time
 		var tv jsx.ID
-		must(t, 0, d.QueryRow(ctx, `SELECT html, data_sha256, data_template_sha256, refreshed_at, source_as_of, template_version_id FROM page_versions WHERE id=$1`, id).
+		noErr(t, d.QueryRow(ctx, `SELECT html, data_sha256, data_template_sha256, refreshed_at, source_as_of, template_version_id FROM page_versions WHERE id=$1`, id).
 			Scan(&h, &dataSHA, &tplSHA, &refreshed, &source, &tv))
-		m := must(t, pagedata.ParseManagedHTML(h))
+		m := must(pagedata.ParseManagedHTML(h))(t)
 		if *dataSHA != m.DataSHA256 || *tplSHA != m.TemplateSHA256 || isoString(source.Time) != isoString(ParseTime(m.SourceAsOf())) ||
 			isoString(refreshed.Time) != isoString(ParseTime(m.RefreshedAt())) || tv != 0 {
 			t.Fatal("indexed metadata")
 		}
 	}
-	inline := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "source-metadata-page", HTML: html, Publish: true}}, agent))
+	inline := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "source-metadata-page", HTML: html, Publish: true}}, agent))(t)
 	indexed(inline.Version.ID)
 	_, err := UpdatePageData(ctx, d, DataUpdateInput{Slug: "source-metadata-page", Data: jv(t, `{"count":2,"label":"x"}`), SourceAsOf: "2025-08-02T00:00:00Z", ExpectedVersion: inline.Version.ID}, agent)
 	wantCode(t, err, 409, "source_regression")
 
 	// Full-source writes keep byte identity even when only a timestamp changes.
-	changed := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "byte-dedupe", HTML: html, Publish: true}}, agent))
-	timestampOnly := strings.Replace(html, `"refreshed_at":"`, `"refreshed_at":"2026-08-02T00:00:00.000Z","x":"`, 1)
-	_ = timestampOnly
-	alt := managedHTML("2026-08-01T00:00:00.000Z", `{"count":0,"label":"x"}`)
-	alt = strings.Replace(alt, "Managed dashboard", "Managed dashboard", 1)
-	ref := ParseTime(must(t, pagedata.ParseManagedHTML(html)).RefreshedAt())
-	alt = strings.Replace(html, jsx.FormatTime(ref), jsx.FormatTime(ref.Add(time.Hour)), 1)
-	changedTime := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "byte-dedupe", HTML: alt, Publish: true}}, agent))
+	changed := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "byte-dedupe", HTML: html, Publish: true}}, agent))(t)
+	ref := ParseTime(must(pagedata.ParseManagedHTML(html))(t).RefreshedAt())
+	alt := strings.Replace(html, jsx.FormatTime(ref), jsx.FormatTime(ref.Add(time.Hour)), 1)
+	changedTime := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "byte-dedupe", HTML: alt, Publish: true}}, agent))(t)
 	if changedTime.Version.ID == changed.Version.ID {
 		t.Fatal("full-source writes retain byte identity")
 	}
-	retry := must(t, UpdatePageData(ctx, d, DataUpdateInput{Slug: "byte-dedupe", Data: jv(t, `{"count":0,"label":"x"}`), SourceAsOf: "2026-08-01T00:00:00Z", ExpectedVersion: changedTime.Version.ID}, agent))
+	retry := must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "byte-dedupe", Data: jv(t, `{"count":0,"label":"x"}`), SourceAsOf: "2026-08-01T00:00:00Z", ExpectedVersion: changedTime.Version.ID}, agent))(t)
 	if retry.Version.ID != changedTime.Version.ID {
 		t.Fatal("managed retries can see indexed full-source versions")
 	}
 
 	// Pre-index immutable rows are read without being rewritten.
-	legacyPage := must(t, CreatePage(ctx, d, CreatePageInput{Slug: "legacy-source-metadata"}, agent))
+	legacyPage := must(CreatePage(ctx, d, CreatePageInput{Slug: "legacy-source-metadata"}, agent))(t)
 	var legacy jsx.ID
-	must(t, 0, d.QueryRow(ctx, `INSERT INTO page_versions(page_id,html,content_sha256,status,render_mode,author,source)
+	noErr(t, d.QueryRow(ctx, `INSERT INTO page_versions(page_id,html,content_sha256,status,render_mode,author,source)
 	   VALUES($1,$2,$3,'approved','themed','source-fixture','mcp') RETURNING id`, legacyPage.ID, html, SHA256(html)).Scan(&legacy))
-	must(t, d.Exec(ctx, "UPDATE pages SET published_version_id=$1 WHERE id=$2", legacy, legacyPage.ID))
+	must(d.Exec(ctx, "UPDATE pages SET published_version_id=$1 WHERE id=$2", legacy, legacyPage.ID))(t)
 	var listedFresh *Freshness
-	for _, p := range must(t, ListPages(ctx, d, ListPagesOptions{})) {
+	for _, p := range must(ListPages(ctx, d, ListPagesOptions{}))(t) {
 		if p.Slug == "legacy-source-metadata" {
 			listedFresh = p.Freshness
 		}
 	}
-	readFresh := must(t, GetPageData(ctx, d, "legacy-source-metadata")).Freshness
+	readFresh := must(GetPageData(ctx, d, "legacy-source-metadata"))(t).Freshness
 	lb, _ := json.Marshal(listedFresh)
 	rb, _ := json.Marshal(readFresh)
 	if listedFresh == nil || string(lb) != string(rb) {
 		t.Fatalf("legacy rows are readable:\n%s\n%s", lb, rb)
 	}
-	checked := must(t, RecordRefreshCheck(ctx, d, RefreshCheckInput{Slug: "legacy-source-metadata", Outcome: "source_not_updated", SourceAsOfSeen: "2026-08-01T00:00:00Z"}, agent))
+	checked := must(RecordRefreshCheck(ctx, d, RefreshCheckInput{Slug: "legacy-source-metadata", Outcome: "source_not_updated", SourceAsOfSeen: "2026-08-01T00:00:00Z"}, agent))(t)
 	if isoString(checked.Freshness.SourceAsOf.Time) != "2026-08-01T00:00:00.000Z" {
 		t.Fatal("legacy coverage")
 	}
 	newer := strings.ReplaceAll(html, "2026-08-01", "2026-08-03")
-	must(t, d.Exec(ctx, `INSERT INTO page_versions(page_id,html,content_sha256,status,render_mode,author,source)
-	   VALUES($1,$2,$3,'draft','themed','source-fixture','mcp')`, legacyPage.ID, newer, SHA256(newer)))
+	must(d.Exec(ctx, `INSERT INTO page_versions(page_id,html,content_sha256,status,render_mode,author,source)
+	   VALUES($1,$2,$3,'draft','themed','source-fixture','mcp')`, legacyPage.ID, newer, SHA256(newer)))(t)
 	_, err = UpdatePageData(ctx, d, DataUpdateInput{Slug: "legacy-source-metadata", Data: jv(t, `{"count":2,"label":"x"}`), SourceAsOf: "2026-08-02T00:00:00Z", ExpectedVersion: legacy}, agent)
 	wantCode(t, err, 409, "source_regression")
 	var nullSHA *string
-	must(t, 0, d.QueryRow(ctx, "SELECT data_sha256 FROM page_versions WHERE id=$1", legacy).Scan(&nullSHA))
+	noErr(t, d.QueryRow(ctx, "SELECT data_sha256 FROM page_versions WHERE id=$1", legacy).Scan(&nullSHA))
 	if nullSHA != nil {
 		t.Fatal("legacy rows are not rewritten")
 	}
-	plain := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "plain-source-metadata", HTML: pageHTML(1), Publish: true}}, agent))
-	must(t, 0, d.QueryRow(ctx, "SELECT data_sha256 FROM page_versions WHERE id=$1", plain.Version.ID).Scan(&nullSHA))
+	plain := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "plain-source-metadata", HTML: pageHTML(1), Publish: true}}, agent))(t)
+	noErr(t, d.QueryRow(ctx, "SELECT data_sha256 FROM page_versions WHERE id=$1", plain.Version.ID).Scan(&nullSHA))
 	if nullSHA != nil {
 		t.Fatal("plain html has no data index")
 	}
-	for _, p := range must(t, ListPages(ctx, d, ListPagesOptions{})) {
+	for _, p := range must(ListPages(ctx, d, ListPagesOptions{}))(t) {
 		if p.Slug == "plain-source-metadata" && p.Freshness != nil {
 			t.Fatal("plain pages have no freshness")
 		}
@@ -931,39 +937,39 @@ func configHTML(campaign string) string {
 
 func TestPageConfig(t *testing.T) {
 	d, ctx := setup(t)
-	base := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "cfg", HTML: configHTML("Northwind Spring"), Publish: true}}, agent))
-	cfg := must(t, GetPageConfig(ctx, d, "cfg"))
+	base := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "cfg", HTML: configHTML("Northwind Spring"), Publish: true}}, agent))(t)
+	cfg := must(GetPageConfig(ctx, d, "cfg"))(t)
 	if jsonv.Stringify(cfg.Config) != `{"campaign":"Northwind Spring"}` || cfg.Version.ID != base.Version.ID {
 		t.Fatal(jsonv.Stringify(cfg.Config))
 	}
-	before := must(t, GetPageData(ctx, d, "cfg"))
+	before := must(GetPageData(ctx, d, "cfg"))(t)
 	_, err := UpdatePageConfig(ctx, d, ConfigUpdateInput{Slug: "cfg", Config: jv(t, `{"campaign":"x"}`)}, agent)
 	wantCode(t, err, 400, "expected_version_required")
 	_, err = UpdatePageConfig(ctx, d, ConfigUpdateInput{Slug: "cfg", Config: jv(t, `{"campaign":5}`), ExpectedVersion: base.Version.ID}, agent)
 	wantCode(t, err, 400, "config_validation_failed")
-	up := must(t, UpdatePageConfig(ctx, d, ConfigUpdateInput{Slug: "cfg", Config: jv(t, `{"campaign":"Northwind Summer"}`), ExpectedVersion: base.Version.ID}, agent))
+	up := must(UpdatePageConfig(ctx, d, ConfigUpdateInput{Slug: "cfg", Config: jv(t, `{"campaign":"Northwind Summer"}`), ExpectedVersion: base.Version.ID}, agent))(t)
 	if up.Deduped || !up.Published || jsonv.Stringify(up.Config) != `{"campaign":"Northwind Summer"}` || up.DataSHA256 != before.DataSHA256 {
 		t.Fatalf("%+v", up)
 	}
-	after := must(t, GetPageData(ctx, d, "cfg"))
+	after := must(GetPageData(ctx, d, "cfg"))(t)
 	if jsonv.Stringify(after.Envelope) != jsonv.Stringify(before.Envelope) || after.TemplateSHA256 == before.TemplateSHA256 {
 		t.Fatal("config edits leave the data block byte-for-byte alone but move the template identity")
 	}
 	var action string
-	must(t, 0, d.QueryRow(ctx, `SELECT action FROM audit_log WHERE version_id = $1`, up.Version.ID).Scan(&action))
+	noErr(t, d.QueryRow(ctx, `SELECT action FROM audit_log WHERE version_id = $1`, up.Version.ID).Scan(&action))
 	if action != "config_update" {
 		t.Fatal(action)
 	}
-	must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "nocfg", HTML: managedHTML(hoursAgo(1), `{"count":1,"label":"a"}`), Publish: true}}, agent))
+	must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "nocfg", HTML: managedHTML(hoursAgo(1), `{"count":1,"label":"a"}`), Publish: true}}, agent))(t)
 	_, err = GetPageConfig(ctx, d, "nocfg")
 	wantCode(t, err, 409, "page_not_template_managed")
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "empty"}, agent))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "empty"}, agent))(t)
 	_, err = GetPageConfig(ctx, d, "empty")
 	wantCode(t, err, 409, "update_page_not_published")
 
 	// A page that ships #pages-config without a schema gets one derived.
 	noSchema := strings.Replace(configHTML("Fabrikam"), `<script id="pages-config-schema" type="application/schema+json">`, `<script id="ignored" type="application/schema+json">`, 1)
-	gen := must(t, CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "derived", HTML: noSchema, Publish: true}}, agent))
+	gen := must(CreateAndDeploy(ctx, d, CreateAndDeployInput{DeployInput: DeployInput{Slug: "derived", HTML: noSchema, Publish: true}}, agent))(t)
 	if !gen.ConfigSchemaGenerated {
 		t.Fatal("config_schema_generated")
 	}
@@ -974,15 +980,15 @@ func TestSaveDeck(t *testing.T) {
 	deck := func(title string) string {
 		return `<!doctype html><html><head><title>` + title + `</title></head><body><script type="application/bento+json" id="bento-doc">{}</script></body></html>`
 	}
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "deck"}, admin))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "deck"}, admin))(t)
 	first := deploy(t, d, admin, DeployInput{Slug: "deck", HTML: deck("one"), Publish: true})
 	page := getPage(t, d, "deck").Page
-	saved := must(t, SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: first.Version.ID.String(), HTML: deck("two")}, admin))
+	saved := must(SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: first.Version.ID.String(), HTML: deck("two")}, admin))(t)
 	if saved.Version.Status != "draft" || saved.Version.Source != "admin" || saved.Version.RenderMode != "raw" || saved.Published {
 		t.Fatalf("%+v", saved)
 	}
 	// Saving the same snapshot again from the old base is the same save.
-	again := must(t, SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: first.Version.ID.String(), HTML: deck("two")}, admin))
+	again := must(SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: first.Version.ID.String(), HTML: deck("two")}, admin))(t)
 	if !again.Deduped || again.Version.ID != saved.Version.ID {
 		t.Fatal("same snapshot")
 	}
@@ -992,27 +998,27 @@ func TestSaveDeck(t *testing.T) {
 	wantCode(t, err, 403, "deck_session_unavailable")
 	_, err = SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: saved.Version.ID.String(), HTML: "<p>not a deck</p>"}, admin)
 	wantCode(t, err, 403, "deck_session_unavailable")
-	must(t, SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: saved.Version.ID.String(), HTML: deck("three")}, admin))
+	must(SaveDeck(ctx, d, SaveDeckInput{Slug: "deck", PageID: page.ID, BaseVersion: saved.Version.ID.String(), HTML: deck("three")}, admin))(t)
 }
 
 // test/password-reveal.integration.js state-machine parts.
 func TestRevealPassword(t *testing.T) {
 	d, ctx := setup(t)
-	must(t, CreatePage(ctx, d, CreatePageInput{Slug: "rv-fabrikam", Title: "Fabrikam"}, agent))
-	must(t, SetPassword(ctx, d, "rv-fabrikam", "fabrikam-client-pass", agent))
-	shown := must(t, RevealPassword(ctx, d, "rv-fabrikam", admin))
+	must(CreatePage(ctx, d, CreatePageInput{Slug: "rv-fabrikam", Title: "Fabrikam"}, agent))(t)
+	must(SetPassword(ctx, d, "rv-fabrikam", "fabrikam-client-pass", agent))(t)
+	shown := must(RevealPassword(ctx, d, "rv-fabrikam", admin))(t)
 	b, _ := json.Marshal(shown)
 	if string(b) != `{"slug":"rv-fabrikam","has_password":true,"available":true,"password":"fabrikam-client-pass"}` {
 		t.Fatal(string(b))
 	}
 	var actor, actorType string
 	var meta map[string]any
-	must(t, 0, d.QueryRow(ctx, `SELECT actor, actor_type, metadata FROM audit_log WHERE action = 'reveal_password' ORDER BY id DESC LIMIT 1`).Scan(&actor, &actorType, &meta))
+	noErr(t, d.QueryRow(ctx, `SELECT actor, actor_type, metadata FROM audit_log WHERE action = 'reveal_password' ORDER BY id DESC LIMIT 1`).Scan(&actor, &actorType, &meta))
 	if actor != admin.Actor || actorType != "user" || meta["available"] != true {
 		t.Fatal(actor, meta)
 	}
 	var leaked int
-	must(t, 0, d.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE metadata::text LIKE '%fabrikam-client-pass%'`).Scan(&leaked))
+	noErr(t, d.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE metadata::text LIKE '%fabrikam-client-pass%'`).Scan(&leaked))
 	if leaked != 0 {
 		t.Fatal("the audit row never carries the password")
 	}
@@ -1022,17 +1028,17 @@ func TestRevealPassword(t *testing.T) {
 	if strings.Contains(string(pb), "fabrikam-client-pass") || strings.Contains(string(pb), "ciphertext") {
 		t.Fatal("page reads never include the password")
 	}
-	must(t, d.Exec(ctx, "UPDATE pages SET password_ciphertext = NULL WHERE slug = 'rv-fabrikam'"))
-	if r := must(t, RevealPassword(ctx, d, "rv-fabrikam", admin)); r.Available || r.Password != nil {
+	must(d.Exec(ctx, "UPDATE pages SET password_ciphertext = NULL WHERE slug = 'rv-fabrikam'"))(t)
+	if r := must(RevealPassword(ctx, d, "rv-fabrikam", admin))(t); r.Available || r.Password != nil {
 		t.Fatal("no copy yet is reported, not guessed")
 	}
-	must(t, SetPassword(ctx, d, "rv-fabrikam", nil, admin))
-	b, _ = json.Marshal(must(t, RevealPassword(ctx, d, "rv-fabrikam", admin)))
+	must(SetPassword(ctx, d, "rv-fabrikam", nil, admin))(t)
+	b, _ = json.Marshal(must(RevealPassword(ctx, d, "rv-fabrikam", admin))(t))
 	if string(b) != `{"slug":"rv-fabrikam","has_password":false,"available":false,"password":null}` {
 		t.Fatal(string(b))
 	}
 	var ct *string
-	must(t, 0, d.QueryRow(ctx, "SELECT password_ciphertext FROM pages WHERE slug = 'rv-fabrikam'").Scan(&ct))
+	noErr(t, d.QueryRow(ctx, "SELECT password_ciphertext FROM pages WHERE slug = 'rv-fabrikam'").Scan(&ct))
 	if ct != nil {
 		t.Fatal("no copy outlives the password")
 	}
@@ -1043,7 +1049,7 @@ func TestRevealPassword(t *testing.T) {
 // Wire shapes the REST/MCP layers serialize.
 func TestWireShapes(t *testing.T) {
 	d, ctx := setup(t)
-	p := must(t, CreatePage(ctx, d, CreatePageInput{Slug: "wire", Title: "Wire"}, agent))
+	p := must(CreatePage(ctx, d, CreatePageInput{Slug: "wire", Title: "Wire"}, agent))(t)
 	b, _ := json.Marshal(p)
 	want := fmt.Sprintf(`{"id":"%d","slug":"wire","title":"Wire","client_id":null,"workspace_id":null,"theme_id":null,"require_approval":false,"disabled":false,"published_version_id":null,"created_at":"%s","updated_at":"%s","workspace_name":null}`,
 		p.ID, jsx.FormatTime(p.CreatedAt.Time), jsx.FormatTime(p.UpdatedAt.Time))
@@ -1063,7 +1069,7 @@ func TestWireShapes(t *testing.T) {
 		!strings.HasSuffix(string(b), `"lastCheck":{"last_check_at":null,"last_check_outcome":null,"last_check_detail":null,"last_check_source_as_of":null}}`) {
 		t.Fatal(string(b))
 	}
-	lv := must(t, ListVersions(ctx, d, "wire", ListVersionsOptions{}))
+	lv := must(ListVersions(ctx, d, "wire", ListVersionsOptions{}))(t)
 	b, _ = json.Marshal(lv[0])
 	if !strings.HasSuffix(string(b), `"is_published":true,"is_live":true}`) {
 		t.Fatal(string(b))

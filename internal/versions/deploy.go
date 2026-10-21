@@ -549,7 +549,7 @@ func DeployLocked(ctx context.Context, q db.Querier, page *LockedPage, p *Prepar
 		// that moves the pointer backward, which is the content a byte-supplying
 		// caller asked for. Callers whose contract is "retrying is a no-op"
 		// (templates.createPage) scope their own idempotency check first.
-		if !(p.DataMetadata != nil && page.PublishedVersionID == version.ID) {
+		if p.DataMetadata == nil || page.PublishedVersionID != version.ID {
 			if err := movePointer(ctx, q, page, version.ID, p.ExpectedVersion, a, "publish", nil); err != nil {
 				return nil, err
 			}

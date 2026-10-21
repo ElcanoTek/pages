@@ -21,7 +21,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/audit"
 	"github.com/ElcanoTek/pages/internal/db"
-	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/versions"
 )
@@ -107,7 +107,7 @@ func NormalizeName(v any) (string, error) {
 	if name == "" {
 		return "", apierror.BadRequest("workspace name is required", "workspace_name_required", nil)
 	}
-	if jsonv.UTF16Len(name) > 100 {
+	if jsstr.UTF16Len(name) > 100 {
 		return "", apierror.BadRequest("workspace name must be 100 characters or fewer", "workspace_name_too_long", nil)
 	}
 	return name, nil

@@ -14,7 +14,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/audit"
 	"github.com/ElcanoTek/pages/internal/db"
-	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 	"github.com/ElcanoTek/pages/internal/passwordvault"
@@ -414,7 +414,7 @@ func SetPassword(ctx context.Context, d *db.DB, slug string, password any, a Act
 		if !ok {
 			return nil, apierror.BadRequest("password must be a non-empty string", "bad_password", nil)
 		}
-		if jsonv.UTF16Len(pw) > 512 {
+		if jsstr.UTF16Len(pw) > 512 {
 			return nil, apierror.BadRequest("password must be 512 characters or fewer", "password_too_long", nil)
 		}
 		// Hash BEFORE opening the transaction: scrypt is deliberately
@@ -500,7 +500,7 @@ func SetTitle(ctx context.Context, d *db.DB, slug string, title any, a Actor) (*
 	if !ok || jsTrim(t) == "" {
 		return nil, apierror.BadRequest("title is required", "title_required", nil)
 	}
-	clean := jsonv.SliceUTF16(jsTrim(t), 0, 200)
+	clean := jsstr.Slice(jsTrim(t), 0, 200)
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (*TitleResult, error) {
 		page, err := LockPage(ctx, tx, slug)
 		if err != nil {
@@ -638,7 +638,7 @@ func RecordRefreshCheck(ctx context.Context, d *db.DB, in RefreshCheckInput, a A
 		}
 		s = jsTrim(s)
 		if s != "" {
-			if jsonv.UTF16Len(s) > maxCheckDetail {
+			if jsstr.UTF16Len(s) > maxCheckDetail {
 				return nil, apierror.BadRequest(fmt.Sprintf("detail must be at most %d characters", maxCheckDetail), "refresh_check_detail_invalid", nil)
 			}
 			detail = &s

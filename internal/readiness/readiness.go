@@ -20,8 +20,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/db"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/migrate"
 )
 
@@ -55,7 +55,7 @@ func New(connString string, migrations fs.FS) (*Checker, error) {
 	if err != nil {
 		// Readiness replies stay generic: a bad configuration is "not ready".
 		c.poolErr = err
-		return c, nil
+		return c, nil //nolint:nilerr // reported through Check, by design
 	}
 	cfg.MaxConns = 1
 	cfg.MinConns = 0
@@ -161,8 +161,8 @@ func (c *Checker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ready := c.Check(r.Context())
 	w.Header().Set("Cache-Control", "no-store")
 	if ready {
-		wire.SendJSON(w, r, http.StatusOK, status{"ready"})
+		httpx.SendJSON(w, r, http.StatusOK, status{"ready"})
 		return
 	}
-	wire.SendJSON(w, r, http.StatusServiceUnavailable, status{"not_ready"})
+	httpx.SendJSON(w, r, http.StatusServiceUnavailable, status{"not_ready"})
 }
