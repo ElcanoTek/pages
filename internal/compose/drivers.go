@@ -61,8 +61,8 @@ func startSpawn(j *job, task string) {
 	cmd.WaitDelay = 5 * time.Second
 	j.pushLog(fmt.Sprintf("▸ cutlass %s (cwd %s)", bin, dir))
 	if err := cmd.Start(); err != nil {
-		j.setStatus("error")
 		j.pushLog("spawn error: " + err.Error())
+		j.setStatus("error")
 		return
 	}
 
@@ -70,8 +70,9 @@ func startSpawn(j *job, task string) {
 	var killer *time.Timer
 	if limit := maxDuration(); limit > 0 {
 		killer = time.AfterFunc(limit, func() {
+			// The kill leaves no exit code, so the Wait goroutine below marks
+			// the job as an error once its last log line is in.
 			j.pushLog(fmt.Sprintf("✗ timed out after %ds — killing", seconds(limit)))
-			j.setStatus("error")
 			_ = cmd.Process.Kill()
 		})
 	}
@@ -90,6 +91,13 @@ func startSpawn(j *job, task string) {
 		} else if err != nil {
 			j.pushLog("spawn error: " + err.Error())
 		}
+		shown := "null"
+		if code != nil {
+			shown = strconv.Itoa(*code)
+		}
+		// Log first, status last: a poller that sees a finished job must
+		// also see its whole log.
+		j.pushLog("▸ cutlass exited (code " + shown + ")")
 		j.mu.Lock()
 		j.code = code
 		if j.status == "running" {
@@ -100,11 +108,6 @@ func startSpawn(j *job, task string) {
 			}
 		}
 		j.mu.Unlock()
-		shown := "null"
-		if code != nil {
-			shown = strconv.Itoa(*code)
-		}
-		j.pushLog("▸ cutlass exited (code " + shown + ")")
 	}()
 }
 
@@ -266,8 +269,8 @@ func startMoc(j *job, task string) {
 		}
 		created, err := mocFetch(ctx, http.MethodPost, "/tasks", payload)
 		if err != nil {
-			j.setStatus("error")
 			j.pushLog("MOC create failed: " + err.Error())
+			j.setStatus("error")
 			return
 		}
 		taskID := jsString(created["id"])
@@ -287,8 +290,8 @@ func startMoc(j *job, task string) {
 		}
 		for {
 			if !deadline.IsZero() && time.Now().After(deadline) {
-				j.setStatus("error")
 				j.pushLog(fmt.Sprintf("✗ timed out after %ds waiting on MOC", seconds(limit)))
+				j.setStatus("error")
 				return
 			}
 			time.Sleep(pollInterval())
@@ -307,19 +310,21 @@ func startMoc(j *job, task string) {
 
 			st, _ := t["status"].(string)
 			switch strings.ToLower(st) {
+			// Log first, status last: a poller that sees a finished job must
+			// also see its whole log.
 			case "success":
-				j.setStatus("done")
 				if r := truthy(t["result"]); r != "" {
 					j.pushLog("result: " + clean(r))
 				}
 				j.pushLog("▸ MOC task " + taskID + " succeeded")
+				j.setStatus("done")
 				return
 			case "error", "cancelled":
-				j.setStatus("error")
 				if e := truthy(t["error_message"]); e != "" {
 					j.pushLog("error: " + clean(e))
 				}
 				j.pushLog("▸ MOC task " + taskID + " " + strings.ToLower(st))
+				j.setStatus("error")
 				return
 			}
 			// Still pending/assigned/leased/running/analyzing: keep polling.
