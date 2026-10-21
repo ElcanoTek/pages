@@ -91,3 +91,39 @@ func TestWriteJSON(t *testing.T) {
 		t.Fatalf("%d %q %v", w.Code, w.Body.String(), w.Header())
 	}
 }
+
+func TestIsLocalPath(t *testing.T) {
+	for s, want := range map[string]bool{
+		"/": true, "/admin/northwind?x=1": true, "/a//b": true, `/a\b`: true,
+		"": false, "admin": false, "//evil.example": false, `/\evil.example`: false,
+		"https://evil.example/": false, "/\t/evil.example": false, "/a\nb": false, "/a\x7fb": false,
+	} {
+		if got := IsLocalPath(s); got != want {
+			t.Errorf("IsLocalPath(%q) = %v, want %v", s, got, want)
+		}
+	}
+}
+
+func TestSendCredentialJSONHasNoValidator(t *testing.T) {
+	r := httptest.NewRequest("GET", "/r", nil)
+	w := httptest.NewRecorder()
+	w.Header().Set("ETag", `W/"stale"`)
+	SendCredentialJSON(w, r, 200, []byte(`{"password":"northwind-pass"}`))
+	if w.Code != 200 || w.Header().Get("ETag") != "" || w.Header().Get("Cache-Control") != "no-store" ||
+		w.Header().Get("Content-Type") != "application/json; charset=utf-8" || w.Body.String() != `{"password":"northwind-pass"}` {
+		t.Fatalf("%d %v %q", w.Code, w.Header(), w.Body.String())
+	}
+	// No validator, so even a matching If-None-Match gets the body.
+	r.Header.Set("If-None-Match", "*")
+	w = httptest.NewRecorder()
+	SendNoValidator(w, r, 200, "text/plain; charset=utf-8", []byte("x"))
+	if w.Code != 200 || w.Body.String() != "x" || w.Header().Get("ETag") != "" {
+		t.Fatalf("%d %v %q", w.Code, w.Header(), w.Body.String())
+	}
+}
+
+func TestEscapeHTMLMatchesEscapeHTMLPackage(t *testing.T) {
+	if got := escapeHTML(`&<>"'x`); got != "&amp;&lt;&gt;&quot;&#39;x" {
+		t.Fatalf("escapeHTML = %q", got)
+	}
+}

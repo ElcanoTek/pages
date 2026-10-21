@@ -315,7 +315,14 @@ func (h *handler) setPassword(w http.ResponseWriter, r *http.Request, p params) 
 	if err != nil {
 		return err
 	}
-	return sendJSON(w, r, http.StatusOK, res)
+	// The answer to a request that set a credential: no-store, and no ETag
+	// hashed from it (httpx.SendCredentialJSON).
+	s, err := jsonv.Marshal(res)
+	if err != nil {
+		return err
+	}
+	httpx.SendCredentialJSON(w, r, http.StatusOK, []byte(s))
+	return nil
 }
 
 // setTitle renames a page (agent-owned authoring metadata).

@@ -260,7 +260,7 @@ func (a *App) portalRoutes() []route {
 			a.portals.push(portal)
 			payload := marshal(o("portal", portal, "password", "pr7k-9mfx-t2qd-w4hn", "password_generated", true))
 			a.mu.Unlock()
-			sendRaw(w, r, http.StatusCreated, payload)
+			sendCredentialBytes(w, r.Request, http.StatusCreated, payload)
 		}},
 		{method: "POST", pattern: "/api/v1/admin/portals/:id/pages", h: func(w http.ResponseWriter, r *req) {
 			id := r.params["id"]
@@ -337,10 +337,10 @@ func (a *App) portalRoutes() []route {
 		{method: "POST", pattern: "/api/v1/admin/portals/:id/password", h: func(w http.ResponseWriter, r *req) {
 			a.mu.Lock()
 			defer a.mu.Unlock()
-			sendJSON(w, r.Request, http.StatusOK, o("portal", a.firstPortal(), "password", "zc4m-8kdq-r3vp-h7ns", "password_generated", true))
+			sendCredential(w, r.Request, http.StatusOK, o("portal", a.firstPortal(), "password", "zc4m-8kdq-r3vp-h7ns", "password_generated", true))
 		}},
 		{method: "POST", pattern: "/api/v1/admin/portals/:id/reveal-password", h: func(w http.ResponseWriter, r *req) {
-			sendJSON(w, r.Request, http.StatusOK, o("id", num(r.params["id"]), "available", true, "password", "pr7k-9mfx-t2qd-w4hn"))
+			sendCredential(w, r.Request, http.StatusOK, o("id", num(r.params["id"]), "available", true, "password", "pr7k-9mfx-t2qd-w4hn"))
 		}},
 		{method: "POST", pattern: "/api/v1/admin/portals/:id/delete", h: func(w http.ResponseWriter, r *req) {
 			// Retire the NAMED portal, not the whole table: with a second

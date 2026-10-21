@@ -264,9 +264,26 @@ func sendError(w http.ResponseWriter, r *http.Request, status int, msg string) {
 	}
 }
 
-// sendJSON is res.status(status).json(v).
+// sendJSON is res.status(status).json(v), minus Express's ETag. The fixture
+// is a test double for the browser suite: no spec revalidates a JSON answer
+// (fetch hides a 304 from page code anyway), and its canned rows carry
+// password fields, so it does not hash its JSON bodies.
 func sendJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
-	httpx.Send(w, r, status, "application/json; charset=utf-8", marshal(v))
+	sendJSONBytes(w, r, status, marshal(v))
+}
+
+func sendJSONBytes(w http.ResponseWriter, r *http.Request, status int, payload []byte) {
+	httpx.SendNoValidator(w, r, status, "application/json; charset=utf-8", payload)
+}
+
+// sendCredential is sendJSON for an answer that carries or sets a password,
+// sent as the real server sends it: no-store, no ETag.
+func sendCredential(w http.ResponseWriter, r *http.Request, status int, v any) {
+	sendCredentialBytes(w, r, status, marshal(v))
+}
+
+func sendCredentialBytes(w http.ResponseWriter, r *http.Request, status int, payload []byte) {
+	httpx.SendCredentialJSON(w, r, status, payload)
 }
 
 func sendHTML(w http.ResponseWriter, r *http.Request, status int, html string) {

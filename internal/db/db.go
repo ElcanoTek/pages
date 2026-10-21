@@ -62,9 +62,22 @@ func BoundsFromEnv() Bounds {
 		StatementTimeout: ms("PG_STATEMENT_TIMEOUT_MS", 15000),
 		LockTimeout:      ms("PG_LOCK_TIMEOUT_MS", 10000),
 		IdleInTxnTimeout: ms("PG_IDLE_TXN_TIMEOUT_MS", 30000),
-		MaxConns:         int32(min(max(env.Int("PG_POOL_MAX", 10), 1), 1000)), // #nosec G115 -- clamped to [1, 1000]
+		MaxConns:         poolMax(),
 		ApplicationName:  "pages",
 	}
+}
+
+// poolMax is PG_POOL_MAX (default 10) clamped to [1, 1000]. The bounds are
+// explicit comparisons, not min/max, so the int32 conversion is visibly safe.
+func poolMax() int32 {
+	n := env.Int("PG_POOL_MAX", 10)
+	if n < 1 {
+		return 1
+	}
+	if n > 1000 {
+		return 1000
+	}
+	return int32(n)
 }
 
 // ConnString is DATABASE_URL, or "" to let pgx read the libpq PG* variables.

@@ -283,6 +283,9 @@ func TestDevLogin(t *testing.T) {
 		"/__dev/login?return_to=http%3A%2F%2Fpages.example%2Fadmin%3Fa%3D1": "/admin?a=1",
 		"/__dev/login?next=%2F%2Fevil.example%2Fx":                          "/x",
 		"/__dev/login?next=relative":                                        "/",
+		"/__dev/login?next=%2F%5Cevil.example%2Fx":                          "/",
+		"/__dev/login?next=%2F%09%2Fevil.example":                           "/",
+		"/__dev/login?next=%2Fadmin%0A%2F%2Fevil.example":                   "/",
 	} {
 		if got := get(dl.Login, target).Header().Get("Location"); got != want {
 			t.Errorf("%s → %q, want %q", target, got, want)
