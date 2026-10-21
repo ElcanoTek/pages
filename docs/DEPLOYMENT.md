@@ -1,8 +1,14 @@
 # Deploying Pages
 
 This is the authoritative deployment guide. Everything here was written against
-`scripts/bootstrap.sh`, `scripts/update.sh`, `deploy/pages.service`,
-`deploy/pages.caddy` and `deploy/pages-cli` as they exist in this repository.
+the `pages` binary's operator verbs (`pages bootstrap`, `pages update`,
+`pages doctor`, `pages backup`, … — `internal/cli` and `internal/ops`),
+`install.sh`, `scripts/bootstrap.sh`, `deploy/pages.service` and
+`deploy/pages.caddy` as they exist in this repository.
+
+Pages is **one Go binary**. It embeds the front end, the migrations, the shipped
+templates and these docs, so a release is a single executable and the box needs
+no language runtime — only PostgreSQL, and Caddy if you want automatic TLS.
 
 > **Licence.** Pages is source-available under BUSL-1.1 with **no production use
 > grant**. Deploying it to serve real dashboards is production use and needs a
@@ -47,16 +53,15 @@ are the same site.
 So you need to **register and pay for two domains**. If you only own one, do not
 deploy Pages to serve anything you care about.
 
-`bootstrap.sh` checks for this and warns:
+`pages bootstrap` checks for this against the public suffix list and warns:
 
 ```
-! CONTENT_HOST (content.example.com) looks like it shares a registrable domain
-  with DASHBOARD_HOST (pages.example.com).
-! That defeats the isolation model (cookie-tossing). Use a different eTLD+1.
-  Continuing, but fix before production.
+! CONTENT_HOST (content.example.com) shares the registrable domain example.com with DASHBOARD_HOST (pages.example.com).
+! That defeats the isolation model (cookie-tossing). Use a different eTLD+1. Continuing, but fix before production.
 ```
 
-It is a warning, not a hard stop. Do not continue past it.
+It is a warning, not a hard stop. Do not continue past it. `pages doctor`
+reports the same condition as a failure.
 
 ### DNS
 
@@ -85,23 +90,19 @@ before you operate this.
 
 ## 2. Prerequisites
 
-**Operating system.** `scripts/bootstrap.sh` is written for **Fedora / RHEL 9+
+**Operating system.** `pages bootstrap` is written for **Fedora / RHEL 9+
 and derivatives** (Rocky, Alma). It uses `dnf`, `postgresql-setup --initdb`,
 `firewall-cmd`, and expects PGDATA at `/var/lib/pgsql/data`. It is not portable
-to Debian or Ubuntu as written — see [§13 Known gaps](#13-known-gaps).
+to Debian or Ubuntu as written — see [§16 Known gaps](#16-known-gaps). The binary
+itself runs anywhere Linux and PostgreSQL do.
 
-**What bootstrap installs for you:** `git`, `curl`, `jq`, `rsync`, `openssl`,
-`postgresql`, `postgresql-server`, a supported Node runtime (20.19+ on 20.x, 22.12+ on 22.x, or newer).
-Bootstrap installs Node 22 from NodeSource if the installed version is unsupported, and optionally `caddy`.
-
-Pages loads the locked `parse5` ES module synchronously from CommonJS. This
-requires Node 20.19+ on the 20.x line, 22.12+ on the 22.x line, or a newer major;
-Node 18, Node 21 and early Node 22 releases are unsupported. CI runs a clean
-`npm ci` and all suites on 20.19.0, 22.12.0 and current 24.x. See Node's
-[module loading history](https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require).
-Upgrade an unsupported runtime before `pages update` or `pages rebuild`. Those
-commands refuse it before stopping the installed service. Existing supported
-Node 20 installations do not need a runtime upgrade for this change.
+**What bootstrap installs for you:** `git`, `make`, `golang`, `postgresql`,
+`postgresql-server`, and optionally `caddy`. The box builds its own releases
+from the source checkout: `go.mod` pins the exact Go toolchain and the build runs
+with `GOTOOLCHAIN=auto`, so any Go from 1.21 on downloads that pin itself. When
+dnf's `golang` is missing or older than that, `scripts/bootstrap.sh` (and the
+updater bridge) fetch the official toolchain `go.mod` names from go.dev, check
+it against its published SHA-256 and unpack it to `/usr/local/go`.
 
 **What you must have before you start:**
 
@@ -109,8 +110,9 @@ Node 20 installations do not need a runtime upgrade for this change.
 - systemd.
 - Ports 80 and 443 reachable from the internet, if you want automatic TLS.
 - Two registrable domains, DNS pointed at this host (§1).
-- A **git checkout** of Pages on the machine. Bootstrap will not run from an
-  unpacked tarball — it requires `.git` so `pages update` works later.
+- A **git checkout** of Pages on the machine (`install.sh` makes one).
+  Bootstrap will not run from an unpacked tarball — it requires `.git` so
+  `pages update` works later.
 - **An Ed25519 SSO signing public key.** See below.
 
 ### The SSO public key is mandatory
@@ -133,8 +135,9 @@ that needs a human (approve, disable, clear a password, partner portals) is.
 There is no signing service in this repository. To deploy Pages you must either
 run a compatible Ed25519 cookie signer or accept that the admin UI is
 unreachable. The cookie is `base64url(JSON{email,tenant,iat,exp}) + "." +
-base64url(ed25519_sig)`; `lib/auth.js` is the verifier, and
-`scripts/dev-auth.js` mints a throwaway keypair the same way for local dev.
+base64url(ed25519_sig)`; `internal/auth` is the verifier, and `pages dev`
+mints a throwaway keypair and cookie the same way for local dev
+(`internal/ops/devenv`).
 Sanity-check a candidate key:
 
 ```bash
@@ -192,8 +195,8 @@ sign-out reaches Pages through the back-channel endpoint.
 
 ## 3. PostgreSQL provisioning
 
-Bootstrap does all of this; this section is what it does, so you can audit or
-redo it.
+`pages bootstrap` does all of this; this section is what it does, so you can
+audit or redo it.
 
 1. Installs `postgresql` and `postgresql-server`.
 2. `postgresql-setup --initdb` if `$PGDATA/PG_VERSION` is absent. Default
@@ -209,7 +212,7 @@ redo it.
 5. Creates or alters role `pages` with a generated 24-byte hex password, and
    creates database `pages` owned by it.
 6. Writes `DATABASE_URL` into `/etc/default/pages`.
-7. Runs `node lib/migrate.js` as the `pages` user.
+7. Runs the migrations embedded in the binary (the same code as `pages migrate`).
 
 **Re-running is safe.** Bootstrap parses the existing password back out of the
 `DATABASE_URL` already in `/etc/default/pages` and reuses it, so a re-run never
@@ -231,11 +234,30 @@ actually exercises.
 ## 4. The bootstrap run
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/ElcanoTek/pages/main/install.sh | sudo bash
+```
+
+`install.sh` installs `git`, `make`, `golang`, `ca-certificates` and `curl` with
+dnf, clones `main` into `/opt/pages-src` (`PAGES_SRC_DIR`), and runs that
+checkout's `scripts/bootstrap.sh`. It refuses to run if the directory already
+exists — use `pages update` there, or re-run its `scripts/bootstrap.sh` to
+reconfigure. The manual equivalent:
+
+```bash
 sudo dnf install -y git
 sudo git clone https://github.com/ElcanoTek/pages.git /opt/pages-src
 cd /opt/pages-src
 sudo bash scripts/bootstrap.sh
 ```
+
+`scripts/bootstrap.sh` is a short bridge: it makes sure a Go toolchain is
+present, builds `pages` from the checkout into a temporary directory, and runs
+`pages bootstrap`, which does the work in six steps — packages; the service
+account and the installed checkout; the first release; database, environment
+file, migrations and the initial token; the systemd unit, CLI, login banner,
+SSH and hostname hardening, then start and wait for `/readyz`; and Caddy. Safe
+to re-run: existing secrets, the database role password, data and an active
+release are preserved (`pages update` is what changes code).
 
 It prompts for:
 
@@ -269,15 +291,23 @@ fatal error, which is what you want in automation.
 
 | Path | What |
 | --- | --- |
-| `/opt/pages-src` | The git checkout. `pages update` pulls here |
-| `/opt/pages` | Active release symlink after the first retained-release update |
-| `/opt/pages/assets` | Writable asset directory (the only `ReadWritePaths`) |
+| `/opt/pages-src` | The git checkout. `pages update` fetches and builds here |
+| `/opt/pages.releases/<sha>-<UTC>-<pid>/` | One release: the `pages` binary, plus `assets` (and `.env`, when present) links to the shared paths |
+| `/opt/pages` | Symlink to the active release; the service runs `/opt/pages/pages serve` |
+| `/opt/pages.releases/previous` | Link to the last successful predecessor (after the first update) |
+| `/opt/pages.assets` | Writable asset directory shared by every release, reached as `/opt/pages/assets` (the only `ReadWritePaths`) |
+| `/opt/pages.env` | Optional local `.env` shared by every release |
 | `/etc/default/pages` | Environment file, mode `0640`, `root:pages` |
 | `/etc/default/pages-install` | Non-secret installation defaults shared by bootstrap, updater and CLI |
-| `/etc/systemd/system/pages.service` | From `deploy/pages.service` |
-| `/usr/local/bin/pages` | From `deploy/pages-cli` |
-| `/etc/caddy/conf.d/pages.caddy` | From `deploy/pages.caddy`, hostnames substituted |
+| `/etc/systemd/system/pages.service` | Rendered from `deploy/pages.service` |
+| `/usr/local/bin/pages` | Symlink to `/opt/pages/pages`: the CLI is always the active release's binary |
+| `/etc/caddy/conf.d/pages.caddy` | Rendered from `deploy/pages.caddy`, hostnames substituted |
+| `/etc/motd` | The login banner, from `deploy/motd` |
 | user `pages` | System user, `nologin`, home `/opt/pages` |
+
+A box installed by an older bootstrap with a plain `/opt/pages` directory is
+converted on its next run (or first `pages update`): the directory is retained
+as a `legacy-…` release, and its `assets/` and `.env` move to the shared paths.
 
 The default port is **3002** (`PAGES_PORT` to change it at bootstrap; `PORT` in
 the env file thereafter). The generated Caddy configuration proxies both
@@ -372,12 +402,12 @@ operator additions may retain quoted multiline values.
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `AUTH_SIGNING_PUBKEY` | — | Ed25519 **public** key (base64, 32 bytes) that verifies the SSO cookie. Empty ⇒ every admin request bounces to login |
-| `PAGE_COOKIE_SECRET` | — | HMAC key for per-page client-password session cookies. **Throws at startup** if empty when `NODE_ENV=production` |
-| `RAW_TOKEN_SECRET` | — | HMAC key for signed `/raw` render tokens. **Throws at startup** if empty when `NODE_ENV=production` |
-| `API_TOKEN_PEPPER` | — | Server pepper for hashing agent bearer tokens and upload tickets. **Throws at startup** if empty when `NODE_ENV=production`. **Changing it invalidates every issued token and ticket** |
-| `DATABASE_URL` | libpq `PG*` fallback | Postgres connection string. If unset, `lib/db.js` falls back to standard `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE` |
+| `PAGE_COOKIE_SECRET` | — | HMAC key for per-page client-password session cookies. **Startup fails** if empty in production |
+| `RAW_TOKEN_SECRET` | — | HMAC key for signed `/raw` render tokens. **Startup fails** if empty in production |
+| `API_TOKEN_PEPPER` | — | Server pepper for hashing agent bearer tokens and upload tickets. **Startup fails** if empty in production. **Changing it invalidates every issued token and ticket** |
+| `DATABASE_URL` | libpq `PG*` fallback | Postgres connection string. If unset, `internal/db` falls back to standard `PGHOST`/`PGPORT`/`PGUSER`/`PGDATABASE` |
 
-All three HMAC secrets are generated by bootstrap (`openssl rand -hex 32`) and
+All three HMAC secrets are generated by bootstrap (32 random bytes, hex) and
 preserved across re-runs. Treat them as unrotatable in practice: rotating
 `PAGE_COOKIE_SECRET` logs every client out, rotating `RAW_TOKEN_SECRET`
 invalidates outstanding preview links, and rotating `API_TOKEN_PEPPER` breaks
@@ -394,7 +424,7 @@ every agent integration at once.
 | `CONTENT_HOST_ALSO` | unset | An extra hostname treated as the content host. **Local dev only** |
 | `PORT` | `3002` | Listen port, loopback behind Caddy |
 | `PAGES_TRUST_PROXY` | `loopback` | Trusted immediate proxy IPs/CIDRs, comma-separated; `false` disables forwarded client attribution |
-| `NODE_ENV` | unset | Set to `production`. Enables the fail-closed secret checks and suppresses stack traces in error pages |
+| `PAGES_ENV` | `production` in the unit | The systemd unit sets `Environment=PAGES_ENV=production`. Enables the fail-closed secret checks and refuses the dev-login route. `NODE_ENV=production` is still honoured, so an environment file from the Node release keeps working |
 
 The defaults are ElcanoTek's own deployment. Nothing host-specific is compiled
 in — these two values are the whole configuration of the split.
@@ -451,30 +481,41 @@ then ignored.
 
 ### Payload and upload bounds
 
+These defaults were raised deliberately in the Go release (the Node release
+used a 2 MiB request and staged file, 1 MiB data, a 1.5 MB inline budget and
+48 KiB chunks). Those numbers dated from clients whose model emitted every byte
+as base64, and they turned ordinary multi-megabyte dashboards and data refreshes
+into refusals or dozens of tool calls. Each bound still caps what a single call
+can make the server hold in memory, so lower any of them on a small box.
+Migration `027_raise_upload_limits.sql` widens the matching database CHECKs.
+
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `MAX_HTML_BYTES` | `2mb` | Whole HTTP request limit for dashboard, `/api/v1`, MCP and raw edits: bytes, or a number with `b`/`kb`/`mb`/`gb` (1024-based, case-insensitive, decimals allowed). Any other value stops startup with an error naming it. Includes RPC fields and `expect` |
-| `PAGE_UPLOAD_MAX_CHUNK_BYTES` | `49152` (48 KiB) | Largest raw chunk one `append_page_upload` accepts, returned as `max_chunk_bytes` and advertised as the `chunk_base64` `maxLength`. Accepts 4096–1048576 (1 MiB, which a database CHECK also enforces) and no more than `MAX_HTML_BYTES` can carry as base64; any other value falls back to 48 KiB and logs a startup `WARNING` naming the value, the reason and the size in effect. The default is held to the same `MAX_HTML_BYTES` bound (4 KiB floor). See below |
-| `PAGE_UPLOAD_TICKET_TTL_MINUTES` | `15` | Upload-ticket lifetime |
-| `PAGES_MCP_MAX_INLINE_DATA_BYTES` | `1500000` | Inline compact JSON transport budget only; data and escaped-envelope limits also apply |
+| `MAX_HTML_BYTES` | `32mb` | Whole HTTP request limit for dashboard, `/api/v1`, MCP and raw edits: bytes, or a number with `b`/`kb`/`mb`/`gb` (1024-based, case-insensitive, decimals allowed). Any other value stops startup with an error naming it. Includes RPC fields and `expect`; also the inline deploy and deck-save cap |
+| `PAGES_UPLOAD_MAX_BYTES` | `32mb` | One staged upload (chunked, or an upload-ticket PUT), in the same forms as `MAX_HTML_BYTES`. At most `64mb`, which a database CHECK also enforces; an unreadable or larger value stops startup with an error naming it |
+| `PAGE_UPLOAD_MAX_CHUNK_BYTES` | `1048576` (1 MiB) | Largest raw chunk one `append_page_upload` accepts, returned as `max_chunk_bytes` and advertised as the `chunk_base64` `maxLength`. Accepts 4096–8388608 (8 MiB, which a database CHECK also enforces) and no more than `MAX_HTML_BYTES` can carry as base64; any other value falls back to 1 MiB and logs a startup `WARNING` naming the value, the reason and the size in effect. The default is held to the same `MAX_HTML_BYTES` bound (4 KiB floor). See below |
+| `PAGE_UPLOAD_TICKET_TTL_MINUTES` | `60` | Upload-ticket lifetime; covers a slow PUT of a large file |
+| `PAGES_MCP_MAX_INLINE_DATA_BYTES` | `8388608` (8 MiB) | Inline compact JSON transport budget only; data and escaped-envelope limits also apply |
 
 **Choosing `PAGE_UPLOAD_MAX_CHUNK_BYTES`.** Each `append_page_upload` is one
 model tool call, and every call re-sends the conversation, so the chunk ceiling
 sets how many round trips a staged upload costs. Which value is right depends on
 who produces the base64:
 
+- **The client reads a `workspace_file` reference host-side** (Fleet). The bytes
+  never touch the model; only the call count matters. The 1 MiB default makes a
+  ~1 MB managed-data refresh one append instead of 21; up to `8388608` makes
+  larger files one append too. An 8 MiB chunk is about 11 MB of base64 inside
+  the JSON-RPC body, which fits the default `32mb` `MAX_HTML_BYTES`; lowering
+  `MAX_HTML_BYTES` below what a setting needs makes it fall back, with a startup
+  warning saying so.
 - **The model writes it** (a client with no file references and no outbound
   HTTP). Every byte is model output, and a large argument is slow and can be
-  truncated by the provider. Keep the 48 KiB default.
-- **The client reads a `workspace_file` reference host-side** (Fleet). The bytes
-  never touch the model; only the call count matters. `1048576` turns a ~1 MB
-  managed-data refresh from 21 appends into one. A 1 MiB chunk is about 1.4 MB
-  of base64 inside the JSON-RPC body, which fits the default `2mb`
-  `MAX_HTML_BYTES`; lowering `MAX_HTML_BYTES` below that makes a 1 MiB setting
-  fall back to the default, with a startup warning saying so.
+  truncated by the provider. Lower the ceiling for such clients — `49152`
+  (48 KiB) was the Node release's default.
 
-The setting is per deployment, so raise it only where every agent that stages
-uploads reads files host-side. Smaller chunks stay valid either way:
+The setting is per deployment, so lower it where any agent that stages uploads
+has its model emit the base64. Smaller chunks stay valid either way:
 `max_chunk_bytes` is a ceiling, not a required size. Upload tickets are
 unaffected; they PUT the whole file in one request.
 
@@ -482,11 +523,11 @@ unaffected; they PUT the whole file in one request.
 
 | Variable | Default |
 | --- | --- |
-| `PAGES_DATA_SCHEMA_MAX_BYTES` | `262144` |
-| `PAGES_DATA_MAX_BYTES` | `1048576` |
-| `PAGES_DATA_CONFIG_MAX_BYTES` | `262144` |
-| `PAGES_DATA_TEMPLATE_MAX_BYTES` | `2097152` |
-| `PAGES_DATA_SCHEMA_MAX_NODES` | `10000` |
+| `PAGES_DATA_SCHEMA_MAX_BYTES` | `1048576` (1 MiB) |
+| `PAGES_DATA_MAX_BYTES` | `8388608` (8 MiB) |
+| `PAGES_DATA_CONFIG_MAX_BYTES` | `1048576` (1 MiB) |
+| `PAGES_DATA_TEMPLATE_MAX_BYTES` | `16777216` (16 MiB); must exceed `PAGES_DATA_MAX_BYTES`, or it reads as that plus 1 MiB with a startup `WARNING` |
+| `PAGES_DATA_SCHEMA_MAX_NODES` | `50000` |
 | `PAGES_DATA_SCHEMA_MAX_DEPTH` | `100` |
 | `PAGES_SOURCE_FUTURE_TOLERANCE_MS` | `300000` |
 
@@ -496,13 +537,16 @@ dashboard is hitting a limit.
 
 `PAGES_DATA_MAX_BYTES` separately bounds compact data and its stored HTML-escaped
 envelope, including timestamps. Escaping `<`, `>`, `&`, U+2028 and U+2029 can
-expand the stored bytes substantially. Staged files have a separate fixed
-2 MiB limit; staging cannot increase the data/envelope capacity. Tool descriptions
-and data-upload responses report these resolved startup limits.
+expand the stored bytes substantially. Staged files have the separate
+`PAGES_UPLOAD_MAX_BYTES` limit; staging cannot increase the data/envelope
+capacity. Tool descriptions and data-upload responses report these resolved
+startup limits, and the managed-data reads and writes report how much of
+`PAGES_DATA_MAX_BYTES` a page's data uses (`data_usage`, [API.md](API.md)).
 
 Byte overrides must resolve to positive safe integers; invalid or nonpositive
-values fall back to the defaults, except `MAX_HTML_BYTES`, which refuses to
-start on a value it cannot read rather than guess.
+values fall back to the defaults, except `MAX_HTML_BYTES` and
+`PAGES_UPLOAD_MAX_BYTES`, which refuse to start on a value they cannot read
+rather than guess.
 Changing settings requires restarting Pages. See [managed-data size measurements](API.md#managed-data-size-limits)
 for preflight checks that preserve complete datasets.
 
@@ -513,10 +557,11 @@ transaction cannot pin every pool client and hang both hosts.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `PG_CONNECT_TIMEOUT_MS` | `5000` | `pool.connect()` wait when Postgres is unreachable |
+| `PG_CONNECT_TIMEOUT_MS` | `5000` | Wait for a pool connection when Postgres is unreachable |
 | `PG_STATEMENT_TIMEOUT_MS` | `15000` | Server-side per-statement cap |
 | `PG_LOCK_TIMEOUT_MS` | `10000` | Max wait on a row lock |
 | `PG_IDLE_TXN_TIMEOUT_MS` | `30000` | Kill sessions idle mid-transaction |
+| `PAGES_MIGRATION_LOCK_TIMEOUT_MS` | `30000` | Wait for another migrator (§8); `0` fails immediately |
 
 ### Theming
 
@@ -528,7 +573,7 @@ transaction cannot pin every pool client and hang both hosts.
 
 | Variable | Why |
 | --- | --- |
-| `PAGES_DEV_LOGIN=1` | Exposes `GET /__dev/login`, which sets an admin cookie **with no authentication at all** |
+| `PAGES_DEV_LOGIN=1` | Exposes `GET /__dev/login`, which sets an admin cookie **with no authentication at all**. Under `PAGES_ENV=production` the server ignores it, logs a warning and does not mount the route |
 | `DEV_ADMIN_COOKIE`, `DEV_ADMIN_EMAIL` | The value that route hands out |
 | `PAGES_COMPOSE=1`, `COMPOSE_DRIVER`, `CUTLASS_BIN`, `CUTLASS_DIR` | Enable a local "compose" panel that spawns an external authoring CLI as a subprocess. Development only |
 | `MOC_URL`, `MOC_API_KEY`, `MOC_MODEL`, `MOC_FALLBACK_MODEL`, `MOC_TARGET_NODE_NAME`, `COMPOSE_TIMEOUT_MS`, `COMPOSE_POLL_MS` | Configuration for that same optional panel's remote driver, an ElcanoTek-internal orchestration service. Irrelevant to an outside deployment; Pages runs no scheduler of its own |
@@ -585,13 +630,16 @@ verified original client; adding more trusted hops in Pages is unsupported.
 
 ## 7. Service management
 
-The unit is `deploy/pages.service`: `Type=simple`, runs `/usr/bin/node
-server.js` as `pages:pages` from `/opt/pages`, `Restart=always` with
-`RestartSec=5`, `After`/`Requires=postgresql.service`, and a hardening block —
-`NoNewPrivileges`, `PrivateTmp`, `PrivateDevices`, `ProtectSystem=strict`,
-`ProtectHome`, `ProtectControlGroups`, `ProtectKernelModules`,
-`ProtectKernelTunables`, `LockPersonality`, and
-`RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`.
+The unit is `deploy/pages.service`, rendered with the installation's account,
+application directory and environment file: `Type=simple`, runs
+`/opt/pages/pages serve` as `pages:pages` from `/opt/pages` with
+`EnvironmentFile=/etc/default/pages` and `PAGES_ENV=production`,
+`Restart=always` with `RestartSec=5`, `After`/`Requires=postgresql.service`,
+and a hardening block — `NoNewPrivileges`, `PrivateTmp`, `PrivateDevices`,
+`ProtectSystem=strict`, `ProtectHome`, `ProtectControlGroups`,
+`ProtectKernelModules`, `ProtectKernelTunables`, `LockPersonality`,
+`MemoryDenyWriteExecute` (a Go binary never needs writable and executable
+memory), and `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`.
 
 `ProtectSystem=strict` makes the filesystem read-only apart from
 `ReadWritePaths=/opt/pages/assets`. If a future feature needs to write
@@ -600,40 +648,51 @@ somewhere else, add a `ReadWritePaths` line rather than relaxing
 
 ### The operator CLI
 
-`/usr/local/bin/pages` (from `deploy/pages-cli`). Every subcommand that touches
-the system re-invokes through `sudo`.
+`/usr/local/bin/pages` is a link to the active release's binary, so the CLI and
+the server are always the same code; `pages help` lists the verbs and
+`pages <verb> --help` explains each. Every verb that touches the system
+re-invokes itself through `sudo`, keeping the installation settings.
 
 | Command | What it does |
 | --- | --- |
 | `pages start` / `stop` / `restart` / `status` | `systemctl` on `pages.service` |
 | `pages logs` | `journalctl -fu pages.service` (follow) |
 | `pages logs <journalctl args…>` | Passes arguments through, e.g. `pages logs -n 200 --since '1 hour ago'` |
-| `pages update` | Fetch, fast-forward, rebuild in staging, migrate, swap, restart. §10 |
-| `pages rebuild` | Rebuild the current checkout **without fetching**. The rollback verb. §11 |
+| `pages update` | Fetch, fast-forward, build a release, preflight, migrate, switch, require `/readyz`, roll back on failure. §10 |
+| `pages rebuild` | The same for the current checkout **without fetching**. §11 |
+| `pages doctor` | Diagnose the box; `--check` is read-only and exits 1 on a failure. §13 |
+| `pages migrate` | Apply pending migrations. §8 |
 | `pages env` | Print `/etc/default/pages` with secrets redacted. §12 |
 | `pages tls status` \| `reload` \| `restart` | Caddy state, `caddy reload`, or restart the unit |
 | `pages token add <label> [scope] [slug…]` | Mint an agent token. §9 |
 | `pages token list` | List tokens: prefix, label, scope, state, last use |
 | `pages token revoke <id>` | Revoke; the server 401s it immediately |
 | `pages template list` \| `show` \| `register` \| `sync` | Page templates. See [TEMPLATES.md](TEMPLATES.md) |
+| `pages access grant` \| `revoke` \| `list <email>` | Central mode's access list (§2) |
 | `pages backup [dest]` | Capture recovery inputs and rehearse a restore before completion |
 | `pages check-integrity <backup-dir>` | Verify checksums and repeat an isolated restore/application check |
+| `pages version` | The build version, revision and Go version |
 | `pages help` | Usage |
 
-`pages token` and `pages template` both run the installed app's script as the
-`pages` user with the **service's** environment file sourced. That wiring is
-load-bearing: a token minted with a different `API_TOKEN_PEPPER` than the server
-verifies with is a token the server rejects. Do not run `node scripts/token.js`
-by hand in production.
+`pages token`, `pages template` and `pages access` connect with `DATABASE_URL`
+and (for tokens) hash with `API_TOKEN_PEPPER` from the environment they run in,
+so they must run with the **service's** environment file loaded, as the `pages`
+user — the way bootstrap and `pages update` run them:
 
-`pages page` and `pages theme` remain **stubs** that exit 2.
-`pages backup` and `pages check-integrity` are implemented; see §14.
+```bash
+sudo runuser -u pages -- bash -c \
+  'set -a; . /etc/default/pages; set +a; exec /opt/pages/pages token list'
+```
+
+That wiring is load-bearing: a token minted with a different `API_TOKEN_PEPPER`
+than the server verifies with is a token the server rejects.
 
 ---
 
 ## 8. Migrations
 
-`migrations/*.sql`, applied in filename order by `lib/migrate.js`, tracked in a
+`migrations/*.sql`, embedded in the binary and applied in filename order by
+`pages migrate` (`internal/migrate`), tracked in a
 `schema_migrations` table by filename. Idempotent: already-applied files are
 skipped. Per-file transactions protect partial changes, but do not imply that
 every migration is compatible with running predecessor code. Automatic updates
@@ -651,7 +710,7 @@ files remain applied and are skipped on retry.
 
 ```bash
 sudo runuser -u pages -- bash -c \
-  'set -a; . /etc/default/pages; set +a; cd /opt/pages && node lib/migrate.js'
+  'set -a; . /etc/default/pages; set +a; exec /opt/pages/pages migrate'
 ```
 
 **Never edit an applied migration file.** The runner keys on filename, so an
@@ -713,34 +772,50 @@ migration path.
 ## 10. Updating
 
 ```bash
-pages update            # prompts before the swap
+pages update            # prompts before the switch
 PAGES_UPDATE_YES=1 pages update
 ```
 
-`scripts/update.sh` serializes updates to one installation with a file lock,
-fetches/fast-forwards the source checkout, and builds a complete candidate under
-`/opt/pages.releases`. It runs a clean production install and loads the real
-application dependency/configuration graph before stopping the active service.
-Only pending migrations explicitly marked backward-compatible in
-`migrations/compatibility.json` are allowed automatically.
+`pages update` serializes updates to one installation with a file lock
+(`/opt/pages.update.lock`, which `pages backup` takes shared), fetches and
+fast-forwards the source checkout, and builds a complete candidate release
+under `/opt/pages.releases` (`make build` into the release directory). It then
+hands over to the **candidate** binary, so the code that preflights, migrates,
+renders the systemd unit and judges readiness is always the code being
+installed. Before the active service is touched, the candidate runs, as the
+`pages` user with the service environment:
 
-After successful preflight and migration, the updater retains the existing
-release and installed service/CLI files, stops Pages, and atomically switches
-`/opt/pages` to a symlink pointing at the new release. It starts Pages and
+1. `pages preflight` — loads the production configuration the way `serve`
+   would (secrets, database settings, limits, the embedded trees) without
+   listening or writing;
+2. `pages check-migrations` — only pending migrations explicitly marked
+   backward-compatible in `migrations/compatibility.json` may run
+   automatically;
+3. `pages migrate`.
+
+Any failure there leaves the installed service untouched. After success the
+updater snapshots the installed service and CLI files, stops Pages, and
+atomically switches `/opt/pages` to the new release. It starts Pages and
 requires `/readyz` on the configured port. A failed activation, service start or
 readiness check switches back to the predecessor, restores the service/CLI
 files and restarts it. The update still exits nonzero so automation records the
 failure. If the machine cannot restart even the predecessor, the error names
 the retained release and configuration backup for manual recovery.
 
-The first update converts a legacy `/opt/pages` directory into a retained
-release. Writable assets move to `/opt/pages.assets`; an existing local `.env`
-moves to `/opt/pages.env`. Every release links to those shared paths; the service
-environment file stays in `/etc/default/pages`. Releases and failed candidates
-are retained for inspection, not pruned automatically. The last successful
-predecessor is also linked at `/opt/pages.releases/previous`. Backups must keep
-the shared assets/environment and database, not only the active release link.
-Paths follow the configured application directory for non-default installs.
+A legacy `/opt/pages` directory (including a Node-era installation) is
+converted into a retained release on the first update. Writable assets move to
+`/opt/pages.assets`; an existing local `.env` moves to `/opt/pages.env`. Every
+release links to those shared paths; the service environment file stays in
+`/etc/default/pages`. Releases and failed candidates are retained for
+inspection, not pruned automatically. The last successful predecessor is also
+linked at `/opt/pages.releases/previous`. Backups must keep the shared
+assets/environment and database, not only the active release link. Paths follow
+the configured application directory for non-default installs.
+
+A box still running the Node release's shell updater reaches the new
+`scripts/update.sh` after its own fetch; that bridge builds the binary from the
+freshly pulled checkout and hands over to `pages update`, which performs the
+conversion above.
 
 There is a brief stop/start outage at activation. Template sync happens only
 after readiness and remains nonfatal (`PAGES_SKIP_TEMPLATE_SYNC=1` skips it).
@@ -781,7 +856,7 @@ curl -fsS http://127.0.0.1:3002/readyz
 For a predecessor from before `/readyz` existed, its liveness endpoint is
 `/healthz`; confirm database connectivity/schema separately. Automatic recovery
 handles this legacy case with the old HTTP liveness endpoint plus the new
-release's bounded database readiness probe. If installation settings changed,
+release's bounded database readiness probe (`pages ready-check`). If installation settings changed,
 restore the corresponding service/CLI files from the `.recovery.*` directory
 reported by the updater before starting, and run `systemctl daemon-reload`.
 
@@ -797,8 +872,9 @@ behavior; it is not a database downgrade command.
 pages env
 ```
 
-Prints `/etc/default/pages` with secrets redacted by an embedded `awk` program:
-any key matching `TOKEN|KEY|SECRET|PASSWORD|PEPPER`, plus `DEV_ADMIN_COOKIE`,
+Prints `/etc/default/pages` with secrets redacted (`internal/ops/envfile`,
+line by line, never evaluating the file): any key matching
+`TOKEN|KEY|SECRET|PASSWORD|PEPPER`, plus `DEV_ADMIN_COOKIE`,
 becomes `[REDACTED]`; and the userinfo password inside any URL-shaped value is
 replaced, so `DATABASE_URL` prints as
 `postgres://pages:[REDACTED]@127.0.0.1:5432/pages?sslmode=disable`. Comments are
@@ -838,8 +914,19 @@ curl -fsS -H "Authorization: Bearer $PAGES_TOKEN" \
   https://pages.example.com/api/v1/pages >/dev/null
 ```
 
-That one touches the database. `scripts/mcp-smoke.sh` does the equivalent for
-the MCP surface.
+That one touches the database. `pages mcp-smoke` does the equivalent for the
+MCP surface (initialize, tools/list, a `deploy_page` and a `get_page`; set
+`PAGES_MCP_URL`, `TOKEN` and `SLUG` — it really deploys that slug). For the box
+as a whole, `pages doctor --check`
+walks every prerequisite — the binary and CLI link, the environment file's
+presence, mode and required keys, the two-domain split, PostgreSQL, the service
+(active, enabled, running the current release), `/readyz`, Caddy and verified
+TLS for both hostnames, free disk, the OS support window, pending updates and
+reboots, and the source checkout — and exits 1 on a failure (`--strict`: on a
+warning too). It runs as the service user and changes nothing. Plain
+`sudo pages doctor` also makes the safe repairs: environment-file ownership and
+mode, starting a stopped service, restarting a stale release. It never pulls,
+upgrades, migrates or rebuilds; that stays `pages update`.
 
 Confirm the host split is actually wired — this is the check that catches a
 proxy dropping the `Host` header:
@@ -877,7 +964,7 @@ private directory with these inputs:
 | --- | --- |
 | `database.dump` | PostgreSQL custom-format dump: all tables, immutable versions, templates, tokens, portals, audit and sequences; ownership/ACLs omitted for explicit assignment on recovery |
 | `assets/` | Contents of the resolved writable assets directory, including files referenced by `assets.sha256` |
-| `application/` | Actual installed release, including `public/assets`, migrations and `package-lock.json`; excludes dependencies, git metadata, mutable paths and development/test output |
+| `application/` | The actual installed release: the `pages` binary, which carries its own front end, migrations and templates. Mutable paths (`assets`, `.env`) are archived in their own sections |
 | `config/service.env` | Required service environment, preserved byte for byte |
 | `config/install.env`, `config/local.env` | Installation settings and resolved local `.env`, when present; absence is recorded |
 | `manifest.json` | Format/version, capture interval, runtime limits, file lengths/SHA-256, database counts/migrations and restore-probe results |
@@ -905,13 +992,15 @@ Root delegates its temporary server to the `postgres` account; an unprivileged
 operator runs it as their own account. It uses a private short `/tmp` Unix socket,
 no TCP listener, a new database and synthetic application secrets. It never
 loads the archived environment or accepts a destination database URL. The probe
-uses the **captured application code**, with installed dependencies only when
-`package-lock.json` matches; otherwise use the matching release and `npm ci`.
+runs the **captured binary** (`application/pages backup-probe`), so a later
+`pages check-integrity` rehearses with exactly the release that was backed up.
 No migrations are applied to the restored database.
 
 Verification checks every page/template source hash, referenced asset bytes,
 page/version and template/revision ownership, schema readiness, and representative
-HTTP page, version, template-preview and portal/member requests. Active content
+HTTP page, version, template-preview and portal/member requests (a
+passwordless page that belongs to a live portal answers the portal gate's
+`401`, as it does in production). Active content
 is preferred in the bounded HTTP sample; hashes cover all immutable source rows.
 Retired/disabled content, published drafts and a portal home outside its membership
 remain valid states. Browser JavaScript is not executed by this recovery check.
@@ -935,8 +1024,8 @@ operator recovery inputs.
 
 ### Production recovery
 
-First run `pages check-integrity` on the selected backup. Provision the matching
-Node/PostgreSQL versions and application role, and restore into a **new** database
+First run `pages check-integrity` on the selected backup. Provision a matching
+PostgreSQL version and the application role, and restore into a **new** database
 so the previous database remains available until the recovery is accepted:
 
 ```bash
@@ -949,18 +1038,36 @@ The pipeline streams the private dump through standard input without opening
 the recovery directory to the PostgreSQL account. Use the configured application
 role for a non-default installation.
 
-Stage `application/` as a new release and run `npm ci --omit=dev` there. Stop Pages
-before switching the active release, assets and environment together. Restore
-`assets/` into the configured shared assets directory, link the staged release
-to it, restore the optional shared `.env`, and restore installation/service
-configuration with its original ownership and permissions (normally service env
-`0640`, `root:pages`). Change only the recovered database target as needed; retain
-the original HMAC secrets. Reinstall the captured release's service/CLI settings
-if those changed, then switch the application link and restart.
+Stage `application/` as a new release directory under `/opt/pages.releases` —
+the binary needs nothing installed beside it. Stop Pages before switching the
+active release, assets and environment together. Restore `assets/` into the
+configured shared assets directory, link the staged release to it, restore the
+optional shared `.env`, and restore installation/service configuration
+(`config/service.env`, `install.env`, `local.env`) with its original ownership
+and permissions (normally service env `0640`, `root:pages`). Change only the
+recovered database target as needed; retain the original HMAC secrets.
+Reinstall the captured release's service/CLI settings if those changed, then
+switch the application link and restart.
 
 Verify `/readyz` and representative page/portal reads before retiring the previous
 release or database. Recovery does not automatically upgrade or downgrade schema;
 perform any later migration through the separately reviewed update procedure.
+
+### Node-era backups
+
+A backup taken by the Node release records `node_version` in `manifest.json`,
+and its `application/` holds `server.js` and `package-lock.json` instead of a
+binary. `pages check-integrity` accepts it (reporting `"format":"node"`): it
+verifies the application files against the manifest only and rehearses the
+restore by serving the restored data with the **current** release.
+
+To recover one, restore the database, `assets/` and `config/` exactly as above,
+but **do not** stage `application/` or run npm: keep the current Go release
+installed, point `DATABASE_URL` in the restored service environment at the
+recovered database, and run `pages migrate` with that environment to add the
+newer migrations (`/readyz` answers `503` until then); then restart. Keep the
+Node-era backup until a new `pages backup` of the recovered installation has
+verified. `pages backup --help` carries the same procedure.
 
 ---
 
@@ -968,12 +1075,11 @@ perform any later migration through the separately reviewed update procedure.
 
 ### `pages status` shows the service restarting in a loop
 
-`pages logs -n 50`. In `NODE_ENV=production` the app throws at startup on an
-empty secret, and the message names the variable:
+`pages logs -n 50`. In production the server refuses to start on an empty
+secret, and the message names the variable:
 
 ```
-Error: RAW_TOKEN_SECRET is required in production (an empty key lets anyone
-forge /raw access tokens).
+pages serve: RAW_TOKEN_SECRET is required in production (an empty key lets anyone forge /raw access tokens)
 ```
 
 Same shape for `PAGE_COOKIE_SECRET` and `API_TOKEN_PEPPER`. `pages env` and
@@ -1043,7 +1149,7 @@ correct password resets the counter. Also check whether the page's password was
 rotated (that voids existing sessions) or cleared (which makes it staff-only and
 403s real clients — an admin-only action, and audited).
 
-### `pages update` dies with "fast-forward failed (local commits?)"
+### `pages update` dies with "fast-forward failed — resolve the source checkout first"
 
 Something committed to `/opt/pages-src`. Inspect with `git -C /opt/pages-src
 status` and `log`. Never patch production in place; that checkout must stay a
@@ -1091,7 +1197,7 @@ gets you running while you fix DNS.
 
 Honest limitations of the deploy path as shipped:
 
-1. **`scripts/bootstrap.sh` is Fedora/RHEL-only.** It hard-codes `dnf`,
+1. **`pages bootstrap` is Fedora/RHEL-only.** It hard-codes `dnf`,
    `postgresql-setup --initdb`, `/var/lib/pgsql/data` and `firewall-cmd`. On
    Debian or Ubuntu it fails at the first `dnf`. The application itself is
    portable — the packaging is not. Provision by hand there, following §3 and §4
@@ -1099,16 +1205,14 @@ Honest limitations of the deploy path as shipped:
 2. **No signing service.** `AUTH_SIGNING_PUBKEY` is mandatory for the admin UI
    and nothing in this repository can produce a matching cookie for production.
    Plan for that before you deploy.
-3. **`pages page` and `pages theme` remain stubs** that exit 2.
-   Backup and isolated restore verification are implemented; see §14.
-4. **No token rotation verb.** Mint, cut over, revoke (§9).
-5. **`pages update` has a brief outage** at the swap. Not zero-downtime.
-6. **No down-migrations.** Code rollback across a migration is not always safe
+3. **No token rotation verb.** Mint, cut over, revoke (§9).
+4. **`pages update` has a brief outage** at the swap. Not zero-downtime.
+5. **No down-migrations.** Code rollback across a migration is not always safe
    (§11).
-7. **Readiness does not exercise every application operation.** `/readyz`
+6. **Readiness does not exercise every application operation.** `/readyz`
    checks connectivity and schema; monitor specific read/write flows separately
    when needed (§13).
-8. **The `assets` table has no upload API.** `ReadWritePaths=/opt/pages/assets`
+7. **The `assets` table has no upload API.** `ReadWritePaths=/opt/pages/assets`
    exists for a feature that is not finished.
 
 ---

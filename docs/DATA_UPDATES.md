@@ -354,9 +354,12 @@ external references are rejected. The envelope contains exactly:
 Pages replaces only the existing data-block contents. Layout, JavaScript,
 schema, theme, password, and access settings remain byte-for-byte outside that
 block. JSON is escaped so values cannot terminate the script block. Default
-limits are 256 KiB for schema, 1 MiB for data, and 2 MiB for materialized HTML;
+limits are 1 MiB for schema, 8 MiB for data, and 16 MiB for materialized HTML;
 deployments can lower them with `PAGES_DATA_SCHEMA_MAX_BYTES`,
-`PAGES_DATA_MAX_BYTES`, and `PAGES_DATA_TEMPLATE_MAX_BYTES`.
+`PAGES_DATA_MAX_BYTES`, and `PAGES_DATA_TEMPLATE_MAX_BYTES`. Reads and writes of
+managed data report `data_usage` — `payload_bytes`, `envelope_bytes`,
+`limit_bytes` and `headroom_bytes` — so a run sees how close a page is to the
+data limit before its next refresh.
 
 ## Safe managed update execution
 
@@ -392,7 +395,9 @@ A generated managed prompt requires the caller to:
 2. retrieve every required source read-only and establish identity, coverage,
    freshness, completeness, row counts, and reconciliation evidence;
 3. select the no-update or blocked branch when appropriate;
-4. build one complete schema-valid data object; and
+4. build one complete schema-valid data object, writing integral counts as JSON
+   integers and keeping the source's decimal precision — never widen numbers
+   through float conversion (`137`, not `137.0`); and
 5. call `update_page_data_upload` for a built file over 20,000 bytes, or
    `update_page_data` inline otherwise (decided per run, from the file) with the read
    `live_version_id` as `expected_version`, the latest represented
@@ -400,12 +405,12 @@ A generated managed prompt requires the caller to:
 
 A data file staged with `start_page_upload kind='data'` and `append_page_upload`
 costs one model round trip per append, so the file goes up in as few appends as
-the returned `max_chunk_bytes` allows. At the 48 KiB default a ~1 MB payload
-takes 21 appends. A client that reads `workspace_file` references host-side
-never puts those bytes in model output, and a deployment serving only
-such clients can raise `PAGE_UPLOAD_MAX_CHUNK_BYTES` to 1 MiB so that payload
-is one append (DEPLOYMENT.md §5). The ceiling changes transport only: the 1 MiB
-data and escaped-envelope limits above apply unchanged.
+the returned `max_chunk_bytes` allows. At the 1 MiB default a ~1 MB payload
+is one append. A client that reads `workspace_file` references host-side never
+puts those bytes in model output; a deployment whose clients have the model emit
+the base64 itself may lower `PAGE_UPLOAD_MAX_CHUNK_BYTES` (DEPLOYMENT.md §5),
+at the cost of more appends. The ceiling changes transport only: the data and
+escaped-envelope limits above apply unchanged.
 
 `update_page_data` locks the page, rereads the published template, rejects
 source regression/future coverage, creates an immutable version through the

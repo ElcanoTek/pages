@@ -64,8 +64,8 @@ that executes a returned prompt, not Pages.
 Start Pages locally and exercise the exact MCP wire flow:
 
 ```bash
-sudo bash scripts/dev.sh
-bash scripts/mcp-smoke.sh
+./pages dev           # in one shell
+./pages mcp-smoke     # in another (PAGES_MCP_URL, TOKEN and SLUG override)
 ```
 
 This covers initialize, lifecycle notification, tool discovery/calls, bearer
@@ -142,7 +142,7 @@ until its list is updated.** Prefer using the catalog `tools/list` advertises.
 **Partner portals add zero tools, deliberately.** The list below is unchanged by
 that whole feature, and no consumer needs to touch its allowlist. Membership decides
 which client's numbers one partner credential opens, so it is human-admin-only at
-every layer — `lib/portals.js` refuses any actor that is not a user, and the only
+every layer — `internal/portals` refuses any actor that is not a user, and the only
 surface that changes a portal is the `/admin/portals` screen behind the SSO cookie
 and CSRF. An agent cannot read a portal either: there is no `list_portals`. If a
 future change does add one, this paragraph is the thing to delete, and every
@@ -174,7 +174,7 @@ this list is worth re-diffing rather than assuming.
 
 `get_guide` is read-only and changes nothing a consumer already does. It returns
 Pages' own agent guide ([AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) and the reference
-guides it links to), packaged with each release, so a consumer bundle can tell
+guides it links to), embedded in each release's binary, so a consumer bundle can tell
 its agent "read `get_guide` before creating or changing a page" instead of
 carrying its own copy of how Pages works. A consumer that does not list it is
 unaffected.

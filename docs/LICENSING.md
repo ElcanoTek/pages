@@ -54,7 +54,7 @@ other than you.
 
 Non-production, unambiguously:
 
-- A developer running `scripts/dev.sh` on a laptop.
+- A developer running `pages dev` on a laptop.
 - A CI job that boots Pages, runs the suite, and tears it down.
 - An internal spike to decide whether to buy a licence.
 - A security researcher probing the two-host trust split.

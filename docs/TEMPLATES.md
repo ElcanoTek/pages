@@ -18,7 +18,7 @@ second campaign cost the same as the first:
 
 ## The contract
 
-Four managed script blocks. `lib/page-data.js` is the source of truth for all of
+Four managed script blocks. `internal/pagedata` is the source of truth for all of
 it — templates reuse the same validation, ReDoS pattern screen, size ceilings,
 script-terminator escaping, and hashing that the managed-data contract has always
 used.
@@ -238,15 +238,21 @@ templates/<template-name>/template.html      # required
 templates/<template-name>/template.json      # optional: title, description, note, name
 ```
 
-`pages update` registers them after the health check, so shipping a design fix is
-a git push and a deploy. By hand:
+The release binary embeds this directory, and `pages update` runs
+`pages template sync` against it once the new release is ready, so shipping a
+design fix is a git push and a deploy. By hand:
 
 ```bash
 pages template list                     # registered templates + pages using each
-pages template sync                     # register everything under templates/
-pages template register <file> [--name X] [--title T]
+pages template sync                     # register everything built into this release
+pages template sync <dir>               # or every template under a directory on disk
+pages template register <file> [--name X] [--title T] [--description D] [--note N]
 pages template show <name> [--revision N]
 ```
+
+On a server these run with the service's environment, as the service account
+(the operator guide explains how); they need the same database the server
+uses.
 
 `register` takes **any** path, so a client bundle or a scratch checkout can supply
 a template too — the file does not have to live in this repo. Sync is idempotent:
@@ -437,10 +443,10 @@ contract fails, so a missing block and a broken chart control surface in one pas
 
 ## Limits
 
-`PAGES_DATA_CONFIG_MAX_BYTES` (256 KiB) bounds a config;
-`PAGES_DATA_SCHEMA_MAX_BYTES` (256 KiB) each schema; `PAGES_DATA_MAX_BYTES`
-(1 MiB) each data payload, stored escaped envelope and example dataset;
-`PAGES_DATA_TEMPLATE_MAX_BYTES` (2 MiB) the stored template and the materialized
+`PAGES_DATA_CONFIG_MAX_BYTES` (1 MiB) bounds a config;
+`PAGES_DATA_SCHEMA_MAX_BYTES` (1 MiB) each schema; `PAGES_DATA_MAX_BYTES`
+(8 MiB) each data payload, stored escaped envelope and example dataset;
+`PAGES_DATA_TEMPLATE_MAX_BYTES` (16 MiB) the stored template and the materialized
 page. An example dataset counts toward the stored template but not toward any page
 built from it, since it is deleted on materialization.
 
