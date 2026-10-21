@@ -993,14 +993,24 @@ completed backup and can be removed after checking that no capture is running.
 
 The restore rehearsal requires PostgreSQL server/client tools (`initdb`,
 `pg_ctl`, `createdb`, `pg_dump`, `pg_restore`) compatible with the source database,
-and enough local disk for an additional restored database and release copy.
+and enough local disk for an additional restored database.
 Root delegates its temporary server to the `postgres` account; an unprivileged
 operator runs it as their own account. It uses a private short `/tmp` Unix socket,
 no TCP listener, a new database and synthetic application secrets. It never
-loads the archived environment or accepts a destination database URL. The probe
-runs the **captured binary** (`application/pages backup-probe`), so a later
-`pages check-integrity` rehearses with exactly the release that was backed up.
-No migrations are applied to the restored database.
+loads the archived environment or accepts a destination database URL.
+
+Nothing from a backup is ever executed. A backup's files are only as
+trustworthy as its `manifest.json`, which is just as writable, and the
+commands run as root. When the captured binary's SHA-256 equals a **trusted
+installed binary** — the running `pages`, or a release binary under
+`/opt/pages.releases` that only root can change — that installed binary runs
+the probe (`<binary> backup-probe`), so the rehearsal uses exactly the release
+that was backed up, and the result names it in `"probed_with"`. Otherwise (the
+release was since removed, or the backup was altered) the restored snapshot is
+inventoried as captured, the scratch copy is migrated, and **this** release
+serves it; the result carries `"notice":"captured binary not executed; served
+with this release"` and `"served_with"`. The live and recovered databases are
+never migrated by the rehearsal.
 
 Verification checks every page/template source hash, referenced asset bytes,
 page/version and template/revision ownership, schema readiness, and representative
@@ -1044,8 +1054,13 @@ The pipeline streams the private dump through standard input without opening
 the recovery directory to the PostgreSQL account. Use the configured application
 role for a non-default installation.
 
-Stage `application/` as a new release directory under `/opt/pages.releases` —
-the binary needs nothing installed beside it. Stop Pages before switching the
+Do not install `application/pages` from the backup unless `check-integrity`
+reported `"probed_with"`: only then is it byte-identical to a trusted installed
+release, and that release directory (root-owned, under `/opt/pages.releases`)
+is the one to activate. Otherwise reinstall the release from source — check out
+the revision `manifest.json` records in `pages_version` in `/opt/pages-src` and
+run `pages rebuild` — or recover with the current release as for a Node-era
+backup below. Stop Pages before switching the
 active release, assets and environment together. Restore `assets/` into the
 configured shared assets directory, link the staged release to it, restore the
 optional shared `.env`, and restore installation/service configuration

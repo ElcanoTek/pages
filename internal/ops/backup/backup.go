@@ -5,9 +5,14 @@
 // complete recovery set (pg_dump custom-format database, the shared assets,
 // the installed release, the configuration) under the updater's shared lock
 // without stopping the application, then rehearse a restore into a private
-// throwaway PostgreSQL cluster and probe it with the CAPTURED release before
-// publishing the backup. check-integrity verifies every captured byte and
-// repeats the rehearsal.
+// throwaway PostgreSQL cluster and probe it before publishing the backup.
+// check-integrity verifies every captured byte and repeats the rehearsal.
+//
+// Nothing from a backup is ever executed: its files are only as trustworthy
+// as its equally writable manifest, and these commands run as root. The
+// captured release probes only through an installed binary that root alone
+// can change and whose SHA-256 equals the captured one; otherwise this
+// release serves the restored data (see Rehearse).
 //
 // Credentials never reach argv or output: pg_dump gets the connection as PG*
 // variables, child diagnostics are redacted line by line, and errors name
@@ -101,12 +106,22 @@ type Options struct {
 	Environ []string
 	// Tool resolves a PostgreSQL program.
 	Tool func(name string) (string, error)
-	// Probe runs the captured release's restore probe and returns its JSON.
-	Probe func(ctx context.Context, application, assets string, env []string) (json.RawMessage, error)
+	// Probe runs `<binary> backup-probe <assets>` and returns its JSON.
+	// binary is never a file from the backup: it is an installed binary,
+	// independently trusted (install.TrustedFile), whose SHA-256 equals the
+	// captured application's — so it IS the captured release.
+	Probe func(ctx context.Context, binary, assets string, env []string) (json.RawMessage, error)
 	// CurrentProbe runs THIS release's restore probe (`pages backup-probe`,
-	// server in process) against the restored, migrated database of a
-	// legacy Node-era backup, whose captured application cannot run here.
+	// server in process) against the restored, migrated database when the
+	// captured release cannot be run: a legacy Node-era backup, or a Go
+	// backup whose binary matches no trusted installed release. A backup's
+	// files are only as trustworthy as its equally writable manifest, and
+	// check-integrity runs as root, so a captured binary is never executed.
 	CurrentProbe func(ctx context.Context, assets string, env []string) (json.RawMessage, error)
+	// ReleaseRoot is the installation's release directory
+	// (install.Settings.ReleaseRoot); its root-owned release binaries, and
+	// this executable, are the binaries a rehearsal may run.
+	ReleaseRoot string
 	// Scratch makes the rehearsal directory (a short /tmp path: Unix socket
 	// paths are limited to ~100 bytes).
 	Scratch func() (string, error)
@@ -458,19 +473,57 @@ func IsolatedEnv(base []string, socket string, runtimeSettings map[string]string
 	return env
 }
 
-// Rehearse restores directory/database.dump into a private cluster and runs
-// the captured release's probe against it. The scratch cluster is always
-// stopped before its storage is removed; when the stop cannot be confirmed
-// the scratch directory is retained for the operator.
-func Rehearse(ctx context.Context, o Options, directory string, runtimeSettings map[string]string) (json.RawMessage, error) {
+// UntrustedBinaryNotice is check-integrity's notice for a backup whose
+// captured binary matches no trusted installed release.
+const UntrustedBinaryNotice = "captured binary not executed; served with this release"
+
+// Rehearse restores directory/database.dump into a private cluster and
+// probes it. When the captured binary's SHA-256 equals a trusted installed
+// binary (this executable, or a root-owned release under ReleaseRoot) that
+// installed binary — the captured release itself — runs the probe, and its
+// path is returned as probedWith. Otherwise nothing from the backup is
+// executed: the snapshot is inventoried as restored, the scratch copy is
+// migrated and served with this release (probedWith is ""). The scratch
+// cluster is always stopped before its storage is removed; when the stop
+// cannot be confirmed the scratch directory is retained for the operator.
+func Rehearse(ctx context.Context, o Options, directory string, runtimeSettings map[string]string) (restored json.RawMessage, probedWith string, err error) {
 	o.defaults()
-	return rehearse(ctx, o, directory, runtimeSettings, func(ctx context.Context, scratch string, env []string) (json.RawMessage, error) {
-		app := filepath.Join(scratch, "app")
-		if err := copyTree(ctx, filepath.Join(directory, "application"), app, nil); err != nil {
-			return nil, err
+	sum, err := Digest(filepath.Join(directory, "application", install.BinaryName))
+	if err != nil {
+		return nil, "", err
+	}
+	trusted := o.trustedBinary(sum)
+	assets := filepath.Join(directory, "assets")
+	restored, err = rehearse(ctx, o, directory, runtimeSettings, func(ctx context.Context, _ string, env []string) (json.RawMessage, error) {
+		if trusted != "" {
+			return o.Probe(ctx, trusted, assets, env)
 		}
-		return o.Probe(ctx, app, filepath.Join(directory, "assets"), env)
+		return currentReleaseProbe(ctx, o, assets, env)
 	})
+	return restored, trusted, err
+}
+
+// trustedBinary is the resolved path of an installed binary whose SHA-256
+// is sum and which only root can change, or "".
+func (o *Options) trustedBinary(sum string) string {
+	var candidates []string
+	if self, err := os.Executable(); err == nil {
+		candidates = append(candidates, self)
+	}
+	if o.ReleaseRoot != "" {
+		releases, _ := filepath.Glob(filepath.Join(o.ReleaseRoot, "*", install.BinaryName))
+		candidates = append(candidates, releases...)
+	}
+	for _, c := range candidates {
+		p, err := install.TrustedFile(c)
+		if err != nil {
+			continue
+		}
+		if d, err := Digest(p); err == nil && d == sum {
+			return p
+		}
+	}
+	return ""
 }
 
 // rehearse restores directory/database.dump into a private cluster under a
@@ -569,12 +622,12 @@ func rehearse(ctx context.Context, o Options, directory string, runtimeSettings 
 	return compact.Bytes(), nil
 }
 
-// execProbe runs the captured release's own probe: `<app>/pages
-// backup-probe <assets>`. The captured binary carries its own code and
-// dependencies, so a later check-integrity rehearses with exactly the
-// release that was backed up.
-func (o *Options) execProbe(ctx context.Context, application, assets string, env []string) (json.RawMessage, error) {
-	out, err := Run(ctx, o.Runner, filepath.Join(application, install.BinaryName), []string{"backup-probe", assets}, env, "")
+// execProbe runs a trusted installed binary's probe: `<binary>
+// backup-probe <assets>`. The binary is byte-identical to the captured one
+// and carries its own code, so the rehearsal runs exactly the release that
+// was backed up — without executing anything the backup holds.
+func (o *Options) execProbe(ctx context.Context, binary, assets string, env []string) (json.RawMessage, error) {
+	out, err := Run(ctx, o.Runner, binary, []string{"backup-probe", assets}, env, "")
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +744,7 @@ func Create(ctx context.Context, o Options, in CreateInput) (published string, e
 	}
 	// Inventory comes from the restored dump, never from a later live read.
 	runtimeCfg := RuntimeSettings(in.ServiceEnv)
-	restored, err := Rehearse(ctx, o, temporary, runtimeCfg)
+	restored, _, err := Rehearse(ctx, o, temporary, runtimeCfg)
 	if err != nil {
 		return "", err
 	}
@@ -767,14 +820,18 @@ func syncDirs(dir string) error {
 	return syncPath(dir)
 }
 
-// CheckResult is check-integrity's report. Format, Notice and ServedWith are
-// set only for a legacy (Node-era) backup.
+// CheckResult is check-integrity's report. Format is set only for a legacy
+// (Node-era) backup. ProbedWith is the trusted installed binary, identical
+// to the captured one, that probed the restore; when none matched, Notice
+// and ServedWith say the captured binary was not executed and which release
+// served the restored data instead.
 type CheckResult struct {
 	Status     string          `json:"status"`
 	BackupDir  string          `json:"backup_dir"`
 	Format     string          `json:"format,omitempty"`
 	Notice     string          `json:"notice,omitempty"`
 	ServedWith string          `json:"served_with,omitempty"`
+	ProbedWith string          `json:"probed_with,omitempty"`
 	Restored   json.RawMessage `json:"restored"`
 }
 
@@ -805,7 +862,7 @@ func Check(ctx context.Context, o Options, directory string) (*CheckResult, erro
 	if _, err := VerifyFiles(dir, &m); err != nil {
 		return nil, err
 	}
-	restored, err := Rehearse(ctx, o, dir, m.RuntimeConfiguration)
+	restored, probedWith, err := Rehearse(ctx, o, dir, m.RuntimeConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -813,5 +870,9 @@ func Check(ctx context.Context, o Options, directory string) (*CheckResult, erro
 	if err := json.Compact(&want, m.Restored); err != nil || !bytes.Equal(want.Bytes(), restored) {
 		return nil, errors.New("restored database inventory differs from the backup manifest")
 	}
-	return &CheckResult{Status: "verified", BackupDir: dir, Restored: restored}, nil
+	res := &CheckResult{Status: "verified", BackupDir: dir, ProbedWith: probedWith, Restored: restored}
+	if probedWith == "" {
+		res.Notice, res.ServedWith = UntrustedBinaryNotice, version.String()
+	}
+	return res, nil
 }

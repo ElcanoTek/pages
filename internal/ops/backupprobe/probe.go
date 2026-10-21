@@ -2,8 +2,9 @@
 // Copyright (c) 2026 ElcanoTek, Inc.
 
 // Package backupprobe is `pages backup-probe`, the restore check a backup
-// rehearsal runs with the CAPTURED release against its private restored
-// cluster. It never loads captured credentials, migrates, publishes or
+// rehearsal runs against its private restored cluster, with the captured
+// release (through a trusted installed binary identical to it, never the
+// backup's copy) or this one. It never loads captured credentials, migrates, publishes or
 // executes page JS. It checks every immutable source hash, the referenced
 // asset bytes and ownership pointers, then serves the restored data and
 // requests a bounded, active-first sample of pages, versions, template

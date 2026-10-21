@@ -24,7 +24,9 @@ const backupUsage = `Usage: pages backup [destination]
 Captures the database (pg_dump), the shared assets, the installed release and
 its configuration under the updater's shared lock, without stopping Pages,
 then restores it into a private throwaway PostgreSQL cluster and probes it
-with the captured release before publishing. Prints {"backup_dir": "..."}.
+before publishing — with the installed release binary identical to the
+captured one when that binary is root's alone, otherwise with this release;
+nothing captured is executed. Prints {"backup_dir": "..."}.
 Default destination: /var/backups/pages. Verify later with
 pages check-integrity <backup-dir>.
 
@@ -33,7 +35,12 @@ database.dump into a NEW database with pg_restore (--exit-on-error
 --single-transaction --no-owner --no-acl --role=<app role>), restore assets/
 into the shared assets directory and config/ (service.env with its original
 HMAC secrets, install.env, local.env) with their original ownership and
-modes, install the captured release (application/), then restart.
+modes, then restart. Never install application/pages from the backup itself
+(root runs the CLI binary): if check-integrity reported "probed_with", that
+root-owned installed release is identical to the captured one, so activate
+it; otherwise rebuild the revision the manifest records (pages_version) from
+the source checkout, or keep this release and migrate as for a Node-era
+backup below.
 
 Node-era backups (taken by the Node release; manifest.json records
 node_version and application/ holds server.js and package-lock.json, no

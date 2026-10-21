@@ -210,7 +210,7 @@ func TestFailedStartStopsOrRetainsOwnedCluster(t *testing.T) {
 			}}
 			o := Options{Runner: fake, EUID: 0, Environ: []string{"PGHOST=/northwind-live", "PGPORT=5497", "PGDATABASE=northwind_live", "DATABASE_URL=postgres://ignored.invalid/live"},
 				Tool: func(name string) (string, error) { return "/fake/bin/" + name, nil }}
-			_, err := Rehearse(context.Background(), o, dir, nil)
+			_, _, err := Rehearse(context.Background(), o, dir, nil)
 			if retain {
 				wantErr(t, err, `cannot confirm scratch PostgreSQL stopped; retained`)
 			} else {
@@ -460,12 +460,25 @@ func fakeCluster(t *testing.T, dumpFails bool, seen *map[string]string) *runner.
 func captureOptions(fake *runner.Fake) Options {
 	return Options{Runner: fake, EUID: 1000, Environ: []string{"PATH=/usr/bin", "RAW_TOKEN_SECRET=inherited-northwind-fixture"},
 		Tool: func(name string) (string, error) { return "/fake/bin/" + name, nil },
-		Probe: func(_ context.Context, app, assets string, env []string) (json.RawMessage, error) {
-			if _, err := os.Stat(filepath.Join(app, "pages")); err != nil {
-				return nil, errors.New("captured binary missing")
+		Probe: func(_ context.Context, binary, assets string, env []string) (json.RawMessage, error) {
+			if _, err := os.Stat(binary); err != nil {
+				return nil, errors.New("trusted binary missing")
+			}
+			if strings.Contains(binary, "pages-backup-") || strings.Contains(binary, ".pages-partial-") {
+				return nil, errors.New("probe executed a binary from the backup: " + binary)
 			}
 			return json.RawMessage(`{"counts": {"pages": "0"}, "probes": {}}`), nil
+		},
+		// Never the default: it would execute this test binary.
+		CurrentProbe: func(context.Context, string, []string) (json.RawMessage, error) {
+			return nil, errors.New("served with this release")
 		}}
+}
+
+// withReleases trusts the fixture installation's release binaries.
+func withReleases(o Options, s install.Settings) Options {
+	o.ReleaseRoot = s.ReleaseRoot()
+	return o
 }
 
 func TestCaptureRequiresServiceSecretsAndTheSharedLock(t *testing.T) {
@@ -541,7 +554,7 @@ func TestCapturePublishesCompleteBackupsOnly(t *testing.T) {
 	if _, err := VerifyFiles(dir, &m); err != nil {
 		t.Fatal(err)
 	}
-	res, err := Check(context.Background(), captureOptions(fakeCluster(t, false, nil)), dir)
+	res, err := Check(context.Background(), withReleases(captureOptions(fakeCluster(t, false, nil)), s), dir)
 	if err != nil || res.Status != "verified" {
 		t.Fatal(res, err)
 	}
@@ -549,7 +562,7 @@ func TestCapturePublishesCompleteBackupsOnly(t *testing.T) {
 	f, _ := os.OpenFile(filepath.Join(dir, "assets/northwind-chart.txt"), os.O_APPEND|os.O_WRONLY, 0)
 	_, _ = f.WriteString("corrupted\n")
 	f.Close()
-	_, err = Check(context.Background(), captureOptions(fakeCluster(t, false, nil)), dir)
+	_, err = Check(context.Background(), withReleases(captureOptions(fakeCluster(t, false, nil)), s), dir)
 	wantErr(t, err, "checksum mismatch")
 
 	// A failed dump publishes nothing, partial or complete, and its error

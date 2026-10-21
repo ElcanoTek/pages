@@ -144,7 +144,7 @@ func checkNodeEra(ctx context.Context, o Options, dir string, raw []byte) (*Chec
 	}
 	assets := filepath.Join(dir, "assets")
 	restored, err := rehearse(ctx, o, dir, m.RuntimeConfiguration, func(ctx context.Context, _ string, env []string) (json.RawMessage, error) {
-		return nodeEraProbe(ctx, o, assets, env)
+		return currentReleaseProbe(ctx, o, assets, env)
 	})
 	if err != nil {
 		return nil, err
@@ -157,10 +157,12 @@ func checkNodeEra(ctx context.Context, o Options, dir string, raw []byte) (*Chec
 		ServedWith: version.String(), Restored: restored}, nil
 }
 
-// nodeEraProbe produces the Node probe's report for the restored cluster env
-// targets: counts, migrations, hashes and assets from the snapshot as
-// restored (before any migration), probes from this release's server.
-func nodeEraProbe(ctx context.Context, o Options, assets string, env []string) (json.RawMessage, error) {
+// currentReleaseProbe produces the probe report for the restored cluster env
+// targets without running any captured code: counts, migrations, hashes and
+// assets from the snapshot as restored (before any migration), probes from
+// THIS release's server over a migrated scratch copy. It serves Node-era
+// backups and Go backups whose binary matches no trusted installed release.
+func currentReleaseProbe(ctx context.Context, o Options, assets string, env []string) (json.RawMessage, error) {
 	e := envMap(env)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable",
 		dsnQuote(e["PGHOST"]), dsnQuote(e["PGPORT"]), dsnQuote(e["PGUSER"]), dsnQuote(e["PGDATABASE"])))

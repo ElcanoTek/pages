@@ -22,9 +22,16 @@ func init() {
 const checkIntegrityUsage = `Usage: pages check-integrity <backup-dir>
 
 Verifies every captured file against the manifest and repeats the restore
-rehearsal with the captured release: the dump is restored into a private
-throwaway PostgreSQL cluster and probed with the captured binary. Prints
-{"status":"verified",...} and exits 0; any failure exits 1.
+rehearsal: the dump is restored into a private throwaway PostgreSQL cluster
+and probed. Nothing from the backup is executed (the manifest that vouches
+for it is just as writable): when the captured binary's SHA-256 equals a
+trusted installed binary (this one, or a root-owned release under the
+release root), that installed binary — the captured release — runs the
+probe and "probed_with" names it; otherwise the snapshot is inventoried as
+restored, a migrated scratch copy is served with THIS release, and the
+result carries "served_with" and the notice:
+  ` + backup.UntrustedBinaryNotice + `
+Prints {"status":"verified",...} and exits 0; any failure exits 1.
 
 Node-era backups (taken by the Node release's pages backup; the manifest
 records node_version) are accepted. Every file, the captured Node application
@@ -52,7 +59,7 @@ func runCheckIntegrity(args []string) int {
 	umaskPrivate()
 	ctx, stop := signalContext()
 	defer stop()
-	res, err := backup.Check(ctx, backup.Options{Runner: Runner, EUID: Geteuid()}, args[0])
+	res, err := backup.Check(ctx, backup.Options{Runner: Runner, EUID: Geteuid(), ReleaseRoot: settings().ReleaseRoot()}, args[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "backup: "+err.Error())
 		return 1

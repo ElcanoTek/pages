@@ -79,7 +79,7 @@ func TestBackupAgainstRealPostgres(t *testing.T) {
 		}
 		return json.Marshal(res)
 	}
-	o := Options{Runner: runner.Exec{}, EUID: euid, Probe: probe}
+	o := Options{Runner: runner.Exec{}, EUID: euid, Probe: probe, ReleaseRoot: s.ReleaseRoot()}
 	snapshot := func() string {
 		var out strings.Builder
 		for _, q := range []string{"SELECT count(*)::text FROM pages", "SELECT string_agg(published_version_id::text, ',' ORDER BY id) FROM pages", "SELECT count(*)::text FROM page_versions"} {

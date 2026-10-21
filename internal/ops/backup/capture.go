@@ -31,6 +31,9 @@ var requiredSecrets = []string{"RAW_TOKEN_SECRET", "API_TOKEN_PEPPER", "PAGE_COO
 // and creates the backup. It returns the published directory.
 func Capture(ctx context.Context, o Options, s install.Settings, destination string) (string, error) {
 	o.defaults()
+	if o.ReleaseRoot == "" {
+		o.ReleaseRoot = s.ReleaseRoot()
+	}
 	if destination == "" {
 		destination = DefaultDestination
 	}
