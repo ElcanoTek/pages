@@ -68,7 +68,11 @@ func checkScriptSyntax(src string, module bool) (v syntaxVerdict) {
 		}
 		return syntaxVerdict{err: err.Error()}
 	}
-	if !module {
+	// Every module-only construct is spelled with one of these keywords, and
+	// the lexer recognises keywords by their raw bytes (an escaped `await`
+	// is an identifier), so a script without them needs no AST walk — which on
+	// a multi-MiB script is a noticeable share of the check.
+	if !module && (strings.Contains(src, "import") || strings.Contains(src, "export") || strings.Contains(src, "await")) {
 		if msg := moduleOnlySyntax(ast); msg != "" {
 			return syntaxVerdict{err: msg}
 		}

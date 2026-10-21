@@ -222,16 +222,10 @@ func collectScripts(doc *html.Node) []script {
 // The bug class that killed the live picker. `onclick="togglePopover()"` calls
 // HTMLElement.prototype.togglePopover, never the author's global.
 
-var (
-	eventAttr      = regexp.MustCompile(`^on[a-z]+$`)
-	definedGlobals = regexp.MustCompile(`(?:^|[` + jsS + `;}])(?:function` + sp + `*\*?` + sp + `*|(?:const|let|var)` + sp + `+)([A-Za-z_$][A-Za-z0-9_$]*)`)
-)
+var eventAttr = regexp.MustCompile(`^on[a-z]+$`)
 
 func checkInlineHandlers(doc *html.Node, scriptText string) (errs, warns []Finding) {
-	defined := map[string]bool{}
-	for _, m := range definedGlobals.FindAllStringSubmatch(scriptText, -1) {
-		defined[m[1]] = true
-	}
+	defined := declaredGlobals(scriptText)
 	walk(doc, func(n *html.Node) {
 		for _, a := range attrs(n) {
 			if a.Namespace != "" || !eventAttr.MatchString(a.Key) {
@@ -411,28 +405,24 @@ func checkSubresources(doc *html.Node, cssText string, pol policy, base resolved
 
 // ── R3: APIs the sandbox response header turns into silent no-ops ────────────
 
+// Each API's pattern is a scanner in scan.go whose doc comment is the JS
+// regexp it reproduces.
 type sandboxAPI struct {
 	token, label, consequence string
-	re                        *regexp.Regexp
+	uses                      func(string) bool
 }
 
-const notMember = `(?:^|[^.\w$])`
-
 var sandboxAPIs = []sandboxAPI{
-	{"allow-modals", "window.print()", `Chromium logs "Ignored call to print()" and nothing happens — a "Download PDF" button does nothing at all.`,
-		regexp.MustCompile(notMember + `(?:window` + sp + `*\.` + sp + `*)?print` + sp + `*\(`)},
-	{"allow-modals", "alert()/confirm()/prompt()", "The call is ignored; confirm() returns false, so any flow gated on it silently takes the negative branch.",
-		regexp.MustCompile(notMember + `(?:window` + sp + `*\.` + sp + `*)?(?:alert|confirm|prompt)` + sp + `*\(`)},
-	{"allow-downloads", "a[download] / programmatic download", "The click is swallowed — an Export CSV/Excel button appears to work and produces no file.",
-		regexp.MustCompile(`\.` + sp + `*` + fold("download") + sp + `*=|<` + fold("a") + `[^>]+` + sp + fold("download") + `[` + jsS + `=>]`)},
-	{"allow-popups", "window.open()", "Returns null and no window opens.",
-		regexp.MustCompile(notMember + `window` + sp + `*\.` + sp + `*open` + sp + `*\(`)},
+	{"allow-modals", "window.print()", `Chromium logs "Ignored call to print()" and nothing happens — a "Download PDF" button does nothing at all.`, usesPrint},
+	{"allow-modals", "alert()/confirm()/prompt()", "The call is ignored; confirm() returns false, so any flow gated on it silently takes the negative branch.", usesDialog},
+	{"allow-downloads", "a[download] / programmatic download", "The click is swallowed — an Export CSV/Excel button appears to work and produces no file.", usesDownload},
+	{"allow-popups", "window.open()", "Returns null and no window opens.", usesWindowOpen},
 }
 
 func checkSandboxCapabilities(text string, tokens map[string]bool) []Finding {
 	var errs []Finding
 	for _, api := range sandboxAPIs {
-		if tokens[api.token] || !api.re.MatchString(text) {
+		if tokens[api.token] || !api.uses(text) {
 			continue
 		}
 		errs = append(errs, Finding{
@@ -449,18 +439,18 @@ func checkSandboxCapabilities(text string, tokens map[string]bool) []Finding {
 // ── R4: opaque-origin APIs that throw rather than no-op ──────────────────────
 
 var opaqueOriginAPIs = []struct {
-	re    *regexp.Regexp
+	uses  func(string) bool
 	label string
 }{
-	{regexp.MustCompile(notMember + `(?:window` + sp + `*\.` + sp + `*)?(localStorage|sessionStorage)\b`), "localStorage/sessionStorage"},
-	{regexp.MustCompile(`document` + sp + `*\.` + sp + `*cookie`), "document.cookie"},
-	{regexp.MustCompile(notMember + `indexedDB\b`), "indexedDB"},
+	{usesStorage, "localStorage/sessionStorage"},
+	{usesCookie, "document.cookie"},
+	{usesIndexedDB, "indexedDB"},
 }
 
 func checkOpaqueOrigin(text string) []Finding {
 	var warns []Finding
 	for _, api := range opaqueOriginAPIs {
-		if !api.re.MatchString(text) {
+		if !api.uses(text) {
 			continue
 		}
 		warns = append(warns, Finding{
@@ -475,25 +465,18 @@ func checkOpaqueOrigin(text string) []Finding {
 
 // ── R5: network calls the CSP forbids outright ───────────────────────────────
 
-var (
-	fetchCall  = regexp.MustCompile(notMember + `fetch` + sp + `*\(`)
-	xhrNew     = regexp.MustCompile(`new` + sp + `+XMLHttpRequest\b`)
-	socketNew  = regexp.MustCompile(`new` + sp + `+(?:WebSocket|EventSource)\b`)
-	beaconCall = regexp.MustCompile(notMember + `navigator` + sp + `*\.` + sp + `*sendBeacon` + sp + `*\(`)
-)
-
 func checkNetwork(text string) []Finding {
 	var hits []string
-	if fetchCall.MatchString(text) {
+	if usesFetch(text) {
 		hits = append(hits, "fetch()")
 	}
-	if xhrNew.MatchString(text) {
+	if usesXHR(text) {
 		hits = append(hits, "XMLHttpRequest")
 	}
-	if socketNew.MatchString(text) {
+	if usesSocket(text) {
 		hits = append(hits, "WebSocket/EventSource")
 	}
-	if beaconCall.MatchString(text) {
+	if usesBeacon(text) {
 		hits = append(hits, "navigator.sendBeacon")
 	}
 	if len(hits) == 0 {
