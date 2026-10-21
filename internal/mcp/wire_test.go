@@ -5,7 +5,7 @@ package mcp
 
 // Port of test/mcp-wire.integration.js: every case is sent over real HTTP and
 // its status, response headers and EXACT body are compared with
-// test/mcp-wire.golden.json, recorded from the official MCP TypeScript SDK
+// internal/mcp/testdata/mcp-wire.golden.json, recorded from the official MCP TypeScript SDK
 // transport (1.32.1). The dashboard's security headers are server wiring
 // (internal/server) and are not part of this handler, so they are not
 // compared here.
@@ -297,7 +297,7 @@ func TestWireMatchesGolden(t *testing.T) {
 	h := newHarness(t)
 	scoped := h.mint("mcp-wire-data", tokens.ScopeDataUpdate, "wire-no-such-page")
 
-	raw, err := os.ReadFile("../../test/mcp-wire.golden.json")
+	raw, err := os.ReadFile("testdata/mcp-wire.golden.json")
 	if err != nil {
 		t.Fatal(err)
 	}

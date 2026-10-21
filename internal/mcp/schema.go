@@ -9,7 +9,7 @@ package mcp
 //   - JSONSchema emits the advertised draft-07 JSON Schema exactly as
 //     z.toJSONSchema(schema, {target: "draft-7", io}) did (zod 4.6.5) — same
 //     keys, same key order, same type-union compaction — because the
-//     tools/list bytes are a wire contract (test/mcp-wire.golden.json);
+//     tools/list bytes are a wire contract (internal/mcp/testdata/mcp-wire.golden.json);
 //   - parse validates a JSON value as safeParse did: defaults applied, the
 //     id transform run, objects rebuilt in shape order, and the issues zod
 //     reported with zod's English messages (the SDK quoted them verbatim in

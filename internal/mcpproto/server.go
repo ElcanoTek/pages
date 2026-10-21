@@ -12,7 +12,7 @@
 // written to answer exactly as SDK 1.32.1 did — methods, error codes and
 // messages, result shapes and key order — and the tests hold it to recordings
 // of the SDK itself (testdata/protocol-corpus.json) and of the SDK transport
-// over HTTP (test/mcp-wire.golden.json).
+// over HTTP (internal/mcp/testdata/mcp-wire.golden.json).
 //
 // The tools are not here: a Tool carries its advertised JSON Schemas as raw
 // JSON and its own argument parser and handler (package mcp registers Pages'

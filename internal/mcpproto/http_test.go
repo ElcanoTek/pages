@@ -26,7 +26,7 @@ import (
 
 // Port of the protocol-level part of test/mcp-wire.integration.js: each case
 // goes over real HTTP and its status, headers and exact body are compared
-// with ../../test/mcp-wire.golden.json, recorded from the official SDK
+// with internal/mcp/testdata/mcp-wire.golden.json, recorded from the official SDK
 // transport. Pages' tools are not in this package, so the tool calls run
 // against stand-ins that answer as the real get_page / patch_page /
 // list_themes did in the recording; the full catalog listings (pinned by
@@ -384,7 +384,7 @@ func expectedFor(name string, golden observed) observed {
 
 func loadGolden(t *testing.T) map[string]json.RawMessage {
 	t.Helper()
-	raw, err := os.ReadFile("../../test/mcp-wire.golden.json")
+	raw, err := os.ReadFile("../mcp/testdata/mcp-wire.golden.json")
 	if err != nil {
 		t.Fatal(err)
 	}

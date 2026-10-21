@@ -186,7 +186,7 @@ func TestHandlerValidation(t *testing.T) {
 }
 
 func TestExpressETag(t *testing.T) {
-	// The golden from test/mcp-wire.golden.json: same body, same validator.
+	// The golden from internal/mcp/testdata/mcp-wire.golden.json: same body, same validator.
 	body := `{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid params for initialize"}}`
 	var v any
 	if err := json.Unmarshal([]byte(body), &v); err != nil {

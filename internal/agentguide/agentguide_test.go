@@ -4,17 +4,13 @@
 package agentguide
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -456,95 +452,5 @@ func TestNoPrivateDenylistTermInServedText(t *testing.T) {
 		if p := privateFindings(docText(t, topic), terms); len(p) > 0 {
 			t.Errorf("%s: %v", Topics[topic], p)
 		}
-	}
-}
-
-// TestMatchesJS runs lib/agent-guide.js over the same docs and compares every
-// result and rendering byte for byte. It skips once the Node tree is gone.
-func TestMatchesJS(t *testing.T) {
-	root, err := filepath.Abs("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "lib", "agent-guide.js")); err != nil {
-		t.Skip("lib/agent-guide.js is gone")
-	}
-	node, err := exec.LookPath("node")
-	if err != nil {
-		t.Skip("node is not installed")
-	}
-	script := `
-const g = require(process.argv[1] + "/lib/agent-guide.js");
-const reads = [{}];
-for (const topic of g.TOPIC_NAMES) { reads.push({ topic }); for (const e of g.get({ topic }).entries) reads.push({ topic, section: e.section }); }
-reads.push({ topic: "workflow", section: "no-such" });
-const out = reads.map((a) => { try { const r = g.get(a); return { r, text: g.render(r) }; } catch (e) { return { status: e.status, message: e.message, code: e.code, details: e.details }; } });
-process.stdout.write(JSON.stringify(out));`
-	cmd := exec.CommandContext(t.Context(), node, "-e", script, root)
-	jsOut, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("node: %v", err)
-	}
-	saved := ProductVersion
-	t.Cleanup(func() { ProductVersion = saved })
-	pkg, err := os.ReadFile(filepath.Join(root, "package.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var meta struct{ Version string }
-	if err := json.Unmarshal(pkg, &meta); err != nil {
-		t.Fatal(err)
-	}
-	ProductVersion = meta.Version
-
-	type jsErr struct {
-		Status  int    `json:"status"`
-		Message string `json:"message"`
-		Code    string `json:"code"`
-		Details any    `json:"details"`
-	}
-	var outs []any
-	reads := [][2]string{{"", ""}}
-	for _, topic := range TopicNames {
-		reads = append(reads, [2]string{topic, ""})
-		for _, e := range get(t, topic, "").Entries {
-			reads = append(reads, [2]string{topic, *e.Section})
-		}
-	}
-	reads = append(reads, [2]string{"workflow", "no-such"})
-	for _, a := range reads {
-		var tp, sp *string
-		if a[0] != "" {
-			tp = &a[0]
-		}
-		if a[1] != "" {
-			sp = &a[1]
-		}
-		r, err := Get(tp, sp)
-		if err != nil {
-			e, _ := apierror.As(err)
-			outs = append(outs, jsErr{e.Status, e.Message, e.Code, e.Details})
-			continue
-		}
-		outs = append(outs, struct {
-			R    *Result `json:"r"`
-			Text string  `json:"text"`
-		}{r, Render(r)})
-	}
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(outs); err != nil {
-		t.Fatal(err)
-	}
-	got := strings.TrimSuffix(buf.String(), "\n")
-	if got != string(jsOut) {
-		for i := range min(len(got), len(jsOut)) {
-			if got[i] != jsOut[i] {
-				lo := max(0, i-200)
-				t.Fatalf("differs from JS at byte %d:\n go: %s\n js: %s", i, got[lo:min(len(got), i+200)], jsOut[lo:min(len(jsOut), i+200)])
-			}
-		}
-		t.Fatalf("differs from JS in length: go %d, js %d", len(got), len(jsOut))
 	}
 }

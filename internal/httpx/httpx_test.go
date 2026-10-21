@@ -73,7 +73,7 @@ func TestSendFreshness(t *testing.T) {
 }
 
 func TestETagMatchesExpress(t *testing.T) {
-	// From test/mcp-wire.golden.json: the 405 body.
+	// From internal/mcp/testdata/mcp-wire.golden.json: the 405 body.
 	body := `{"jsonrpc":"2.0","id":null,"error":{"code":-32000,"message":"Method not allowed; POST JSON-RPC to /mcp"}}`
 	if got := ETag([]byte(body)); got != `W/"69-8Q3Jri+XwYfOu+DRacl1LJszMxY"` {
 		t.Errorf("got %s", got)

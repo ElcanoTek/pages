@@ -126,7 +126,7 @@ What a framework would otherwise supply is owned code:
 npm holds **test tooling only** — Playwright and axe for the browser suite.
 
 The MCP wire is held to the official SDK by recordings, not by a live SDK:
-`internal/mcpproto` replays `test/mcp-wire.golden.json` (every response byte
+`internal/mcpproto` replays `internal/mcp/testdata/mcp-wire.golden.json` (every response byte
 from the SDK transport) and the corpora in `internal/mcpproto/testdata`
 (`protocol-corpus.json`, `envelope-verdicts.json`), recorded by the scripts in
 `internal/mcpproto/testdata/record`. Re-record only for a deliberate, reviewed

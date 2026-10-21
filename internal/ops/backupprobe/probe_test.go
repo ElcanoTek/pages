@@ -9,9 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -70,33 +67,5 @@ func TestMintersMatchTheWireFormats(t *testing.T) {
 	counts = append(counts, struct{ Table, Count string }{"pages", "2"}, struct{ Table, Count string }{"assets", "1"})
 	if b, _ := json.Marshal(counts); string(b) != `{"pages":"2","assets":"1"}` {
 		t.Fatal(string(b))
-	}
-}
-
-// While the JavaScript implementation is still in the tree, check the Go
-// minters against it directly.
-func TestMintersVerifyWithTheJavaScriptImplementation(t *testing.T) {
-	node, err := exec.LookPath("node")
-	root, _ := filepath.Abs("../../..")
-	if err != nil {
-		t.Skip("no node")
-	}
-	if _, err := os.Stat(filepath.Join(root, "lib", "pagecookie.js")); err != nil {
-		t.Skip("lib/pagecookie.js is gone")
-	}
-	t.Setenv("RAW_TOKEN_SECRET", "northwind-raw")
-	t.Setenv("PAGE_COOKIE_SECRET", "northwind-cookie")
-	hash := "scrypt$16384$8$1$c2FsdA==$aGFzaA=="
-	raw, _ := MintRawToken("12", "34", "view", "themed")
-	page := MintPageSession(12, 60, &hash)
-	portal := MintPortalSession(5, 60, &hash)
-	script := `const rt=require("./lib/rawtoken"),pc=require("./lib/pagecookie");const [r,p,o,h]=process.argv.slice(1);
-const c=rt.verify(r);if(!c||c.pid!=="12"||c.vid!=="34"||c.purpose!=="view")process.exit(2);
-if(!pc.verifySession(p,12,h))process.exit(3);if(!pc.verifyPortalSession(o,5,h))process.exit(4);`
-	cmd := exec.Command(node, "-e", script, raw, page, portal, hash)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "RAW_TOKEN_SECRET=northwind-raw", "PAGE_COOKIE_SECRET=northwind-cookie")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("%v: %s", err, out)
 	}
 }

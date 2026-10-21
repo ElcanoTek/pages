@@ -36,3 +36,6 @@ screenshots/
 # Go build output
 /pages
 /coverage.out
+
+# Compiled Go test binaries (go test -c)
+*.test

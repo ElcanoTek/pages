@@ -145,7 +145,7 @@ func itoa(n int) string { return jsonv.FormatNumber(float64(n)) }
 
 func goldenBody(t *testing.T, name string) string {
 	t.Helper()
-	raw, err := os.ReadFile("../../test/mcp-wire.golden.json")
+	raw, err := os.ReadFile("testdata/mcp-wire.golden.json")
 	if err != nil {
 		t.Fatal(err)
 	}
