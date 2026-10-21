@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ElcanoTek/pages/internal/api"
@@ -63,14 +64,15 @@ type harness struct {
 	srv     *httptest.Server
 	token   string
 	tokenID jsx.ID
-	nextID  int
+	nextID  atomic.Int64 // callers may run concurrently
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	setTestEnv(t)
 	d := testdb.New(t)
-	h := &harness{t: t, d: d, nextID: 1}
+	h := &harness{t: t, d: d}
+	h.nextID.Store(1)
 	mux := http.NewServeMux()
 	mcpHandler := Handler(Deps{DB: d, ClientIP: func(*http.Request) string { return "127.0.0.1" }})
 	mux.Handle("/mcp", mcpHandler)
@@ -229,8 +231,7 @@ func (h *harness) rpc(method string, params any, o rpcOpts) response {
 		if o.id != nil {
 			msg.Set("id", o.id)
 		} else {
-			msg.Set("id", float64(h.nextID))
-			h.nextID++
+			msg.Set("id", float64(h.nextID.Add(1)-1))
 		}
 	}
 	headers := map[string]string{}
