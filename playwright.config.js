@@ -24,12 +24,23 @@ module.exports = defineConfig({
     colorScheme: "dark",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    // A container whose preinstalled Chromium is not the build this Playwright
+    // release pins can point at it instead of downloading another one.
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : {},
   },
+  // The fixture is the Go binary's hidden `browser-fixture` verb: the real
+  // shells, gate pages and embedded assets over an in-memory admin API
+  // (internal/fixture). It is built first, outside Playwright's outputDir (which
+  // a run empties), so the server Playwright waits on is the compiled binary and
+  // not a `go run` wrapper. The timeout covers a cold build cache; a warm one
+  // starts in about a second.
   webServer: {
-    command: "node test/browser/fixture-server.js",
+    command: "go build -o node_modules/.cache/pages-browser-fixture/pages ./cmd/pages && exec node_modules/.cache/pages-browser-fixture/pages browser-fixture",
     url: `${ORIGIN}/healthz`,
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 180_000,
     env: { PLAYWRIGHT_FIXTURE_PORT: String(PORT) },
   },
 });
