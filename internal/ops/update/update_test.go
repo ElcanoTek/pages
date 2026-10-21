@@ -26,6 +26,10 @@ type fixture struct {
 	err      error
 	// services records "<systemctl verb> <release marker>" per call.
 	services []string
+	// running is the directory the simulated service process was started
+	// in ("" when stopped); stops counts systemctl stop calls.
+	running string
+	stops   int
 }
 
 func write(t *testing.T, name, text string, mode os.FileMode) {
@@ -90,6 +94,7 @@ func run(t *testing.T, failure string) *fixture {
 			t.Fatal(err)
 		}
 	}
+	f.running = f.app
 	me, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
@@ -116,8 +121,33 @@ func run(t *testing.T, failure string) *fixture {
 		case "systemctl":
 			m := marker(f.app)
 			f.services = append(f.services, c.Args[0]+" "+m)
-			if c.Args[0] == "start" && strings.HasSuffix(failure, "start") && m == "candidate" {
-				return "", 1
+			switch c.Args[0] {
+			case "stop":
+				f.stops++
+				switch {
+				case failure == "stop" && f.stops == 1:
+					return "", 1 // the old process stays up
+				case failure == "stale" && f.stops == 1:
+					return "", 0 // "stopped", yet the old process keeps serving
+				}
+				f.running = ""
+			case "daemon-reload":
+				if failure == "reload" && m == "candidate" {
+					return "", 1
+				}
+			case "start":
+				if f.running != "" {
+					return "", 0 // systemctl start on an active unit is a no-op
+				}
+				if strings.HasSuffix(failure, "start") && m == "candidate" {
+					return "", 1
+				}
+				f.running, _ = filepath.EvalSymlinks(f.app)
+			case "show":
+				if f.running == "" {
+					return "0\n", 0
+				}
+				return "4242\n", 0
 			}
 		}
 		return "", 0
@@ -142,9 +172,12 @@ func run(t *testing.T, failure string) *fixture {
 			if !strings.Contains(url, ":4312/") {
 				return false
 			}
-			return failure != "readiness" || marker(f.app) != "candidate"
+			// The process answering is whichever one is running — after a
+			// no-op start, the old one.
+			return f.running != "" && (failure != "readiness" || marker(f.running) != "candidate")
 		},
-		Sleep: func(time.Duration) {},
+		ProcCwd: func(int) (string, error) { return f.running, nil },
+		Sleep:   func(time.Duration) {},
 		Rename: func(oldpath, newpath string) error {
 			if failure == "activate" && newpath == f.app {
 				if target, _ := os.Readlink(oldpath); strings.Contains(target, "/abcdef0-") {
@@ -164,7 +197,7 @@ func TestReleaseUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "unmanaged-link", "pull", "none"} {
+	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none"} {
 		t.Run(failure, func(t *testing.T) {
 			f := run(t, failure)
 			succeeds := failure == "none" || failure == "pull"
@@ -196,13 +229,31 @@ func TestReleaseUpdate(t *testing.T) {
 				}
 			}
 			switch failure {
-			case "activate", "start", "legacy-start", "readiness":
+			case "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload":
 				if !strings.Contains(f.out.String(), "previous release is ready again") {
 					t.Fatalf("no recovery report:\n%s", f.out.String())
 				}
 				if !strings.Contains(strings.Join(f.services, "\n"), "start original") {
 					t.Fatalf("predecessor never restarted: %v", f.services)
 				}
+			}
+			if failure == "stop" {
+				// A failed stop aborts before anything is switched: no
+				// systemctl call ever sees the candidate behind APP_DIR.
+				for _, call := range f.services {
+					if strings.HasSuffix(call, " candidate") {
+						t.Fatalf("activation continued after a failed stop: %v", f.services)
+					}
+				}
+				if !strings.Contains(f.out.String(), "could not stop pages.service") {
+					t.Fatalf("stop failure not reported:\n%s", f.out.String())
+				}
+			}
+			if failure == "stale" && !strings.Contains(f.out.String(), "still runs") {
+				t.Fatalf("a no-op start onto the old process must fail the update:\n%s", f.out.String())
+			}
+			if failure == "reload" && !strings.Contains(f.out.String(), "daemon-reload failed") {
+				t.Fatalf("daemon-reload failure not reported:\n%s", f.out.String())
 			}
 			if failure == "legacy-start" && !strings.Contains(f.fake.Log(), " ready-check") {
 				t.Fatalf("a /healthz-only predecessor must be confirmed by the new release's ready-check:\n%s", f.fake.Log())

@@ -241,3 +241,34 @@ func TestBootstrapStopsOnBadInputs(t *testing.T) {
 		}
 	}
 }
+
+// A failing systemctl/chown on the activation path stops bootstrap before the
+// service is (re)started on a half-applied configuration.
+func TestBootstrapStopsOnServiceManagerFailures(t *testing.T) {
+	for name, tc := range map[string]struct {
+		cmd, want string
+	}{
+		"daemon-reload": {"systemctl daemon-reload", "systemctl daemon-reload failed"},
+		"enable":        {"systemctl enable pages.service", "systemctl enable pages.service failed"},
+		"env chown":     {"chown root:contoso", "could not give"},
+		"pg reload":     {"systemctl reload postgresql", "pg_hba.conf changes not applied"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := newBox(t)
+			handle := b.fake.Handle
+			b.fake.Handle = func(c runner.Cmd) (string, int) {
+				if strings.HasPrefix(c.String(), tc.cmd) {
+					return "", 1
+				}
+				return handle(c)
+			}
+			err := b.run(t)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("%v, want %q\n%s", err, tc.want, b.out.String())
+			}
+			if strings.Contains(b.fake.Log(), "systemctl restart pages.service") {
+				t.Fatalf("pages.service restarted after %s failed:\n%s", tc.cmd, b.fake.Log())
+			}
+		})
+	}
+}

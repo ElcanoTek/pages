@@ -259,13 +259,17 @@ func (r *run) release(ctx context.Context) error {
 				if err := os.Rename(filepath.Join(previous, "assets"), s.SharedAssets()); err != nil {
 					return err
 				}
-				_ = os.Symlink(s.SharedAssets(), filepath.Join(previous, "assets"))
+				if err := os.Symlink(s.SharedAssets(), filepath.Join(previous, "assets")); err != nil {
+					return err
+				}
 			}
 			if exists(filepath.Join(previous, ".env")) && !exists(s.SharedEnv()) {
 				if err := os.Rename(filepath.Join(previous, ".env"), s.SharedEnv()); err != nil {
 					return err
 				}
-				_ = os.Symlink(s.SharedEnv(), filepath.Join(previous, ".env"))
+				if err := os.Symlink(s.SharedEnv(), filepath.Join(previous, ".env")); err != nil {
+					return err
+				}
 			}
 			log.Info("previous installation retained at " + previous)
 		}
@@ -414,9 +418,15 @@ func (r *run) configure(ctx context.Context) error {
 		}
 	}
 	if r.cmd(ctx, "systemctl", "enable", "--now", "postgresql") != nil {
-		_ = r.cmd(ctx, "systemctl", "restart", "postgresql")
+		if err := r.cmd(ctx, "systemctl", "restart", "postgresql"); err != nil {
+			return die("postgresql failed to start (%v) — check: journalctl -u postgresql", err)
+		}
 	}
-	_ = r.cmd(ctx, "systemctl", "reload", "postgresql")
+	// The reload applies the pg_hba.conf rewrite above; without it the app's
+	// password login is refused.
+	if err := r.cmd(ctx, "systemctl", "reload", "postgresql"); err != nil {
+		return die("systemctl reload postgresql failed (%v) — pg_hba.conf changes not applied", err)
+	}
 	// Reuse the existing role password (from a prior DATABASE_URL) so re-runs
 	// never lock the app out; otherwise mint one.
 	pass, err := install.DatabasePassword(r.vars["DATABASE_URL"])
@@ -470,7 +480,11 @@ func (r *run) configure(ctx context.Context) error {
 	if err := os.Chmod(s.EnvFile, 0o640); err != nil {
 		return err
 	}
-	_ = r.cmd(ctx, "chown", "root:"+s.AppUser, s.EnvFile)
+	// The service account reads the 0640 file through its group; without it
+	// pages.service cannot start.
+	if err := r.cmd(ctx, "chown", "root:"+s.AppUser, s.EnvFile); err != nil {
+		return die("could not give %s to group %s: %v", s.EnvFile, s.AppUser, err)
+	}
 	log.OK("env seeded at " + s.EnvFile)
 
 	log.Info("running database migrations")
@@ -542,8 +556,14 @@ func (r *run) services(ctx context.Context) error {
 	// Key-only SSH: Vultr's cloud-init turns password login on. Never fails.
 	sshd.KeyOnly{Root: o.Root, Runner: o.Runner, Log: log, Getenv: o.Getenv}.Apply(ctx)
 	hostname.Setter{Root: o.Root, Runner: o.Runner, Log: log, Getenv: o.Getenv}.Set(ctx, r.vars["DASHBOARD_HOST"])
-	_ = r.cmd(ctx, "systemctl", "daemon-reload")
-	_ = r.cmd(ctx, "systemctl", "enable", install.Service)
+	// A failed daemon-reload leaves systemd on the previous unit: the
+	// restart below would run the old ExecStart/WorkingDirectory.
+	if err := r.cmd(ctx, "systemctl", "daemon-reload"); err != nil {
+		return die("systemctl daemon-reload failed (%v) — %s was not loaded", err, install.Service)
+	}
+	if err := r.cmd(ctx, "systemctl", "enable", install.Service); err != nil {
+		return die("systemctl enable %s failed (%v) — it would not start on boot", install.Service, err)
+	}
 	if err := r.cmd(ctx, "systemctl", "restart", install.Service); err != nil {
 		return die("pages.service failed to start — check: pages logs")
 	}

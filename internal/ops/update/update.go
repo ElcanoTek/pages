@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -78,6 +79,9 @@ type Options struct {
 	// Chown gives path to the service account (recursively for a
 	// directory when recursive; the link itself for a symlink).
 	Chown func(ctx context.Context, path string, recursive bool) error
+	// ProcCwd resolves a process's working directory (/proc/PID/cwd): the
+	// release a running service process was started from.
+	ProcCwd func(pid int) (string, error)
 }
 
 func (o *Options) defaults() {
@@ -116,6 +120,9 @@ func (o *Options) defaults() {
 	}
 	if o.Chown == nil {
 		o.Chown = o.chownUser
+	}
+	if o.ProcCwd == nil {
+		o.ProcCwd = func(pid int) (string, error) { return filepath.EvalSymlinks(fmt.Sprintf("/proc/%d/cwd", pid)) }
 	}
 }
 
@@ -335,7 +342,12 @@ func (a *activation) run(ctx context.Context) error {
 
 	o.Log.Plain("Activating " + a.release)
 	a.switching = true
-	_ = o.systemctl(ctx, "stop", install.Service)
+	// A failed stop can leave the old process serving: switching the link
+	// and control files under it would make the later start a no-op and let
+	// the old process's readiness pass for the new release.
+	if err := o.systemctl(ctx, "stop", install.Service); err != nil {
+		return fail("could not stop %s (%v) — active release not switched", install.Service, err)
+	}
 	if legacy {
 		if err := o.Rename(s.AppDir, a.previous); err != nil {
 			return err
@@ -386,12 +398,17 @@ func (a *activation) run(ctx context.Context) error {
 	if err := install.SymlinkAtomic(s.Binary(), s.CLITarget); err != nil {
 		return err
 	}
-	_ = o.systemctl(ctx, "daemon-reload")
+	if err := o.systemctl(ctx, "daemon-reload"); err != nil {
+		return fail("systemctl daemon-reload failed (%v) — the new unit was not loaded", err)
+	}
 	if err := o.systemctl(ctx, "start", install.Service); err != nil {
 		return fail("new release failed to start")
 	}
 	if !a.ready(ctx) {
 		return fail("new release failed readiness")
+	}
+	if err := a.servingRelease(ctx); err != nil {
+		return err
 	}
 	if err := install.SymlinkAtomic(a.previous, filepath.Join(s.ReleaseRoot(), "previous")); err != nil {
 		return err
@@ -468,13 +485,43 @@ func (a *activation) ready(ctx context.Context) bool {
 	return false
 }
 
-func (a *activation) restoreFile(name, target string) {
+// servingRelease confirms the service's main process runs the new release:
+// a start that was a no-op on a process left over from the predecessor would
+// otherwise pass readiness on the old code. A definite mismatch fails; an
+// unreadable MainPID or cwd is left to readiness, which has already passed.
+func (a *activation) servingRelease(ctx context.Context) error {
+	o := a.o
+	out, err := runner.Output(ctx, o.Runner, runner.Cmd{Name: "systemctl", Args: []string{"show", "-p", "MainPID", "--value", install.Service}})
+	if err != nil {
+		return nil
+	}
+	pid, err := strconv.Atoi(out)
+	if err != nil || pid <= 0 {
+		return nil
+	}
+	running, err := o.ProcCwd(pid)
+	if err != nil || running == "" {
+		return nil
+	}
+	want, err := filepath.EvalSymlinks(a.release)
+	if err != nil {
+		want = a.release
+	}
+	if running != want {
+		return fail("%s (pid %d) still runs %s, not the new release %s", install.Service, pid, running, a.release)
+	}
+	return nil
+}
+
+func (a *activation) restoreFile(name, target string) error {
 	src := filepath.Join(a.recovery, name)
 	if _, err := os.Lstat(src); err == nil {
-		_ = install.CopyPreserving(src, target)
-	} else {
-		_ = os.Remove(target)
+		return install.CopyPreserving(src, target)
 	}
+	if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // cleanup restores the predecessor when the failure happened after the
@@ -487,29 +534,48 @@ func (a *activation) cleanup(result error) error {
 	}
 	if a.switching {
 		o.Log.PlainErr("update failed; restoring the previous compatible release")
-		_ = o.systemctl(ctx, "stop", install.Service)
+		restored := true
+		if err := o.systemctl(ctx, "stop", install.Service); err != nil {
+			o.Log.PlainErr(fmt.Sprintf("could not stop %s: %v", install.Service, err))
+			restored = false
+		}
 		if st, err := os.Stat(a.previous); err == nil && st.IsDir() {
 			// Repair the first legacy conversion if it failed between moving
 			// a mutable path and installing its shared symlink.
-			if exists(s.SharedAssets()) && !lexists(filepath.Join(a.previous, "assets")) {
-				_ = os.Symlink(s.SharedAssets(), filepath.Join(a.previous, "assets"))
-			}
-			if exists(s.SharedEnv()) && !lexists(filepath.Join(a.previous, ".env")) {
-				_ = os.Symlink(s.SharedEnv(), filepath.Join(a.previous, ".env"))
+			for _, l := range [][2]string{{s.SharedAssets(), "assets"}, {s.SharedEnv(), ".env"}} {
+				if link := filepath.Join(a.previous, l[1]); exists(l[0]) && !lexists(link) {
+					if err := os.Symlink(l[0], link); err != nil {
+						o.Log.PlainErr("could not relink " + link + ": " + err.Error())
+						restored = false
+					}
+				}
 			}
 			if a.nextLink != "" {
 				_ = os.Remove(a.nextLink)
 			}
 			if err := a.switchLink(a.previous); err != nil {
 				o.Log.PlainErr("could not switch back to " + a.previous + ": " + err.Error())
+				restored = false
 			}
 		}
 		if a.recovery != "" {
-			a.restoreFile("service", o.ServiceFile)
-			a.restoreFile("cli", s.CLITarget)
+			for _, f := range [][2]string{{"service", o.ServiceFile}, {"cli", s.CLITarget}} {
+				if err := a.restoreFile(f[0], f[1]); err != nil {
+					o.Log.PlainErr("could not restore " + f[1] + ": " + err.Error())
+					restored = false
+				}
+			}
 		}
-		_ = o.systemctl(ctx, "daemon-reload")
-		if o.systemctl(ctx, "start", install.Service) == nil && a.ready(ctx) {
+		if err := o.systemctl(ctx, "daemon-reload"); err != nil {
+			o.Log.PlainErr(fmt.Sprintf("systemctl daemon-reload failed: %v", err))
+			restored = false
+		}
+		// Start regardless (best effort), but only a fully restored install
+		// — after a successful stop, so the started process is known to be
+		// the predecessor rather than whatever kept running — is reported
+		// as recovered.
+		started := o.systemctl(ctx, "start", install.Service) == nil && a.ready(ctx)
+		if restored && started {
 			o.Log.PlainErr("previous release is ready again; the update failed and was not committed")
 		} else {
 			o.Log.PlainErr(fmt.Sprintf("automatic recovery needs operator attention; predecessor=%s; configuration backup=%s", a.previous, a.recovery))
