@@ -28,8 +28,8 @@ playwright-report/
 # images, which are tracked under docs/images/.
 screenshots/
 
-# macOS is a supported dev platform — scripts/dev-macos.sh, and the integration
-# suite hunts for initdb under the Homebrew kegs — so these turn up.
+# macOS is a supported dev platform (`pages dev` uses a Homebrew Postgres there),
+# so these turn up.
 .DS_Store
 *.swp
 

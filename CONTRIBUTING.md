@@ -103,7 +103,8 @@ node --test test/frontend.test.js
 npx playwright test
 
 # Shell job
-bash -n install.sh scripts/*.sh scripts/lib/*.sh && shellcheck -S warning …
+for f in install.sh scripts/*.sh scripts/lib/*.sh; do bash -n "$f"; done
+shellcheck -S warning install.sh scripts/*.sh scripts/lib/*.sh
 ```
 
 Locally, `make ci` is vet + lint + `test-race`. What each one is for:
