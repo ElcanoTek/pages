@@ -1,0 +1,122 @@
+{
+  "format_version": 1,
+  "status": "complete",
+  "started_at": "2026-10-21T19:33:59.589Z",
+  "completed_at": "2026-10-21T19:34:02.219Z",
+  "runtime_configuration": {
+    "PAGES_DATA_MAX_BYTES": "1048576"
+  },
+  "node_version": "v22.22.0",
+  "pg_dump_version": "pg_dump (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+  "optional_configuration": {
+    "install.env": true,
+    "local.env": false
+  },
+  "application_source": "captured installed files; source checkout HEAD is not used",
+  "restored": {
+    "counts": {
+      "api_token_page_grants": "0",
+      "api_tokens": "0",
+      "assets": "1",
+      "audit_log": "0",
+      "central_access": "0",
+      "central_access_provisioning": "0",
+      "central_revocation_events": "0",
+      "central_sessions": "0",
+      "page_content_upload_chunks": "0",
+      "page_content_uploads": "0",
+      "page_password_failures": "0",
+      "page_portal_members": "1",
+      "page_portals": "1",
+      "page_refresh_runs": "0",
+      "page_refreshes": "0",
+      "page_template_versions": "0",
+      "page_templates": "0",
+      "page_upload_attempts": "0",
+      "page_versions": "6",
+      "pages": "3",
+      "portal_password_failures": "0",
+      "preview_links": "0",
+      "schema_migrations": "26",
+      "themes": "1",
+      "workspaces": "0"
+    },
+    "migrations": [
+      "001_init.sql",
+      "002_soft_delete.sql",
+      "003_block_version_delete.sql",
+      "004_workspaces.sql",
+      "005_token_lookup_index.sql",
+      "006_page_data_automation.sql",
+      "007_self_service_refreshes.sql",
+      "008_moc_independent_dispatch.sql",
+      "009_page_content_uploads.sql",
+      "010_retire_moc_refresh_dispatch.sql",
+      "011_grant_page_binding.sql",
+      "012_page_password_backoff.sql",
+      "013_page_upload_chunk_ceiling.sql",
+      "014_page_upload_tickets.sql",
+      "015_page_templates.sql",
+      "016_template_sample_data.sql",
+      "017_partner_portals.sql",
+      "018_reserve_portal_slug.sql",
+      "019_portal_password_backoff.sql",
+      "020_page_refresh_checks.sql",
+      "021_data_upload_target.sql",
+      "022_page_upload_attempts.sql",
+      "023_reserve_application_routes.sql",
+      "024_page_upload_chunk_ceiling_1mib.sql",
+      "025_central_auth.sql",
+      "026_password_reveal.sql"
+    ],
+    "hashes": {
+      "versions": 6,
+      "template_versions": 0
+    },
+    "assets": 1,
+    "probes": {
+      "pages": 3,
+      "versions": 5,
+      "templates": 0,
+      "portals": 1,
+      "portal_pages": 1
+    }
+  },
+  "files": [
+    {
+      "path": "application/package-lock.json",
+      "bytes": 52572,
+      "sha256": "ff164bbe9d29a0fef7bfba57606bb5477a17f54abe51808fffb18f66efd4b9ec"
+    },
+    {
+      "path": "application/package.json",
+      "bytes": 1287,
+      "sha256": "871b40eab8980dff3de29825c0057b5bbcbf2f84ac41247d30a3f2daa6cc1bf2"
+    },
+    {
+      "path": "application/server.js",
+      "bytes": 32699,
+      "sha256": "301507f595bcb281c05d567cb41abc27477ee993042620c7b98c3f5d55a8b687"
+    },
+    {
+      "path": "assets/7604e3815354550e10ea3f6d68e109ce6013dee926e13f5fd948d9981640c4f8",
+      "bytes": 33,
+      "sha256": "7604e3815354550e10ea3f6d68e109ce6013dee926e13f5fd948d9981640c4f8"
+    },
+    {
+      "path": "config/install.env",
+      "bytes": 38,
+      "sha256": "82c73bf14d9a7152037d478e946635153f237d10af7adea6e26cd515c60e96f5"
+    },
+    {
+      "path": "config/service.env",
+      "bytes": 261,
+      "sha256": "673a0f2208fd1d860cfd856f0b1c1d40555e7c21086fe91a3e124312f9693dd3"
+    },
+    {
+      "path": "database.dump",
+      "bytes": 137625,
+      "sha256": "f4f655e6c758d490a13fdaffad25554a3087f808d8c09519244e95802bd735b7"
+    }
+  ]
+}

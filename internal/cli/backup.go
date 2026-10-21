@@ -27,6 +27,24 @@ then restores it into a private throwaway PostgreSQL cluster and probes it
 with the captured release before publishing. Prints {"backup_dir": "..."}.
 Default destination: /var/backups/pages. Verify later with
 pages check-integrity <backup-dir>.
+
+Restoring a backup: run pages check-integrity on it first, restore
+database.dump into a NEW database with pg_restore (--exit-on-error
+--single-transaction --no-owner --no-acl --role=<app role>), restore assets/
+into the shared assets directory and config/ (service.env with its original
+HMAC secrets, install.env, local.env) with their original ownership and
+modes, install the captured release (application/), then restart.
+
+Node-era backups (taken by the Node release; manifest.json records
+node_version and application/ holds server.js and package-lock.json, no
+binary): check-integrity accepts them, verifying the application by manifest
+only and serving the restored data with this release. Restore the database,
+assets and config/ as above, but do NOT stage application/ or run npm: keep
+this release installed, point DATABASE_URL in the restored service
+environment at the recovered database, and run pages migrate with that
+environment to add this release's newer migrations (/readyz stays 503 until
+then); then restart. Keep the Node-era backup until a new pages backup of the
+recovered installation has verified.
 `
 
 func runBackup(args []string) int {

@@ -103,6 +103,10 @@ type Options struct {
 	Tool func(name string) (string, error)
 	// Probe runs the captured release's restore probe and returns its JSON.
 	Probe func(ctx context.Context, application, assets string, env []string) (json.RawMessage, error)
+	// CurrentProbe runs THIS release's restore probe (`pages backup-probe`,
+	// server in process) against the restored, migrated database of a
+	// legacy Node-era backup, whose captured application cannot run here.
+	CurrentProbe func(ctx context.Context, assets string, env []string) (json.RawMessage, error)
 	// Scratch makes the rehearsal directory (a short /tmp path: Unix socket
 	// paths are limited to ~100 bytes).
 	Scratch func() (string, error)
@@ -121,6 +125,9 @@ func (o *Options) defaults() {
 	}
 	if o.Probe == nil {
 		o.Probe = o.execProbe
+	}
+	if o.CurrentProbe == nil {
+		o.CurrentProbe = o.execCurrentProbe
 	}
 	if o.Scratch == nil {
 		o.Scratch = func() (string, error) { return os.MkdirTemp("/tmp", "pgb-") }
@@ -455,8 +462,22 @@ func IsolatedEnv(base []string, socket string, runtimeSettings map[string]string
 // the captured release's probe against it. The scratch cluster is always
 // stopped before its storage is removed; when the stop cannot be confirmed
 // the scratch directory is retained for the operator.
-func Rehearse(ctx context.Context, o Options, directory string, runtimeSettings map[string]string) (restored json.RawMessage, err error) {
+func Rehearse(ctx context.Context, o Options, directory string, runtimeSettings map[string]string) (json.RawMessage, error) {
 	o.defaults()
+	return rehearse(ctx, o, directory, runtimeSettings, func(ctx context.Context, scratch string, env []string) (json.RawMessage, error) {
+		app := filepath.Join(scratch, "app")
+		if err := copyTree(ctx, filepath.Join(directory, "application"), app, nil); err != nil {
+			return nil, err
+		}
+		return o.Probe(ctx, app, filepath.Join(directory, "assets"), env)
+	})
+}
+
+// rehearse restores directory/database.dump into a private cluster under a
+// fresh scratch directory and runs probe against it with the isolated
+// environment env; probe's JSON is returned compacted.
+func rehearse(ctx context.Context, o Options, directory string, runtimeSettings map[string]string,
+	probe func(ctx context.Context, scratch string, env []string) (json.RawMessage, error)) (restored json.RawMessage, err error) {
 	initdb, err := o.Tool("initdb")
 	if err != nil {
 		return nil, err
@@ -474,7 +495,7 @@ func Rehearse(ctx context.Context, o Options, directory string, runtimeSettings 
 	if err != nil {
 		return nil, err
 	}
-	data, socket, app := filepath.Join(scratch, "db"), filepath.Join(scratch, "socket"), filepath.Join(scratch, "app")
+	data, socket := filepath.Join(scratch, "db"), filepath.Join(scratch, "socket")
 	envm := IsolatedEnv(o.Environ, socket, runtimeSettings)
 	env := envList(envm)
 	asPg := func(ctx context.Context, tool string, args ...string) error {
@@ -537,10 +558,7 @@ func Rehearse(ctx context.Context, o Options, directory string, runtimeSettings 
 	if _, err := Run(ctx, o.Runner, pgrestore, []string{"--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", "--dbname=pages", filepath.Join(directory, "database.dump")}, env, ""); err != nil {
 		return nil, err
 	}
-	if err := copyTree(ctx, filepath.Join(directory, "application"), app, nil); err != nil {
-		return nil, err
-	}
-	out, err := o.Probe(ctx, app, filepath.Join(directory, "assets"), env)
+	out, err := probe(ctx, scratch, env)
 	if err != nil {
 		return nil, err
 	}
@@ -749,15 +767,21 @@ func syncDirs(dir string) error {
 	return syncPath(dir)
 }
 
-// CheckResult is check-integrity's report.
+// CheckResult is check-integrity's report. Format, Notice and ServedWith are
+// set only for a legacy (Node-era) backup.
 type CheckResult struct {
-	Status    string          `json:"status"`
-	BackupDir string          `json:"backup_dir"`
-	Restored  json.RawMessage `json:"restored"`
+	Status     string          `json:"status"`
+	BackupDir  string          `json:"backup_dir"`
+	Format     string          `json:"format,omitempty"`
+	Notice     string          `json:"notice,omitempty"`
+	ServedWith string          `json:"served_with,omitempty"`
+	Restored   json.RawMessage `json:"restored"`
 }
 
 // Check verifies a backup's files and repeats its restore rehearsal, which
-// must reproduce the capture-time result.
+// must reproduce the capture-time result. A backup written by the Node
+// release's scripts/backup.js is recognised by its manifest and checked by
+// checkNodeEra instead.
 func Check(ctx context.Context, o Options, directory string) (*CheckResult, error) {
 	dir, err := filepath.EvalSymlinks(directory)
 	if err != nil {
@@ -766,6 +790,13 @@ func Check(ctx context.Context, o Options, directory string) (*CheckResult, erro
 	b, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
 	if err != nil {
 		return nil, err
+	}
+	legacy, err := IsNodeEra(b)
+	if err != nil {
+		return nil, err
+	}
+	if legacy {
+		return checkNodeEra(ctx, o, dir, b)
 	}
 	var m Manifest
 	if err := json.Unmarshal(b, &m); err != nil {
