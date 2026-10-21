@@ -16,7 +16,7 @@ npm-debug.log*
 test-results/
 playwright-report/
 
-# Local dev environment (throwaway Postgres cluster + secrets, scripts/dev.sh)
+# Local dev environment (secrets, dev keypair, agent token, test cluster: pages dev, make test-db)
 .devdata/
 
 # Claude Code working state. The harness puts agent git worktrees under

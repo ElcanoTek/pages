@@ -2,12 +2,28 @@
 
 > **What this document is.** The original design record for Pages, written
 > before the code existed and kept because it is the "why" behind almost every
-> decision in the codebase — source comments across `lib/`, `deploy/` and
+> decision in the codebase — source comments across `internal/`, `deploy/` and
 > `migrations/` cite its sections by number (PLAN §5, §7, §9). It is a design
 > rationale, **not** a status report: where it describes phases, sequencing or
 > open questions, read it as a record of what was planned at the time, and read
 > the code and [docs/](docs/) for what is actually true today. Start with the
 > [README](README.md) if you want the current picture.
+>
+> **The implementation is now Go.** This plan was written for a Node/Express
+> server, and its file layout, stack choices and deploy steps (`server.js`,
+> `lib/*.js`, `npm ci`, `node lib/migrate.js`, a Node `ExecStart`) describe that
+> first implementation. The design is unchanged; the code moved. Pages is now
+> one Go binary (`cmd/pages`), and the plan's modules map onto packages under
+> `internal/`: `server.js` → `internal/server`, `lib/versions.js` →
+> `internal/versions`, `lib/auth.js` → `internal/auth`, `lib/csp.js` →
+> `internal/csp`, `lib/rawtoken.js` → `internal/rawtoken`, `lib/render.js` →
+> `internal/render`, `lib/portals.js` → `internal/portals`, `lib/mcp-tools.js` →
+> `internal/mcp`, `lib/migrate.js` → `pages migrate` (`internal/migrate`), and
+> the deploy scripts → the operator verbs in `internal/cli` and `internal/ops`
+> (`pages bootstrap`, `pages update`, `pages doctor`, `pages backup`). The
+> unit runs `/opt/pages/pages serve` from a release directory; see
+> [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Section numbers are unchanged, so
+> the `PLAN §n` citations in the Go source still resolve here.
 >
 > **A note on names.** `chat` and `cutlass` are ElcanoTek's own internal agent
 > tools — the original consumers of the API and MCP surfaces described here. They
@@ -316,7 +332,7 @@ CREATE TABLE audit_log (                                -- written in the SAME t
 ## 6. Auth (layers)
 
 ### 6a. Elcano SSO → auto-admin  (copied from `home`)
-Copy `home/server.js` auth into `lib/auth.js`: `parseCookies`,
+Copy `home/server.js` auth into `lib/auth.js` (now `internal/auth`): `parseCookies`,
 `verifyElcanoSession` (Ed25519 verify of `elcano_auth`), `currentSession`,
 `loginRedirectURL`, `requireAuth`. Add `isElcanoAdmin` (email domain ==
 `elcanotek.com`) and `requireAdmin`. Env identical to home (`AUTH_SIGNING_PUBKEY`,
@@ -356,7 +372,7 @@ member dashboards; a `pgp<portal_id>` cookie then opens each of them directly.
 
 What makes this safe rather than merely convenient:
 
-- **Membership is human-admin-only, everywhere.** `lib/portals.js` asserts
+- **Membership is human-admin-only, everywhere.** `internal/portals` asserts
   `actorType === "user"` before anything else, and there is no MCP tool and no
   bearer route. Who may see which client's numbers is not a decision an agent can
   reach. (Contrast §workspaces, whose `assertOrganizer` deliberately *admits*
@@ -711,7 +727,7 @@ versioning, targeted server-side search/patch, static preflight, managed
 config/data, templates, staged uploads and upload tickets, workspaces, discovery,
 and two read-only compatibility names.
 
-**The catalog is not enumerated here, deliberately.** `lib/mcp-tools.js` is the
+**The catalog is not enumerated here, deliberately.** `internal/mcp` is the
 registry; the pasteable copy is the marked `pages:allowlist` block in
 `docs/INTEGRATION.md`, mirrored in `docs/API.md`. Unit tests pin both blocks and
 the `docs/API.md` tool table to that registry and screen the agent docs for an

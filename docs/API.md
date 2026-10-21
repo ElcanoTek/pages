@@ -27,7 +27,8 @@ broad deploy/version operations remain available over both transports.
 ## Auth
 
 `Authorization: Bearer <token>` on every request. Mint tokens with
-`pages token add <label>` (prod) or `node scripts/token.js add <label>` (local).
+`pages token add <label>` (on the box, with the service environment — see
+DEPLOYMENT.md §7); `pages dev` mints one for local development.
 The raw token is shown once. One token per agent so chat/cutlass revoke
 independently.
 
@@ -41,8 +42,8 @@ See [DATA_UPDATES.md](DATA_UPDATES.md).
 Pages targets the stable [MCP `2025-11-25` specification](https://modelcontextprotocol.io/specification/2025-11-25)
 and also negotiates `2025-06-18`, `2025-03-26`, `2024-11-05` and `2024-10-07`
 (an unknown version is answered with `2025-11-25`). The handler is Pages' own
-(`lib/mcp-protocol.js`), held to the behaviour of `@modelcontextprotocol/sdk`
-1.32.1 by tests that use that SDK's client. It is a **stateless Streamable HTTP**
+(`internal/mcpproto`), held to the behaviour of `@modelcontextprotocol/sdk`
+1.32.1 by tests that replay responses recorded from that SDK byte for byte. It is a **stateless Streamable HTTP**
 server at one `POST /mcp` endpoint: each request is independent, responses use
 `application/json`, and there is no session ID or server-sent event stream to
 retain. `GET` and `DELETE` return `405`.
@@ -82,13 +83,13 @@ a machine consumer reads its `structuredContent` instead.
 |------|------|------|
 | `list_pages` | `query?, workspace_id?, client_id?, is_live?, require_approval?, disabled?, limit?, cursor?` | bounded active-page discovery with workspace/theme/access state, URLs, and each row's **`freshness`** so one call ranks the estate by staleness; `workspace_id:null` selects Ungrouped |
 | `get_page` | `slug, include_html?` | metadata + routing URLs + page-level `is_live`; published HTML only when `include_html:true` |
-| `get_page_data` | `slug, detail?, include_data?` | the published managed-data contract, in three sizes. `detail:'full'` (default, unchanged): schema/envelope, deterministic data/schema/template hashes, **`data_profile`**, **`freshness`** (coverage/refresh/check stamps plus `days_since_*`), metadata, URLs, and truthful live state; `include_data:false` drops `envelope.data`. `detail:'summary'` (~1–2 KB typically; `coverage_profile` never exceeds 3 KB): brief page flags, `live_version_id`, the three hashes, envelope stamps, `freshness` and a **`coverage_profile`** (row counts and date extents only; `coverage_truncated:true` when entries were left out to stay within the bound). `detail:'export'`: short-lived `schema_url`/`data_url`/`envelope_url` for the live version, to download into files instead of context. See *Reading managed data by reference* |
+| `get_page_data` | `slug, detail?, include_data?` | the published managed-data contract, in three sizes. `detail:'full'` (default, unchanged): schema/envelope, deterministic data/schema/template hashes, **`data_profile`**, **`freshness`** (coverage/refresh/check stamps plus `days_since_*`), metadata, URLs, and truthful live state, plus `data_usage`; `include_data:false` drops `envelope.data`. `detail:'summary'` (~1–2 KB typically; `coverage_profile` never exceeds 3 KB): brief page flags, `live_version_id`, the three hashes, envelope stamps, `freshness` and a **`coverage_profile`** (row counts and date extents only; `coverage_truncated:true` when entries were left out to stay within the bound). `detail:'export'`: short-lived `schema_url`/`data_url`/`envelope_url` for the live version, to download into files instead of context. See *Reading managed data by reference* |
 | `get_page_refresh` | `slug` | read-only compatibility guidance for older static Chat/Cutlass allowlists; returns `scheduling:user_owned` and never reads or creates a Pages schedule |
 | `record_refresh_check` | `slug, outcome, detail?, source_as_of_seen?` | record that a refresh looked at this page and what it concluded, **without creating a version**. Moves `freshness.checked_at` only — the published pointer, the data, and every hash are untouched. Call it when a run ends without publishing (`source_not_updated`, `source_unreachable`, `blocked`, `failed`); that outcome otherwise writes nothing anywhere, so a page whose upstream has frozen reads exactly like one nobody runs any more. In `data_update` scope, slug-gated like the other two data tools |
 | `prepare_dashboard_update` | `slug, instructions, recurring?, update_type?, publish?, sources?` | prepare a pinned exact-slug one-time workflow or the task prompt of a recurring job; never changes a page or schedules work. `sources` declares which MCP server/tool serves each input, optionally its `path` and date `partition`, so the prompt forbids substitutions and requires enumerating a partitioned folder rather than taking its newest file. **`sources` is required when `recurring` is true** (`update_sources_required`): an unattended run cannot safely re-derive bindings from prose. The response carries `execution_requirements` — the MCP servers, tools, network and model a run needs — so a scheduler can validate the task before accepting it |
 | `get_version` | `slug, version_id` | one version's full row **including HTML** (read back a draft, inspect a rollback target). Prefer `preflight_page` when you only want to know whether the page *works* — it costs a few hundred tokens instead of the whole document |
 | `find_in_version` | `slug, query, version_id?, max_matches?, ignore_case?` | literal search inside a stored version — bounded line numbers and short excerpts, not the document. Locates anchors for `patch_page` |
-| `patch_page` | `slug, edits[{find,replace,count?}], base_version_id?, render_mode?, note?, publish?, expected_version?` | deploy a new version by applying anchored literal edits to the published HTML **server-side**. Each `find` must match exactly `count` times (default 1) or the whole patch is rejected. Concurrency-checked against the live pointer it read; `base_version_id` selects which version to patch from and does not change that check |
+| `patch_page` | `slug, edits[{find,replace,count?}], base_version_id?, render_mode?, note?, publish?, expected_version?` | deploy a new version by applying anchored literal edits to the published HTML **server-side**. Each `find` must match exactly `count` times (default 1) or the whole patch is rejected. Up to 100 edits per patch; a `find` up to 65,536 characters, a `replace` up to 1,048,576, `count` up to 1,000, and the patched document no larger than the larger of the staged-file and HTTP request limits. Concurrency-checked against the live pointer it read; `base_version_id` selects which version to patch from and does not change that check |
 | `preflight_page` | `slug, version_id?` | static check of a stored version against the CSP and sandbox it is actually served under. Reports dead controls, blocked subresources, unparseable scripts, and Pages-managed blocks that fail their own contract (`managed_block_invalid` — the render layer `JSON.parse`s those, so a bad one serves a blank page) **without returning the HTML**. Defaults to the published version |
 | `list_versions` | `slug, status?, limit?, cursor?` | bounded newest-first history; `is_published` is pointer equality and `is_live` also requires the page to be enabled |
 | `list_workspaces` | `query?, limit?, cursor?` | workspaces and active-page counts; returned IDs feed workspace filtering/assignment |
@@ -99,7 +100,7 @@ a machine consumer reads its `structuredContent` instead.
 | `get_guide` | `topic?, section?` | read Pages' own agent guide: no arguments for the index, a `topic` (`workflow`, `authoring`, `templates`, `data_updates`, `motion`) for its sections, a `topic` and `section` for that section's text. Read-only; the text ships with the release, so it matches this server's tools. Its text content is the Markdown itself, for hosts that pass only text to the model; the structured result carries the same content, `content_sha256`, `product_version` and the `entries` that can be read next. Not offered to `data_update` tokens |
 | `create_upload_ticket` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | **preferred for files** — open a staged upload and return a one-shot `upload_url` + `ticket` your shell PUTs the file to directly, so the bytes never pass through model output. Supply exactly one target: `slug` deploys a page, `template` registers a design |
 | `start_page_upload` | `slug? \| template?, kind?, total_bytes, content_sha256, data_size?` | begin a durable, token-bound staged upload for a workspace file or HTML over 20,000 UTF-8 bytes. Use only when outbound HTTP is unavailable |
-| `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 49,152 by default, up to 1 MiB where the operator raised `PAGE_UPLOAD_MAX_CHUNK_BYTES`); use as few appends as `max_chunk_bytes` allows; an exact sequence replay is idempotent |
+| `append_page_upload` | `upload_id, sequence, chunk_base64` | append one ordered chunk (up to the `max_chunk_bytes` the start call returned — 1,048,576 by default; an operator sets anything from 4 KiB to 8 MiB with `PAGE_UPLOAD_MAX_CHUNK_BYTES`); use as few appends as `max_chunk_bytes` allows; an exact sequence replay is idempotent |
 | `cancel_page_upload` | `upload_id` | discard an uncommitted upload and free its active-upload slot; never changes a page/version |
 | `deploy_page_upload` | `upload_id, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | SHA-verify and atomically create-or-update from the staged bytes; exact commit retries preserve the original receipt and refresh current serving guidance |
 | `deploy_page` | `slug, html, title?, render_mode?, note?, publish?, expected_version?, require_approval?, client_id?` | **create-or-update** from small inline HTML. Publishes by default on open pages; gated pages land pending. Creation-only fields are ignored for an existing page. A Bento deck (`.bento.html`) is recognised by its document block, defaults to `render_mode: raw`, and is refused as `themed` — see AUTHORING.md → *Bento decks* |
@@ -118,7 +119,7 @@ a machine consumer reads its `structuredContent` instead.
 | `update_page_config` | `slug, config, expected_version, publish?, note?` | replace the config block only; the data block is left **byte-for-byte** unchanged and source coverage is carried across, so settings changes cannot move numbers. Replaces, does not merge |
 | `list_template_pages` | `template` | every live page whose history touches the design: who is serving which revision, which are behind the current one, and which have **drifted** off it (`drifted:true` — a later raw `deploy_page`/`patch_page` detached them, so a design fix no longer reaches them; `last_revision` is what to pull them back onto). Read-only — Pages never re-renders a page on its own |
 | `rerender_page_from_template` | `slug, template?, revision?, publish?, expected_version?, note?` | move **one** page onto a template revision, keeping its own config and data and re-validating both against the target schemas. `publish` defaults to **false** so a human previews the design first. No bulk rerender exists |
-| `update_page_data_upload` | `upload_id, slug, source_as_of, expected_version, publish?, note?, expect?` | publish a managed-data payload **staged with `create_upload_ticket` or the MCP chunk fallback (`kind:'data'`)** instead of sending it inline — the JSON never passes through the model's context, bypassing the inline transport budget while retaining the data/envelope and staged-file limits. Identical to `update_page_data` from the parse onward: same schema validation, monotonic `source_as_of`, mandatory `expected_version`, dedupe, `data_profile`/`data_warnings`, and `expect` reconciliation, through one write path. An upload staged as `page` is refused here and one staged as `data` is refused by `deploy_page_upload` |
+| `update_page_data_upload` | `upload_id, slug, source_as_of, expected_version, publish?, note?, expect?` | publish a managed-data payload **staged with `create_upload_ticket` or the MCP chunk fallback (`kind:'data'`)** instead of sending it inline — the JSON never passes through the model's context, bypassing the inline transport budget while retaining the data/envelope and staged-file limits. Identical to `update_page_data` from the parse onward: same schema validation, monotonic `source_as_of`, mandatory `expected_version`, dedupe, `data_profile`/`data_warnings`, and `expect` reconciliation, through one write path. Both write tools also return `data_usage` (see *Managed-data size limits*). An upload staged as `page` is refused here and one staged as `data` is refused by `deploy_page_upload` |
 | `configure_page_refresh` | `slug, instructions?, recurring?, update_type?, publish?, daily_at_utc?, workflow?, run_now?` | read-only compatibility alias for `prepare_dashboard_update`; legacy workflow/cadence input becomes user-owned prompt text and `run_now` never executes work |
 | `publish_page` | `slug, version_id, expected_version?` | publish a draft (open pages only) |
 | `rollback_page` | `slug, version_id?, expected_version?, note?` | move the live pointer to an approved version (omit id → previous). `note` is recorded in the audit log — a rollback republishes bytes that already exist, so the reason is not inferable from any diff |
@@ -216,7 +217,7 @@ ticket:
 1. Compute the exact file byte count and lowercase SHA-256.
 2. Call `start_page_upload` with the target slug and those values.
 3. Base64-encode the original bytes in order, at most the returned
-   `max_chunk_bytes` (49,152 raw bytes by default) per call, in as few calls as
+   `max_chunk_bytes` (1,048,576 raw bytes by default) per call, in as few calls as
    that allows. Call `append_page_upload` with sequence `0`, then each returned
    `next_sequence`.
 4. When `complete:true`, call `deploy_page_upload`. Do not resend the HTML.
@@ -242,11 +243,15 @@ All limits count UTF-8 bytes and must fit independently:
 
 | Boundary | Default | Counts |
 | --- | --- | --- |
-| Data payload | 1,048,576 | Compact `JSON.stringify(data)` |
-| Stored envelope | 1,048,576 | HTML-escaped payload plus contract fields and timestamps |
-| Inline transport | 1,500,000 | Compact data argument; does not increase domain capacity |
-| Staged file | 2,097,152 | Exact uploaded file, including whitespace |
-| HTTP request | 2,097,152 | Complete JSON request, including RPC fields and `expect` |
+| Data payload | 8,388,608 | Compact `JSON.stringify(data)` |
+| Stored envelope | 8,388,608 | HTML-escaped payload plus contract fields and timestamps |
+| Inline transport | 8,388,608 | Compact data argument; does not increase domain capacity |
+| Staged file | 33,554,432 | Exact uploaded file, including whitespace (`PAGES_UPLOAD_MAX_BYTES`, at most 64 MiB) |
+| HTTP request | 33,554,432 | Complete JSON request, including RPC fields and `expect` |
+
+These are the defaults of the Go release, raised from the Node release's
+1 MiB data, 1.5 MB inline and 2 MiB staged-file and request budgets; each is
+an operator setting (DEPLOYMENT.md §5).
 
 The envelope adds at least 114 bytes of metadata with normalized timestamps;
 HTML escaping may add more. Runtime overrides are reflected in tool descriptions,
@@ -256,7 +261,8 @@ The HTTP limit covers JSON requests; a ticket PUT uses the staged-file limit.
 Before transferring a data file, callers can supply optional advisory
 `data_size: {payload_bytes, escaped_payload_bytes}` to `create_upload_ticket` or
 `start_page_upload`, with `kind: 'data'`. Compute the measurements locally from
-the parsed object (Node.js example):
+the parsed object (Node.js example; any language with a JSON parser works the
+same way, as long as it serializes the way `JSON.stringify` does):
 
 ```js
 const fs = require('node:fs');
@@ -289,9 +295,18 @@ publication and audit unchanged on failure. Only an inline transport overflow
 that fits staging recommends the file route (`data_too_large_for_inline`).
 Keep the complete source; never split, sample, summarize or truncate data to fit.
 
+**Headroom.** `get_page_data`, `update_page_data` and `update_page_data_upload`
+also report `data_usage: {payload_bytes, envelope_bytes, limit_bytes,
+headroom_bytes}` for a managed page: the compact payload and the stored
+envelope measured against the data limit, and how much of it is left
+(`limit_bytes` minus the larger of the two). A refresh run can read it before it
+writes, instead of discovering the wall. The field is optional in each output
+schema, so older clients are unaffected.
 
-Uploads are stored in PostgreSQL, bound to the bearer token, limited to 2 MiB
-and five active handles per token, and expire 24 hours after inactivity. Exact
+
+Uploads are stored in PostgreSQL, bound to the bearer token, limited to the
+staged-file budget (32 MiB by default) and twenty active handles per token, and
+expire 24 hours after inactivity. Exact
 chunk retries are deduplicated. Byte count, SHA-256, and UTF-8 are verified
 before the version, publish pointer, audit row, and upload commit are written in
 one transaction. Exact retries of `deploy_page_upload`, `update_page_data_upload`
@@ -321,8 +336,8 @@ since materialized pages keep serving independently of template availability.
 
 ### Try it (curl)
 
-After the `initialize` / `notifications/initialized` exchange (the complete
-sequence is in `scripts/mcp-smoke.sh`), a tool call looks like:
+After the `initialize` / `notifications/initialized` exchange (see *MCP*
+above), a tool call looks like:
 
 ```bash
 TOKEN=...   # from `pages token add`
@@ -481,7 +496,7 @@ dashboards — the "one link, one password, move between them" surface a partner
 needs when they own six campaign pages. It is deliberately **not** organization
 like a workspace: membership decides which client's numbers that credential
 opens, so there is no agent-facing equivalent of any route below, **portals add
-zero MCP tools**, and `lib/portals.js` refuses any actor that is not a human
+zero MCP tools**, and `internal/portals` refuses any actor that is not a human
 admin (`403 portal_admin_only`).
 
 | Method & path | Body | Purpose |
@@ -737,10 +752,9 @@ Each append is still one model tool call, so send as few appends as
 `start_page_upload` and every append reply state that ceiling and how many
 appends remain, and `chunk_base64` advertises the matching `maxLength` (base64
 characters), so a client can check a byte range before calling. The ceiling is
-48 KiB by default because it also bounds clients whose model writes the base64;
-a deployment whose clients all read files host-side can raise
-`PAGE_UPLOAD_MAX_CHUNK_BYTES` to 1 MiB (see DEPLOYMENT.md §5), which makes a
-~1 MB file one append.
+1 MiB by default, which makes a ~1 MB file one append; a deployment can raise
+`PAGE_UPLOAD_MAX_CHUNK_BYTES` to 8 MiB, or lower it for clients whose model
+writes the base64 itself (see DEPLOYMENT.md §5).
 
 ### Reading managed data by reference
 
