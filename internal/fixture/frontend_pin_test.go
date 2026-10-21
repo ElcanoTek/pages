@@ -4,13 +4,9 @@
 package fixture
 
 import (
-	"io/fs"
-	"os"
-	"regexp"
 	"strings"
 	"testing"
 
-	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/render"
 )
 
@@ -18,42 +14,8 @@ import (
 // browser module's value is read from the embedded asset (the bytes the
 // binary serves) and checked against the server's own.
 
-var maxSortOrderRE = regexp.MustCompile(`(?m)^const MAX_SORT_ORDER = (\d+);`)
-
-func constIn(t *testing.T, src, file string) string {
-	t.Helper()
-	m := maxSortOrderRE.FindStringSubmatch(src)
-	if m == nil {
-		t.Fatalf("%s declares no `const MAX_SORT_ORDER = N;`", file)
-	}
-	return m[1]
-}
-
-// TestBrowserMaxSortOrderMatchesServer: the portal screen appends members
-// without proposing a sort_order the write would reject, so its ceiling must
-// be the API's.
-//
-// TODO(internal/portals): the Go portals package does not exist yet, so the
-// server value is read from lib/portals.js. Once it does, compare against its
-// exported constant instead and drop the lib/ read.
-func TestBrowserMaxSortOrderMatchesServer(t *testing.T) {
-	browser, err := fs.ReadFile(pages.Public(), "shell-assets/portals.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	server, err := os.ReadFile("../../lib/portals.js")
-	if err != nil {
-		t.Skipf("lib/portals.js is gone; pin against internal/portals instead: %v", err)
-	}
-	b := constIn(t, string(browser), "public/shell-assets/portals.js")
-	s := constIn(t, string(server), "lib/portals.js")
-	if b != s {
-		t.Fatalf("browser MAX_SORT_ORDER %s != server %s", b, s)
-	}
-	if b != "9999" {
-		t.Fatalf("MAX_SORT_ORDER is %s; test/frontend.test.js pins 9999 — update both", b)
-	}
-}
+// The browser/server MAX_SORT_ORDER pin lives in internal/portals
+// (TestBrowserMaxSortOrderIsTheAPIs).
 
 func bentoDeckHTML() string {
 	return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Deck</title>
