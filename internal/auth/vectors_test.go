@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/ElcanoTek/pages/internal/auth/central"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/httpx"
 )
 
 // testdata/js-vectors.json was recorded from the JS implementation (Node 22,
@@ -43,24 +43,24 @@ func loadVectors(t *testing.T) vectors {
 func TestJSVectors(t *testing.T) {
 	v := loadVectors(t)
 	for _, c := range v.EncodeURIComponent {
-		if got := wire.EncodeURIComponent(c[0]); got != c[1] {
+		if got := httpx.EncodeURIComponent(c[0]); got != c[1] {
 			t.Errorf("EncodeURIComponent(%q) = %q, JS %q", c[0], got, c[1])
 		}
 	}
 	for _, c := range v.DecodeURIComponent {
 		in, want, ok := c[0].(string), c[1].(string), c[2].(bool)
-		got, err := wire.DecodeURIComponent(in)
+		got, err := httpx.DecodeURIComponent(in)
 		if (err == nil) != ok || (ok && got != want) {
 			t.Errorf("DecodeURIComponent(%q) = %q, %v; JS %q ok=%v", in, got, err, want, ok)
 		}
 	}
 	for _, c := range v.FormEncode {
-		if got := wire.FormEncode([2]string{c[0], c[0]}); got != c[1] {
+		if got := httpx.FormEncode([2]string{c[0], c[0]}); got != c[1] {
 			t.Errorf("FormEncode(%q) = %q, JS %q", c[0], got, c[1])
 		}
 	}
 	for _, c := range v.EncodeURL {
-		if got := wire.EncodeURL(c[0]); got != c[1] {
+		if got := httpx.EncodeURL(c[0]); got != c[1] {
 			t.Errorf("EncodeURL(%q) = %q, JS %q", c[0], got, c[1])
 		}
 	}
@@ -69,7 +69,7 @@ func TestJSVectors(t *testing.T) {
 		var want map[string][]string
 		_ = json.Unmarshal(c[0], &in)
 		_ = json.Unmarshal(c[1], &want)
-		if got := wire.ParseQuery(in); !reflect.DeepEqual(got, want) {
+		if got := httpx.ParseQuery(in); !reflect.DeepEqual(got, want) {
 			t.Errorf("ParseQuery(%q) = %v, JS %v", in, got, want)
 		}
 	}
@@ -90,7 +90,7 @@ func TestJSVectors(t *testing.T) {
 		var want map[string]string
 		_ = json.Unmarshal(c[0], &in)
 		_ = json.Unmarshal(c[1], &want)
-		if got := wire.ParseCookies(in); !reflect.DeepEqual(got, want) {
+		if got := httpx.ParseCookies(in); !reflect.DeepEqual(got, want) {
 			t.Errorf("ParseCookies(%q) = %v, JS %v", in, got, want)
 		}
 	}

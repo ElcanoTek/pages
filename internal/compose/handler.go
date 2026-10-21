@@ -5,8 +5,6 @@ package compose
 
 import (
 	"bytes"
-	"crypto/sha1" //nolint:gosec // G505: the Express-compatible ETag is a cache validator, not a security boundary
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,8 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode"
 	"unicode/utf16"
+
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Middleware wraps a handler (requireAdminJSON, requireCsrf).
@@ -53,7 +53,7 @@ func Handler(requireAdminJSON, requireCSRF Middleware) http.Handler {
 	mux.HandleFunc("GET "+Prefix+"/{id}", pollJob)
 	mux.HandleFunc("GET "+Prefix+"/{id}/{$}", pollJob)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, r, http.StatusNotFound, errorBody{"not found", "not_found"})
+		httpx.SendJSON(w, r, http.StatusNotFound, errorBody{"not found", "not_found"})
 	})
 	return requireAdminJSON(mux)
 }
@@ -83,19 +83,19 @@ func startJob(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			writeJSON(w, r, http.StatusRequestEntityTooLarge, errorBody{"request body too large", "body_too_large"})
+			httpx.SendJSON(w, r, http.StatusRequestEntityTooLarge, errorBody{"request body too large", "body_too_large"})
 		} else {
-			writeJSON(w, r, http.StatusBadRequest, errorBody{"invalid JSON request body", "bad_json"})
+			httpx.SendJSON(w, r, http.StatusBadRequest, errorBody{"invalid JSON request body", "bad_json"})
 		}
 		return
 	}
 	str := func(k string) (string, bool) { s, ok := b[k].(string); return s, ok }
 	prompt, _ := str("prompt")
-	prompt = jsTrim(prompt)
+	prompt = jsstr.Trim(prompt)
 	rawSlug, _ := str("slug")
-	slug := strings.ToLower(jsTrim(rawSlug))
+	slug := strings.ToLower(jsstr.Trim(rawSlug))
 	title, _ := str("title")
-	title = firstUTF16(jsTrim(title), 200)
+	title = firstUTF16(jsstr.Trim(title), 200)
 	mode := "create"
 	if m, _ := str("mode"); m == "revise" {
 		mode = "revise"
@@ -106,15 +106,15 @@ func startJob(w http.ResponseWriter, r *http.Request) {
 		if mode == "revise" {
 			msg = "describe what to change"
 		}
-		writeJSON(w, r, http.StatusBadRequest, errorBody{msg, "no_prompt"})
+		httpx.SendJSON(w, r, http.StatusBadRequest, errorBody{msg, "no_prompt"})
 		return
 	}
-	if utf16Len(prompt) > maxPromptUnits {
-		writeJSON(w, r, http.StatusBadRequest, errorBody{"prompt too long (200k max)", "too_long"})
+	if jsstr.UTF16Len(prompt) > maxPromptUnits {
+		httpx.SendJSON(w, r, http.StatusBadRequest, errorBody{"prompt too long (200k max)", "too_long"})
 		return
 	}
 	if !slugRE.MatchString(slug) {
-		writeJSON(w, r, http.StatusBadRequest, errorBody{"slug must be a lowercase page path", "bad_slug"})
+		httpx.SendJSON(w, r, http.StatusBadRequest, errorBody{"slug must be a lowercase page path", "bad_slug"})
 		return
 	}
 
@@ -132,7 +132,7 @@ func startJob(w http.ResponseWriter, r *http.Request) {
 	} else {
 		startSpawn(j, task)
 	}
-	writeJSON(w, r, http.StatusAccepted, startResponse{JobID: id, Driver: drv})
+	httpx.SendJSON(w, r, http.StatusAccepted, startResponse{JobID: id, Driver: drv})
 }
 
 // pollJob is GET /compose/{id} — job status and log tail (the panel polls it).
@@ -141,13 +141,13 @@ func pollJob(w http.ResponseWriter, r *http.Request) {
 	j := jobs[r.PathValue("id")]
 	jobsMu.Unlock()
 	if j == nil {
-		writeJSON(w, r, http.StatusNotFound, errorBody{"no such job", "no_job"})
+		httpx.SendJSON(w, r, http.StatusNotFound, errorBody{"no such job", "no_job"})
 		return
 	}
 	j.mu.Lock()
 	out := pollResponse{Status: j.status, Code: j.code, Slug: j.slug, Title: j.title, Driver: j.driver, Log: strings.Join(j.log, "\n")}
 	j.mu.Unlock()
-	writeJSON(w, r, http.StatusOK, out)
+	httpx.SendJSON(w, r, http.StatusOK, out)
 }
 
 // decodeBody is express.json(): a body whose Content-Type is not
@@ -178,66 +178,6 @@ func decodeBody(w http.ResponseWriter, r *http.Request) (map[string]any, error) 
 		m = map[string]any{}
 	}
 	return m, nil
-}
-
-// writeJSON is Express's res.status(n).json(v): JSON without HTML escaping,
-// Content-Type application/json; charset=utf-8, and the weak ETag Express
-// derives from the body (W/"<len hex>-<base64 sha1, 27 chars>"), answering a
-// matching If-None-Match on a 2xx GET/HEAD with 304.
-func writeJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	body := bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
-	sum := sha1.Sum(body) //nolint:gosec // G401: see the import
-	etag := `W/"` + strconv.FormatInt(int64(len(body)), 16) + "-" + base64.StdEncoding.EncodeToString(sum[:])[:27] + `"`
-	h := w.Header()
-	h.Set("Content-Type", "application/json; charset=utf-8")
-	h.Set("ETag", etag)
-	if (r.Method == http.MethodGet || r.Method == http.MethodHead) && status >= 200 && status < 300 && etagMatches(r.Header.Get("If-None-Match"), etag) {
-		h.Del("Content-Type")
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-	h.Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(status)
-	if r.Method != http.MethodHead {
-		_, _ = w.Write(body)
-	}
-}
-
-func etagMatches(header, etag string) bool {
-	if header == "" {
-		return false
-	}
-	if strings.TrimSpace(header) == "*" {
-		return true
-	}
-	strong := strings.TrimPrefix(etag, "W/")
-	for _, tag := range strings.Split(header, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == etag || strings.TrimPrefix(tag, "W/") == strong {
-			return true
-		}
-	}
-	return false
-}
-
-// jsTrim is String.prototype.trim: Unicode white space plus U+FEFF.
-func jsTrim(s string) string {
-	return strings.TrimFunc(s, func(r rune) bool { return unicode.IsSpace(r) || r == 0xFEFF })
-}
-
-func utf16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		n += utf16.RuneLen(r)
-	}
-	return n
 }
 
 // firstUTF16 is s.slice(0, n) in UTF-16 code units. A surrogate pair the cut

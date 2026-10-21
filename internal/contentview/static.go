@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	pages "github.com/ElcanoTek/pages"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/shell"
 )
 
@@ -111,7 +111,7 @@ func loadFile(fsys fs.FS, name string) (*staticFile, bool, bool) {
 	if err != nil {
 		return nil, false, false
 	}
-	f := &staticFile{body: b, etag: wire.ETag(b)}
+	f := &staticFile{body: b, etag: httpx.ETag(b)}
 	fileCache.Store(key, f)
 	return f, true, false
 }
@@ -194,7 +194,7 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 		return false, nil
 	}
 	// A malformed escape or a NUL is a 400 in send, which falls through.
-	decoded, decErr := wire.DecodeURIComponent(rel)
+	decoded, decErr := httpx.DecodeURIComponent(rel)
 	if decErr != nil || strings.ContainsRune(decoded, 0) {
 		return false, nil //nolint:nilerr // fallthrough, as serve-static does for a 4xx
 	}
@@ -221,7 +221,7 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 		if r.URL.RawQuery != "" {
 			loc += "?" + r.URL.RawQuery
 		}
-		loc = wire.EncodeURL(loc)
+		loc = httpx.EncodeURL(loc)
 		doc := strings.Replace(redirectDoc, "%s", esc(loc), 1)
 		h := w.Header()
 		h.Set("Content-Type", "text/html; charset=utf-8")
@@ -242,7 +242,7 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 
 	// Preconditions (send's isPreconditionFailure). Pages serves no
 	// Last-Modified, so a valid If-Unmodified-Since cannot be satisfied.
-	if im := wire.Header(r, "If-Match"); im != "" {
+	if im := httpx.Header(r, "If-Match"); im != "" {
 		if im != "*" && !etagMatches(im, f.etag) {
 			return true, &statusError{status: http.StatusPreconditionFailed, msg: "precondition failed"}
 		}
@@ -265,7 +265,7 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 	}
 
 	// Fresh → 304.
-	if inm := wire.Header(r, "If-None-Match"); inm != "" && !strings.Contains(strings.ToLower(wire.Header(r, "Cache-Control")), "no-cache") {
+	if inm := httpx.Header(r, "If-None-Match"); inm != "" && !strings.Contains(strings.ToLower(httpx.Header(r, "Cache-Control")), "no-cache") {
 		if inm == "*" || etagMatches(inm, f.etag) {
 			for _, k := range []string{"Content-Type", "Content-Length", "Content-Encoding", "Content-Language", "Content-Range"} {
 				h.Del(k)
@@ -331,7 +331,7 @@ func ShellAssets(next http.Handler) http.Handler {
 			}
 			var se *statusError
 			if errors.As(err, &se) {
-				wire.SendHTML(w, r, se.status, shell.RequestError(se.status))
+				httpx.SendHTML(w, r, se.status, shell.RequestError(se.status))
 			}
 			return
 		}

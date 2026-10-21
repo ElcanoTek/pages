@@ -11,7 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Transaction is one login in flight: the PKCE verifier, state and nonce,
@@ -65,10 +66,10 @@ func mac(key []byte, body string) string {
 // {state, nonce, verifier, next, iat} (that key order), "." and its
 // HMAC-SHA256 under key.
 func SealTransaction(tx Transaction, key []byte) string {
-	js := `{"state":` + wire.JSONString(tx.State) +
-		`,"nonce":` + wire.JSONString(tx.Nonce) +
-		`,"verifier":` + wire.JSONString(tx.Verifier) +
-		`,"next":` + wire.JSONString(tx.Next) +
+	js := `{"state":` + jsonv.Quote(tx.State) +
+		`,"nonce":` + jsonv.Quote(tx.Nonce) +
+		`,"verifier":` + jsonv.Quote(tx.Verifier) +
+		`,"next":` + jsonv.Quote(tx.Next) +
 		`,"iat":` + strconv.FormatInt(tx.IAT, 10) + `}`
 	body := base64.RawURLEncoding.EncodeToString([]byte(js))
 	return body + "." + mac(key, body)
@@ -122,7 +123,7 @@ func OpenTransaction(sealed, state string, key []byte, at int64) (OpenedTransact
 // "//evil.example".
 func SafeLocalPath(raw string) string {
 	const fallback = "/admin"
-	if raw == "" || wire.UTF16Len(raw) > 2048 {
+	if raw == "" || jsstr.UTF16Len(raw) > 2048 {
 		return fallback
 	}
 	if !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") || strings.Contains(raw, `\`) {

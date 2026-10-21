@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/tdewolff/parse/v2"
 	"github.com/tdewolff/parse/v2/js"
 )
@@ -323,20 +324,9 @@ func TestLargeDocumentRenderIsFast(t *testing.T) {
 }
 
 func TestEscapedJSONMatchesDataLimits(t *testing.T) {
-	got := escapedJSON(map[string]string{"a": "</script>&\u2028\u2029'"})
+	got := datalimits.EscapedJSON(map[string]any{"a": "</script>&\u2028\u2029'"})
 	want := `{"a":"\u003c/script\u003e\u0026\u2028\u2029'"}`
 	if got != want {
 		t.Errorf("got %s want %s", got, want)
-	}
-}
-
-func TestJSNumberString(t *testing.T) {
-	for f, want := range map[float64]string{
-		1: "1", 1e21: "1e+21", 1e20: "100000000000000000000", 1e-7: "1e-7", 1e-6: "0.000001",
-		0.1: "0.1", -2.5: "-2.5", 5e-324: "5e-324", 123456789012345680000: "123456789012345680000",
-	} {
-		if got := jsNumberString(f); got != want {
-			t.Errorf("%v: got %s want %s", f, got, want)
-		}
 	}
 }

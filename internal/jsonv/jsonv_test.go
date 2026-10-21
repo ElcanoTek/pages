@@ -4,7 +4,13 @@
 package jsonv
 
 import (
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"math"
+	"os"
 	"testing"
 )
 
@@ -64,17 +70,101 @@ func TestParseRejectsWhatJSONParseRejects(t *testing.T) {
 	}
 }
 
-func TestCompareUTF16(t *testing.T) {
-	s := []string{"～", "😀", "abc", "Abc", "10"}
-	SortStrings(s)
-	want := []string{"10", "Abc", "abc", "😀", "～"}
-	for i := range want {
-		if s[i] != want[i] {
-			t.Fatalf("sort: %q", s)
+// testdata/corpus.json was recorded with Node 22:
+// JSON.stringify(JSON.parse(text)) for each text, the texts JSON.parse refuses,
+// and String(n) for computed doubles.
+type corpus struct {
+	Texts []struct {
+		In    string `json:"in"`
+		Out   string `json:"out"`
+		Error bool   `json:"error"`
+	} `json:"texts"`
+	Numbers []struct {
+		Hex string `json:"hex"`
+		Out string `json:"out"`
+	} `json:"numbers"`
+}
+
+func loadCorpus(t *testing.T) corpus {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/corpus.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c corpus
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestLosslessRoundTripMatchesNode(t *testing.T) {
+	for _, tc := range loadCorpus(t).Texts {
+		in, err := base64.StdEncoding.DecodeString(tc.In)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, err := ParseLossless(in)
+		if tc.Error {
+			if err == nil {
+				t.Errorf("%q: parsed as %s, JSON.parse refuses it", in, Stringify(v))
+			} else if !errors.Is(err, ErrSyntax) {
+				t.Errorf("%q: %v is not ErrSyntax", in, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%q: %v", in, err)
+			continue
+		}
+		if got := Stringify(v); got != tc.Out {
+			t.Errorf("%q:\n got %s\nwant %s", in, got, tc.Out)
+		}
+		// json.RawMessage is re-read the same way.
+		if got := Stringify(json.RawMessage(in)); got != tc.Out {
+			t.Errorf("RawMessage %q:\n got %s\nwant %s", in, got, tc.Out)
 		}
 	}
-	if UTF16Len("a😀") != 3 || SliceUTF16("a😀b", 0, 3) != "a😀" {
-		t.Error("utf16 helpers")
+}
+
+func TestFormatNumberMatchesNodeCorpus(t *testing.T) {
+	for _, tc := range loadCorpus(t).Numbers {
+		b, err := hex.DecodeString(tc.Hex)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f := math.Float64frombits(binary.LittleEndian.Uint64(b))
+		if got := FormatNumber(f); got != tc.Out {
+			t.Errorf("%v: got %s want %s", f, got, tc.Out)
+		}
+	}
+}
+
+func TestParseReplacesLoneSurrogates(t *testing.T) {
+	v, err := ParseString(`"a\ud800b"`)
+	if err != nil || v != "a\uFFFDb" {
+		t.Fatalf("Parse: %q %v", v, err)
+	}
+	v, err = ParseLossless([]byte(`"a\ud800b"`))
+	if err != nil || Stringify(v) != `"a\ud800b"` {
+		t.Fatalf("ParseLossless: %q %v", v, err)
+	}
+}
+
+func TestToString(t *testing.T) {
+	cases := map[string]any{"null": nil, "1.5": 1.5, "a": "a", "1,,x": []any{1.0, nil, "x"}, "[object Object]": NewObject(), "true": true}
+	for want, v := range cases {
+		if got := ToString(v); got != want {
+			t.Errorf("ToString(%v) = %q, want %q", v, got, want)
+		}
+	}
+}
+
+func TestIsSafeInteger(t *testing.T) {
+	for v, want := range map[any]bool{1.0: true, 1.5: false, 9007199254740991.0: true, 9007199254740992.0: false, "1": false} {
+		if IsSafeInteger(v) != want {
+			t.Errorf("IsSafeInteger(%v) != %v", v, want)
+		}
 	}
 }
 

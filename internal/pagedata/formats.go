@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // The ajv-formats "full" set, which the JS server installed with its default
@@ -148,7 +148,7 @@ func fmtHostname(s string) bool {
 	if strings.ContainsAny(s, "\n\r  ") {
 		return false
 	}
-	n := jsonv.UTF16Len(s)
+	n := jsstr.UTF16Len(s)
 	fits := (n >= 1 && n <= 253) || (strings.HasSuffix(s, ".") && n-1 >= 1 && n-1 <= 253)
 	return fits && hostnameRe.MatchString(s)
 }

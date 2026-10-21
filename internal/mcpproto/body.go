@@ -17,7 +17,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 var (
@@ -100,12 +101,12 @@ func ReadJSONBody(r *http.Request, limit int64) (any, error) {
 	if int64(len(raw)) > limit {
 		return nil, ErrBodyTooLarge
 	}
-	text := []byte(jsjson.DecodeUTF8(raw))
+	text := []byte(jsonv.DecodeUTF8(raw))
 	text = bytes.TrimPrefix(text, []byte("\xef\xbb\xbf"))
 	if len(text) == 0 {
-		return jsjson.NewObject(), nil
+		return jsonv.NewObject(), nil
 	}
-	v, err := jsjson.Parse(text)
+	v, err := jsonv.ParseLossless(text)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrBodyParse, err)
 	}
@@ -151,7 +152,7 @@ func ParseContentType(header string) (ContentType, error) {
 	if index >= 0 {
 		typ = s[:index]
 	}
-	typ = jsTrimRunes(typ)
+	typ = jsstr.Trim(typ)
 	if !ctTypeRegexp.MatchString(typ) {
 		return ContentType{}, errors.New("invalid media type")
 	}
@@ -195,6 +196,3 @@ func latin1(s string) string {
 	}
 	return b.String()
 }
-
-// jsTrimRunes is String#trim on a decoded string.
-func jsTrimRunes(s string) string { return strings.TrimFunc(s, isJSSpace) }

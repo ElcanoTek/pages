@@ -46,18 +46,6 @@ func fold(word string) string {
 	return b.String()
 }
 
-// isJSSpace reports whether r is in the set String.prototype.trim removes.
-func isJSSpace(r rune) bool {
-	switch r {
-	case '\t', '\n', '\v', '\f', '\r', ' ', 0x00a0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
-		return true
-	}
-	return r >= 0x2000 && r <= 0x200a
-}
-
-// jsTrim is String.prototype.trim.
-func jsTrim(s string) string { return strings.TrimFunc(s, isJSSpace) }
-
 // replaceFirst replaces the first match of re in s with what fn returns for it,
 // as String.prototype.replace does with a non-global regex and a function.
 func replaceFirst(re *regexp.Regexp, s string, fn func(match string) string) string {

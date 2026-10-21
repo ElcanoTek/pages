@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
 // testdata/golden.json.gz holds the outputs lib/render.js and lib/bento.js
@@ -90,10 +92,8 @@ func TestGoldenAgainstJS(t *testing.T) {
 			got = "null"
 			if _, ok := ReadDoc(in.HTML); ok {
 				m := DocBlockRE.FindStringSubmatch(in.HTML)
-				v, _ := parseJSValue(m[2])
-				var b strings.Builder
-				v.stringify(&b)
-				got = b.String()
+				v, _ := jsonv.ParseLossless([]byte(m[2]))
+				got = jsonv.Stringify(v)
 			}
 		case "editSessionScript":
 			got = EditSessionScript(in.SaveURL, in.Token, in.VersionID)

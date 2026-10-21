@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
-	"math"
 	"net"
 	"net/http"
 	"regexp"
@@ -18,10 +17,11 @@ import (
 
 	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/apierror"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/render"
 )
@@ -211,7 +211,7 @@ func pathIs(path, literal string) bool {
 func decodeSplat(raw string) (string, error) {
 	parts := strings.Split(raw, "/")
 	for i, p := range parts {
-		d, err := wire.DecodeURIComponent(p)
+		d, err := httpx.DecodeURIComponent(p)
 		if err != nil {
 			return "", &statusError{status: http.StatusBadRequest, msg: "failed to decode param"}
 		}
@@ -238,7 +238,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case get && pathIs(path, "/healthz"):
-		wire.Send(w, r, http.StatusOK, "text/plain; charset=utf-8", []byte("ok"))
+		httpx.Send(w, r, http.StatusOK, "text/plain; charset=utf-8", []byte("ok"))
 		return
 	case get && h.Ready != nil && pathIs(path, "/readyz"):
 		h.Ready.ServeHTTP(w, r)
@@ -290,7 +290,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if get {
 		if m := rawTmplRE.FindStringSubmatch(path); m != nil {
 			h.contentLim(h.run(func(w http.ResponseWriter, r *http.Request) error {
-				id, err := wire.DecodeURIComponent(m[1])
+				id, err := httpx.DecodeURIComponent(m[1])
 				if err != nil {
 					return &statusError{status: http.StatusBadRequest, msg: "failed to decode param"}
 				}
@@ -303,7 +303,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// was rendered and thrown away — and the tab showed a blank icon.
 		if pathIs(path, "/favicon.ico") {
 			h.contentLim(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				wire.Redirect(w, r, http.StatusMovedPermanently, FlagBase+"/logos/elcano-mark-favicon.svg")
+				httpx.Redirect(w, r, http.StatusMovedPermanently, FlagBase+"/logos/elcano-mark-favicon.svg")
 			})).ServeHTTP(w, r)
 			return
 		}
@@ -357,7 +357,7 @@ func (h *handler) clientIP(r *http.Request) string {
 // or redeemed as a page credential (PLAN §6d). Headers are set on EVERY path.
 func (h *handler) raw(w http.ResponseWriter, r *http.Request, slug string) error {
 	csp.RawHeaders().Apply(w.Header())
-	t, _ := wire.QueryParam(r, "t").String()
+	t, _ := httpx.QueryParam(r, "t").String()
 	var c *rawtoken.Claims
 	if t != "" {
 		c = rawtoken.Verify(t)
@@ -367,7 +367,7 @@ func (h *handler) raw(w http.ResponseWriter, r *http.Request, slug string) error
 	// a different id space, and a "session" token is a page credential, not a
 	// render credential. A purpose added later is refused here by default.
 	if c == nil || (c.Purpose != rawtoken.View && c.Purpose != rawtoken.Edit) {
-		wire.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
+		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
 		return nil
 	}
 	if c.Purpose == rawtoken.Edit {
@@ -376,16 +376,16 @@ func (h *handler) raw(w http.ResponseWriter, r *http.Request, slug string) error
 	v, err := h.store.GetRenderable(r.Context(), c.VersionID)
 	if err != nil {
 		slog.Error("render error", "err", err)
-		wire.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
+		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
 		return nil
 	}
 	// The token's version must match what we loaded, belong to this slug, and
 	// the page must not be disabled (takedown switch).
 	if v == nil || v.ID != c.VersionID || v.Slug != slug || v.Disabled {
-		wire.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
+		httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
 		return nil
 	}
-	wire.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{
+	httpx.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{
 		HTML: v.HTML, RenderMode: v.RenderMode, OverrideCSS: v.OverrideCSS,
 	}))
 	return nil
@@ -400,20 +400,20 @@ func (h *handler) deckEditSession(w http.ResponseWriter, r *http.Request, slug, 
 	v, err := h.store.GetLatestRenderable(r.Context(), c.PageID)
 	if err != nil {
 		slog.Error("edit session error", "err", err)
-		wire.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
+		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
 		return nil
 	}
 	if v == nil || v.Slug != slug || v.Disabled {
-		wire.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
+		httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
 		return nil
 	}
 	if !render.IsBentoDeck(v.HTML) {
-		wire.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
+		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
 		return nil
 	}
 	csp.RawEditHeaders().Apply(w.Header())
 	origin := env.ContentOrigin()
-	wire.SendHTML(w, r, http.StatusOK, render.EditSession(v.HTML, render.EditSessionOptions{
+	httpx.SendHTML(w, r, http.StatusOK, render.EditSession(v.HTML, render.EditSessionOptions{
 		SaveURL:       origin + "/raw/" + slug + "/versions",
 		Token:         token,
 		VersionID:     strconv.FormatInt(v.ID, 10),
@@ -463,15 +463,15 @@ func (h *handler) saveDeck(w http.ResponseWriter, r *http.Request, slug string) 
 	}
 	saveChannelCORS(w.Header())
 	var c *rawtoken.Claims
-	if m := bearerRE.FindStringSubmatch(wire.Header(r, "Authorization")); m != nil {
+	if m := bearerRE.FindStringSubmatch(httpx.Header(r, "Authorization")); m != nil {
 		c = rawtoken.Verify(m[1])
 	}
 	if c == nil || c.Purpose != rawtoken.Edit || c.Actor == "" {
-		wire.SendJSON(w, r, http.StatusForbidden, saveError{Error: "this edit session has expired — reopen the deck from the admin"})
+		httpx.SendJSON(w, r, http.StatusForbidden, saveError{Error: "this edit session has expired — reopen the deck from the admin"})
 		return nil
 	}
 	if !hasBody || !render.IsBentoDeck(body) {
-		wire.SendJSON(w, r, http.StatusBadRequest, saveError{Error: "only a Bento deck can be saved through this channel"})
+		httpx.SendJSON(w, r, http.StatusBadRequest, saveError{Error: "only a Bento deck can be saved through this channel"})
 		return nil
 	}
 	cleaned, stripped := render.StripCollab(body)
@@ -480,7 +480,7 @@ func (h *handler) saveDeck(w http.ResponseWriter, r *http.Request, slug string) 
 		err = errors.New("contentview: no deck saver configured")
 	} else {
 		res, err = h.SaveDeck(r.Context(), DeckSave{
-			Slug: slug, PageID: c.PageID, BaseVersion: wire.Header(r, "X-Pages-Base-Version"),
+			Slug: slug, PageID: c.PageID, BaseVersion: httpx.Header(r, "X-Pages-Base-Version"),
 			HTML: cleaned, Actor: c.Actor, IP: h.clientIP(r),
 		})
 	}
@@ -492,49 +492,25 @@ func (h *handler) saveDeck(w http.ResponseWriter, r *http.Request, slug string) 
 		}
 		if status >= 500 {
 			slog.Error("deck save error", "err", err)
-			wire.SendJSON(w, r, status, saveError{Error: "Pages could not store the version"})
+			httpx.SendJSON(w, r, status, saveError{Error: "Pages could not store the version"})
 			return nil
 		}
 		reply := saveError{Error: ae.Message}
 		if ae.Code != "" {
 			reply.Code, reply.Details = ae.Code, ae.Details
 		}
-		wire.SendJSON(w, r, status, reply)
+		httpx.SendJSON(w, r, status, reply)
 		return nil
 	}
 	status := http.StatusCreated
 	if res.Deduped {
 		status = http.StatusOK
 	}
-	wire.SendJSON(w, r, status, saveReply{
+	httpx.SendJSON(w, r, status, saveReply{
 		VersionID: strconv.FormatInt(res.VersionID, 10), Status: res.Status,
 		Deduped: res.Deduped, CollabKeysRemoved: stripped,
 	})
 	return nil
-}
-
-// jsNumber is Number(s) for the shapes a path segment can take; NaN when it
-// is not a number.
-func jsNumber(s string) float64 {
-	s = wire.TrimJS(s)
-	if s == "" {
-		return 0
-	}
-	if len(s) > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X') {
-		if n, err := strconv.ParseUint(s[2:], 16, 64); err == nil {
-			return float64(n)
-		}
-		return math.NaN()
-	}
-	low := strings.ToLower(strings.TrimLeft(s, "+-"))
-	if strings.HasPrefix(low, "inf") || strings.HasPrefix(low, "nan") {
-		return math.NaN()
-	}
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return math.NaN()
-	}
-	return f
 }
 
 // rawTemplate is GET /raw-template/<template_version_id> — preview a
@@ -543,13 +519,13 @@ func jsNumber(s string) float64 {
 // alone, bound to this exact revision with purpose "template".
 func (h *handler) rawTemplate(w http.ResponseWriter, r *http.Request, id string) error {
 	csp.RawHeaders().Apply(w.Header())
-	t, _ := wire.QueryParam(r, "t").String()
+	t, _ := httpx.QueryParam(r, "t").String()
 	var c *rawtoken.Claims
 	if t != "" {
 		c = rawtoken.Verify(t)
 	}
-	if c == nil || c.Purpose != rawtoken.Template || jsNumber(id) != float64(c.VersionID) {
-		wire.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
+	if c == nil || c.Purpose != rawtoken.Template || jsstr.Number(id) != float64(c.VersionID) {
+		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
 		return nil
 	}
 	// Not the stored bytes: the template MATERIALIZED, so a preview shows the
@@ -563,15 +539,15 @@ func (h *handler) rawTemplate(w http.ResponseWriter, r *http.Request, id string)
 	}
 	if err != nil {
 		if ae, ok := apierror.As(err); ok && ae.Status == http.StatusNotFound {
-			wire.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
+			httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
 			return nil
 		}
 		slog.Error("template preview error", "err", err)
-		wire.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
+		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
 		return nil
 	}
 	// The token carries the mode the previewer asked for, so a themed template
 	// is previewed the way create_page_from_template would render it.
-	wire.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{HTML: html, RenderMode: c.Mode}))
+	httpx.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{HTML: html, RenderMode: c.Mode}))
 	return nil
 }
