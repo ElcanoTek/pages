@@ -95,7 +95,8 @@ func TestWritableBy(t *testing.T) {
 	if err := os.WriteFile(hook, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink("/nonexistent", filepath.Join(src, "dangling")); err != nil {
+	// Links that stay in the tree are fine (the walk checks what they name).
+	if err := os.Symlink(filepath.Join("hooks", "post-merge"), filepath.Join(src, ".git", "inside")); err != nil {
 		t.Fatal(err)
 	}
 	if p, err := WritableBy(src, "nobody"); err != nil || p != "" {
@@ -138,5 +139,117 @@ func TestWritableBy(t *testing.T) {
 	}
 	if p, _ := WritableBy(src, "nobody"); p != parent {
 		t.Fatalf("ancestor: %q", p)
+	}
+}
+
+// A group-writable entry owned by one of the account's supplementary groups
+// is as writable as one owned by its primary group.
+func TestWritableBySupplementaryGroup(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root to own files as another account")
+	}
+	nobody, err := user.Lookup("nobody")
+	if err != nil {
+		t.Skip(err)
+	}
+	const extra = 4242 // no account's primary group
+	if nobody.Gid == strconv.Itoa(extra) {
+		t.Skip("nobody's primary group collides with the test group")
+	}
+	saved := groupIDs
+	groupIDs = func(u *user.User) ([]string, error) {
+		gids, err := saved(u)
+		if u.Username == "nobody" {
+			gids = append(gids, strconv.Itoa(extra))
+		}
+		return gids, err
+	}
+	t.Cleanup(func() { groupIDs = saved })
+	src := filepath.Join(t.TempDir(), "src")
+	makefile := filepath.Join(src, "Makefile")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(makefile, []byte("all:\n"), 0o664); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(makefile, 0o664); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := WritableBy(src, "nobody"); err != nil || p != "" {
+		t.Fatalf("root's group: %q %v", p, err)
+	}
+	if err := os.Chown(makefile, 0, extra); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := WritableBy(src, "nobody"); err != nil || p != makefile {
+		t.Fatalf("a supplementary group's writable Makefile: %q %v", p, err)
+	}
+}
+
+// A link in the checkout must not let root follow it to something the
+// account controls: outside the tree, dangling, or out and back in again.
+func TestWritableBySymlinks(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root to own files as another account")
+	}
+	if _, err := user.Lookup("nobody"); err != nil {
+		t.Skip(err)
+	}
+	base := t.TempDir()
+	src := filepath.Join(base, "src")
+	if err := os.MkdirAll(filepath.Join(src, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "build", "Makefile"), []byte("all:\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(base, "outside")
+	if err := os.WriteFile(outside, []byte("all:\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A link outside the tree that leads back in: whoever can replace it
+	// decides what root builds, though it ends inside the tree.
+	if err := os.Symlink(filepath.Join(src, "build", "Makefile"), filepath.Join(base, "hop")); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(src, "Makefile")
+	for _, c := range []struct {
+		name, dest string
+		ok         bool
+	}{
+		{"inside", filepath.Join("build", "Makefile"), true},
+		{"inside absolute", filepath.Join(src, "build", "Makefile"), true},
+		{"outside", outside, false},
+		{"outside relative", filepath.Join("..", "outside"), false},
+		{"dangling", filepath.Join("build", "missing"), false},
+		{"out and back", filepath.Join("..", "hop"), false},
+	} {
+		_ = os.Remove(link)
+		if err := os.Symlink(c.dest, link); err != nil {
+			t.Fatal(err)
+		}
+		p, err := WritableBy(src, "nobody")
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if c.ok && p != "" {
+			t.Fatalf("%s: a link within the tree is safe, got %q", c.name, p)
+		}
+		if !c.ok && p != link {
+			t.Fatalf("%s: got %q, want the link %s", c.name, p, link)
+		}
+	}
+	// A checkout reached through a link is walked where it really lives.
+	_ = os.Remove(link)
+	alias := filepath.Join(base, "alias")
+	if err := os.Symlink(src, alias); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(src, "build", "Makefile"), 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := WritableBy(alias, "nobody"); err != nil || p != filepath.Join(src, "build", "Makefile") {
+		t.Fatalf("linked checkout: %q %v", p, err)
 	}
 }
