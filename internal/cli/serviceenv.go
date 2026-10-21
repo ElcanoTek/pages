@@ -134,6 +134,9 @@ func withServiceEnv(verb string, args []string) (code int, done bool) {
 		return Fail(verb, "%s", msg), true
 	case step == loadHere:
 		if err := applyServiceEnv(s.EnvFile); err != nil {
+			if errors.Is(err, os.ErrPermission) && in.Me == s.AppUser {
+				return Fail(verb, "cannot read %s as %s — it should be root:%s 0640 (sudo pages doctor repairs it)", s.EnvFile, in.Me, s.AppUser), true
+			}
 			if errors.Is(err, os.ErrPermission) {
 				return Fail(verb, "cannot read %s as %s — run it with sudo", s.EnvFile, in.Me), true
 			}
