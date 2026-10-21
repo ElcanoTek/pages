@@ -6,24 +6,34 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 
+	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/mcp"
 	"github.com/ElcanoTek/pages/internal/ops/backupprobe"
+	"github.com/ElcanoTek/pages/internal/ratelimit"
 	"github.com/ElcanoTek/pages/internal/server"
 )
 
-// mcpFactory builds the /mcp endpoint for `pages serve`.
-// ORCHESTRATOR: wire internal/mcp here once it is merged, e.g.
-//
-//	mcpFactory = func(d *db.DB, ip func(*http.Request) string, max int64, l *slog.Logger) http.Handler {
-//		return mcp.Handler(mcp.Deps{DB: d, RateLimit: ratelimit.NewMCP(ratelimit.Config{ClientIP: ip}).Middleware, ClientIP: ip, MaxBodyBytes: max, Logger: l})
-//	}
-var mcpFactory server.MCPFactory // ORCHESTRATOR: set to the internal/mcp handler (see above)
+// mcpFactory builds the /mcp endpoint for `pages serve`: the agent tool
+// server behind its own rate limiter, mounted ahead of the dashboard's body
+// parsing (internal/server).
+var mcpFactory server.MCPFactory = func(d *db.DB, ip func(*http.Request) string, maxBody int64, l *slog.Logger) http.Handler {
+	return mcp.Handler(mcp.Deps{
+		DB:           d,
+		RateLimit:    ratelimit.NewMCP(ratelimit.Config{ClientIP: ip}).Middleware,
+		ClientIP:     ip,
+		MaxBodyBytes: maxBody,
+		Logger:       l,
+	})
+}
 
 func init() {
 	Register(&Command{
