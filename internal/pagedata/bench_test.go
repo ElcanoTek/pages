@@ -12,7 +12,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
-// nearLimitPage is an object-row payload near the 1 MiB data limit, like the
+// nearLimitPage is an object-row payload near the Node release's 1 MiB data limit, like the
 // fixture in test/page-data-read.test.js.
 func nearLimitPage(tb testing.TB) string {
 	tb.Helper()

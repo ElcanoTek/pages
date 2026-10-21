@@ -16,7 +16,7 @@
 // make a round trip through a model.
 //
 // Anchors are LITERAL strings, never regexes: an agent-supplied pattern is an
-// unbounded-backtracking hazard on a 2 MiB document, and every real edit is a
+// unbounded-backtracking hazard on a multi-megabyte document, and every real edit is a
 // literal anyway (cf. the ReDoS screen in internal/pagedata). An anchor that
 // does not match its expected occurrence count is an error, not a silent no-op
 // — a patch that quietly did nothing is exactly how a "fixed" dashboard ships
@@ -35,16 +35,21 @@ import (
 	"unicode/utf8"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
+	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
-// Limits.
+// Limits on one patch. The Go server raised these from the Node release
+// (25 edits, 8192-character anchors, 128 KiB replacements, count 100) so a
+// real restyle or a regenerated section is one patch, not a dozen; what keeps
+// the server safe is MaxResultBytes, checked before any replacement is built,
+// not a small per-edit number.
 const (
-	MaxEdits         = 25
-	MaxFindChars     = 8192
-	MaxReplaceChars  = 128 * 1024
-	MaxExpectedCount = 100
+	MaxEdits         = 100
+	MaxFindChars     = 64 * 1024
+	MaxReplaceChars  = 1024 * 1024
+	MaxExpectedCount = 1000
 	// Search output is read by a model; keep it small and say what was left out.
 	MaxMatches      = 20
 	MaxContextChars = 240
@@ -72,6 +77,29 @@ type Result struct {
 	Applied []Applied `json:"applied"`
 }
 
+// Limits is the bound set ValidateEdits enforces.
+type Limits struct {
+	Edits, FindChars, ReplaceChars, ExpectedCount int
+}
+
+// limits is the active set: the exported constants. Tests that replay the
+// JavaScript golden swap in the Node release's numbers.
+var limits = Limits{Edits: MaxEdits, FindChars: MaxFindChars, ReplaceChars: MaxReplaceChars, ExpectedCount: MaxExpectedCount}
+
+// MaxResultBytes is the largest document a patch may produce: the larger of
+// the staged-upload budget and the JSON request budget, i.e. the largest page
+// that could have been deployed whole. 100 edits x 1000 occurrences x 1 MiB
+// would otherwise ask for 100 GB; the projection is checked before the
+// replacement is allocated.
+func MaxResultBytes() int { return max(datalimits.MaxUploadBytes(), datalimits.MaxRequestBytes()) }
+
+// TooLargeDetails is the detail object of a patch_result_too_large refusal.
+type TooLargeDetails struct {
+	EditIndex   int `json:"edit_index"`
+	ResultBytes int `json:"result_bytes"`
+	MaxBytes    int `json:"max_bytes"`
+}
+
 func invalid(msg string) error { return apierror.BadRequest(msg, "patch_edits_invalid", nil) }
 
 // ParseEdits validates a parsed JSON edits array (from jsonv.Parse) with the
@@ -81,8 +109,8 @@ func ParseEdits(v any) ([]Edit, error) {
 	if !ok || len(arr) == 0 {
 		return nil, invalid("edits must be a non-empty array")
 	}
-	if len(arr) > MaxEdits {
-		return nil, invalid(fmt.Sprintf("at most %d edits per patch", MaxEdits))
+	if len(arr) > limits.Edits {
+		return nil, invalid(fmt.Sprintf("at most %d edits per patch", limits.Edits))
 	}
 	out := make([]Edit, len(arr))
 	for i, raw := range arr {
@@ -98,8 +126,8 @@ func ParseEdits(v any) ([]Edit, error) {
 		count := 1
 		if c, present := obj.Get("count"); present {
 			f, isNum := c.(float64)
-			if !isNum || f != math.Trunc(f) || math.IsInf(f, 0) || f < 1 || f > MaxExpectedCount {
-				return nil, invalid(fmt.Sprintf("edit %d: count must be an integer 1-%d", i, MaxExpectedCount))
+			if !isNum || f != math.Trunc(f) || math.IsInf(f, 0) || f < 1 || f > float64(limits.ExpectedCount) {
+				return nil, invalid(fmt.Sprintf("edit %d: count must be an integer 1-%d", i, limits.ExpectedCount))
 			}
 			count = int(f)
 		}
@@ -109,14 +137,14 @@ func ParseEdits(v any) ([]Edit, error) {
 }
 
 func validateEdit(i int, e Edit) error {
-	if n := jsstr.UTF16Len(e.Find); n == 0 || n > MaxFindChars {
-		return invalid(fmt.Sprintf("edit %d: find must be 1-%d characters", i, MaxFindChars))
+	if n := jsstr.UTF16Len(e.Find); n == 0 || n > limits.FindChars {
+		return invalid(fmt.Sprintf("edit %d: find must be 1-%d characters", i, limits.FindChars))
 	}
-	if jsstr.UTF16Len(e.Replace) > MaxReplaceChars {
-		return invalid(fmt.Sprintf("edit %d: replace must be at most %d characters", i, MaxReplaceChars))
+	if jsstr.UTF16Len(e.Replace) > limits.ReplaceChars {
+		return invalid(fmt.Sprintf("edit %d: replace must be at most %d characters", i, limits.ReplaceChars))
 	}
-	if e.Count < 0 || e.Count > MaxExpectedCount {
-		return invalid(fmt.Sprintf("edit %d: count must be an integer 1-%d", i, MaxExpectedCount))
+	if e.Count < 0 || e.Count > limits.ExpectedCount {
+		return invalid(fmt.Sprintf("edit %d: count must be an integer 1-%d", i, limits.ExpectedCount))
 	}
 	return nil
 }
@@ -126,8 +154,8 @@ func ValidateEdits(edits []Edit) error {
 	if len(edits) == 0 {
 		return invalid("edits must be a non-empty array")
 	}
-	if len(edits) > MaxEdits {
-		return invalid(fmt.Sprintf("at most %d edits per patch", MaxEdits))
+	if len(edits) > limits.Edits {
+		return invalid(fmt.Sprintf("at most %d edits per patch", limits.Edits))
 	}
 	for i, e := range edits {
 		if err := validateEdit(i, e); err != nil {
@@ -165,6 +193,7 @@ func ApplyEdits(source string, edits []Edit) (*Result, error) {
 		return nil, err
 	}
 	html := source
+	maxBytes := MaxResultBytes()
 	applied := make([]Applied, 0, len(edits))
 	for index, e := range edits {
 		expected := e.Count
@@ -184,6 +213,13 @@ func ApplyEdits(source string, edits []Edit) (*Result, error) {
 			)
 		}
 		before := len(html)
+		if grown := before + found*(len(e.Replace)-len(e.Find)); grown > maxBytes && grown > before {
+			return nil, apierror.BadRequest(
+				fmt.Sprintf("edit %d would make the document %d bytes; the limit is %d bytes", index, grown, maxBytes),
+				"patch_result_too_large",
+				TooLargeDetails{EditIndex: index, ResultBytes: grown, MaxBytes: maxBytes},
+			)
+		}
 		first := strings.Index(html, e.Find)
 		line := lineOf(html, first)
 		html = strings.ReplaceAll(html, e.Find, e.Replace)
@@ -219,8 +255,8 @@ type FindOptions struct {
 // rune by rune (which keeps offsets aligned with the source; JavaScript's
 // toLowerCase could shift them for a handful of characters such as U+0130).
 func FindMatches(source, query string, opts FindOptions) (*FindResult, error) {
-	if n := jsstr.UTF16Len(query); n == 0 || n > MaxFindChars {
-		return nil, apierror.BadRequest(fmt.Sprintf("query must be 1-%d characters", MaxFindChars), "search_query_invalid", nil)
+	if n := jsstr.UTF16Len(query); n == 0 || n > limits.FindChars {
+		return nil, apierror.BadRequest(fmt.Sprintf("query must be 1-%d characters", limits.FindChars), "search_query_invalid", nil)
 	}
 	limit := opts.MaxMatches
 	if limit == 0 {

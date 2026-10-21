@@ -18,6 +18,7 @@ import (
 	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/csp"
+	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/httpx"
@@ -26,9 +27,9 @@ import (
 	"github.com/ElcanoTek/pages/internal/render"
 )
 
-// DefaultMaxRequestBytes is MAX_HTML_BYTES' default ("2mb"), the deck save
-// channel's body cap when Deps.MaxRequestBytes is 0.
-const DefaultMaxRequestBytes = 2 * 1024 * 1024
+// DefaultMaxRequestBytes is MAX_HTML_BYTES' default, the deck save channel's
+// body cap when Deps.MaxRequestBytes is 0 and MAX_HTML_BYTES is unset.
+const DefaultMaxRequestBytes = datalimits.DefaultRequestBytes
 
 // passwordFormLimit is the password form's body cap (express.urlencoded
 // limit "1kb"): the only place the content host parses a form.
@@ -77,7 +78,8 @@ type Deps struct {
 	SaveDeck func(ctx context.Context, in DeckSave) (DeckSaveResult, error)
 	// ClientIP attributes a request (trust-proxy aware); nil = RemoteAddr.
 	ClientIP func(*http.Request) string
-	// MaxRequestBytes caps a deck save body; 0 = DefaultMaxRequestBytes.
+	// MaxRequestBytes caps a deck save body; 0 = MAX_HTML_BYTES
+	// (datalimits.MaxRequestBytes, default DefaultMaxRequestBytes).
 	MaxRequestBytes int64
 	// Public is the static tree (/assets is its assets/); nil = pages.Public().
 	Public fs.FS
@@ -455,7 +457,7 @@ type saveError struct {
 func (h *handler) saveDeck(w http.ResponseWriter, r *http.Request, slug string) error {
 	limit := h.MaxRequestBytes
 	if limit <= 0 {
-		limit = DefaultMaxRequestBytes
+		limit = int64(datalimits.MaxRequestBytes())
 	}
 	body, hasBody, err := readText(r, limit)
 	if err != nil {

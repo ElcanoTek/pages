@@ -48,7 +48,7 @@ func List(ctx context.Context, q db.Querier) ([]Summary, error) {
 	return out, rows.Err()
 }
 
-// The Page-menu ownership test, run in the database so the 2 MiB document
+// The Page-menu ownership test, run in the database so the multi-megabyte document
 // stays there. Since every portal-authorised render gets a Page menu (themed
 // via the template block or Pages' built-in control, raw via the injected
 // fixed-position control), any published member shows one; what is still worth

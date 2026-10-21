@@ -22,17 +22,16 @@ import (
 // by token, so the chunk ceiling is a direct multiplier on the cost and failure
 // rate of a deploy. At the original 12 KiB a routine 65 KB dashboard took six
 // perfect append calls; real conversations spent ~25k output tokens per
-// attempt, hit turn timeouts mid-upload, and abandoned 13 of 14 uploads. 48 KiB
-// (64 KiB of base64, ~16k tokens) is comfortably inside a modern model's
-// single-argument budget and cuts that to two calls. That is why it stays the
-// default.
+// attempt, hit turn timeouts mid-upload, and abandoned 13 of 14 uploads. The
+// Node release kept a 48 KiB default for those clients.
 //
-// A client that reads a workspace_file reference host-side never puts those
-// bytes in model output, but each append is still one model tool call — and
-// every call re-sends the whole conversation. At 48 KiB a 990 KB data file is
-// 21 appends. An operator whose clients all read files host-side can raise the
-// ceiling (up to 1 MiB, which fits the default 2 MB request body as base64)
-// and make that one append.
+// A client that reads a workspace_file reference host-side (Fleet) never puts
+// those bytes in model output, but each append is still one model tool call —
+// and every call re-sends the whole conversation. At 48 KiB a 990 KB data file
+// was 21 appends. The Go server's default is 1 MiB, so a typical file is one
+// append; an operator whose clients have the model emit the base64 itself can
+// lower PAGE_UPLOAD_MAX_CHUNK_BYTES (down to 4 KiB). The top of the range is
+// 8 MiB, which the default 32 MiB request body carries as base64.
 //
 // This is a CEILING, not a required chunk size — sequences are
 // size-independent, so a client that can only emit small arguments keeps
@@ -42,10 +41,10 @@ const (
 	// MinChunkCeilingBytes is the smallest chunk ceiling an operator may set.
 	MinChunkCeilingBytes = 4 * 1024
 	// MaxChunkCeilingBytes is the largest; it matches the
-	// page_content_upload_chunks CHECK (migration 024).
-	MaxChunkCeilingBytes = 1024 * 1024
+	// page_content_upload_chunks CHECK (migration 027).
+	MaxChunkCeilingBytes = 8 * 1024 * 1024
 	// DefaultChunkBytes is the ceiling when PAGE_UPLOAD_MAX_CHUNK_BYTES is unset.
-	DefaultChunkBytes = 48 * 1024
+	DefaultChunkBytes = 1024 * 1024
 	// RPCEnvelopeReserveBytes: a chunk travels as base64 inside one JSON-RPC
 	// request, so a ceiling the request body cannot carry would be advertised
 	// and then refused with a 413 before any tool runs. Reserve room for the
@@ -55,17 +54,17 @@ const (
 	// even the minimum chunk.
 	MinTransportRequestBytes = (MinChunkCeilingBytes+2)/3*4 + RPCEnvelopeReserveBytes
 
-	// MaxUploadBytes is the staged raw-file budget (2 MiB).
-	MaxUploadBytes = datalimits.MaxUploadBytes
-
 	// ChunkingAdvisoryBytes: above this, a FRESH chunked upload is told about
 	// the ticket path before it emits any base64. Deliberately low: the cheap
 	// path is better at almost any size, and the advisory costs one sentence in
 	// a response the caller is already reading.
 	ChunkingAdvisoryBytes = 20000
 
-	// MaxActiveUploads is the per-token cap on uncommitted uploads.
-	MaxActiveUploads = 5
+	// MaxActiveUploads is the per-token cap on uncommitted uploads. Each holds
+	// at most MaxUploadBytes of chunks in the database until it commits,
+	// expires or goes stale; twenty lets an agent stage a page, its template
+	// and data for several pages in one session without hitting the cap.
+	MaxActiveUploads = 20
 	// AttemptWindowHours is how long a caller's chunked-upload attempts at one
 	// target stay counted. Long enough to span a session, short enough that a
 	// page someone uploads by hand once a month never accumulates into a
@@ -84,8 +83,10 @@ const (
 	// turn land seconds apart. Only consulted when the cap would otherwise
 	// reject a start.
 	StaleUploadMinutes = 60
-	// DefaultTicketTTLMinutes is PAGE_UPLOAD_TICKET_TTL_MINUTES's default.
-	DefaultTicketTTLMinutes = 15
+	// DefaultTicketTTLMinutes is PAGE_UPLOAD_TICKET_TTL_MINUTES's default. An
+	// hour covers a slow shell PUT of a 32 MiB file and a long agent turn; the
+	// ticket is still single-upload and expires with it.
+	DefaultTicketTTLMinutes = 60
 )
 
 // ChunkingHint is appended to every chunk/hash failure. Observed sessions hit
@@ -108,6 +109,10 @@ const ChunkingHint = "Do not hand-emit base64. If your client advertises workspa
 // already accepted is still on the server.
 const ResumeHint = "Do NOT cancel: a failed append changes nothing, and every chunk already accepted is still here. " +
 	"Re-send from the expected sequence and continue."
+
+// MaxUploadBytes is the staged raw-file budget (datalimits.MaxUploadBytes,
+// PAGES_UPLOAD_MAX_BYTES).
+func MaxUploadBytes() int { return datalimits.MaxUploadBytes() }
 
 // TransportMaxChunkBytes is the largest raw chunk whose base64 plus the
 // JSON-RPC envelope fits one MAX_HTML_BYTES request. It may be negative when
@@ -212,7 +217,7 @@ func MaxChunkBytes() int { return ChunkCeiling().Bytes }
 func MaxChunkBase64Chars() int { return (MaxChunkBytes() + 2) / 3 * 4 }
 
 // TicketTTLMinutes is PAGE_UPLOAD_TICKET_TTL_MINUTES read as JS parseInt (a
-// leading integer; 0 or unreadable ⇒ 15). An upload ticket is minted and
+// leading integer; 0 or unreadable ⇒ DefaultTicketTTLMinutes). An upload ticket is minted and
 // spent inside one agent turn; keep the window tight: it is a bearer string
 // that necessarily passes through a model context.
 func TicketTTLMinutes() int {

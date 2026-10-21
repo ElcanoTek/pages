@@ -15,6 +15,7 @@ import (
 	"sync"
 	"unicode/utf16"
 
+	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
@@ -22,9 +23,16 @@ import (
 // Middleware wraps a handler (requireAdminJSON, requireCsrf).
 type Middleware func(http.Handler) http.Handler
 
-// MaxBodyBytes caps a POST body; the server should set it to the dashboard's
-// request limit (MAX_HTML_BYTES, 2 MB by default).
-var MaxBodyBytes int64 = 2 * 1024 * 1024
+// MaxBodyBytes caps a POST body; 0 (the default) means the dashboard's
+// request limit, MAX_HTML_BYTES (datalimits.MaxRequestBytes), read per request.
+var MaxBodyBytes int64
+
+func bodyLimit() int64 {
+	if MaxBodyBytes > 0 {
+		return MaxBodyBytes
+	}
+	return int64(datalimits.MaxRequestBytes())
+}
 
 // maxPromptUnits is the prompt cap in UTF-16 code units (JS string length).
 // Generous: a pasted MOC protocol YAML is tens of KB. Still bounded.
@@ -158,7 +166,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request) (map[string]any, error) 
 	if mt != "application/json" || r.Body == nil {
 		return map[string]any{}, nil
 	}
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxBodyBytes))
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bodyLimit()))
 	if err != nil {
 		return nil, err
 	}

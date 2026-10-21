@@ -20,6 +20,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/nodedefaults"
 )
 
 func readGolden(t *testing.T, name string) []*jsonv.Object {
@@ -51,6 +52,7 @@ func readGolden(t *testing.T, name string) []*jsonv.Object {
 func str(o *jsonv.Object, k string) string { s, _ := o.Value(k).(string); return s }
 
 func TestGoldenNumbers(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	for _, r := range readGolden(t, "numbers.jsonl") {
 		v, err := jsonv.ParseString(str(r, "text"))
 		if err != nil {
@@ -69,6 +71,7 @@ func TestGoldenNumbers(t *testing.T) {
 }
 
 func TestGoldenCanonicalJSON(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	for _, r := range readGolden(t, "canonical.jsonl") {
 		v, err := jsonv.ParseString(str(r, "json"))
 		if err != nil {
@@ -91,6 +94,7 @@ func TestGoldenCanonicalJSON(t *testing.T) {
 }
 
 func TestGoldenPatterns(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	rows := readGolden(t, "patterns.jsonl")
 	var inputs []string
 	for _, in := range rows[0].Value("inputs").([]any) {
@@ -137,6 +141,7 @@ func TestGoldenPatterns(t *testing.T) {
 func utf16Offset(s string, byteOff int) int { return len(utf16.Encode([]rune(s[:byteOff]))) }
 
 func TestGoldenHTMLBlocks(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	for _, r := range readGolden(t, "html.jsonl") {
 		html := str(r, "html")
 		matches := map[string][]*Block{"pages-data": nil, "pages-data-schema": nil, "pages-config": nil}
@@ -191,6 +196,7 @@ func compileForTest(schema any) (*Validator, error) {
 }
 
 func TestGoldenAjv(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	raw, err := os.ReadFile(filepath.Join("testdata", "ajv-corpus.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -231,6 +237,7 @@ func TestGoldenAjv(t *testing.T) {
 }
 
 func TestGoldenProfiles(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	rows := readGolden(t, "profiles.jsonl")
 	var payloads []any
 	for _, r := range rows {
@@ -308,6 +315,7 @@ func asAny(o *jsonv.Object) any {
 }
 
 func TestGoldenManaged(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	now := time.Date(2026, 7, 17, 0, 2, 0, 0, time.UTC)
 	for _, r := range readGolden(t, "managed.jsonl") {
 		switch str(r, "kind") {
@@ -381,6 +389,7 @@ func TestGoldenManaged(t *testing.T) {
 }
 
 func TestGoldenShippedTemplates(t *testing.T) {
+	nodedefaults.Setenv(t) // recorded from the JavaScript at the Node release limits
 	for _, r := range readGolden(t, "templates.jsonl") {
 		raw, err := os.ReadFile(filepath.Join("..", "..", "templates", str(r, "name"), "template.html"))
 		if err != nil {

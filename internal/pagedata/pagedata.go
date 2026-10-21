@@ -108,24 +108,71 @@ func envBytes(name string, fallback int) int {
 	return int(f)
 }
 
-// MaxSchemaBytes is PAGES_DATA_SCHEMA_MAX_BYTES (default 256 KiB).
-func MaxSchemaBytes() int { return envBytes("PAGES_DATA_SCHEMA_MAX_BYTES", 256*1024) }
+// Defaults. The Go server raised these from the Node release (256 KiB schema
+// and config, 2 MiB template, 10000 schema nodes) together with the data
+// budget in internal/datalimits: a template has to hold an 8 MiB envelope plus
+// its page, and the schema and config ceilings scale with the payload. Schema
+// depth stays at 100: it bounds recursion, not size.
+const (
+	// DefaultSchemaBytes is PAGES_DATA_SCHEMA_MAX_BYTES' default (1 MiB).
+	DefaultSchemaBytes = 1024 * 1024
+	// DefaultConfigBytes is PAGES_DATA_CONFIG_MAX_BYTES' default (1 MiB).
+	DefaultConfigBytes = 1024 * 1024
+	// DefaultTemplateBytes is PAGES_DATA_TEMPLATE_MAX_BYTES' default (16 MiB):
+	// twice the default data budget, so a maximal envelope still leaves room
+	// for the page around it.
+	DefaultTemplateBytes = 16 * 1024 * 1024
+	// TemplateHeadroomBytes is how far above the data budget the template
+	// ceiling is held when an operator sets it at or below that budget.
+	TemplateHeadroomBytes = 1024 * 1024
+	// DefaultSchemaNodes is PAGES_DATA_SCHEMA_MAX_NODES' default.
+	DefaultSchemaNodes = 50000
+	// DefaultSchemaDepth is PAGES_DATA_SCHEMA_MAX_DEPTH' default.
+	DefaultSchemaDepth = 100
+)
 
-// MaxConfigBytes is PAGES_DATA_CONFIG_MAX_BYTES (default 256 KiB). Config is
-// per-campaign identity, channels and registries — kilobytes, not the megabyte
-// of rows a refresh carries; a tighter ceiling keeps a runaway config from
-// being smuggled in as "settings".
-func MaxConfigBytes() int { return envBytes("PAGES_DATA_CONFIG_MAX_BYTES", 256*1024) }
+// MaxSchemaBytes is PAGES_DATA_SCHEMA_MAX_BYTES (default 1 MiB).
+func MaxSchemaBytes() int { return envBytes("PAGES_DATA_SCHEMA_MAX_BYTES", DefaultSchemaBytes) }
 
-// MaxTemplateBytes is PAGES_DATA_TEMPLATE_MAX_BYTES (default 2 MiB), the
-// ceiling on a whole managed document.
-func MaxTemplateBytes() int { return envBytes("PAGES_DATA_TEMPLATE_MAX_BYTES", 2*1024*1024) }
+// MaxConfigBytes is PAGES_DATA_CONFIG_MAX_BYTES (default 1 MiB). Config is
+// per-campaign identity, channels and registries, far smaller than the rows a
+// refresh carries; a tighter ceiling than the data budget keeps a runaway
+// config from being smuggled in as "settings".
+func MaxConfigBytes() int { return envBytes("PAGES_DATA_CONFIG_MAX_BYTES", DefaultConfigBytes) }
+
+// MaxTemplateBytes is PAGES_DATA_TEMPLATE_MAX_BYTES (default 16 MiB), the
+// ceiling on a whole managed document. It is never at or below the data
+// budget: a document must hold a maximal envelope and still have a page
+// around it, so a setting that low reads as data budget + TemplateHeadroomBytes
+// (TemplateLimit reports it for the startup log).
+func MaxTemplateBytes() int { return TemplateLimit().Bytes }
+
+// Limit is a resolved size setting. Warning is "" when nothing needs saying.
+type Limit struct {
+	Bytes   int
+	Warning string
+}
+
+// TemplateLimit resolves PAGES_DATA_TEMPLATE_MAX_BYTES against the data
+// budget. The server should log a non-empty Warning at startup: the value in
+// effect is not the one the operator wrote.
+func TemplateLimit() Limit {
+	configured := envBytes("PAGES_DATA_TEMPLATE_MAX_BYTES", DefaultTemplateBytes)
+	data := datalimits.MaxDataBytes()
+	if configured > data {
+		return Limit{Bytes: configured}
+	}
+	floor := data + TemplateHeadroomBytes
+	return Limit{Bytes: floor, Warning: fmt.Sprintf(
+		"WARNING: PAGES_DATA_TEMPLATE_MAX_BYTES (%d) is not above PAGES_DATA_MAX_BYTES (%d), so no managed document "+
+			"could hold a full data envelope; managed documents are limited to %d bytes instead.", configured, data, floor)}
+}
 
 // MaxDataBytes is the managed-data payload budget (datalimits.MaxDataBytes).
 func MaxDataBytes() int { return datalimits.MaxDataBytes() }
 
-func maxSchemaNodes() int { return envBytes("PAGES_DATA_SCHEMA_MAX_NODES", 10000) }
-func maxSchemaDepth() int { return envBytes("PAGES_DATA_SCHEMA_MAX_DEPTH", 100) }
+func maxSchemaNodes() int { return envBytes("PAGES_DATA_SCHEMA_MAX_NODES", DefaultSchemaNodes) }
+func maxSchemaDepth() int { return envBytes("PAGES_DATA_SCHEMA_MAX_DEPTH", DefaultSchemaDepth) }
 
 // FutureToleranceMs is PAGES_SOURCE_FUTURE_TOLERANCE_MS (default five minutes):
 // how far in the future a source_as_of may be.
