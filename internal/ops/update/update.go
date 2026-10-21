@@ -490,17 +490,8 @@ func (a *activation) ready(ctx context.Context) bool {
 // otherwise pass readiness on the old code. A definite mismatch fails; an
 // unreadable MainPID or cwd is left to readiness, which has already passed.
 func (a *activation) servingRelease(ctx context.Context) error {
-	o := a.o
-	out, err := runner.Output(ctx, o.Runner, runner.Cmd{Name: "systemctl", Args: []string{"show", "-p", "MainPID", "--value", install.Service}})
-	if err != nil {
-		return nil
-	}
-	pid, err := strconv.Atoi(out)
-	if err != nil || pid <= 0 {
-		return nil
-	}
-	running, err := o.ProcCwd(pid)
-	if err != nil || running == "" {
+	pid, running, known := a.mainProcessDir(ctx)
+	if !known {
 		return nil
 	}
 	want, err := filepath.EvalSymlinks(a.release)
@@ -511,6 +502,22 @@ func (a *activation) servingRelease(ctx context.Context) error {
 		return fail("%s (pid %d) still runs %s, not the new release %s", install.Service, pid, running, a.release)
 	}
 	return nil
+}
+
+// mainProcessDir is the service's MainPID and that process's working
+// directory; known is false when either cannot be read.
+func (a *activation) mainProcessDir(ctx context.Context) (pid int, dir string, known bool) {
+	out, err := runner.Output(ctx, a.o.Runner, runner.Cmd{Name: "systemctl", Args: []string{"show", "-p", "MainPID", "--value", install.Service}})
+	if err != nil {
+		return 0, "", false
+	}
+	if pid, err = strconv.Atoi(out); err != nil || pid <= 0 {
+		return 0, "", false
+	}
+	if dir, err = a.o.ProcCwd(pid); err != nil || dir == "" {
+		return 0, "", false
+	}
+	return pid, dir, true
 }
 
 func (a *activation) restoreFile(name, target string) error {
