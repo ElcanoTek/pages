@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 
-package wire
+package httpx
 
 import (
 	"net/http/httptest"
@@ -72,21 +72,22 @@ func TestSendFreshness(t *testing.T) {
 	}
 }
 
-func TestJSONString(t *testing.T) {
-	for in, want := range map[string]string{
-		"a":             `"a"`,
-		"<&>":           `"<&>"`,
-		"\u2028":        "\"\u2028\"",
-		"q\"\\\n\t\x01": `"q\"\\\n\t\u0001"`,
-	} {
-		if got := JSONString(in); got != want {
-			t.Errorf("JSONString(%q) = %s, want %s", in, got, want)
-		}
+func TestETagMatchesExpress(t *testing.T) {
+	// From test/mcp-wire.golden.json: the 405 body.
+	body := `{"jsonrpc":"2.0","id":null,"error":{"code":-32000,"message":"Method not allowed; POST JSON-RPC to /mcp"}}`
+	if got := ETag([]byte(body)); got != `W/"69-8Q3Jri+XwYfOu+DRacl1LJszMxY"` {
+		t.Errorf("got %s", got)
+	}
+	if got := ETag(nil); got != `W/"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"` {
+		t.Errorf("empty: got %s", got)
 	}
 }
 
-func TestUTF16Len(t *testing.T) {
-	if UTF16Len("a😀é") != 4 {
-		t.Fatal(UTF16Len("a😀é"))
+func TestWriteJSON(t *testing.T) {
+	w := httptest.NewRecorder()
+	WriteJSON(w, 429, []byte(`{"a":1}`))
+	if w.Code != 429 || w.Body.String() != `{"a":1}` || w.Header().Get("Content-Type") != "application/json; charset=utf-8" ||
+		w.Header().Get("Content-Length") != "7" || w.Header().Get("ETag") != ETag([]byte(`{"a":1}`)) {
+		t.Fatalf("%d %q %v", w.Code, w.Body.String(), w.Header())
 	}
 }

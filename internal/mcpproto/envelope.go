@@ -5,7 +5,7 @@ package mcpproto
 
 // The request-envelope schemas of the MCP TypeScript SDK 1.32.1 (src/types.ts,
 // vendored in lib/vendor/mcp-sdk/types.js, MIT), as predicates over parsed
-// JSON (package jsjson). A message the SDK accepted is accepted here and one
+// JSON (package jsonv, ParseLossless). A message the SDK accepted is accepted here and one
 // it refused is refused: testdata/envelope-verdicts.json holds the SDK's own
 // verdict for every probe and the tests hold these functions to it.
 //
@@ -17,13 +17,13 @@ package mcpproto
 import (
 	"math"
 
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
 const relatedTaskMetaKey = "io.modelcontextprotocol/related-task"
 
-func asObject(v any) (*jsjson.Object, bool) {
-	o, ok := v.(*jsjson.Object)
+func asObject(v any) (*jsonv.Object, bool) {
+	o, ok := v.(*jsonv.Object)
 	return o, ok && o != nil
 }
 
@@ -46,25 +46,25 @@ func isFiniteNumber(v any) bool {
 // null, so arrays pass.
 func isAssertObject(v any) bool {
 	switch v.(type) {
-	case *jsjson.Object, []any:
+	case *jsonv.Object, []any:
 		return true
 	}
 	return false
 }
 
 // opt applies check to key when present.
-func opt(o *jsjson.Object, key string, check func(any) bool) bool {
+func opt(o *jsonv.Object, key string, check func(any) bool) bool {
 	v, ok := o.Get(key)
 	return !ok || check(v)
 }
 
-func req(o *jsjson.Object, key string, check func(any) bool) bool {
+func req(o *jsonv.Object, key string, check func(any) bool) bool {
 	v, ok := o.Get(key)
 	return ok && check(v)
 }
 
 // strictKeys reports whether o has no keys beyond allowed.
-func strictKeys(o *jsjson.Object, allowed ...string) bool {
+func strictKeys(o *jsonv.Object, allowed ...string) bool {
 	for _, k := range o.Keys() {
 		found := false
 		for _, a := range allowed {
@@ -96,7 +96,7 @@ func record(check func(any) bool) func(any) bool {
 	}
 }
 
-func objectWith(checks func(o *jsjson.Object) bool) func(any) bool {
+func objectWith(checks func(o *jsonv.Object) bool) func(any) bool {
 	return func(v any) bool {
 		o, ok := asObject(v)
 		return ok && checks(o)
@@ -111,18 +111,18 @@ func literal(want string) func(any) bool {
 }
 
 // IsRequestID is RequestIdSchema: a string or a safe integer.
-func IsRequestID(v any) bool { return isString(v) || jsjson.IsSafeInteger(v) }
+func IsRequestID(v any) bool { return isString(v) || jsonv.IsSafeInteger(v) }
 
-var isRequestMeta = objectWith(func(o *jsjson.Object) bool {
+var isRequestMeta = objectWith(func(o *jsonv.Object) bool {
 	return opt(o, "progressToken", IsRequestID) &&
-		opt(o, relatedTaskMetaKey, objectWith(func(t *jsjson.Object) bool { return req(t, "taskId", isString) }))
+		opt(o, relatedTaskMetaKey, objectWith(func(t *jsonv.Object) bool { return req(t, "taskId", isString) }))
 })
 
-func baseParams(o *jsjson.Object) bool { return opt(o, "_meta", isRequestMeta) }
+func baseParams(o *jsonv.Object) bool { return opt(o, "_meta", isRequestMeta) }
 
 var isBaseParams = objectWith(baseParams)
 
-var isTaskMetadata = objectWith(func(o *jsjson.Object) bool { return opt(o, "ttl", isFiniteNumber) })
+var isTaskMetadata = objectWith(func(o *jsonv.Object) bool { return opt(o, "ttl", isFiniteNumber) })
 
 // IsTaskAugmentedParams is TaskAugmentedRequestParamsSchema.
 func IsTaskAugmentedParams(v any) bool {
@@ -154,8 +154,8 @@ func isJSONRPCErrorResponse(v any) bool {
 	o, ok := asObject(v)
 	return ok && strictKeys(o, "jsonrpc", "id", "error") &&
 		req(o, "jsonrpc", literal(JSONRPCVersion)) && opt(o, "id", IsRequestID) &&
-		req(o, "error", objectWith(func(e *jsjson.Object) bool {
-			return req(e, "code", jsjson.IsSafeInteger) && req(e, "message", isString)
+		req(o, "error", objectWith(func(e *jsonv.Object) bool {
+			return req(e, "code", jsonv.IsSafeInteger) && req(e, "message", isString)
 		}))
 }
 
@@ -165,7 +165,7 @@ func IsJSONRPCMessage(v any) bool {
 	return IsJSONRPCRequest(v) || isJSONRPCNotification(v) || isJSONRPCResultResponse(v) || isJSONRPCErrorResponse(v)
 }
 
-var isIcon = objectWith(func(o *jsjson.Object) bool {
+var isIcon = objectWith(func(o *jsonv.Object) bool {
 	return req(o, "src", isString) && opt(o, "mimeType", isString) &&
 		opt(o, "sizes", arrayOf(isString)) &&
 		opt(o, "theme", func(v any) bool { return literal("light")(v) || literal("dark")(v) })
@@ -186,7 +186,7 @@ func arrayOf(check func(any) bool) func(any) bool {
 	}
 }
 
-var isImplementation = objectWith(func(o *jsjson.Object) bool {
+var isImplementation = objectWith(func(o *jsonv.Object) bool {
 	return req(o, "name", isString) && opt(o, "title", isString) && opt(o, "icons", arrayOf(isIcon)) &&
 		req(o, "version", isString) && opt(o, "websiteUrl", isString) && opt(o, "description", isString)
 })
@@ -194,26 +194,26 @@ var isImplementation = objectWith(func(o *jsjson.Object) bool {
 // isElicitationCapability: the SDK preprocesses {} to {form: {}}, then
 // intersects an object (form, url) with a string record, so any plain object
 // whose form and url, when present, have the right shape.
-var isElicitationCapability = objectWith(func(o *jsjson.Object) bool {
-	return opt(o, "form", objectWith(func(f *jsjson.Object) bool { return opt(f, "applyDefaults", isBool) })) &&
+var isElicitationCapability = objectWith(func(o *jsonv.Object) bool {
+	return opt(o, "form", objectWith(func(f *jsonv.Object) bool { return opt(f, "applyDefaults", isBool) })) &&
 		opt(o, "url", isAssertObject)
 })
 
-var isClientTasksCapability = objectWith(func(o *jsjson.Object) bool {
+var isClientTasksCapability = objectWith(func(o *jsonv.Object) bool {
 	return opt(o, "list", isAssertObject) && opt(o, "cancel", isAssertObject) &&
-		opt(o, "requests", objectWith(func(r *jsjson.Object) bool {
-			return opt(r, "sampling", objectWith(func(s *jsjson.Object) bool { return opt(s, "createMessage", isAssertObject) })) &&
-				opt(r, "elicitation", objectWith(func(e *jsjson.Object) bool { return opt(e, "create", isAssertObject) }))
+		opt(o, "requests", objectWith(func(r *jsonv.Object) bool {
+			return opt(r, "sampling", objectWith(func(s *jsonv.Object) bool { return opt(s, "createMessage", isAssertObject) })) &&
+				opt(r, "elicitation", objectWith(func(e *jsonv.Object) bool { return opt(e, "create", isAssertObject) }))
 		}))
 })
 
-var isClientCapabilities = objectWith(func(o *jsjson.Object) bool {
+var isClientCapabilities = objectWith(func(o *jsonv.Object) bool {
 	return opt(o, "experimental", record(isAssertObject)) &&
-		opt(o, "sampling", objectWith(func(s *jsjson.Object) bool {
+		opt(o, "sampling", objectWith(func(s *jsonv.Object) bool {
 			return opt(s, "context", isAssertObject) && opt(s, "tools", isAssertObject)
 		})) &&
 		opt(o, "elicitation", isElicitationCapability) &&
-		opt(o, "roots", objectWith(func(r *jsjson.Object) bool { return opt(r, "listChanged", isBool) })) &&
+		opt(o, "roots", objectWith(func(r *jsonv.Object) bool { return opt(r, "listChanged", isBool) })) &&
 		opt(o, "tasks", isClientTasksCapability) &&
 		opt(o, "extensions", record(isAssertObject))
 })
@@ -223,7 +223,7 @@ var isClientCapabilities = objectWith(func(o *jsjson.Object) bool {
 func IsInitializeRequest(v any) bool {
 	o, ok := asObject(v)
 	return ok && req(o, "method", literal("initialize")) &&
-		req(o, "params", objectWith(func(p *jsjson.Object) bool {
+		req(o, "params", objectWith(func(p *jsonv.Object) bool {
 			return baseParams(p) && req(p, "protocolVersion", isString) &&
 				req(p, "capabilities", isClientCapabilities) && req(p, "clientInfo", isImplementation)
 		}))
@@ -239,14 +239,14 @@ func IsPingRequest(v any) bool {
 func IsListToolsRequest(v any) bool {
 	o, ok := asObject(v)
 	return ok && req(o, "method", literal("tools/list")) &&
-		opt(o, "params", objectWith(func(p *jsjson.Object) bool { return baseParams(p) && opt(p, "cursor", isString) }))
+		opt(o, "params", objectWith(func(p *jsonv.Object) bool { return baseParams(p) && opt(p, "cursor", isString) }))
 }
 
 // IsCallToolRequest is CallToolRequestSchema.
 func IsCallToolRequest(v any) bool {
 	o, ok := asObject(v)
 	return ok && req(o, "method", literal("tools/call")) &&
-		req(o, "params", objectWith(func(p *jsjson.Object) bool {
+		req(o, "params", objectWith(func(p *jsonv.Object) bool {
 			return baseParams(p) && opt(p, "task", isTaskMetadata) && req(p, "name", isString) &&
 				opt(p, "arguments", record(func(any) bool { return true }))
 		}))

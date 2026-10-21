@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // The rules were JavaScript regular expressions. RE2 differs from ECMAScript in
@@ -34,17 +36,6 @@ func fold(word string) string {
 	}
 	return b.String()
 }
-
-func isJSSpace(r rune) bool {
-	switch r {
-	case '\t', '\n', '\v', '\f', '\r', ' ', 0x00a0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
-		return true
-	}
-	return r >= 0x2000 && r <= 0x200a
-}
-
-// jsTrim is String.prototype.trim.
-func jsTrim(s string) string { return strings.TrimFunc(s, isJSSpace) }
 
 var jsSpaceRun = regexp.MustCompile(sp + `+`)
 
@@ -93,7 +84,7 @@ func bareCalls(s string) []string {
 		k := j
 		for k < len(s) {
 			r, size := utf8.DecodeRuneInString(s[k:])
-			if !isJSSpace(r) {
+			if !jsstr.IsSpace(r) {
 				break
 			}
 			k += size

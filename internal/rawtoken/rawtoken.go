@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/nodebuf"
 )
 
@@ -133,26 +134,18 @@ func Mint(p MintParams, ttlSeconds int) (string, error) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"pid":` + strconv.FormatInt(p.PageID, 10))
 	buf.WriteString(`,"vid":` + strconv.FormatInt(p.VersionID, 10))
-	buf.WriteString(`,"purpose":` + jsonString(p.Purpose))
+	buf.WriteString(`,"purpose":` + jsonv.Quote(p.Purpose))
 	if p.RenderMode != "" {
-		buf.WriteString(`,"mode":` + jsonString(p.RenderMode))
+		buf.WriteString(`,"mode":` + jsonv.Quote(p.RenderMode))
 	}
-	buf.WriteString(`,"sid":` + jsonString(sid))
+	buf.WriteString(`,"sid":` + jsonv.Quote(sid))
 	buf.WriteString(`,"exp":` + strconv.FormatInt(time.Now().Unix()+int64(ttlSeconds), 10))
 	if p.Actor != "" {
-		buf.WriteString(`,"actor":` + jsonString(p.Actor))
+		buf.WriteString(`,"actor":` + jsonv.Quote(p.Actor))
 	}
 	buf.WriteByte('}')
 	body := base64.RawURLEncoding.EncodeToString(buf.Bytes())
 	return body + "." + base64.RawURLEncoding.EncodeToString(sign(key, body)), nil
-}
-
-func jsonString(s string) string {
-	var b bytes.Buffer
-	enc := json.NewEncoder(&b)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(s)
-	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // Claims is a verified token's payload.

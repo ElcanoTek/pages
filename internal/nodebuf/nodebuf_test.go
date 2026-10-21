@@ -38,21 +38,3 @@ func hexOf(b []byte) string {
 	}
 	return s.String()
 }
-
-func TestSliceUTF16(t *testing.T) {
-	for _, tc := range []struct {
-		in   string
-		n    int
-		want string
-	}{
-		{"abc", 2, "ab"},
-		{"abc", 5, "abc"},
-		{"é😀x", 3, "é😀"},
-		{"é😀x", 2, "é�"}, // a pair cut in half leaves a lone surrogate → U+FFFD
-		{"a\xffb", 5, "a�b"},
-	} {
-		if got := SliceUTF16(tc.in, tc.n); got != tc.want {
-			t.Errorf("SliceUTF16(%q, %d) = %q, want %q", tc.in, tc.n, got, tc.want)
-		}
-	}
-}

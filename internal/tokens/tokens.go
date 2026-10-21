@@ -47,6 +47,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
 )
 
@@ -100,21 +101,10 @@ func HashToken(rawToken string) string {
 
 var grantSlugRe = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:/[a-z0-9]+(?:[-_][a-z0-9]+)*)*$`)
 
-// jsTrim is String#trim: JavaScript's WhiteSpace and LineTerminator set.
-func jsTrim(s string) string {
-	return strings.TrimFunc(s, func(r rune) bool {
-		switch r {
-		case '\t', '\n', '\v', '\f', '\r', ' ', 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF:
-			return true
-		}
-		return r >= 0x2000 && r <= 0x200A
-	})
-}
-
 // NormalizeGrantSlug trims and lowercases slug and checks it is a valid page
 // slug.
 func NormalizeGrantSlug(slug string) (string, error) {
-	normalized := strings.ToLower(jsTrim(slug))
+	normalized := strings.ToLower(jsstr.Trim(slug))
 	if !grantSlugRe.MatchString(normalized) {
 		return "", fmt.Errorf("bad allowed slug: %s", slug)
 	}

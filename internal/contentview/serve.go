@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/csp"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 	"github.com/ElcanoTek/pages/internal/passwordgate"
 	"github.com/ElcanoTek/pages/internal/passwordvault"
@@ -39,12 +39,12 @@ func isSecure(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
-	return strings.Split(wire.Header(r, "X-Forwarded-Proto"), ",")[0] == "https"
+	return strings.Split(httpx.Header(r, "X-Forwarded-Proto"), ",")[0] == "https"
 }
 
 func sendWith(w http.ResponseWriter, r *http.Request, h csp.Headers, status int, html string) {
 	h.Apply(w.Header())
-	wire.SendHTML(w, r, status, html)
+	httpx.SendHTML(w, r, status, html)
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +169,7 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request, rawSlug string) 
 	// here, that read-only preview URL would become an hour-long session for
 	// the whole live page, bypassing the client password. So the audiences are
 	// disjoint by purpose, and the version equality stays as defence in depth.
-	if t, ok := wire.QueryParam(r, "t").String(); ok {
+	if t, ok := httpx.QueryParam(r, "t").String(); ok {
 		c := rawtoken.Verify(t)
 		// 0 is a live sentinel (template tokens carry pid 0), so require a
 		// real positive version id rather than trusting coercion.
@@ -180,12 +180,12 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request, rawSlug string) 
 			w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
 				TTLSeconds: 3600, Insecure: !isSecure(r), PasswordHash: page.PasswordHash,
 			}))
-			wire.Redirect(w, r, http.StatusFound, "/"+slug)
+			httpx.Redirect(w, r, http.StatusFound, "/"+slug)
 			return nil
 		}
 	}
 
-	cookies := wire.RequestCookies(r)
+	cookies := httpx.RequestCookies(r)
 	// Sessions are bound to the credential state that minted them: a password
 	// change (or set/clear) invalidates every prior cookie for this page.
 	tok, has := cookies[pagecookie.CookieName(page.ID)]
@@ -252,7 +252,7 @@ func (h *handler) servePortalIndex(w http.ResponseWriter, r *http.Request, porta
 		notFound(w, r)
 		return nil
 	}
-	cookies := wire.RequestCookies(r)
+	cookies := httpx.RequestCookies(r)
 	if tok, ok := cookies[pagecookie.PortalCookieName(portal.ID)]; ok &&
 		pagecookie.VerifyPortalSession(tok, portal.ID, portal.PasswordHash) {
 		// Membership is read live, per request — never cached into the
@@ -300,7 +300,7 @@ func (h *handler) unlockPortal(w http.ResponseWriter, r *http.Request, portalSlu
 	w.Header().Set("Set-Cookie", pagecookie.PortalSessionCookieHeader(portal.ID, pagecookie.CookieOptions{
 		Insecure: !isSecure(r), PasswordHash: portal.PasswordHash,
 	}))
-	wire.Redirect(w, r, http.StatusSeeOther, "/portal/"+portal.Slug) // 303 → browser GETs the index
+	httpx.Redirect(w, r, http.StatusSeeOther, "/portal/"+portal.Slug) // 303 → browser GETs the index
 	return nil
 }
 
@@ -340,7 +340,7 @@ func (h *handler) lockPortal(w http.ResponseWriter, r *http.Request, portalSlug 
 	}
 	// 303 back to the index, which now renders the password form — the reader
 	// sees the sign-out took effect rather than being told it did.
-	wire.Redirect(w, r, http.StatusSeeOther, "/portal/"+portal.Slug)
+	httpx.Redirect(w, r, http.StatusSeeOther, "/portal/"+portal.Slug)
 	return nil
 }
 
@@ -384,7 +384,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
 			Insecure: !secure, PasswordHash: page.PasswordHash,
 		}))
-		wire.Redirect(w, r, http.StatusSeeOther, "/"+slug)
+		httpx.Redirect(w, r, http.StatusSeeOther, "/"+slug)
 		return nil
 	}
 	// A partner who bookmarked one dashboard holds their PORTAL password, not
@@ -400,7 +400,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 			w.Header().Set("Set-Cookie", pagecookie.PortalSessionCookieHeader(portal.ID, pagecookie.CookieOptions{
 				Insecure: !secure, PasswordHash: portal.PasswordHash,
 			}))
-			wire.Redirect(w, r, http.StatusSeeOther, "/"+slug)
+			httpx.Redirect(w, r, http.StatusSeeOther, "/"+slug)
 			return nil
 		}
 	}

@@ -3,7 +3,11 @@
 
 package render
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ElcanoTek/pages/internal/jsonv"
+)
 
 // The built-in switcher: a self-contained control for every dashboard that does
 // not render its own. Constraints it has to satisfy, since it lands inside an
@@ -151,8 +155,8 @@ const switcherJSTemplate = `(function(){
 // built-in control, computed once.
 var switcherTags = func() []string {
 	js := strings.NewReplacer(
-		"NAV_ID_JSON", jsonString(NavBlockID),
-		"CSS_JSON", jsonString(switcherCSS),
+		"NAV_ID_JSON", jsonv.Quote(NavBlockID),
+		"CSS_JSON", jsonv.Quote(switcherCSS),
 	).Replace(switcherJSTemplate)
 	return []string{
 		"<style data-flag-injected>\n" + switcherCSS + "\n</style>",

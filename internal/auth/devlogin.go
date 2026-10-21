@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/httpx"
 )
 
 // DevLogin is the local dev-login (GATED). The real auth service mints the
@@ -48,7 +48,7 @@ func (a *Authenticator) DevLoginFromEnv() (DevLogin, bool) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p := r.URL.Path
 			if r.Method == http.MethodGet && (strings.HasPrefix(p, "/admin/") || strings.HasPrefix(p, "/view/")) && a.CurrentSession(r) == nil {
-				wire.Redirect(w, r, http.StatusFound, "/__dev/login?next="+wire.EncodeURIComponent(wire.OriginalURL(r)))
+				httpx.Redirect(w, r, http.StatusFound, "/__dev/login?next="+httpx.EncodeURIComponent(httpx.OriginalURL(r)))
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -61,12 +61,12 @@ func (a *Authenticator) DevLoginFromEnv() (DevLogin, bool) {
 		// reduce to a LOCAL path so a no-cookie /admin visit round-trips
 		// through here and back — never to the real auth/home.
 		raw := "/"
-		if v, ok := wire.QueryParam(r, "next").String(); ok && v != "" {
+		if v, ok := httpx.QueryParam(r, "next").String(); ok && v != "" {
 			raw = v
-		} else if v, ok := wire.QueryParam(r, "return_to").String(); ok && v != "" {
+		} else if v, ok := httpx.QueryParam(r, "return_to").String(); ok && v != "" {
 			raw = v
 		}
-		wire.Redirect(w, r, http.StatusFound, devLocalPath(raw))
+		httpx.Redirect(w, r, http.StatusFound, devLocalPath(raw))
 	})
 	return DevLogin{Intercept: intercept, Login: login}, true
 }

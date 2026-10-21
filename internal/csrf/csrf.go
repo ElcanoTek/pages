@@ -32,8 +32,9 @@ import (
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/auth"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
 // TTLSeconds is a shell token's life: good for a working session.
@@ -66,7 +67,7 @@ func sign(body string) string {
 // base64url({"sub":email,"exp":…}) "." HMAC-SHA256.
 func Mint(email string) string {
 	exp := Now().Unix() + TTLSeconds
-	payload := `{"sub":` + wire.JSONString(email) + `,"exp":` + strconv.FormatInt(exp, 10) + `}`
+	payload := `{"sub":` + jsonv.Quote(email) + `,"exp":` + strconv.FormatInt(exp, 10) + `}`
 	body := base64.RawURLEncoding.EncodeToString([]byte(payload))
 	return body + "." + sign(body)
 }
@@ -115,11 +116,11 @@ func RequireAdminJSON(a *auth.Authenticator) func(http.Handler) http.Handler {
 				return
 			}
 			if s == nil {
-				wire.SendJSON(w, r, http.StatusUnauthorized, errBody{"not signed in", "no_session"})
+				httpx.SendJSON(w, r, http.StatusUnauthorized, errBody{"not signed in", "no_session"})
 				return
 			}
 			if !a.IsAdmin(s) {
-				wire.SendJSON(w, r, http.StatusForbidden, errBody{"Elcano staff only", "not_admin"})
+				httpx.SendJSON(w, r, http.StatusForbidden, errBody{"Elcano staff only", "not_admin"})
 				return
 			}
 			next.ServeHTTP(w, auth.WithSession(r, s))
@@ -137,27 +138,27 @@ type errBody struct {
 // one is refused as bad_csrf.
 func RequireCsrf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := wire.Header(r, "Origin")
+		origin := httpx.Header(r, "Origin")
 		// Expected origin = this request's own scheme+host (Caddy sets
 		// X-Forwarded-*).
-		proto := wire.Header(r, "X-Forwarded-Proto")
+		proto := httpx.Header(r, "X-Forwarded-Proto")
 		if proto == "" {
 			proto = "http"
 			if r.TLS != nil {
 				proto = "https"
 			}
 		}
-		host := wire.Header(r, "X-Forwarded-Host")
+		host := httpx.Header(r, "X-Forwarded-Host")
 		if host == "" {
 			host = r.Host
 		}
 		if origin == "" || origin != proto+"://"+host {
-			wire.SendJSON(w, r, http.StatusForbidden, errBody{"cross-origin request blocked", "bad_origin"})
+			httpx.SendJSON(w, r, http.StatusForbidden, errBody{"cross-origin request blocked", "bad_origin"})
 			return
 		}
 		s := auth.User(r)
-		if s == nil || !Verify(wire.Header(r, "X-CSRF-Token"), s.Email) {
-			wire.SendJSON(w, r, http.StatusForbidden, errBody{"missing or invalid CSRF token", "bad_csrf"})
+		if s == nil || !Verify(httpx.Header(r, "X-CSRF-Token"), s.Email) {
+			httpx.SendJSON(w, r, http.StatusForbidden, errBody{"missing or invalid CSRF token", "bad_csrf"})
 			return
 		}
 		next.ServeHTTP(w, r)

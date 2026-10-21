@@ -33,6 +33,7 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/render"
 )
 
@@ -208,7 +209,7 @@ func collectScripts(doc *html.Node) []script {
 		if _, ok := attr(n, "src"); ok {
 			return
 		}
-		if src := textOf(n); jsTrim(src) != "" {
+		if src := textOf(n); jsstr.Trim(src) != "" {
 			scripts = append(scripts, script{src: src, module: typ == "module"})
 		}
 	})
@@ -297,10 +298,10 @@ type subresourceChecker struct {
 
 // classify is resourceUrl: nil when there is nothing to check.
 func (c *subresourceChecker) classify(value, directive string) (allowed bool, host string, ok bool) {
-	if jsTrim(value) == "" {
+	if jsstr.Trim(value) == "" {
 		return false, "", false
 	}
-	u, valid := resolveURL(jsTrim(value), c.base)
+	u, valid := resolveURL(jsstr.Trim(value), c.base)
 	if !valid {
 		return false, "an invalid URL", true
 	}
