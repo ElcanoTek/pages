@@ -104,6 +104,12 @@ func run(t *testing.T, failure string) *fixture {
 		write(t, filepath.Join(source, ".git"), "gitdir: "+filepath.Join(f.dir, "elsewhere")+"\n", 0)
 	case "commondir":
 		write(t, filepath.Join(source, ".git", "commondir"), filepath.Join(f.dir, "elsewhere")+"\n", 0)
+	case "alternates":
+		write(t, filepath.Join(source, ".git", "objects", "info", "alternates"), filepath.Join(f.dir, "elsewhere", "objects")+"\n", 0)
+	case "git-include":
+		write(t, filepath.Join(source, ".git", "config"), "[include]\n\tpath = "+filepath.Join(f.dir, "elsewhere.gitconfig")+"\n", 0)
+	case "git-hooks-path":
+		write(t, filepath.Join(source, ".git", "config"), "[core]\n\trepositoryformatversion = 0\n\thooksPath = "+filepath.Join(f.dir, "hooks")+"\n", 0)
 	}
 	write(t, filepath.Join(f.app, "release-marker"), "original", 0)
 	if failure != "legacy-start" {
@@ -260,7 +266,7 @@ func TestReleaseUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir"} {
+	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path"} {
 		t.Run(failure, func(t *testing.T) {
 			f := run(t, failure)
 			succeeds := failure == "none" || failure == "pull" || failure == "writable-build"
@@ -356,9 +362,9 @@ func TestReleaseUpdate(t *testing.T) {
 				if !strings.Contains(f.err.Error(), "refusing to hand off") || f.handoff != "" {
 					t.Fatalf("a linked build output must not be executed:\n%s", f.out.String())
 				}
-			case "linked-worktree", "commondir":
+			case "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path":
 				if !strings.Contains(f.out.String()+f.err.Error(), "plain clone") || f.handoff != "" || strings.Contains(f.fake.Log(), "fetch") {
-					t.Fatalf("an external Git directory must stop the update before git runs: %v\n%s\n%s", f.err, f.out.String(), f.fake.Log())
+					t.Fatalf("an external Git directory or config must stop the update before git runs: %v\n%s\n%s", f.err, f.out.String(), f.fake.Log())
 				}
 			case "unsafe-root":
 				if !strings.Contains(f.out.String()+f.err.Error(), "unsafe installation directory") || f.handoff != "" {

@@ -640,7 +640,19 @@ func (d *run) host(ctx context.Context) {
 	if runner.Have(o.Runner, "dnf") {
 		// `dnf check-update` exits 100 when updates are available; that is a
 		// report, not an error. Updating stays the operator's `dnf upgrade`.
-		_, err := o.Runner.Run(ctx, runner.Cmd{Name: "dnf", Args: []string{"check-update"}})
+		// Under `--check`, doctor runs as the service user whose HOME is
+		// /opt/pages (root-owned 0755), so dnf5 gets a writable scratch home
+		// instead of failing on mkdir ~/.local/state.
+		var env []string
+		if scratch, err := os.MkdirTemp("", "pages-dnf-"); err == nil {
+			defer os.RemoveAll(scratch)
+			env = append(os.Environ(),
+				"HOME="+scratch,
+				"XDG_STATE_HOME="+filepath.Join(scratch, "state"),
+				"XDG_CACHE_HOME="+filepath.Join(scratch, "cache"),
+			)
+		}
+		_, err := o.Runner.Run(ctx, runner.Cmd{Name: "dnf", Args: []string{"check-update"}, Env: env})
 		switch code := runner.ExitCode(err); code {
 		case 0:
 			r.pass("dnf packages current")

@@ -301,6 +301,48 @@ func Digest(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// copyBudget bounds the entries and bytes copyTree writes (used when
+// check-integrity snapshots an untrusted backup directory before verifying its
+// manifest).
+type copyBudget struct {
+	maxFiles     int
+	maxBytes     int64
+	minFreeBytes uint64
+	files        int
+	bytes        int64
+}
+
+func (b *copyBudget) takeEntry() error {
+	if b == nil {
+		return nil
+	}
+	b.files++
+	if b.maxFiles > 0 && b.files > b.maxFiles {
+		return fmt.Errorf("backup exceeds snapshot file limit (%d entries)", b.maxFiles)
+	}
+	return nil
+}
+
+func (b *copyBudget) takeBytes(size int64, targetDir string) error {
+	if b == nil || size <= 0 {
+		return nil
+	}
+	if b.maxBytes > 0 && b.bytes+size > b.maxBytes {
+		return fmt.Errorf("backup exceeds snapshot size limit (%d bytes)", b.maxBytes)
+	}
+	if b.minFreeBytes > 0 {
+		var st syscall.Statfs_t
+		if err := syscall.Statfs(targetDir, &st); err == nil {
+			avail := st.Bavail * uint64(max(st.Bsize, 0))
+			if avail < uint64(size)+b.minFreeBytes {
+				return fmt.Errorf("insufficient free space for check-integrity snapshot (%d bytes available)", avail)
+			}
+		}
+	}
+	b.bytes += size
+	return nil
+}
+
 // copyTree copies regular files and directories; links and special files
 // fail explicitly rather than producing an incomplete copy. The source can
 // be writable by the service account while root copies it, so nothing is
@@ -310,6 +352,10 @@ func Digest(path string) (string, error) {
 // swapped in after the listing is refused, never read), and a file is read
 // for exactly the length fstat reported.
 func copyTree(ctx context.Context, source, target string, exclude map[string]bool) error {
+	return copyTreeBounded(ctx, source, target, exclude, nil)
+}
+
+func copyTreeBounded(ctx context.Context, source, target string, exclude map[string]bool, budget *copyBudget) error {
 	dir, err := os.OpenFile(source, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
@@ -321,14 +367,14 @@ func copyTree(ctx context.Context, source, target string, exclude map[string]boo
 	if err := os.MkdirAll(target, 0o700); err != nil {
 		return err
 	}
-	return copyDir(ctx, dir, target, exclude)
+	return copyDir(ctx, dir, target, exclude, budget)
 }
 
 // afterListing, when set (tests only), runs between listing a source
 // directory and opening its entries: the window another account races.
 var afterListing func(dir string)
 
-func copyDir(ctx context.Context, dir *os.File, target string, exclude map[string]bool) error {
+func copyDir(ctx context.Context, dir *os.File, target string, exclude map[string]bool, budget *copyBudget) error {
 	entries, err := dir.ReadDir(-1)
 	if err != nil {
 		return err
@@ -344,6 +390,9 @@ func copyDir(ctx context.Context, dir *os.File, target string, exclude map[strin
 		if exclude[e.Name()] {
 			continue
 		}
+		if err := budget.takeEntry(); err != nil {
+			return err
+		}
 		from, to := filepath.Join(dir.Name(), e.Name()), filepath.Join(target, e.Name())
 		if !e.IsDir() && !e.Type().IsRegular() {
 			return fmt.Errorf("unsupported link or special file in capture: %s", from)
@@ -355,7 +404,7 @@ func copyDir(ctx context.Context, dir *os.File, target string, exclude map[strin
 			}
 			return err
 		}
-		err = copyOpened(ctx, in, e.IsDir(), from, to)
+		err = copyOpened(ctx, in, e.IsDir(), from, to, budget)
 		in.Close()
 		if err != nil {
 			return err
@@ -365,7 +414,7 @@ func copyDir(ctx context.Context, dir *os.File, target string, exclude map[strin
 }
 
 // copyOpened copies the entry in is open on, by its own fstat type.
-func copyOpened(ctx context.Context, in *os.File, wantDir bool, from, to string) error {
+func copyOpened(ctx context.Context, in *os.File, wantDir bool, from, to string, budget *copyBudget) error {
 	st, err := in.Stat()
 	if err != nil {
 		return err
@@ -375,8 +424,11 @@ func copyOpened(ctx context.Context, in *os.File, wantDir bool, from, to string)
 		if err := os.Mkdir(to, 0o700); err != nil {
 			return err
 		}
-		return copyDir(ctx, in, to, nil)
+		return copyDir(ctx, in, to, nil, budget)
 	case !wantDir && st.Mode().IsRegular():
+		if err := budget.takeBytes(st.Size(), filepath.Dir(to)); err != nil {
+			return err
+		}
 		return copyBounded(in, st, to)
 	}
 	return fmt.Errorf("unsupported link or special file in capture: %s", from)
@@ -996,13 +1048,24 @@ func Check(ctx context.Context, o Options, directory string) (res *CheckResult, 
 // verified and before its rehearsal: the window a swap in the backup races.
 var afterVerify func(backupDir string)
 
+// Snapshot ceilings for check-integrity's private copy before manifest
+// verification. Overridable so tests can exercise them without multi-gigabyte
+// fixtures.
+var (
+	SnapshotMaxBytes     int64  = 8 << 30 // 8 GiB
+	SnapshotMaxFiles     int    = 100_000
+	SnapshotMinFreeBytes uint64 = 256 << 20 // 256 MiB
+)
+
 // snapshotBackup copies the backup at dir (manifest, dump, application,
 // assets and config: everything verification and the rehearsal read) into
 // <private>/backup, where <private> is a fresh 0700 directory only the
 // invoking account (root, for check-integrity) can enter, and returns that
 // path; the caller removes its parent. The copy is copyTree's: entries open
 // relative to held descriptors without following links, only regular files
-// and directories, each read for its fstat length. pg_restore and the probe
+// and directories, each read for its fstat length, bounded by
+// SnapshotMaxBytes, SnapshotMaxFiles and SnapshotMinFreeBytes before
+// manifest.json is trusted. pg_restore and the probe
 // run as the invoking account, so nothing in the snapshot is opened up to
 // the scratch cluster's postgres account. It costs one temporary copy of
 // the backup on the temporary directory's filesystem.
@@ -1012,7 +1075,12 @@ func snapshotBackup(ctx context.Context, dir string) (string, error) {
 		return "", err
 	}
 	snap := filepath.Join(private, "backup")
-	if err := copyTree(ctx, dir, snap, nil); err != nil {
+	budget := &copyBudget{
+		maxFiles:     SnapshotMaxFiles,
+		maxBytes:     SnapshotMaxBytes,
+		minFreeBytes: SnapshotMinFreeBytes,
+	}
+	if err := copyTreeBounded(ctx, dir, snap, nil, budget); err != nil {
 		_ = os.RemoveAll(private)
 		return "", err
 	}

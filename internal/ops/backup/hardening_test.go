@@ -350,3 +350,30 @@ func TestCheckIntegrityRehearsesTheVerifiedSnapshot(t *testing.T) {
 	_, err = Check(ctx, o, dir)
 	wantErr(t, err, "inventory/checksum mismatch")
 }
+
+// TestSnapshotBackupRejectsOversizedBackup: check-integrity snapshots the
+// backup directory before trusting manifest.json, so an untrusted writer
+// must not be able to exhaust the temporary filesystem by planting too many
+// bytes, too many entries, or a file that breaches the free-space reserve.
+func TestSnapshotBackupRejectsOversizedBackup(t *testing.T) {
+	origBytes, origFiles, origFree := SnapshotMaxBytes, SnapshotMaxFiles, SnapshotMinFreeBytes
+	t.Cleanup(func() {
+		SnapshotMaxBytes, SnapshotMaxFiles, SnapshotMinFreeBytes = origBytes, origFiles, origFree
+	})
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "manifest.json"), "{}\n")
+	writeFile(t, filepath.Join(dir, "assets", "northwind.bin"), strings.Repeat("x", 2048))
+
+	SnapshotMaxBytes, SnapshotMaxFiles, SnapshotMinFreeBytes = 1024, 100, 0
+	_, err := Check(context.Background(), Options{}, dir)
+	wantErr(t, err, `exceeds snapshot size limit \(1024 bytes\)`)
+
+	SnapshotMaxBytes, SnapshotMaxFiles, SnapshotMinFreeBytes = 1<<20, 2, 0
+	_, err = Check(context.Background(), Options{}, dir)
+	wantErr(t, err, `exceeds snapshot file limit \(2 entries\)`)
+
+	SnapshotMaxBytes, SnapshotMaxFiles, SnapshotMinFreeBytes = 1<<20, 100, ^uint64(0)>>1
+	_, err = Check(context.Background(), Options{}, dir)
+	wantErr(t, err, `insufficient free space for check-integrity snapshot`)
+}
