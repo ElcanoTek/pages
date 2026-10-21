@@ -20,6 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/ElcanoTek/pages/internal/ops/backupprobe"
 	"github.com/ElcanoTek/pages/internal/ops/runner"
 	"github.com/ElcanoTek/pages/internal/testdb"
 )
@@ -250,4 +251,102 @@ func TestCopyTreeNeverFollowsSwappedEntries(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCheckIntegrityRehearsesTheVerifiedSnapshot: check-integrity runs as
+// root on a directory another account may write. Once its files verify,
+// that account swaps database.dump for a different, valid dump (one whose
+// restore would report other contents). The rehearsal must restore the
+// bytes that verified, from root's private snapshot, so the result is the
+// original inventory and the probe never reads the backup directory.
+func TestCheckIntegrityRehearsesTheVerifiedSnapshot(t *testing.T) {
+	for _, tool := range []string{"pg_dump", "initdb", "pg_restore", "createdb", "createuser"} {
+		if _, err := PostgresTool(tool); err != nil {
+			t.Skip(err)
+		}
+	}
+	euid := os.Geteuid()
+	if euid == 0 {
+		if _, err := user.Lookup("postgres"); err != nil {
+			t.Skip("root run needs a postgres account for the scratch cluster")
+		}
+	}
+	d, dbURL := testdb.NewWithURL(t)
+	ctx := context.Background()
+	if _, err := d.Exec(ctx, "INSERT INTO pages (slug, title) VALUES ('northwind-report', 'Northwind')"); err != nil {
+		t.Fatal(err)
+	}
+	s := installation(t, "DATABASE_URL='"+dbURL+"'\nRAW_TOKEN_SECRET='northwind-backup-raw-fixture'\nAPI_TOKEN_PEPPER='northwind-backup-token-fixture'\nPAGE_COOKIE_SECRET='northwind-backup-cookie-fixture'\n")
+	if euid == 0 {
+		s.AppUser = "postgres"
+	}
+	var probedAssets []string
+	probe := func(ctx context.Context, _, assets string, env []string) (json.RawMessage, error) {
+		probedAssets = append(probedAssets, assets)
+		e := envMap(env)
+		pool, err := pgxpool.New(ctx, fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable", e["PGHOST"], e["PGPORT"], e["PGUSER"], e["PGDATABASE"]))
+		if err != nil {
+			return nil, err
+		}
+		defer pool.Close()
+		res, err := backupprobe.Inspect(ctx, pool, assets)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(res)
+	}
+	o := Options{Runner: runner.Exec{}, EUID: euid, Probe: probe, ReleaseRoot: s.ReleaseRoot()}
+	dir, err := Capture(ctx, o, s, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The replacement restores cleanly but holds a second page.
+	if _, err := d.Exec(ctx, "INSERT INTO pages (slug, title) VALUES ('fabrikam-planted', 'Fabrikam')"); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := os.ReadFile(dumpOf(t, dbURL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	swapped := false
+	afterVerify = func(backupDir string) {
+		victim := filepath.Join(backupDir, "database.dump")
+		if err := os.Remove(victim); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.WriteFile(victim, replacement, 0o600); err != nil {
+			t.Error(err)
+			return
+		}
+		swapped = true
+	}
+	defer func() { afterVerify = nil }()
+	probedAssets = nil
+	res, err := Check(ctx, o, dir)
+	if !swapped {
+		t.Fatal("the swap hook never ran")
+	}
+	if err != nil {
+		t.Fatalf("the rehearsal read the swapped dump: %v", err)
+	}
+	var raw struct {
+		Counts map[string]string `json:"counts"`
+	}
+	_ = json.Unmarshal(res.Restored, &raw)
+	if res.Status != "verified" || res.BackupDir != dir || raw.Counts["pages"] != "1" {
+		t.Fatalf("restored %s from %+v", res.Restored, res)
+	}
+	if len(probedAssets) != 1 || strings.HasPrefix(probedAssets[0], dir) {
+		t.Fatalf("probe read %v, not the private snapshot", probedAssets)
+	}
+	// The snapshot is gone afterwards.
+	if _, err := os.Stat(filepath.Dir(probedAssets[0])); !os.IsNotExist(err) {
+		t.Fatalf("snapshot %s left behind: %v", probedAssets[0], err)
+	}
+	// Run straight against the swapped directory, the replacement no longer
+	// matches its manifest: the swap is what the snapshot defeated.
+	afterVerify = nil
+	_, err = Check(ctx, o, dir)
+	wantErr(t, err, "inventory/checksum mismatch")
 }

@@ -934,12 +934,24 @@ type CheckResult struct {
 // must reproduce the capture-time result. A backup written by the Node
 // release's scripts/backup.js is recognised by its manifest and checked by
 // checkNodeEra instead.
-func Check(ctx context.Context, o Options, directory string) (*CheckResult, error) {
+func Check(ctx context.Context, o Options, directory string) (res *CheckResult, err error) {
 	dir, err := filepath.EvalSymlinks(directory)
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	// Everything below reads the private snapshot, never dir: another
+	// account that can write dir could otherwise swap a file between its
+	// verification and the rehearsal that reopens it by name.
+	snap, err := snapshotBackup(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if rerr := os.RemoveAll(filepath.Dir(snap)); rerr != nil && err == nil {
+			res, err = nil, fmt.Errorf("remove check-integrity snapshot: %w", rerr)
+		}
+	}()
+	b, err := os.ReadFile(filepath.Join(snap, "manifest.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -948,16 +960,24 @@ func Check(ctx context.Context, o Options, directory string) (*CheckResult, erro
 		return nil, err
 	}
 	if legacy {
-		return checkNodeEra(ctx, o, dir, b)
+		res, err := checkNodeEra(ctx, o, snap, b)
+		if err != nil {
+			return nil, err
+		}
+		res.BackupDir = dir
+		return res, nil
 	}
 	var m Manifest
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("manifest.json: %w", err)
 	}
-	if _, err := VerifyFiles(dir, &m); err != nil {
+	if _, err := VerifyFiles(snap, &m); err != nil {
 		return nil, err
 	}
-	restored, probedWith, err := Rehearse(ctx, o, dir, m.RuntimeConfiguration)
+	if afterVerify != nil {
+		afterVerify(dir)
+	}
+	restored, probedWith, err := Rehearse(ctx, o, snap, m.RuntimeConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -965,9 +985,36 @@ func Check(ctx context.Context, o Options, directory string) (*CheckResult, erro
 	if err := json.Compact(&want, m.Restored); err != nil || !bytes.Equal(want.Bytes(), restored) {
 		return nil, errors.New("restored database inventory differs from the backup manifest")
 	}
-	res := &CheckResult{Status: "verified", BackupDir: dir, ProbedWith: probedWith, Restored: restored}
+	res = &CheckResult{Status: "verified", BackupDir: dir, ProbedWith: probedWith, Restored: restored}
 	if probedWith == "" {
 		res.Notice, res.ServedWith = UntrustedBinaryNotice, version.String()
 	}
 	return res, nil
+}
+
+// afterVerify, when set (tests only), runs once the snapshot's files have
+// verified and before its rehearsal: the window a swap in the backup races.
+var afterVerify func(backupDir string)
+
+// snapshotBackup copies the backup at dir (manifest, dump, application,
+// assets and config: everything verification and the rehearsal read) into
+// <private>/backup, where <private> is a fresh 0700 directory only the
+// invoking account (root, for check-integrity) can enter, and returns that
+// path; the caller removes its parent. The copy is copyTree's: entries open
+// relative to held descriptors without following links, only regular files
+// and directories, each read for its fstat length. pg_restore and the probe
+// run as the invoking account, so nothing in the snapshot is opened up to
+// the scratch cluster's postgres account. It costs one temporary copy of
+// the backup on the temporary directory's filesystem.
+func snapshotBackup(ctx context.Context, dir string) (string, error) {
+	private, err := os.MkdirTemp("", "pages-check-")
+	if err != nil {
+		return "", err
+	}
+	snap := filepath.Join(private, "backup")
+	if err := copyTree(ctx, dir, snap, nil); err != nil {
+		_ = os.RemoveAll(private)
+		return "", err
+	}
+	return snap, nil
 }

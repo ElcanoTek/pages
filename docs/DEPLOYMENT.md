@@ -954,7 +954,12 @@ curl -s -o /dev/null -w '%{http_code}\n' https://pages.example.com/some-slug  # 
 
 `pages backup [dest]` captures a complete recovery set and rehearses a restore
 before reporting success. `pages check-integrity <backup-dir>` verifies every
-captured file and repeats the same restore check. Both commands work with the
+captured file and repeats the same restore check. It first copies the backup
+directory into a private, root-only temporary snapshot (regular files and
+directories only, never following links) and verifies and restores that
+snapshot, so a file swapped in the backup after it verifies is never read; allow
+free space for one temporary copy of the backup under `$TMPDIR` (default
+`/tmp`). Both commands work with the
 persisted installation paths, including the shared assets and local `.env`
 symlinks used by managed releases.
 
