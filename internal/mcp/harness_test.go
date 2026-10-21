@@ -297,6 +297,17 @@ func (h *harness) data(r response) map[string]any {
 	return out
 }
 
+// ordered is a tool result's text content parsed with key order intact.
+func ordered(t *testing.T, r response) *jsonv.Object {
+	t.Helper()
+	v, err := jsonv.ParseLossless([]byte(strAt(r.json, "result", "content", 0, "text")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, _ := v.(*jsonv.Object)
+	return obj
+}
+
 func clipText(s string) string {
 	if len(s) > 2000 {
 		return s[:2000] + "…"
