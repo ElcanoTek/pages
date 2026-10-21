@@ -35,6 +35,14 @@ linters:
           - gosec
           - errcheck
           - noctx
+      # The operator tooling installs system files whose modes are part of
+      # the contract (0644 units and banners, 0755 binaries and release
+      # directories, 0640 environment files) and works on operator-configured
+      # paths and URLs by design.
+      - path: internal/(ops|cli)/
+        linters:
+          - gosec
+        text: "G30[126]|G703|G704"
       - text: 'shadow: declaration of "err"'
         linters:
           - govet

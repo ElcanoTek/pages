@@ -8,6 +8,10 @@ export GOTOOLCHAIN
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/ElcanoTek/pages/internal/version.Version=$(VERSION)
 
+# Where `make build` writes the binary. `pages update` builds each release
+# straight into its release directory: make build BIN=<release>/pages.
+BIN ?= pages
+
 # The throwaway Postgres `make test-db` starts and the Go tests use
 # (internal/testdb reads PAGES_TEST_DATABASE_URL; this is its default).
 TEST_PG_DIR ?= $(CURDIR)/.devdata/testpg
@@ -16,7 +20,7 @@ TEST_PG_PORT ?= 5433
 all: build
 
 help:
-	@echo "make build      compile-check ./... and emit ./pages"
+	@echo "make build      compile-check ./... and emit ./pages (BIN=path to put it elsewhere)"
 	@echo "make test       go test ./... (database tests skip without Postgres; see test-db)"
 	@echo "make test-race  the same, with -race"
 	@echo "make test-db    start a throwaway Postgres on :$(TEST_PG_PORT) for the database tests"
@@ -24,7 +28,7 @@ help:
 	@echo "make ci         vet + lint + test-race, as CI runs them"
 
 build: compile
-	go build -trimpath -ldflags '$(LDFLAGS)' -o pages ./cmd/pages
+	go build -trimpath -ldflags '$(LDFLAGS)' -o '$(BIN)' ./cmd/pages
 
 compile:
 	go build ./...

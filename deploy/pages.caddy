@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 ElcanoTek, Inc.
 # Caddy site blocks for Elcano Pages, imported by /etc/caddy/Caddyfile via
-# `import conf.d/*.caddy`. bootstrap.sh substitutes {{DASHBOARD_HOST}} and
+# `import conf.d/*.caddy`. `pages bootstrap` substitutes {{DASHBOARD_HOST}} and
 # {{CONTENT_HOST}} and injects `tls internal` when Let's Encrypt is disabled.
 #
 # TWO hostnames, ONE backend (127.0.0.1:3002). The app branches on Host:
