@@ -935,6 +935,14 @@ test("the detail keeps the product's section nav and says where the page sits", 
   await expect(page.locator("#breadcrumb-current")).toHaveText(/North America Programmatic/);
   await expect(page).toHaveTitle(/^North America Programmatic .+ · Pages$/);
   await expectNoSeriousAxeViolations(page, "detail section nav and breadcrumb");
+
+  // The workspace crumb is a way back to that workspace's pages, not just a label.
+  const workspaceCrumb = trail.getByRole("link", { name: "Campaign operations" });
+  await expect(workspaceCrumb).toHaveAttribute("href", "/admin?workspace=1");
+  await workspaceCrumb.click();
+  await expect(page).toHaveURL(/\/admin\?workspace=1$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Campaign operations" })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Search Campaign operations" })).toBeVisible();
 });
 
 test.describe("with scripting off", () => {
@@ -953,6 +961,8 @@ test("a page with no workspace still gets a complete trail", async ({ page, requ
   await request.post("/__fixture/empty-workspaces");
   await page.goto(DETAIL);
   await expect(page.locator("#breadcrumb-workspace")).toHaveText("Ungrouped");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Ungrouped" }))
+    .toHaveAttribute("href", "/admin?workspace=ungrouped");
 });
 
 test("a confirmation is header, message, actions — with no empty band between them", async ({ page }) => {

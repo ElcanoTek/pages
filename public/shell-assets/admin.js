@@ -1544,9 +1544,14 @@
       current.textContent = label;
       current.title = `/${page.slug}`;
     }
+    // The workspace crumb links to the index filtered to that workspace, using
+    // the same ?workspace= address the index's own workspace views write.
     const workspace = document.getElementById("breadcrumb-workspace");
     if (workspace) {
-      workspace.replaceChildren(page.workspace_name || "Ungrouped");
+      // Either "ungrouped" or a numeric database id, so nothing needs encoding.
+      const id = String(page.workspace_id ?? "");
+      const view = /^\d+$/.test(id) ? id : "ungrouped";
+      workspace.replaceChildren(el("a", { href: `/admin?workspace=${view}` }, page.workspace_name || "Ungrouped"));
       workspace.hidden = false;
     }
   }
