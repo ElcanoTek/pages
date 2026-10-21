@@ -39,6 +39,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/audit"
 	"github.com/ElcanoTek/pages/internal/contentview"
+	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/routens"
@@ -196,7 +197,7 @@ func TestAPIIntegration(t *testing.T) {
 		if malformed.body != `{"error":"invalid JSON request body","code":"bad_json"}` {
 			t.Fatalf("malformed body: %s", malformed.body)
 		}
-		oversized := c.do("POST", path, reqOpts{token: token, body: map[string]any{"html": strings.Repeat("x", 2*1024*1024)}})
+		oversized := c.do("POST", path, reqOpts{token: token, body: map[string]any{"html": strings.Repeat("x", datalimits.MaxRequestBytes())}})
 		expectStatus(t, oversized, 413, "oversized body")
 		if oversized.body != `{"error":"request body too large","code":"body_too_large"}` || len(oversized.body) >= 200 {
 			t.Fatalf("oversized body: %s", oversized.body)

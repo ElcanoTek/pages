@@ -212,7 +212,7 @@ func TestSyntax(t *testing.T) {
 // A Go stack overflow is a fatal crash, not an error: no document may be able
 // to recurse a parser without bound.
 func TestHostileNestingNeverCrashes(t *testing.T) {
-	n := maxScriptBytes - 16
+	n := 1024*1024 - 16
 	for _, src := range []string{
 		"var " + strings.Repeat("[", n/2) + strings.Repeat("]", n/2) + "=x",
 		"var " + strings.Repeat("{a:", n/4) + "b" + strings.Repeat("}", n/4) + "=x",
@@ -230,6 +230,25 @@ func TestHostileNestingNeverCrashes(t *testing.T) {
 		if d := time.Since(start); d > 5*time.Second {
 			t.Errorf("%.12q… took %v", src, d)
 		}
+	}
+}
+
+// A large but ordinary inline script (a bundled chart library) is still
+// syntax-checked, and quickly.
+func TestLargeScriptIsChecked(t *testing.T) {
+	line := "var a" + strings.Repeat("b", 10) + " = function (x) { return x * 2 + 1; };\n"
+	src := strings.Repeat(line, (6*1024*1024)/len(line))
+	start := time.Now()
+	r := Analyze("<script>"+src+"</script>", Options{})
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("6 MiB script took %v", d)
+	}
+	if find(r.Errors, "script_syntax_error") != nil {
+		t.Fatalf("valid script reported: %v", codes(r.Errors))
+	}
+	broken := Analyze("<script>"+src+"function (</script>", Options{})
+	if find(broken.Errors, "script_syntax_error") == nil {
+		t.Fatalf("a broken 6 MiB script is not reported: %v", codes(broken.Errors))
 	}
 }
 

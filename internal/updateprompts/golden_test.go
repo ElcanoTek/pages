@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ElcanoTek/pages/internal/nodedefaults"
+
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/jsonv"
@@ -138,6 +140,8 @@ func sourcesArg(t *testing.T, o *jsonv.Object) []Source {
 }
 
 func TestGoldenPrompts(t *testing.T) {
+	// Recorded from the JavaScript at its size defaults, which the prompts quote.
+	nodedefaults.Setenv(t)
 	g := loadGolden(t)
 	for i, c := range cases(t, g, "managed") {
 		a := c.Value("args").(*jsonv.Object)
@@ -251,6 +255,8 @@ func (s stubReader) binding(context.Context, string) (*templates.Binding, error)
 }
 
 func TestGoldenPrepare(t *testing.T) {
+	// Recorded from the JavaScript at its size defaults, which the prompts quote.
+	nodedefaults.Setenv(t)
 	g := loadGolden(t)
 	states := g.Value("states").(*jsonv.Object)
 	for i, c := range cases(t, g, "prepare") {

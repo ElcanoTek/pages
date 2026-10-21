@@ -43,8 +43,10 @@ import (
 const MaxPerRule = 8
 
 // maxScriptBytes bounds the syntax check; it runs on the deploy path (cf. the
-// managed-data CPU bound in page-data).
-const maxScriptBytes = 1024 * 1024
+// managed-data CPU bound in page-data). It follows the raised page budgets: a
+// dashboard that bundles its charting library inline is still checked, and the
+// parser is linear, so an 8 MiB script costs well under a second.
+const maxScriptBytes = 8 * 1024 * 1024
 
 // Finding is one advisory result. Fields are declared in the order the JS
 // emitted them (code, message, then the rule's own keys, then fix); each rule
