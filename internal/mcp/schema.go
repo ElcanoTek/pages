@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/jsstr"
@@ -343,15 +344,15 @@ func (s *Schema) optoutOptional() bool {
 
 // ── JSON Schema ─────────────────────────────────────────────────────────────
 
-type io int
+type ioDir int
 
 const (
-	ioInput io = iota
+	ioInput ioDir = iota
 	ioOutput
 )
 
 // JSONSchema is the draft-07 document for s, as z.toJSONSchema emitted it.
-func (s *Schema) JSONSchema(dir io) *jsonv.Object {
+func (s *Schema) JSONSchema(dir ioDir) *jsonv.Object {
 	root := s.emit(dir)
 	compact(root)
 	out := jsonv.ObjectOf("$schema", "http://json-schema.org/draft-07/schema#")
@@ -362,7 +363,7 @@ func (s *Schema) JSONSchema(dir io) *jsonv.Object {
 	return out
 }
 
-func (s *Schema) emit(dir io) *jsonv.Object {
+func (s *Schema) emit(dir ioDir) *jsonv.Object {
 	o := jsonv.NewObject()
 	wrapper := false
 	switch s.kind {
@@ -630,20 +631,62 @@ func compact(o *jsonv.Object) {
 }
 
 // ── parsing ─────────────────────────────────────────────────────────────────
+//
+// zod's run loop: a schema parses its type, then runs its checks over the
+// same value. A length check (min/max/length) has a `when` guard and runs
+// whenever the value has a length (a string or an array) unless an issue
+// explicitly aborted; every other check runs only while nothing has aborted.
+// A type mismatch does not explicitly abort, which is why zod reports
+// "expected string, received array" followed by "Too small: expected array
+// to have >=1 items" for z.string().min(1) given [].
 
 type issue struct {
 	path    []any
 	message string
-	cont    bool // zod's `continue`: the issue does not abort
+	// cont is zod's `continue`: contTrue, contUnset (a type mismatch) or
+	// contFalse (an explicit abort: the int check).
+	cont int
 }
 
-func aborted(issues []issue, from int) bool {
-	for _, is := range issues[from:] {
-		if !is.cont {
+const (
+	contUnset = 0
+	contTrue  = 1
+	contFalse = -1
+)
+
+type result struct {
+	value  any
+	issues []issue
+	// aborted is payload.aborted, set by a failed pipe.
+	aborted bool
+}
+
+func (r *result) isAborted(from int) bool {
+	if r.aborted {
+		return true
+	}
+	for _, is := range r.issues[from:] {
+		if is.cont != contTrue {
 			return true
 		}
 	}
 	return false
+}
+
+func (r *result) explicitlyAborted() bool {
+	if r.aborted {
+		return true
+	}
+	for _, is := range r.issues {
+		if is.cont == contFalse {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *result) add(message string) {
+	r.issues = append(r.issues, issue{message: message, cont: contTrue})
 }
 
 func prefix(key any, issues []issue) []issue {
@@ -692,188 +735,253 @@ func numberString(n float64) string { return jsonv.FormatNumber(n) }
 // Parse validates v (a jsonv value) and returns the parsed value, or the
 // issues as an *mcpproto.ValidationError.
 func (s *Schema) Parse(v any) (any, error) {
-	out, issues := s.run(v, true)
-	if len(issues) == 0 {
-		return out, nil
+	r := s.run(v, true)
+	if len(r.issues) == 0 {
+		return r.value, nil
 	}
 	ve := &mcpproto.ValidationError{}
-	for _, is := range issues {
+	for _, is := range r.issues {
 		ve.Issues = append(ve.Issues, mcpproto.Issue{Path: is.path, Message: is.message})
 	}
 	return nil, ve
 }
 
-func (s *Schema) run(v any, present bool) (any, []issue) {
+func fail(is issue) result { return result{issues: []issue{is}} }
+
+func (s *Schema) run(v any, present bool) result {
+	r := s.parseType(v, present)
+	if len(s.checks) > 0 {
+		s.runChecks(v, present, &r)
+	}
+	return r
+}
+
+func (s *Schema) parseType(v any, present bool) result {
 	switch s.kind {
 	case kOptional:
 		if !present {
-			return nil, nil
+			return result{}
 		}
 		return s.inner.run(v, true)
 	case kNullable:
 		if present && v == nil {
-			return nil, nil
+			return result{}
 		}
 		return s.inner.run(v, present)
 	case kDefault:
 		if !present {
-			return cloneValue(s.def), nil
+			return result{value: cloneValue(s.def)}
 		}
 		return s.inner.run(v, true)
 	case kPipe:
-		out, issues := s.inner.run(v, present)
-		if len(issues) > 0 {
-			return nil, issues
+		r := s.inner.run(v, present)
+		if len(r.issues) > 0 {
+			r.aborted = true
+			return r
 		}
-		return s.transform(out), nil
+		return result{value: s.transform(r.value)}
 	case kUnknown:
-		return v, nil
+		return result{value: v}
 	case kNever:
-		return nil, []issue{invalidType("never", v, present)}
+		return fail(invalidType("never", v, present))
 	case kLiteral:
 		if present && v == s.literal {
-			return v, nil
+			return result{value: v}
 		}
-		return nil, []issue{{message: "Invalid input: expected " + stringifyPrimitive(s.literal)}}
+		return fail(issue{message: "Invalid input: expected " + stringifyPrimitive(s.literal)})
 	case kEnum:
 		if str, ok := v.(string); ok && present {
 			for _, e := range s.enum {
 				if e == str {
-					return v, nil
+					return result{value: v}
 				}
 			}
 		}
 		if len(s.enum) == 1 {
-			return nil, []issue{{message: "Invalid input: expected " + stringifyPrimitive(s.enum[0])}}
+			return fail(issue{message: "Invalid input: expected " + stringifyPrimitive(s.enum[0])})
 		}
 		quoted := make([]string, len(s.enum))
 		for i, e := range s.enum {
 			quoted[i] = stringifyPrimitive(e)
 		}
-		return nil, []issue{{message: "Invalid option: expected one of " + strings.Join(quoted, "|")}}
+		return fail(issue{message: "Invalid option: expected one of " + strings.Join(quoted, "|")})
 	case kBool:
 		if _, ok := v.(bool); ok && present {
-			return v, nil
+			return result{value: v}
 		}
-		return nil, []issue{invalidType("boolean", v, present)}
+		return fail(invalidType("boolean", v, present))
 	case kNull:
 		if present && v == nil {
-			return nil, nil
+			return result{}
 		}
-		return nil, []issue{invalidType("null", v, present)}
+		return fail(invalidType("null", v, present))
 	case kString:
-		str, ok := v.(string)
-		if !ok || !present {
-			return nil, []issue{invalidType("string", v, present)}
+		if _, ok := v.(string); ok && present {
+			return result{value: v}
 		}
-		return v, s.runStringChecks(str)
+		return fail(invalidType("string", v, present))
 	case kNumber:
-		n, ok := v.(float64)
-		if !ok || !present || math.IsInf(n, 0) {
-			return nil, []issue{invalidType("number", v, present)}
+		if n, ok := v.(float64); ok && present && !math.IsInf(n, 0) {
+			return result{value: v}
 		}
-		return v, s.runNumberChecks(n)
+		return fail(invalidType("number", v, present))
 	case kObject:
 		return s.runObject(v, present)
 	case kArray:
 		arr, ok := v.([]any)
 		if !ok || !present {
-			return nil, []issue{invalidType("array", v, present)}
+			return fail(invalidType("array", v, present))
 		}
 		out := make([]any, len(arr))
 		var issues []issue
 		for i, e := range arr {
-			pv, is := s.elem.run(e, true)
-			issues = append(issues, prefix(i, is)...)
-			out[i] = pv
+			er := s.elem.run(e, true)
+			issues = append(issues, prefix(i, er.issues)...)
+			out[i] = er.value
 		}
-		if !aborted(issues, 0) {
-			issues = append(issues, s.runLengthChecks(len(arr), "array", "items")...)
-		}
-		return out, issues
+		return result{value: out, issues: issues}
 	case kRecord:
 		obj, ok := v.(*jsonv.Object)
 		if !ok || !present {
-			return nil, []issue{invalidType("record", v, present)}
+			return fail(invalidType("record", v, present))
 		}
 		out := jsonv.NewObject()
 		var issues []issue
 		obj.Range(func(k string, e any) bool {
-			pv, is := s.elem.run(e, true)
-			if len(is) > 0 {
-				issues = append(issues, prefix(k, is)...)
+			er := s.elem.run(e, true)
+			if len(er.issues) > 0 {
+				issues = append(issues, prefix(k, er.issues)...)
 			} else {
-				out.Set(k, pv)
+				out.Set(k, er.value)
 			}
 			return true
 		})
-		return out, issues
+		return result{value: out, issues: issues}
 	case kUnion:
-		type result struct {
-			v      any
-			issues []issue
-		}
 		var results []result
 		for _, o := range s.options {
-			pv, is := o.run(v, present)
-			if len(is) == 0 {
-				return pv, nil
+			r := o.run(v, present)
+			if len(r.issues) == 0 {
+				return r
 			}
-			results = append(results, result{pv, is})
+			results = append(results, r)
 		}
 		var nonAborted []result
 		for _, r := range results {
-			if !aborted(r.issues, 0) {
+			if !r.isAborted(0) {
 				nonAborted = append(nonAborted, r)
 			}
 		}
 		if len(nonAborted) == 1 {
-			return nonAborted[0].v, nonAborted[0].issues
+			return nonAborted[0]
 		}
-		return nil, []issue{{message: "Invalid input"}}
+		return fail(issue{message: "Invalid input"})
 	}
-	return v, nil
+	return result{value: v}
 }
 
-func (s *Schema) runStringChecks(str string) []issue {
-	var issues []issue
+// lengthOf is the `.length` zod's length checks see, and the origin they
+// report: code points of a string (zod measures strings in code points),
+// elements of an array.
+func lengthOf(v any, present bool) (int, string, bool) {
+	if !present {
+		return 0, "", false
+	}
+	switch x := v.(type) {
+	case string:
+		return utf8.RuneCountInString(x), "string", true
+	case []any:
+		return len(x), "array", true
+	}
+	return 0, "", false
+}
+
+var lengthUnits = map[string]string{"string": "characters", "array": "items"}
+
+func (s *Schema) runChecks(v any, present bool, r *result) {
+	aborted := r.isAborted(0)
 	for _, ch := range s.checks {
-		if aborted(issues, 0) {
-			break
-		}
-		n := jsstr.UTF16Len(str)
+		from := len(r.issues)
 		switch ch.op {
-		case "min":
-			if float64(n) < ch.n {
-				issues = append(issues, issue{message: "Too small: expected string to have >=" + numberString(ch.n) + " characters", cont: true})
+		case "min", "max", "length":
+			if r.explicitlyAborted() {
+				continue
 			}
-		case "max":
-			if float64(n) > ch.n {
-				issues = append(issues, issue{message: "Too big: expected string to have <=" + numberString(ch.n) + " characters", cont: true})
+			n, origin, ok := lengthOf(v, present)
+			if !ok {
+				continue
 			}
-		case "regex":
-			if !ch.pattern.re.MatchString(str) {
-				issues = append(issues, issue{message: "Invalid string: must match pattern /" + ch.pattern.source + "/", cont: true})
+			unit := lengthUnits[origin]
+			size := float64(n)
+			switch {
+			case ch.op == "min" && size < ch.n:
+				r.add(fmt.Sprintf("Too small: expected %s to have >=%s %s", origin, numberString(ch.n), unit))
+			case ch.op == "max" && size > ch.n:
+				r.add(fmt.Sprintf("Too big: expected %s to have <=%s %s", origin, numberString(ch.n), unit))
+			case ch.op == "length" && size > ch.n:
+				r.add(fmt.Sprintf("Too big: expected %s to have exactly %s %s", origin, numberString(ch.n), unit))
+			case ch.op == "length" && size < ch.n:
+				r.add(fmt.Sprintf("Too small: expected %s to have exactly %s %s", origin, numberString(ch.n), unit))
 			}
-		case "datetime":
-			if !ch.pattern.re.MatchString(str) {
-				issues = append(issues, issue{message: "Invalid ISO datetime", cont: true})
+		default:
+			if aborted {
+				continue
 			}
-		case "uuid":
-			if !ch.pattern.re.MatchString(str) {
-				issues = append(issues, issue{message: "Invalid UUID", cont: true})
-			}
-		case "url":
-			if !isURL(str) {
-				issues = append(issues, issue{message: "Invalid URL", cont: true})
-			}
-		case "refine":
-			if !ch.refine(str) {
-				issues = append(issues, issue{message: ch.message, cont: true})
-			}
+			runValueCheck(ch, v, r)
+		}
+		if !aborted && len(r.issues) > from {
+			aborted = r.isAborted(from)
 		}
 	}
-	return issues
+}
+
+func runValueCheck(ch check, v any, r *result) {
+	switch ch.op {
+	case "regex", "datetime", "uuid", "url":
+		str, _ := v.(string)
+		switch {
+		case ch.op == "url":
+			if !isURL(str) {
+				r.add("Invalid URL")
+			}
+		case ch.pattern.re.MatchString(str):
+		case ch.op == "regex":
+			r.add("Invalid string: must match pattern /" + ch.pattern.source + "/")
+		case ch.op == "datetime":
+			r.add("Invalid ISO datetime")
+		default:
+			r.add("Invalid UUID")
+		}
+	case "refine":
+		if !ch.refine(v) {
+			r.add(ch.message)
+		}
+	case "int":
+		n, _ := v.(float64)
+		if n != math.Trunc(n) {
+			r.issues = append(r.issues, issue{message: "Invalid input: expected int, received number", cont: contFalse})
+			return
+		}
+		if math.Abs(n) > maxSafeInteger {
+			if n > 0 {
+				r.add("Too big: expected int to be <=" + strconv.Itoa(maxSafeInteger))
+			} else {
+				r.add("Too small: expected int to be >=-" + strconv.Itoa(maxSafeInteger))
+			}
+		}
+	case "gt":
+		if n, _ := v.(float64); !(n > ch.n) {
+			r.add("Too small: expected number to be >" + numberString(ch.n))
+		}
+	case "gte":
+		if n, _ := v.(float64); !(n >= ch.n) {
+			r.add("Too small: expected number to be >=" + numberString(ch.n))
+		}
+	case "lte":
+		if n, _ := v.(float64); !(n <= ch.n) {
+			r.add("Too big: expected number to be <=" + numberString(ch.n))
+		}
+	}
 }
 
 // isURL approximates new URL(value.trim()) succeeding: an absolute URL with a
@@ -883,97 +991,34 @@ func isURL(s string) bool {
 	return err == nil && u.Scheme != "" && (u.Host != "" || u.Opaque != "" || u.Path != "")
 }
 
-func (s *Schema) runNumberChecks(n float64) []issue {
-	var issues []issue
-	for _, ch := range s.checks {
-		if aborted(issues, 0) {
-			break
-		}
-		switch ch.op {
-		case "int":
-			if n != math.Trunc(n) {
-				issues = append(issues, issue{message: "Invalid input: expected int, received number"})
-				continue
-			}
-			if math.Abs(n) > maxSafeInteger {
-				if n > 0 {
-					issues = append(issues, issue{message: "Too big: expected int to be <=" + strconv.Itoa(maxSafeInteger), cont: true})
-				} else {
-					issues = append(issues, issue{message: "Too small: expected int to be >=-" + strconv.Itoa(maxSafeInteger), cont: true})
-				}
-			}
-		case "gt":
-			if !(n > ch.n) {
-				issues = append(issues, issue{message: "Too small: expected number to be >" + numberString(ch.n), cont: true})
-			}
-		case "gte":
-			if !(n >= ch.n) {
-				issues = append(issues, issue{message: "Too small: expected number to be >=" + numberString(ch.n), cont: true})
-			}
-		case "lte":
-			if !(n <= ch.n) {
-				issues = append(issues, issue{message: "Too big: expected number to be <=" + numberString(ch.n), cont: true})
-			}
-		}
-	}
-	return issues
-}
-
-func (s *Schema) runLengthChecks(n int, origin, unit string) []issue {
-	var issues []issue
-	for _, ch := range s.checks {
-		if aborted(issues, 0) {
-			break
-		}
-		size := float64(n)
-		switch ch.op {
-		case "min":
-			if size < ch.n {
-				issues = append(issues, issue{message: fmt.Sprintf("Too small: expected %s to have >=%s %s", origin, numberString(ch.n), unit), cont: true})
-			}
-		case "max":
-			if size > ch.n {
-				issues = append(issues, issue{message: fmt.Sprintf("Too big: expected %s to have <=%s %s", origin, numberString(ch.n), unit), cont: true})
-			}
-		case "length":
-			if size > ch.n {
-				issues = append(issues, issue{message: fmt.Sprintf("Too big: expected %s to have exactly %s %s", origin, numberString(ch.n), unit), cont: true})
-			} else if size < ch.n {
-				issues = append(issues, issue{message: fmt.Sprintf("Too small: expected %s to have exactly %s %s", origin, numberString(ch.n), unit), cont: true})
-			}
-		}
-	}
-	return issues
-}
-
-func (s *Schema) runObject(v any, present bool) (any, []issue) {
+func (s *Schema) runObject(v any, present bool) result {
 	obj, ok := v.(*jsonv.Object)
 	if !ok || !present {
-		return nil, []issue{invalidType("object", v, present)}
+		return fail(invalidType("object", v, present))
 	}
 	out := jsonv.NewObject()
-	var issues []issue
+	r := result{value: out}
 	known := map[string]bool{}
 	for _, fd := range s.fields {
 		known[fd.name] = true
 		val, has := obj.Get(fd.name)
-		pv, is := fd.schema.run(val, has)
+		fr := fd.schema.run(val, has)
 		optin := fd.schema.optin()
 		optOut := fd.schema.optoutOptional()
 		if !has && optOut && optin == optOptional {
 			continue
 		}
-		if len(is) > 0 {
+		if len(fr.issues) > 0 {
 			if optin != optNone && optOut && !has {
 				continue
 			}
-			issues = append(issues, prefix(fd.name, is)...)
+			r.issues = append(r.issues, prefix(fd.name, fr.issues)...)
 		}
 		if !has && optin == optNone {
 			continue
 		}
-		if len(is) == 0 {
-			out.Set(fd.name, pv)
+		if len(fr.issues) == 0 {
+			out.Set(fd.name, fr.value)
 		}
 	}
 	var unrecognized []string
@@ -998,14 +1043,14 @@ func (s *Schema) runObject(v any, present bool) (any, []issue) {
 		if len(unrecognized) > 1 {
 			plural = "s"
 		}
-		issues = append(issues, issue{message: "Unrecognized key" + plural + ": " + strings.Join(quoted, ", "), cont: true})
+		r.add("Unrecognized key" + plural + ": " + strings.Join(quoted, ", "))
 	}
-	if s.superRefine != nil && !aborted(issues, 0) {
+	if s.superRefine != nil && !r.isAborted(0) {
 		s.superRefine(out, func(path []any, message string) {
-			issues = append(issues, issue{path: path, message: message, cont: true})
+			r.issues = append(r.issues, issue{path: path, message: message, cont: contTrue})
 		})
 	}
-	return out, issues
+	return r
 }
 
 // cloneValue deep-copies a jsonv value (defaults must not be shared).

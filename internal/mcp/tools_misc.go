@@ -197,4 +197,3 @@ func configurePageRefresh(ctx context.Context, c *call, a *jsonv.Object) (any, e
 	return spread(prepared, jsonv.ObjectOf("next_step",
 		"Pages did not install the legacy cadence and did not honor run_now. Use prompt verbatim as the prompt of the recurring task and set its cadence on the task; do not claim this update was configured or executed."))
 }
-

@@ -537,8 +537,8 @@ func buildCatalog(l limits) *catalog {
 			renderText:  renderGuide,
 		},
 		{
-			name:  "create_upload_ticket",
-			title: "Create Page Upload Ticket",
+			name:        "create_upload_ticket",
+			title:       "Create Page Upload Ticket",
 			description: l.dataLimitGuidance + "For clients without workspace file references on append_page_upload, the preferred way to publish a file you already have on disk — page HTML, a template, or a managed-data JSON payload. Returns a one-shot URL your shell can PUT the file to directly, so the bytes never pass through your own output: `curl -fsS -X PUT --data-binary @<file> -H \"Authorization: Bearer <ticket>\" <upload_url>`. Supply the exact byte count and lowercase SHA-256 first — the ticket only ever accepts those exact bytes. Then call deploy_page_upload with the upload_id — register_template_upload if you staged a template, update_page_data_upload if you staged kind 'data'. Use append_page_upload instead only if your environment cannot make outbound HTTP requests.",
 			input: zObject(uploadTargetFields(
 				"With a slug: 'page' (default) stages HTML for deploy_page_upload; 'data' stages a managed-data JSON " +
