@@ -1,0 +1,2706 @@
+[
+{
+"method": "GET",
+"path": "/api/v1/pages",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listPages\",\"slug\":null,\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages",
+"status": 200,
+"contentType": "text/plain",
+"allow": "GET, HEAD, POST",
+"body": "GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listPages\",\"slug\":null,\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/",
+"status": 200,
+"contentType": "text/plain",
+"allow": "GET, HEAD, POST",
+"body": "GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/PAGES",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listPages\",\"slug\":null,\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/PAGES",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/PAGES",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/PAGES",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1/PAGES",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/PAGES",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/PAGES",
+"status": 200,
+"contentType": "text/plain",
+"allow": "GET, HEAD, POST",
+"body": "GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/API/V1/pages",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listPages\",\"slug\":null,\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/API/V1/pages",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/API/V1/pages",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"createPage\",\"body\":\"<undefined>\"}"
+},
+{
+"method": "DELETE",
+"path": "/API/V1/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/API/V1/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/API/V1/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/API/V1/pages",
+"status": 200,
+"contentType": "text/plain",
+"allow": "GET, HEAD, POST",
+"body": "GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "HEAD",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "GET",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "GET",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "HEAD",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v12/pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"acme/\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/ACME",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"ACME\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/ACME",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/ACME",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/ACME",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"ACME\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/ACME",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/ACME",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/ACME",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/nested/q2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"nested/q2\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/nested/q2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/nested/q2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/nested/q2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"nested/q2\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/nested/q2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/nested/q2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/nested/q2",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"nested/q2\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"nested/q2\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/nested%2Fq2",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listVersions\",\"slug\":\"nested/q2\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deploy\",\"slug\":\"nested/q2\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"nested/q2/versions\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/nested%2fq2/versions",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a%20b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"a b\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a%20b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a%20b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a%20b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a b\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a%20b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a%20b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a%20b",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"\u00e9t\u00e9\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"\u00e9t\u00e9\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/%C3%A9t%C3%A9",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listVersions\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deploy\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listVersions\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deploy\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions/\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getVersion\",\"slug\":\"acme\",\"id\":\"12\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions/12\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/12",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getVersion\",\"slug\":\"acme\",\"id\":\"12\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions/12/\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/12/",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getVersion\",\"slug\":\"acme\",\"id\":\"12\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/Versions/12\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/Versions/12",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getVersion\",\"slug\":\"acme\",\"id\":\"1/2\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions/1/2\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/1%2F2",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/%ZZ",
+"status": 500,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"internal error\"}"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listVersions\",\"slug\":\"a/versions\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deploy\",\"slug\":\"a/versions\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a/versions/versions\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a/versions/versions",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getVersion\",\"slug\":\"a/versions\",\"id\":\"3\"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a/versions/versions/3\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a/versions/versions/3",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a/password",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"a/password\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a/password",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a/password",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"setPassword\",\"slug\":\"a\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a/password",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a/password\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a/password",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a/password",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a/password",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a/password/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"a/password/title\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a/password/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a/password/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"setTitle\",\"slug\":\"a/password\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a/password/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a/password/title\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a/password/title",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a/password/title",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a/password/title",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/preflight",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"preflight\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/preflight",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/preflight",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/preflight",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/preflight\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/preflight",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/preflight",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/preflight",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/publish",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"acme/publish\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/publish",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/publish",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"publish\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/publish",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/publish\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/publish",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/publish",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/publish",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/rollback",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"acme/rollback\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/rollback",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/rollback",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"rollback\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/rollback",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/rollback\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/rollback",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/rollback",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/rollback",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"acme/title\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"setTitle\",\"slug\":\"acme\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/title",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/title\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/title",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/title",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/title",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages//x",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"/x\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages//x",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages//x",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages//x",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"/x\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages//x",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages//x",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages//x",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme//versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"listVersions\",\"slug\":\"acme/\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme//versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme//versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deploy\",\"slug\":\"acme/\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme//versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme//versions\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme//versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme//versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme//versions",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/nope",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"acme/versions/12/extra\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions/12/extra\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/12/extra",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/%2e%2e",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"..\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/%2e%2e",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/%2e%2e",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/%2e%2e",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"..\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/%2e%2e",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/%2e%2e",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/%2e%2e",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a;b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"a;b\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a;b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a;b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a;b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a;b\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a;b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a;b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a;b",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"versions\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/versions",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"versions\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/versions",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/versions",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/x/versions//",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"x/versions//\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/x/versions//",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/x/versions//",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/x/versions//",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"x/versions//\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/x/versions//",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/x/versions//",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/x/versions//",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/x?y=1",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"x\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/x?y=1",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/x?y=1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/x?y=1",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"x\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/x?y=1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/x?y=1",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/x?y=1",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/x%00y",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"x\\u0000y\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/x%00y",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/x%00y",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/x%00y",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"x\\u0000y\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/x%00y",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/x%00y",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/x%00y",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/x/password/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"x/password/\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/x/password/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/x/password/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"setPassword\",\"slug\":\"x\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/x/password/",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"x/password/\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/x/password/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/x/password/",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/x/password/",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"x/password\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"x/password\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/x%2Fpassword",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "HEAD",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PUT",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1//pages",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getVersion\",\"slug\":\"acme\",\"id\":\"12 \"}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"acme/versions/12 \",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/acme/versions/12%20",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/a+b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"a+b\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/a+b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/a+b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/a+b",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"a+b\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/a+b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/a+b",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/a+b",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD",
+"body": "DELETE, GET, HEAD"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"getPage\",\"slug\":\"x/PUBLISH\",\"id\":null}"
+},
+{
+"method": "HEAD",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": ""
+},
+{
+"method": "POST",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"publish\",\"slug\":\"x\",\"id\":null}"
+},
+{
+"method": "DELETE",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 200,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"route\":\"deletePage\",\"slug\":\"x/PUBLISH\",\"id\":null}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "PATCH",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages/x/PUBLISH",
+"status": 200,
+"contentType": "text/plain",
+"allow": "DELETE, GET, HEAD, POST",
+"body": "DELETE, GET, HEAD, POST"
+},
+{
+"method": "OPTIONS",
+"path": "/api/v1/pages",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+},
+{
+"method": "GET",
+"path": "/api/v1/nope",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+},
+{
+"method": "PUT",
+"path": "/api/v1/pages",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+},
+{
+"method": "GET",
+"path": "/api/v1/pages/%ZZ",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+},
+{
+"method": "GET",
+"path": "/api/v1",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+},
+{
+"method": "GET",
+"path": "/api/v1/",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+},
+{
+"method": "GET",
+"path": "/api/v12/pages",
+"noAuth": true,
+"status": 404,
+"contentType": "text/html; charset=utf-8",
+"allow": "",
+"body": "NOTFOUND"
+},
+{
+"method": "GET",
+"path": "/API/V1/pages",
+"noAuth": true,
+"status": 401,
+"contentType": "application/json; charset=utf-8",
+"allow": "",
+"body": "{\"error\":\"missing bearer token\",\"code\":\"no_token\"}"
+}
+]
