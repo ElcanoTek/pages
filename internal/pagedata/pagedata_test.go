@@ -1110,3 +1110,36 @@ func TestDataUsageReportsHeadroom(t *testing.T) {
 		t.Errorf("%+v", u)
 	}
 }
+
+func TestRaisedDataDefaults(t *testing.T) {
+	for _, k := range []string{"PAGES_DATA_SCHEMA_MAX_BYTES", "PAGES_DATA_CONFIG_MAX_BYTES", "PAGES_DATA_TEMPLATE_MAX_BYTES", "PAGES_DATA_SCHEMA_MAX_NODES", "PAGES_DATA_SCHEMA_MAX_DEPTH", "PAGES_DATA_MAX_BYTES"} {
+		t.Setenv(k, "")
+	}
+	if MaxSchemaBytes() != 1<<20 || MaxConfigBytes() != 1<<20 || MaxTemplateBytes() != 16<<20 || maxSchemaNodes() != 50000 || maxSchemaDepth() != 100 || MaxDataBytes() != 8<<20 {
+		t.Fatalf("schema %d config %d template %d nodes %d depth %d data %d", MaxSchemaBytes(), MaxConfigBytes(), MaxTemplateBytes(), maxSchemaNodes(), maxSchemaDepth(), MaxDataBytes())
+	}
+	if l := TemplateLimit(); l.Warning != "" {
+		t.Fatal(l.Warning)
+	}
+}
+
+// The template ceiling must stay above the data budget: a document has to hold
+// a maximal envelope and a page around it.
+func TestTemplateCeilingStaysAboveTheDataBudget(t *testing.T) {
+	t.Setenv("PAGES_DATA_MAX_BYTES", "")
+	t.Setenv("PAGES_DATA_TEMPLATE_MAX_BYTES", "2097152") // the Node default, left in an old .env
+	l := TemplateLimit()
+	if l.Bytes != 9<<20 || MaxTemplateBytes() != 9<<20 ||
+		l.Warning != "WARNING: PAGES_DATA_TEMPLATE_MAX_BYTES (2097152) is not above PAGES_DATA_MAX_BYTES (8388608), so no managed document could hold a full data envelope; managed documents are limited to 9437184 bytes instead." {
+		t.Fatalf("%+v", l)
+	}
+	t.Setenv("PAGES_DATA_TEMPLATE_MAX_BYTES", "8388609")
+	if l := TemplateLimit(); l.Bytes != 8388609 || l.Warning != "" {
+		t.Fatalf("%+v", l)
+	}
+	t.Setenv("PAGES_DATA_MAX_BYTES", "1048576")
+	t.Setenv("PAGES_DATA_TEMPLATE_MAX_BYTES", "2097152")
+	if l := TemplateLimit(); l.Bytes != 2097152 || l.Warning != "" {
+		t.Fatalf("%+v", l)
+	}
+}

@@ -100,7 +100,7 @@ func (h *ticketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Authenticate on the HEADER before reading the body — an invalid ticket
-	// must not make the server buffer 2 MiB first. Same ordering rule as /mcp.
+	// must not make the server buffer a whole staged file first. Same ordering rule as /mcp.
 	ticket := bearer(r)
 	if ticket == "" {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="pages-upload"`)
@@ -114,7 +114,7 @@ func (h *ticketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Raw body of any Content-Type, capped at the staged-upload ceiling: a
 	// sandbox curl sends whatever Content-Type it likes (or none) — the bytes
 	// are opaque and validated by length + SHA-256, not by header.
-	body, err := readRawBody(r, MaxUploadBytes)
+	body, err := readRawBody(r, MaxUploadBytes())
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -132,7 +132,7 @@ var errTooLarge = errors.New("request entity too large")
 func (h *ticketHandler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, errTooLarge) {
 		httpx.SendJSON(w, r, http.StatusRequestEntityTooLarge, ticketError{
-			fmt.Sprintf("page content must be at most %d bytes", MaxUploadBytes), "upload_size_invalid"})
+			fmt.Sprintf("page content must be at most %d bytes", MaxUploadBytes()), "upload_size_invalid"})
 		return
 	}
 	mapped, ok := apierror.As(err)

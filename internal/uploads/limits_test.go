@@ -54,10 +54,10 @@ func TestDefaultChunkCeilingStaysInsideTheArgumentBudget(t *testing.T) {
 	t.Setenv("PAGE_UPLOAD_MAX_CHUNK_BYTES", "")
 	t.Setenv("MAX_HTML_BYTES", "")
 	n := MaxChunkBytes()
-	if n < 32*1024 || n > 256*1024 {
+	if n != 1024*1024 {
 		t.Fatalf("default ceiling %d", n)
 	}
-	if MaxChunkBase64Chars() != (n+2)/3*4 || MaxChunkBase64Chars() != 65536 {
+	if MaxChunkBase64Chars() != (n+2)/3*4 || MaxChunkBase64Chars() != 1398104 {
 		t.Fatalf("base64 chars %d", MaxChunkBase64Chars())
 	}
 	if c := ChunkCeiling(); c.Warning != "" {
@@ -65,23 +65,23 @@ func TestDefaultChunkCeilingStaysInsideTheArgumentBudget(t *testing.T) {
 	}
 }
 
-func TestOperatorCanRaiseTheCeilingTo1MiBAndNoFurther(t *testing.T) {
+func TestOperatorCanRaiseTheCeilingTo8MiBAndNoFurther(t *testing.T) {
 	t.Setenv("MAX_HTML_BYTES", "")
-	if MinChunkCeilingBytes != 4096 || MaxChunkCeilingBytes != 1048576 {
+	if MinChunkCeilingBytes != 4096 || MaxChunkCeilingBytes != 8388608 {
 		t.Fatal("clamp bounds changed")
 	}
-	// The default 2 MB request body carries a 1 MiB chunk as base64 plus its
+	// The default 32 MB request body carries an 8 MiB chunk as base64 plus its
 	// JSON-RPC envelope; otherwise the top of the clamp could never be used.
 	if TransportMaxChunkBytes() < MaxChunkCeilingBytes {
 		t.Fatalf("transport max %d", TransportMaxChunkBytes())
 	}
 	tm := TransportMaxChunkBytes()
-	for _, n := range []string{"4096", "49152", "262144", "262145", "1048576"} {
+	for _, n := range []string{"4096", "49152", "262144", "262145", "1048576", "1048577", "8388608"} {
 		if got := ClampChunkBytes(n, 49152, tm); got != atoi(n) {
 			t.Errorf("%s → %d", n, got)
 		}
 	}
-	for _, raw := range []string{"1048577", "2097152", "4095", "0", "-1", "", "big"} {
+	for _, raw := range []string{"8388609", "16777216", "4095", "0", "-1", "", "big"} {
 		if got := ClampChunkBytes(raw, 49152, tm); got != 49152 {
 			t.Errorf("%q → %d, want the default", raw, got)
 		}
@@ -130,7 +130,7 @@ func TestUnhonouredChunkSettingSaysSo(t *testing.T) {
 		transport int
 		want      string
 	}{
-		{"2097152", tm, `PAGE_UPLOAD_MAX_CHUNK_BYTES="2097152" is not used because it is above the 1048576-byte maximum; staged-upload chunks are limited to 49152 bytes\.`},
+		{"16777216", tm, `PAGE_UPLOAD_MAX_CHUNK_BYTES="16777216" is not used because it is above the 8388608-byte maximum; staged-upload chunks are limited to 49152 bytes\.`},
 		{"1024", tm, `PAGE_UPLOAD_MAX_CHUNK_BYTES="1024" is not used because it is below the 4096-byte minimum; staged-upload chunks are limited to 49152 bytes\.`},
 		{"big", tm, `PAGE_UPLOAD_MAX_CHUNK_BYTES="big" is not used because it is not a whole number of bytes; staged-upload chunks are limited to 49152 bytes\.`},
 		// parseInt would read these as 1 MiB and raise the ceiling silently.
@@ -138,7 +138,7 @@ func TestUnhonouredChunkSettingSaysSo(t *testing.T) {
 		{"1048576.5", tm, `"1048576\.5" is not used because it is not a whole number of bytes`},
 		{"1e6", tm, `"1e6" is not used because it is not a whole number of bytes`},
 		{"-65536", tm, `"-65536" is not used because it is not a whole number of bytes`},
-		{"99999999999999999999999", tm, `is not used because it is above the 1048576-byte maximum`},
+		{"99999999999999999999999", tm, `is not used because it is above the 8388608-byte maximum`},
 		{"1048576", 774144, `PAGE_UPLOAD_MAX_CHUNK_BYTES="1048576" is not used because its base64 does not fit one \d+-byte request \(MAX_HTML_BYTES carries at most 774144 raw bytes per chunk\); staged-upload chunks are limited to 49152 bytes\.`},
 		{"", 36864, `MAX_HTML_BYTES \(\d+ bytes per request\) cannot carry the default 49152-byte upload chunk as base64; staged-upload chunks are limited to 36864 bytes\.$`},
 		{"", -12288, `limited to 4096 bytes\. Even that does not fit one request; raise MAX_HTML_BYTES to at least 21848 bytes\.$`},
@@ -164,12 +164,16 @@ func TestAdvertisedCeilingFollowsConfiguration(t *testing.T) {
 		bytes          int
 		warning        string
 	}{
-		{"1048576", "", 1048576, ""},
-		{"1048577", "", 49152, `PAGE_UPLOAD_MAX_CHUNK_BYTES="1048577" is not used because it is above`},
-		{"", "", 49152, ""},
-		{"1048576", "1mb", 49152, `"1048576" is not used because its base64 does not fit one 1048576-byte request .*limited to 49152 bytes`},
+		{"8388608", "", 8388608, ""},
+		{"8388609", "", 1048576, `PAGE_UPLOAD_MAX_CHUNK_BYTES="8388609" is not used because it is above`},
+		{"", "", 1048576, ""},
+		{"", "2mb", 1048576, ""},
+		{"49152", "2mb", 49152, ""},
+		{"8388608", "2mb", 1048576, `"8388608" is not used because its base64 does not fit one 2097152-byte request .*limited to 1048576 bytes`},
+		{"1048576", "1mb", 774144, `"1048576" is not used because its base64 does not fit one 1048576-byte request .*limited to 774144 bytes`},
 		{"524288", "1mb", 524288, ""},
-		{"", "64kb", 36864, `cannot carry the default 49152-byte upload chunk as base64; staged-upload chunks are limited to 36864 bytes`},
+		{"", "1mb", 774144, `cannot carry the default 1048576-byte upload chunk as base64; staged-upload chunks are limited to 774144 bytes`},
+		{"", "64kb", 36864, `cannot carry the default 1048576-byte upload chunk as base64; staged-upload chunks are limited to 36864 bytes`},
 	}
 	for _, c := range cases {
 		t.Setenv("PAGE_UPLOAD_MAX_CHUNK_BYTES", c.chunk)
@@ -200,7 +204,7 @@ func TestConsumerAndTicketSettings(t *testing.T) {
 	for _, c := range []struct {
 		raw  string
 		want int
-	}{{"", 15}, {"0", 15}, {"abc", 15}, {"20", 20}, {"\t7min", 7}, {"-5", -5}} {
+	}{{"", 60}, {"0", 60}, {"abc", 60}, {"20", 20}, {"\t7min", 7}, {"-5", -5}} {
 		t.Setenv("PAGE_UPLOAD_TICKET_TTL_MINUTES", c.raw)
 		if got := TicketTTLMinutes(); got != c.want {
 			t.Errorf("ttl %q = %d", c.raw, got)

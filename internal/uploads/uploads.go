@@ -3,7 +3,7 @@
 
 // Package uploads is durable staged content uploads for MCP. Real dashboard
 // files routinely exceed a model/provider's safe tool-argument size even
-// though Pages accepts a 2 MiB HTTP body. Small base64 chunks plus an explicit
+// though Pages accepts a multi-megabyte HTTP body. Small base64 chunks plus an explicit
 // server-minted handle keep every call bounded; PostgreSQL makes the flow work
 // across server instances.
 //
@@ -259,8 +259,8 @@ func lockUpload(ctx context.Context, q db.Querier, uploadID string, a versions.A
 }
 
 func assertDeclaredContent(totalBytes int, contentSHA256 string) error {
-	if totalBytes < 1 || totalBytes > MaxUploadBytes {
-		return apierror.BadRequest(fmt.Sprintf("total_bytes must be 1-%d", MaxUploadBytes), "upload_size_invalid", nil)
+	if totalBytes < 1 || totalBytes > MaxUploadBytes() {
+		return apierror.BadRequest(fmt.Sprintf("total_bytes must be 1-%d", MaxUploadBytes()), "upload_size_invalid", nil)
 	}
 	if !sha256RE.MatchString(contentSHA256) {
 		return apierror.BadRequest("content_sha256 must be a lowercase SHA-256 hex digest", "upload_hash_invalid", nil)
@@ -542,7 +542,7 @@ func ticketExpired() error {
 }
 
 // CheckTicket is a cheap pre-flight on the TICKET ALONE, so a bad one is
-// rejected before the server buffers a 2 MiB body (the same
+// rejected before the server buffers a whole staged body (the same
 // auth-before-parse ordering the MCP boundary uses). Advisory:
 // PutTicketContent re-checks everything under a row lock, so a race here can
 // only cost a wasted read, never a bad write. It returns the declared size.

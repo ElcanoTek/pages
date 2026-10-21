@@ -26,15 +26,56 @@ import (
 	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
-// MaxUploadBytes is the staged raw-file budget.
-const MaxUploadBytes = 2 * 1024 * 1024
-
+// Defaults. The Go server deliberately raised every one of these from the
+// Node release (2 MiB staged file and request, 1 MiB data, 1.5 MB inline):
+// those numbers dated from clients whose model emitted every byte as base64,
+// and they turned ordinary multi-megabyte dashboards and data refreshes into
+// refusals or dozens of tool calls. The bounds still exist — each one caps
+// what a single call can make the server hold in memory — but they are sized
+// for real pages now, and an operator can lower any of them.
 const (
-	defaultMaxDataBytes       = 1024 * 1024
-	defaultMaxInlineDataBytes = 1500000
-	defaultMaxRequest         = "2mb"
-	ordinaryTimestamp         = "2000-01-01T00:00:00.000Z"
+	// DefaultUploadBytes is PAGES_UPLOAD_MAX_BYTES' default: the staged
+	// raw-file budget (32 MiB).
+	DefaultUploadBytes = 32 * 1024 * 1024
+	// HardMaxUploadBytes is the most PAGES_UPLOAD_MAX_BYTES may say (64 MiB).
+	// It matches the page_content_uploads.total_bytes CHECK (migration 027):
+	// an assembled upload is held in memory to deploy, so the ceiling is a
+	// server guard, not just a policy number.
+	HardMaxUploadBytes = 64 * 1024 * 1024
+	// DefaultRequestBytes is MAX_HTML_BYTES' default (32 MiB): the complete
+	// JSON HTTP request, MCP envelope included.
+	DefaultRequestBytes = 32 * 1024 * 1024
+	// DefaultDataBytes is PAGES_DATA_MAX_BYTES' default (8 MiB).
+	DefaultDataBytes = 8 * 1024 * 1024
+	// DefaultInlineDataBytes is PAGES_MCP_MAX_INLINE_DATA_BYTES' default
+	// (8 MiB): as large as the data budget, so inline transport is never the
+	// tighter bound by default.
+	DefaultInlineDataBytes = 8 * 1024 * 1024
+
+	defaultMaxRequest = "32mb"
+	ordinaryTimestamp = "2000-01-01T00:00:00.000Z"
 )
+
+// MaxUploadBytes is PAGES_UPLOAD_MAX_BYTES (default 32 MiB): the staged
+// raw-file budget, which also caps an upload-ticket PUT body. It accepts the
+// MAX_HTML_BYTES forms (bytes, or 512kb / 32mb / 1gb). An unreadable value
+// reads as the default and one above HardMaxUploadBytes as that ceiling;
+// Load reports both, so a running server never reaches either fallback.
+func MaxUploadBytes() int {
+	n, err := uploadBytes()
+	if err != nil {
+		return DefaultUploadBytes
+	}
+	return min(n, HardMaxUploadBytes)
+}
+
+func uploadBytes() (int, error) {
+	v := os.Getenv("PAGES_UPLOAD_MAX_BYTES")
+	if strings.TrimSpace(v) == "" {
+		return DefaultUploadBytes, nil
+	}
+	return ParseByteSize(v, "PAGES_UPLOAD_MAX_BYTES")
+}
 
 // positiveBytes mirrors the JS Number(value) + isSafeInteger check: the value
 // must be a positive safe integer (blanks around it allowed, as Number allows);
@@ -54,16 +95,16 @@ func positiveBytes(name string, fallback int) int {
 	return int(f)
 }
 
-// MaxDataBytes is PAGES_DATA_MAX_BYTES (default 1 MiB): the compact payload
+// MaxDataBytes is PAGES_DATA_MAX_BYTES (default 8 MiB): the compact payload
 // and the stored envelope budget.
-func MaxDataBytes() int { return positiveBytes("PAGES_DATA_MAX_BYTES", defaultMaxDataBytes) }
+func MaxDataBytes() int { return positiveBytes("PAGES_DATA_MAX_BYTES", DefaultDataBytes) }
 
-// MaxInlineDataBytes is PAGES_MCP_MAX_INLINE_DATA_BYTES (default 1500000).
+// MaxInlineDataBytes is PAGES_MCP_MAX_INLINE_DATA_BYTES (default 8 MiB).
 func MaxInlineDataBytes() int {
-	return positiveBytes("PAGES_MCP_MAX_INLINE_DATA_BYTES", defaultMaxInlineDataBytes)
+	return positiveBytes("PAGES_MCP_MAX_INLINE_DATA_BYTES", DefaultInlineDataBytes)
 }
 
-// RequestBytes resolves MAX_HTML_BYTES (default "2mb"), the complete JSON HTTP
+// RequestBytes resolves MAX_HTML_BYTES (default "32mb"), the complete JSON HTTP
 // request budget, and reports an unreadable value. Pass the same value to the
 // HTTP body limit.
 func RequestBytes() (int, error) {
@@ -75,12 +116,12 @@ func RequestBytes() (int, error) {
 }
 
 // MaxRequestBytes is RequestBytes with an unreadable value replaced by the
-// 2 MiB default. Startup validates the setting through Load first, so this
+// default. Startup validates the setting through Load first, so this
 // fallback is never reached on a running server.
 func MaxRequestBytes() int {
 	n, err := RequestBytes()
 	if err != nil {
-		return 2 * 1024 * 1024
+		return DefaultRequestBytes
 	}
 	return n
 }
@@ -95,11 +136,19 @@ type Limits struct {
 	MinEnvelopeOverheadBytes int `json:"min_envelope_overhead_bytes"`
 }
 
-// Load resolves every budget now, failing on an unreadable MAX_HTML_BYTES.
+// Load resolves every budget now, failing on an unreadable MAX_HTML_BYTES or
+// PAGES_UPLOAD_MAX_BYTES, or one above HardMaxUploadBytes.
 func Load() (Limits, error) {
 	req, err := RequestBytes()
 	if err != nil {
 		return Limits{}, err
+	}
+	up, err := uploadBytes()
+	if err != nil {
+		return Limits{}, err
+	}
+	if up > HardMaxUploadBytes {
+		return Limits{}, fmt.Errorf("PAGES_UPLOAD_MAX_BYTES=%d is above the %d-byte maximum (the database CHECK on staged uploads)", up, HardMaxUploadBytes)
 	}
 	return limitsWith(req), nil
 }
@@ -113,7 +162,7 @@ func limitsWith(req int) Limits {
 		MaxPayloadBytes:          data,
 		MaxEnvelopeBytes:         data,
 		MaxInlineBytes:           MaxInlineDataBytes(),
-		MaxStagedBytes:           MaxUploadBytes,
+		MaxStagedBytes:           MaxUploadBytes(),
 		MaxRequestBytes:          req,
 		MinEnvelopeOverheadBytes: MinEnvelopeOverheadBytes,
 	}
@@ -290,7 +339,7 @@ func DataLimitGuidance() string {
 	data := MaxDataBytes()
 	return fmt.Sprintf("Managed-data limits in UTF-8 bytes: compact payload %d; stored HTML-escaped ", data) +
 		fmt.Sprintf("envelope %d including timestamps and at least %d metadata bytes; ", data, MinEnvelopeOverheadBytes) +
-		fmt.Sprintf("inline payload transport %d; staged raw file %d; complete JSON HTTP request ", MaxInlineDataBytes(), MaxUploadBytes) +
+		fmt.Sprintf("inline payload transport %d; staged raw file %d; complete JSON HTTP request ", MaxInlineDataBytes(), MaxUploadBytes()) +
 		fmt.Sprintf("%d including RPC fields and expect. All applicable limits must fit. ", MaxRequestBytes()) +
 		"Direct file staging removes the file from inline/JSON-RPC transport budgets, never the data/envelope limits. " +
 		"Before staging kind='data', optionally supply advisory data_size: payload_bytes is UTF-8 byteLength(JSON.stringify(data)); " +

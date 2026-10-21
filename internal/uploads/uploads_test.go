@@ -18,10 +18,12 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/nodedefaults"
 	"github.com/ElcanoTek/pages/internal/testdb"
 	"github.com/ElcanoTek/pages/internal/tokens"
 	"github.com/ElcanoTek/pages/internal/versions"
@@ -40,11 +42,9 @@ type fixture struct {
 func setup(t *testing.T) *fixture {
 	t.Helper()
 	t.Setenv("PAGE_COOKIE_SECRET", "uploads-test-secret-0123456789abcdef")
-	t.Setenv("PAGE_UPLOAD_MAX_CHUNK_BYTES", "")
-	t.Setenv("MAX_HTML_BYTES", "")
-	t.Setenv("PAGES_DATA_MAX_BYTES", "")
-	t.Setenv("PAGES_MCP_MAX_INLINE_DATA_BYTES", "")
-	t.Setenv("PAGE_UPLOAD_TICKET_TTL_MINUTES", "")
+	// These tests are ports of the JavaScript suite, written against the
+	// Node release's limits; TestRaisedDefaultsEndToEnd covers the Go ones.
+	nodedefaults.Setenv(t)
 	return &fixture{t: t, d: testdb.New(t), ctx: context.Background()}
 }
 
@@ -428,7 +428,7 @@ func TestActiveUploadCapStaleReaperAndConcurrency(t *testing.T) {
 	}
 	_, err := Start(f.ctx, f.d, startIn("cap-x", content), a)
 	e := wantErr(t, err, 409, "page_upload_limit")
-	if !strings.HasPrefix(e.Message, "this token already has 5 uploads in flight and none are stale.") {
+	if !strings.HasPrefix(e.Message, fmt.Sprintf("this token already has %d uploads in flight and none are stale.", MaxActiveUploads)) {
 		t.Fatal(e.Message)
 	}
 	_, err = CreateTicket(f.ctx, f.d, startIn("cap-x", content), a)
@@ -458,7 +458,7 @@ func TestActiveUploadCapStaleReaperAndConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	ok, limited := 0, 0
-	for i := range 12 {
+	for i := range MaxActiveUploads + 7 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -476,7 +476,7 @@ func TestActiveUploadCapStaleReaperAndConcurrency(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if ok != MaxActiveUploads || limited != 12-MaxActiveUploads {
+	if ok != MaxActiveUploads || limited != 7 {
 		t.Fatalf("ok %d limited %d", ok, limited)
 	}
 }
@@ -578,7 +578,7 @@ func TestTargetsKindsAndPeek(t *testing.T) {
 		{StartInput{Template: ptr("bad/name"), TotalBytes: 1, ContentSHA256: sha}, "bad_template_name"},
 		{StartInput{Slug: ptr("Bad Slug"), TotalBytes: 1, ContentSHA256: sha}, "bad_slug"},
 		{StartInput{Slug: ptr("a"), TotalBytes: 0, ContentSHA256: sha}, "upload_size_invalid"},
-		{StartInput{Slug: ptr("a"), TotalBytes: MaxUploadBytes + 1, ContentSHA256: sha}, "upload_size_invalid"},
+		{StartInput{Slug: ptr("a"), TotalBytes: MaxUploadBytes() + 1, ContentSHA256: sha}, "upload_size_invalid"},
 		{StartInput{Slug: ptr("a"), TotalBytes: 1, ContentSHA256: strings.ToUpper(sha)}, "upload_hash_invalid"},
 		{StartInput{Slug: ptr("a"), TotalBytes: 1, ContentSHA256: sha, DataSize: jsonv.ObjectOf("payload_bytes", 1.0, "escaped_payload_bytes", 1.0)}, "data_size_invalid"},
 		{StartInput{Slug: ptr("a"), Kind: ptr("data"), TotalBytes: 1, ContentSHA256: sha, DataSize: versions.Null}, "data_size_invalid"},
@@ -634,7 +634,7 @@ func TestTargetsKindsAndPeek(t *testing.T) {
 	payload := []byte(`{"count":1}`)
 	data := must[*State](t)(Start(f.ctx, f.d, StartInput{Slug: ptr("northwind"), Kind: ptr("data"), TotalBytes: len(payload), ContentSHA256: SHA256(payload),
 		DataSize: jsonv.ObjectOf("payload_bytes", 11.0, "escaped_payload_bytes", 11.0)}, a))
-	if data.DataLimits == nil || data.DataLimits.MaxStagedBytes != MaxUploadBytes || !strings.Contains(jsonv.Stringify(data), `"max_chunk_bytes":49152,"data_limits":{"max_payload_bytes":1048576,`) {
+	if data.DataLimits == nil || data.DataLimits.MaxStagedBytes != MaxUploadBytes() || !strings.Contains(jsonv.Stringify(data), `"max_chunk_bytes":49152,"data_limits":{"max_payload_bytes":1048576,`) {
 		t.Fatal(jsonv.Stringify(data))
 	}
 	done = must[*State](t)(Append(f.ctx, f.d, AppendInput{data.UploadID, 0, b64(payload)}, a))
@@ -740,10 +740,10 @@ func TestRaisedChunkCeilingIsExact(t *testing.T) {
 	if chunkRows(refused.UploadID) != "" {
 		t.Fatal("nothing is stored")
 	}
-	// The DB constraint is the backstop, and it sits at the same number.
+	// The DB constraint is the backstop, at the top of the configurable range.
 	var def string
 	if err := f.d.QueryRow(f.ctx, "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='page_content_upload_chunks_bytes_check'").Scan(&def); err != nil ||
-		!strings.Contains(def, "octet_length(bytes) <= 1048576") {
+		!strings.Contains(def, fmt.Sprintf("octet_length(bytes) <= %d", MaxChunkCeilingBytes)) {
 		t.Fatal(def, err)
 	}
 	// A ticket PUT is split at the ceiling in force.
@@ -906,7 +906,7 @@ func TestTicketEndpoint(t *testing.T) {
 		t.Fatal("a ticket for another upload must not work here", r)
 	}
 	// Too large is refused before it is read.
-	if r = put(t, url, tk.Ticket, make([]byte, MaxUploadBytes+1), nil); r.status != 413 ||
+	if r = put(t, url, tk.Ticket, make([]byte, MaxUploadBytes()+1), nil); r.status != 413 ||
 		r.body != `{"error":"page content must be at most 2097152 bytes","code":"upload_size_invalid"}` {
 		t.Fatal(r)
 	}
@@ -979,4 +979,94 @@ func gzipBytes(t *testing.T, b []byte) []byte {
 	_, _ = zw.Write(b)
 	_ = zw.Close()
 	return buf.Bytes()
+}
+
+// ── The Go server's raised limits ───────────────────────────────────────────
+
+// TestRaisedDefaultsEndToEnd: with nothing configured, a 32 MiB file stages
+// and verifies, the chunk ceiling can reach 8 MiB, and the database CHECKs
+// (migration 027) sit exactly at the top of each configurable range.
+func TestRaisedDefaultsEndToEnd(t *testing.T) {
+	f := setup(t)
+	for k := range nodedefaults.Env {
+		t.Setenv(k, "")
+	}
+	if MaxUploadBytes() != 32<<20 || MaxChunkBytes() != 1<<20 || TicketTTLMinutes() != 60 || MaxActiveUploads != 20 {
+		t.Fatalf("defaults: upload %d chunk %d ttl %d active %d", MaxUploadBytes(), MaxChunkBytes(), TicketTTLMinutes(), MaxActiveUploads)
+	}
+	if c := ChunkCeiling(); c.Warning != "" {
+		t.Fatal(c.Warning)
+	}
+	a := f.agent("raised-limits-fixture")
+	over := StartInput{Slug: ptr("northwind-raised"), TotalBytes: MaxUploadBytes() + 1, ContentSHA256: strings.Repeat("0", 64)}
+	_, err := Start(f.ctx, f.d, over, a)
+	wantErr(t, err, 400, "upload_size_invalid")
+
+	t.Setenv("PAGE_UPLOAD_MAX_CHUNK_BYTES", "8388608")
+	if c := ChunkCeiling(); c.Bytes != 8<<20 || c.Warning != "" {
+		t.Fatalf("%+v", c)
+	}
+	file := make([]byte, 32<<20)
+	for i := range file {
+		file[i] = byte('a' + i%26)
+	}
+	st := must[*State](t)(Start(f.ctx, f.d, startIn("northwind-raised", file), a))
+	if st.MaxChunkBytes != 8<<20 || !strings.Contains(st.NextStep, "4 appends for this file") {
+		t.Fatal(st.NextStep)
+	}
+	var last *State
+	for seq := range 4 {
+		last = must[*State](t)(Append(f.ctx, f.d, AppendInput{st.UploadID, seq, b64(file[seq<<23 : (seq+1)<<23])}, a))
+	}
+	if !last.Complete || last.BytesReceived != 32<<20 {
+		t.Fatalf("%+v", last)
+	}
+	if n := f.count("SELECT count(*) FROM page_content_upload_chunks WHERE upload_id=$1 AND octet_length(bytes)=8388608", st.UploadID); n != 4 {
+		t.Fatalf("chunks %d", n)
+	}
+	_, err = Append(f.ctx, f.d, AppendInput{st.UploadID, 4, b64(make([]byte, 8<<20+1))}, a)
+	wantErr(t, err, 400, "upload_chunk_invalid")
+
+	// The CHECKs themselves: 8 MiB chunk in, 8 MiB + 1 out; a 64 MiB
+	// declared total in, 64 MiB + 1 out.
+	insert := func(seq, n int) error {
+		b := make([]byte, n)
+		_, err := f.d.Exec(f.ctx, "INSERT INTO page_content_upload_chunks (upload_id, sequence, bytes, content_sha256) VALUES ($1, $2, $3, $4)", st.UploadID, seq, b, SHA256(b))
+		return err
+	}
+	if err := insert(100, 8<<20); err != nil {
+		t.Fatal(err)
+	}
+	if err := insert(101, 8<<20+1); !isCheckViolation(err, "page_content_upload_chunks_bytes_check") {
+		t.Fatalf("8 MiB + 1 chunk: %v", err)
+	}
+	setTotal := func(n int) error {
+		_, err := f.d.Exec(f.ctx, "UPDATE page_content_uploads SET total_bytes=$2 WHERE id=$1", st.UploadID, n)
+		return err
+	}
+	if err := setTotal(64 << 20); err != nil {
+		t.Fatal(err)
+	}
+	if err := setTotal(64<<20 + 1); !isCheckViolation(err, "page_content_uploads_total_bytes_check") {
+		t.Fatalf("64 MiB + 1 total: %v", err)
+	}
+}
+
+func isCheckViolation(err error, constraint string) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && pg.Code == "23514" && pg.ConstraintName == constraint
+}
+
+// A ticket PUT body is capped at the staged-upload budget, not a fixed 2 MiB.
+func TestTicketBodyCapFollowsUploadBudget(t *testing.T) {
+	t.Setenv("PAGES_UPLOAD_MAX_BYTES", "")
+	body := make([]byte, 32<<20)
+	r, _ := newRequest("PUT", "/x", bytes.NewReader(body))
+	if got, err := readRawBody(r, MaxUploadBytes()); err != nil || len(got) != len(body) {
+		t.Fatalf("%d %v", len(got), err)
+	}
+	r, _ = newRequest("PUT", "/x", bytes.NewReader(append(body, 'x')))
+	if _, err := readRawBody(r, MaxUploadBytes()); !errors.Is(err, errTooLarge) {
+		t.Fatal(err)
+	}
 }
