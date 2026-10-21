@@ -36,7 +36,7 @@ func realDeck(w http.ResponseWriter, r *req) (string, bool) {
 		sendText(w, r.Request, http.StatusNotFound, bentoDeckEnv+" is not set")
 		return "", false
 	}
-	b, err := os.ReadFile(file)
+	b, err := os.ReadFile(file) //nolint:gosec // G703: the operator names the file in the test harness environment
 	if err != nil {
 		sendText(w, r.Request, http.StatusNotFound, err.Error())
 		return "", false

@@ -21,7 +21,9 @@ pages_go_ok() {
 # pages_fetch_go ROOT — install go.mod's toolchain from go.dev.
 pages_fetch_go() {
   local root="$1" version arch url sum tmp
-  version="$(awk '$1 == "go" { print $2; exit }' "$root/go.mod")"
+  # The toolchain line (a patch release ahead of the language version) wins.
+  version="$(awk '$1 == "toolchain" { sub(/^go/, "", $2); print $2; exit }' "$root/go.mod")"
+  [[ -n "$version" ]] || version="$(awk '$1 == "go" { print $2; exit }' "$root/go.mod")"
   [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "cannot read the Go version from $root/go.mod" >&2; return 1; }
   case "$(uname -m)" in
     x86_64) arch=amd64 ;;

@@ -70,7 +70,10 @@ jobs:
       - name: Test (race)
         run: go test -race -count=1 ./...
       - name: Dependency CVE scan
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+        # v1.1.4's x/tools cannot build SSA for the Go 1.27 standard library.
+        # GOTOOLCHAIN pins the module's toolchain: `go run pkg@version` would
+        # otherwise build with whatever govulncheck's own go.mod asks for.
+        run: GOTOOLCHAIN="$(go env GOVERSION)" go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
   browser:
     name: Browser (front end, Playwright, accessibility)

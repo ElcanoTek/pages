@@ -2,6 +2,8 @@ module github.com/ElcanoTek/pages
 
 go 1.27.2
 
+toolchain go1.27.3
+
 require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
