@@ -41,6 +41,9 @@ func normalise(t *testing.T, raw []byte) string {
 }
 
 func TestGoldenAgainstJS(t *testing.T) {
+	// Recorded from the JavaScript, which skipped the syntax check above 1 MiB.
+	defer func(old int) { maxScriptBytes = old }(maxScriptBytes)
+	maxScriptBytes = 1024 * 1024
 	t.Setenv("CONTENT_ORIGIN", "")
 	t.Setenv("CONTENT_HOST", "")
 	f, err := os.Open("testdata/golden.json.gz")

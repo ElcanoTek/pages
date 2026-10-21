@@ -46,7 +46,7 @@ const MaxPerRule = 8
 // managed-data CPU bound in page-data). It follows the raised page budgets: a
 // dashboard that bundles its charting library inline is still checked, and the
 // parser is linear, so an 8 MiB script costs well under a second.
-const maxScriptBytes = 8 * 1024 * 1024
+var maxScriptBytes = 8 * 1024 * 1024 // a var so the JS-recorded golden can pin the Node bound (1 MiB)
 
 // Finding is one advisory result. Fields are declared in the order the JS
 // emitted them (code, message, then the rule's own keys, then fix); each rule
