@@ -1,23 +1,36 @@
-# Dependabot proposes updates for Pages' two dependency surfaces: the npm
-# package at the repo root (production AND dev dependencies — playwright, axe
-# and the MCP SDK the conformance tests drive get updates too) and the GitHub
-# Actions the workflows use. Modelled on fleet's .github/dependabot.yml, which
-# carries the long-form reasoning.
+# Dependabot keeps Pages' three dependency surfaces patched:
 #
-# Cadence: polled daily, with a supply-chain `cooldown` on npm so a freshly
-# published release waits 7 days (3 for patch releases) before it is
-# proposed — a compromised version is usually flagged and yanked
-# inside that window. Cooldown applies to version updates only, never to
-# security updates. Minor + patch bumps are grouped into one PR per ecosystem;
-# majors stay separate so a breaking change gets its own review and CI run.
+#   * gomod          — the server itself (go.mod / go.sum at the repo root).
+#   * npm            — browser-test tooling only (Playwright + axe-core in
+#                      package.json). Nothing from npm ships in the binary or
+#                      runs in production; the front end under public/ is
+#                      plain, dependency-free browser JavaScript.
+#   * github-actions — the actions .github/workflows/* pin by commit SHA.
 #
-# Proposing is not merging: a human merges a bump only when it earns it (see
-# AGENTS.md "Dependencies and in-housed code"). In-housed code is ours and is
-# not tracked here. Dependabot cannot see the node runtime: the CI matrix in
-# ci.yml tracks the `engines.node` range in package.json and moves by hand.
+# Minor and patch bumps are grouped per ecosystem, so routine updates land as
+# one PR that Dependabot keeps current instead of a flood; majors stay separate
+# so a breaking change gets its own review. Every bump is merged by a human.
+#
+# Supply-chain cooldown: Dependabot waits a few days before proposing a freshly
+# published release, so a compromised version that gets yanked once the
+# ecosystem notices is usually gone before anyone is asked to review it.
+# Cooldown applies to version updates only — never to security updates, so a
+# CVE fix is not delayed.
+#
+# What Dependabot does NOT cover (move these by hand, deliberately):
+#
+#   * The `go` directive in go.mod (dependabot-core#9527). It pins the exact
+#     toolchain patch release CI, `pages update` and bootstrap build with
+#     (GOTOOLCHAIN=auto fetches it), so a Go security release means editing
+#     that one line. setup-go reads go.mod, so CI follows automatically.
+#   * Anything passed to an action as an input rather than `uses:` — the
+#     Postgres service image tag and the golangci-lint version in ci.yml.
+#   * The box's own packages (postgresql-server, caddy, git) — dnf's business;
+#     `pages doctor` reports what is installed.
 version: 2
+
 updates:
-  - package-ecosystem: npm
+  - package-ecosystem: gomod
     directory: "/"
     schedule:
       interval: daily
@@ -28,20 +41,38 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     commit-message:
-      prefix: "deps(npm)"
+      prefix: "deps(go)"
+    groups:
+      go-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 3
+    commit-message:
+      prefix: "deps(test)"
     groups:
       npm-minor-patch:
         update-types:
           - minor
           - patch
 
-  # GitHub Actions referenced by .github/workflows/*, pinned by commit SHA.
-  # No cooldown, matching fleet.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 3
     commit-message:
       prefix: "deps(actions)"
     groups:
