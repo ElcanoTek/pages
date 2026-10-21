@@ -56,22 +56,92 @@ func TestServiceEnvPlan(t *testing.T) {
 	}
 
 	// Development and tests: the environment is already the caller's.
-	for name, in := range map[string]serviceEnvInput{
-		"DATABASE_URL set": func() serviceEnvInput {
-			x := installed
-			x.Getenv = envOf(map[string]string{"DATABASE_URL": "postgres://x"})
-			return x
-		}(),
-		"pepper set": func() serviceEnvInput {
-			x := installed
-			x.Getenv = envOf(map[string]string{"API_TOKEN_PEPPER": "p"})
-			return x
-		}(),
-		"no environment file": func() serviceEnvInput { x := installed; x.EnvFileExists = false; return x }(),
+	with := func(m map[string]string) serviceEnvInput { x := installed; x.Getenv = envOf(m); return x }
+	for name, tc := range map[string]struct {
+		in   serviceEnvInput
+		verb string
+	}{
+		"token: database and pepper": {with(map[string]string{"DATABASE_URL": "postgres://x", "API_TOKEN_PEPPER": "p"}), "token"},
+		"token: PGHOST and pepper":   {with(map[string]string{"PGHOST": "/run/pages-dev", "API_TOKEN_PEPPER": "p"}), "token"},
+		"template: database":         {with(map[string]string{"DATABASE_URL": "postgres://x"}), "template"},
+		"access: PGHOST":             {with(map[string]string{"PGHOST": "/run/pages-dev"}), "access"},
+		"no environment file":        {func() serviceEnvInput { x := installed; x.EnvFileExists = false; return x }(), "token"},
 	} {
-		if step, argv, msg := serviceEnvPlan(in, "token", []string{"list"}); step != runAsInvoked || argv != nil || msg != "" {
+		if step, argv, msg := serviceEnvPlan(tc.in, tc.verb, []string{"list"}); step != runAsInvoked || argv != nil || msg != "" {
 			t.Errorf("%s: %v %v %q", name, step, argv, msg)
 		}
+	}
+}
+
+// A partial caller environment never bypasses the installed file: token
+// needs the pepper as well as the database, so a DATABASE_URL alone (or a
+// pepper alone) still loads the service environment — re-executing as the
+// service account from root, which then applies the file in-process.
+func TestServiceEnvPlanRequiresTheCompleteEnvironment(t *testing.T) {
+	installed := serviceEnvInput{Settings: testSettings, EUID: 0, Me: "root", AccountExists: true,
+		EnvFileExists: true, HaveSudo: "/usr/bin/sudo", Runuser: "/usr/sbin/runuser", Self: "/usr/local/bin/pages"}
+	for name, tc := range map[string]struct {
+		env  map[string]string
+		verb string
+	}{
+		"token: DATABASE_URL without pepper": {map[string]string{"DATABASE_URL": "postgres://x"}, "token"},
+		"token: PGHOST without pepper":       {map[string]string{"PGHOST": "/tmp"}, "token"},
+		"token: pepper without database":     {map[string]string{"API_TOKEN_PEPPER": "p"}, "token"},
+		"template: pepper without database":  {map[string]string{"API_TOKEN_PEPPER": "p"}, "template"},
+		"access: nothing":                    {nil, "access"},
+	} {
+		in := installed
+		in.Getenv = envOf(tc.env)
+		if step, _, msg := serviceEnvPlan(in, tc.verb, []string{"add", "agent", "deploy"}); step != becomeService || msg != "" {
+			t.Errorf("%s (root): %v %q, want becomeService", name, step, msg)
+		}
+		in.EUID, in.Me = 990, "pages"
+		if step, _, msg := serviceEnvPlan(in, tc.verb, []string{"add", "agent", "deploy"}); step != loadHere || msg != "" {
+			t.Errorf("%s (service account): %v %q, want loadHere", name, step, msg)
+		}
+	}
+}
+
+// End to end: a caller with DATABASE_URL but no pepper gets the file's
+// pepper (its own DATABASE_URL still wins); an unreadable file fails the
+// verb instead of running it on the partial environment.
+func TestServiceVerbPartialEnvironment(t *testing.T) {
+	defer func(e func(string, []string, []string) error) { Exec = e }(Exec)
+	Exec = func(string, []string, []string) error {
+		t.Fatal("must not re-execute")
+		return errors.New("unreachable")
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "pages")
+	if err := os.WriteFile(file, []byte("DATABASE_URL=\"postgres://pages@127.0.0.1:1/none\"\nAPI_TOKEN_PEPPER=\"contoso\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PAGES_INSTALL_CONFIG", filepath.Join(dir, "absent-install"))
+	t.Setenv("PAGES_ENV_FILE", file)
+	t.Setenv("APP_USER", "pages-test-no-such-account")
+	t.Setenv("DATABASE_URL", "postgres://caller")
+	t.Setenv("API_TOKEN_PEPPER", "")
+	t.Setenv("PGHOST", "")
+	t.Setenv("PAGES_ENV", "")
+
+	ran := false
+	run := serviceVerb("token", func([]string) int {
+		ran = true
+		if got := os.Getenv("API_TOKEN_PEPPER") + " " + os.Getenv("DATABASE_URL"); got != "contoso postgres://caller" {
+			t.Errorf("saw %q", got)
+		}
+		return 7
+	})
+	if code := run([]string{"add", "agent", "deploy"}); code != 7 || !ran {
+		t.Fatalf("code %d ran %v", code, ran)
+	}
+
+	// The file exists but cannot be read: fail, do not mint with no pepper.
+	t.Setenv("API_TOKEN_PEPPER", "")
+	t.Setenv("PAGES_ENV_FILE", dir) // a directory: exists, unreadable as a file
+	ran = false
+	if code := run([]string{"add", "agent", "deploy"}); code == 0 || code == 7 || ran {
+		t.Fatalf("unreadable file: code %d ran %v", code, ran)
 	}
 }
 

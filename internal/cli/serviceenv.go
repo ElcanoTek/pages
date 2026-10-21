@@ -23,8 +23,10 @@ import (
 // assignments, and `sudo pages token add agent deploy` just works.
 //
 // In development and tests the environment is already set (pages dev, the
-// test cluster): when DATABASE_URL or API_TOKEN_PEPPER is present, or there
-// is no environment file, the verb runs exactly as invoked.
+// test cluster): when it holds everything the verb needs (callerEnvComplete),
+// or there is no environment file, the verb runs exactly as invoked. A
+// partial environment loads the file, and an unreadable file is an error,
+// never a silent run on the partial environment.
 //
 // The file is parsed with envfile, never sourced: a tampered file must not
 // run code as whoever invoked the CLI. Its values are applied in-process by
@@ -60,11 +62,29 @@ type serviceEnvInput struct {
 	Self          string // this executable
 }
 
+// callerEnvComplete reports whether the caller's environment already holds
+// everything verb reads from the service environment: the database (a
+// DATABASE_URL, or the libpq PGHOST pgx falls back to) for every app-data
+// verb, and API_TOKEN_PEPPER as well for token. A partial environment — a
+// DATABASE_URL without the pepper — must not bypass the file: `token add`
+// would mint a token hashed with the wrong pepper, one the server never
+// matches. Values the caller does set still win over the file's
+// (applyServiceEnv).
+func callerEnvComplete(getenv func(string) string, verb string) bool {
+	if getenv("DATABASE_URL") == "" && getenv("PGHOST") == "" {
+		return false
+	}
+	if verb == "token" && getenv("API_TOKEN_PEPPER") == "" {
+		return false
+	}
+	return true
+}
+
 // serviceEnvPlan decides how verb runs, and the argv to re-execute for
 // becomeService. A non-empty msg is an error to report instead.
 func serviceEnvPlan(in serviceEnvInput, verb string, args []string) (step serviceEnvStep, argv []string, msg string) {
 	switch {
-	case in.Getenv("DATABASE_URL") != "" || in.Getenv("API_TOKEN_PEPPER") != "":
+	case callerEnvComplete(in.Getenv, verb):
 		return runAsInvoked, nil, ""
 	case !in.EnvFileExists:
 		return runAsInvoked, nil, ""
