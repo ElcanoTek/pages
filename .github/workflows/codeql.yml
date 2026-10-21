@@ -26,7 +26,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [go, javascript-typescript]
+        include:
+          # Go needs a real build: CodeQL extracts Go from the compiler's view
+          # of the packages, so autobuild runs `go build` with the toolchain
+          # setup-go installs from go.mod.
+          - language: go
+            build-mode: autobuild
+          # The dependency-free browser JavaScript under public/ and the
+          # Playwright specs. Nothing to build.
+          - language: javascript-typescript
+            build-mode: none
+          # The workflows themselves (injection via untrusted context,
+          # unpinned actions, over-broad permissions). Nothing to build.
+          - language: actions
+            build-mode: none
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,8 +52,10 @@ jobs:
       - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
           config-file: ./.github/codeql/codeql-config.yml
-      - uses: github/codeql-action/autobuild@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+      - if: matrix.build-mode == 'autobuild'
+        uses: github/codeql-action/autobuild@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
       - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           category: "/language:${{ matrix.language }}"
