@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 ElcanoTek, Inc.
+# Installed by `pages bootstrap` / `pages update` (rendered with the box's
+# installation settings: account, application directory, environment file).
+# The application is ONE binary in the active release, reached through the
+# /opt/pages symlink; `pages update` switches that link and restarts.
 [Unit]
 Description=Elcano Pages — versioned client dashboards
 After=network.target postgresql.service
@@ -11,8 +15,8 @@ User=pages
 Group=pages
 WorkingDirectory=/opt/pages
 EnvironmentFile=/etc/default/pages
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/node server.js
+Environment=PAGES_ENV=production
+ExecStart=/opt/pages/pages serve
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
@@ -23,10 +27,12 @@ ProtectKernelModules=true
 ProtectKernelTunables=true
 ProtectHome=true
 ProtectSystem=strict
-# Asset uploads (Phase 2) land here; add more ReadWritePaths as needed.
+# Asset uploads land here; add more ReadWritePaths as needed.
 ReadWritePaths=/opt/pages/assets
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
+# A Go binary never needs writable+executable memory (Node's JIT did).
+MemoryDenyWriteExecute=true
 
 [Install]
 WantedBy=multi-user.target

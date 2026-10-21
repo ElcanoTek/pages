@@ -3,7 +3,7 @@
      │  ▤ ▤ ▤  ▥ ▥ ▥    │
      └──────────────────┘
 
-Elcano Pages: hosted dashboards and report pages (Node + Postgres).
+Elcano Pages: hosted dashboards and report pages (Go + Postgres).
 
   health    pages doctor --check
   logs      pages logs

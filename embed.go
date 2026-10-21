@@ -25,6 +25,9 @@ var templates embed.FS
 //go:embed docs/*.md
 var docs embed.FS
 
+//go:embed deploy/pages.service deploy/pages.caddy deploy/motd
+var deploy embed.FS
+
 func sub(f embed.FS, dir string) fs.FS {
 	s, err := fs.Sub(f, dir)
 	if err != nil {
@@ -45,3 +48,8 @@ func Templates() fs.FS { return sub(templates, "templates") }
 
 // Docs is docs/*.md, the source of the get_guide tool's topics.
 func Docs() fs.FS { return sub(docs, "docs") }
+
+// Deploy is deploy/: the systemd unit, Caddy site blocks and login banner the
+// operator CLI renders and installs (pages bootstrap / pages update), so a
+// release always installs the control files it was built with.
+func Deploy() fs.FS { return sub(deploy, "deploy") }
