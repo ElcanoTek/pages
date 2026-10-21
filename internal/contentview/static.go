@@ -132,6 +132,13 @@ type byteRange struct{ start, end int64 }
 
 // parseRange is range-parser with combine: nil, false when malformed (the
 // header is ignored); an empty slice when nothing is satisfiable.
+//
+// One deliberate difference from range-parser 1.2: a suffix range longer
+// than the representation ("bytes=-1000" on a 500-byte file) selects the
+// whole file, as RFC 9110 §14.1.2 requires ("If the selected representation
+// is shorter than the specified suffix-length, the entire representation is
+// used"); range-parser computed a negative start and answered 416. A
+// zero-length suffix ("bytes=-0") stays unsatisfiable.
 func parseRange(size int64, header string) ([]byteRange, bool) {
 	eq := strings.IndexByte(header, '=')
 	if eq < 0 {
@@ -147,7 +154,11 @@ func parseRange(size int64, header string) ([]byteRange, bool) {
 		end, errB := strconv.ParseInt(strings.TrimSpace(b), 10, 64)
 		switch {
 		case strings.TrimSpace(a) == "" && errB == nil:
-			start, end, errA = size-end, size-1, nil
+			suffix := end
+			start, end, errA = size-suffix, size-1, nil
+			if suffix > 0 && start < 0 {
+				start = 0 // clamp an oversized suffix to the whole file
+			}
 		case errA == nil && strings.TrimSpace(b) == "":
 			end, errB = size-1, nil
 		}
