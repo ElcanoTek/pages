@@ -302,15 +302,41 @@ func Digest(path string) (string, error) {
 }
 
 // copyTree copies regular files and directories; links and special files
-// fail explicitly rather than producing an incomplete copy.
+// fail explicitly rather than producing an incomplete copy. The source can
+// be writable by the service account while root copies it, so nothing is
+// opened by a path that account could redirect: every entry is opened
+// relative to its held parent directory without following links, the
+// opened descriptor's own type decides how it is copied (a FIFO or device
+// swapped in after the listing is refused, never read), and a file is read
+// for exactly the length fstat reported.
 func copyTree(ctx context.Context, source, target string, exclude map[string]bool) error {
-	if err := os.MkdirAll(target, 0o700); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(source)
+	dir, err := os.OpenFile(source, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
+	defer dir.Close()
+	if st, err := dir.Stat(); err != nil || !st.IsDir() {
+		return fmt.Errorf("unsupported link or special file in capture: %s", source)
+	}
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		return err
+	}
+	return copyDir(ctx, dir, target, exclude)
+}
+
+// afterListing, when set (tests only), runs between listing a source
+// directory and opening its entries: the window another account races.
+var afterListing func(dir string)
+
+func copyDir(ctx context.Context, dir *os.File, target string, exclude map[string]bool) error {
+	entries, err := dir.ReadDir(-1)
+	if err != nil {
+		return err
+	}
+	if afterListing != nil {
+		afterListing(dir.Name())
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	for _, e := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -318,25 +344,66 @@ func copyTree(ctx context.Context, source, target string, exclude map[string]boo
 		if exclude[e.Name()] {
 			continue
 		}
-		from, to := filepath.Join(source, e.Name()), filepath.Join(target, e.Name())
-		switch {
-		case e.IsDir():
-			if err := copyTree(ctx, from, to, nil); err != nil {
-				return err
-			}
-		case e.Type().IsRegular():
-			if err := copyFile(from, to); err != nil {
-				return err
-			}
-		default:
+		from, to := filepath.Join(dir.Name(), e.Name()), filepath.Join(target, e.Name())
+		if !e.IsDir() && !e.Type().IsRegular() {
 			return fmt.Errorf("unsupported link or special file in capture: %s", from)
+		}
+		in, err := openEntry(dir, e.Name(), e.IsDir())
+		if err != nil {
+			if errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENOTDIR) {
+				return fmt.Errorf("unsupported link or special file in capture: %s", from)
+			}
+			return err
+		}
+		err = copyOpened(ctx, in, e.IsDir(), from, to)
+		in.Close()
+		if err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
+// copyOpened copies the entry in is open on, by its own fstat type.
+func copyOpened(ctx context.Context, in *os.File, wantDir bool, from, to string) error {
+	st, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	switch {
+	case wantDir && st.IsDir():
+		if err := os.Mkdir(to, 0o700); err != nil {
+			return err
+		}
+		return copyDir(ctx, in, to, nil)
+	case !wantDir && st.Mode().IsRegular():
+		return copyBounded(in, st, to)
+	}
+	return fmt.Errorf("unsupported link or special file in capture: %s", from)
+}
+
+// copyBounded writes exactly st.Size() bytes of in to a new file to.
+func copyBounded(in *os.File, st os.FileInfo, to string) error {
+	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, st.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(out, io.LimitReader(in, st.Size()))
+	if err == nil && n != st.Size() {
+		err = fmt.Errorf("%s changed during capture", in.Name())
+	}
+	if err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+// copyFile copies one configuration file. Its path may be a managed symlink
+// (local .env), so a final link is followed, but only a regular file is
+// read (a FIFO is never waited on), for its fstat length.
 func copyFile(from, to string) error {
-	in, err := os.Open(from)
+	in, err := os.OpenFile(from, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
@@ -345,15 +412,10 @@ func copyFile(from, to string) error {
 	if err != nil {
 		return err
 	}
-	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, st.Mode().Perm())
-	if err != nil {
-		return err
+	if !st.Mode().IsRegular() {
+		return fmt.Errorf("unsupported link or special file in capture: %s", from)
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
+	return copyBounded(in, st, to)
 }
 
 // Inventory lists every file under directory (name order, manifest.json at
@@ -461,7 +523,7 @@ func IsolatedEnv(base []string, socket string, runtimeSettings map[string]string
 		env[k] = v
 	}
 	for k, v := range map[string]string{
-		"PGHOST": socket, "PGPORT": "5432", "PGUSER": "pages_backup", "PGDATABASE": "pages",
+		"PGHOST": socket, "PGPORT": "5432", "PGUSER": scratchRole, "PGDATABASE": "pages",
 		"PAGES_AUTH_MODE": "elcano", "PAGES_ENV": "production", "NODE_ENV": "production",
 		"RAW_TOKEN_SECRET": randomUUID(), "API_TOKEN_PEPPER": randomUUID(), "PAGE_COOKIE_SECRET": randomUUID(),
 		"RL_CONTENT_PER_MIN": "1000", "PAGES_DEV_LOGIN": "0", "AUTH_SIGNING_PUBKEY": "",
@@ -472,6 +534,15 @@ func IsolatedEnv(base []string, socket string, runtimeSettings map[string]string
 	}
 	return env
 }
+
+// scratchRole is the rehearsal's restore and probe role (IsolatedEnv's
+// PGUSER): an ordinary login role owning the scratch database, never a
+// superuser. scratchSuperuser is the scratch cluster's bootstrap superuser,
+// used only before the dump is touched.
+const (
+	scratchRole      = "pages_backup"
+	scratchSuperuser = "pages_scratch_admin"
+)
 
 // UntrustedBinaryNotice is check-integrity's notice for a backup whose
 // captured binary matches no trusted installed release.
@@ -544,6 +615,10 @@ func rehearse(ctx context.Context, o Options, directory string, runtimeSettings 
 	if err != nil {
 		return nil, err
 	}
+	createuser, err := o.Tool("createuser")
+	if err != nil {
+		return nil, err
+	}
 	scratch, err := o.Scratch()
 	if err != nil {
 		return nil, err
@@ -592,7 +667,10 @@ func rehearse(ctx context.Context, o Options, directory string, runtimeSettings 
 			return nil, err
 		}
 	}
-	if err := asPg(ctx, initdb, "-D", data, "--auth=trust", "--username=pages_backup", "--encoding=UTF8", "--no-locale"); err != nil {
+	// The bootstrap superuser only creates the restore role and database;
+	// the dump (attacker-supplied, for check-integrity) is restored and
+	// probed as scratchRole, which cannot run programs or read server files.
+	if err := asPg(ctx, initdb, "-D", data, "--auth=trust", "--username="+scratchSuperuser, "--encoding=UTF8", "--no-locale"); err != nil {
 		return nil, err
 	}
 	started = true
@@ -604,10 +682,18 @@ func rehearse(ctx context.Context, o Options, directory string, runtimeSettings 
 	for k, v := range envm {
 		createEnv[k] = v
 	}
-	createEnv["PGDATABASE"] = "postgres"
-	if _, err := Run(ctx, o.Runner, createdb, []string{"pages"}, envList(createEnv), ""); err != nil {
+	createEnv["PGDATABASE"], createEnv["PGUSER"] = "postgres", scratchSuperuser
+	// A fresh role holds none of the predefined pg_execute_server_program /
+	// pg_read_server_files / pg_write_server_files roles.
+	if _, err := Run(ctx, o.Runner, createuser, []string{"--login", "--no-superuser", "--no-createdb", "--no-createrole",
+		"--no-replication", scratchRole}, envList(createEnv), ""); err != nil {
 		return nil, err
 	}
+	if _, err := Run(ctx, o.Runner, createdb, []string{"--owner=" + scratchRole, "pages"}, envList(createEnv), ""); err != nil {
+		return nil, err
+	}
+	// env connects as scratchRole (IsolatedEnv): the restore, the probe and
+	// any migration of the scratch copy never hold superuser privileges.
 	if _, err := Run(ctx, o.Runner, pgrestore, []string{"--exit-on-error", "--single-transaction", "--no-owner", "--no-acl", "--dbname=pages", filepath.Join(directory, "database.dump")}, env, ""); err != nil {
 		return nil, err
 	}
@@ -667,17 +753,26 @@ func Create(ctx context.Context, o Options, in CreateInput) (published string, e
 	if err := os.MkdirAll(in.Destination, 0o700); err != nil {
 		return "", err
 	}
-	destination, err := filepath.EvalSymlinks(in.Destination)
+	// Root writes the capture here, so no other account (the service
+	// account above all) may be able to replace the destination or any
+	// directory above it — with a symlink to somewhere root would then write,
+	// or to read the capture: it must be root's (or the caller's) alone.
+	destination, err := install.TrustedDir(in.Destination)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("backup destination must be a directory only root can change: %w", err)
 	}
 	for _, source := range []string{application, assets} {
 		if destination == source || strings.HasPrefix(destination, source+string(filepath.Separator)) {
 			return "", errors.New("backup destination must be outside application and asset directories")
 		}
 	}
+	// The partial tree is private (0700) before any byte lands in it.
 	temporary, err := os.MkdirTemp(destination, ".pages-partial-")
 	if err != nil {
+		return "", err
+	}
+	if err := os.Chmod(temporary, 0o700); err != nil {
+		_ = os.Remove(temporary)
 		return "", err
 	}
 	var complete string

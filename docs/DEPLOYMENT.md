@@ -989,19 +989,32 @@ proof of the installed revision: the actual release files are retained.
 
 Files are written under `.pages-partial-*`, checked, flushed and renamed only
 after successful verification. Failure exits nonzero and removes its incomplete
-capture. The destination must be outside the application and assets directories.
-Only the documented top-level assets/local-env symlinks are resolved; nested
-symlinks and special files fail explicitly instead of creating incomplete copies.
+capture. The destination must be outside the application and assets directories,
+and it and every directory above it must be owned by root (or the invoking
+account) and not writable by other accounts — sticky directories such as `/tmp`
+excepted above it — so the service account cannot redirect what root writes; the
+partial tree is created `0700`. Only the documented top-level assets/local-env
+symlinks are resolved; nested symlinks and special files fail explicitly instead
+of creating incomplete copies. Each entry of the service-writable assets tree is
+opened relative to its already-open parent without following links, checked to
+be a regular file or directory by the opened descriptor, and copied for exactly
+the length it had when opened, so an entry swapped for a link, FIFO or device
+mid-capture is refused rather than read.
 An abrupt machine loss may leave a hidden partial directory; it is never a
 completed backup and can be removed after checking that no capture is running.
 
 The restore rehearsal requires PostgreSQL server/client tools (`initdb`,
-`pg_ctl`, `createdb`, `pg_dump`, `pg_restore`) compatible with the source database,
-and enough local disk for an additional restored database.
+`pg_ctl`, `createuser`, `createdb`, `pg_dump`, `pg_restore`) compatible with the
+source database, and enough local disk for an additional restored database.
 Root delegates its temporary server to the `postgres` account; an unprivileged
 operator runs it as their own account. It uses a private short `/tmp` Unix socket,
 no TCP listener, a new database and synthetic application secrets. It never
-loads the archived environment or accepts a destination database URL.
+loads the archived environment or accepts a destination database URL. The
+scratch cluster's bootstrap superuser only creates an ordinary login role (no
+superuser, role or database creation, and none of `pg_execute_server_program`,
+`pg_read_server_files` or `pg_write_server_files`) and a database it owns; the
+dump is restored, migrated and probed as that role, so a crafted
+`database.dump` cannot run server programs or read server files.
 
 Nothing from a backup is ever executed. A backup's files are only as
 trustworthy as its `manifest.json`, which is just as writable, and the

@@ -27,8 +27,10 @@ then restores it into a private throwaway PostgreSQL cluster and probes it
 before publishing — with the installed release binary identical to the
 captured one when that binary is root's alone, otherwise with this release;
 nothing captured is executed. Prints {"backup_dir": "..."}.
-Default destination: /var/backups/pages. Verify later with
-pages check-integrity <backup-dir>.
+Default destination: /var/backups/pages; it and every directory above it
+must be root's alone (not writable by other accounts). Verify later with
+pages check-integrity <backup-dir>, which restores the dump as an ordinary,
+non-superuser role of the throwaway cluster.
 
 Restoring a backup: run pages check-integrity on it first, restore
 database.dump into a NEW database with pg_restore (--exit-on-error
