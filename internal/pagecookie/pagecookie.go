@@ -41,6 +41,7 @@ import (
 	"golang.org/x/crypto/scrypt"
 
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/nodebuf"
 )
 
@@ -88,7 +89,7 @@ func Validate() error {
 // TruncatePassword applies MaxPasswordLength exactly as the JS
 // String(plain).slice(0, 512) did, so a long password hashes, seals and
 // verifies identically in both implementations.
-func TruncatePassword(plain string) string { return nodebuf.SliceUTF16(plain, MaxPasswordLength) }
+func TruncatePassword(plain string) string { return jsstr.Prefix(plain, MaxPasswordLength) }
 
 // ── password hashing (scrypt) ───────────────────────────────────────────────
 

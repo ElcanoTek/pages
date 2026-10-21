@@ -16,6 +16,7 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 func mustParse(t *testing.T, s string) any {
@@ -1045,7 +1046,7 @@ func TestHostilePayloadCannotPushCoveragePastItsBound(t *testing.T) {
 		a, _ := cov.Arrays.Get(path)
 		for _, name := range a.Fields.Keys() {
 			f, _ := a.Fields.Get(name)
-			if jsonv.UTF16Len(f.Min.(string)) > 32 || jsonv.UTF16Len(f.Max.(string)) > 32 {
+			if jsstr.UTF16Len(f.Min.(string)) > 32 || jsstr.UTF16Len(f.Max.(string)) > 32 {
 				t.Error("extents are clipped")
 			}
 		}

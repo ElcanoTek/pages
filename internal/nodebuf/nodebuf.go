@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 
-// Package nodebuf reproduces the few Node.js Buffer and String behaviours the
-// signed-credential formats depend on, so a value the Node implementation
-// produced (or accepted) is read exactly the same way here.
+// Package nodebuf reproduces the Node.js Buffer behaviour the signed-credential
+// formats depend on (lenient base64 decoding), so a value the Node
+// implementation produced (or accepted) is read exactly the same way here.
+// JavaScript string semantics (UTF-16 lengths and slices) live in jsstr.
 package nodebuf
-
-import (
-	"unicode/utf16"
-	"unicode/utf8"
-)
 
 // Base64Decode is Node's Buffer.from(s, "base64") — and "base64url", which
 // Node decodes identically. It never fails: both alphabets are accepted,
@@ -54,20 +50,4 @@ func decode(clean []byte) []byte {
 		}
 	}
 	return out
-}
-
-// SliceUTF16 is JavaScript's String(s).slice(0, n) followed by UTF-8
-// encoding, as Node does when it hashes or encrypts a string: n counts UTF-16
-// code units, and a surrogate pair cut in half leaves a lone surrogate that
-// encodes as U+FFFD. Invalid UTF-8 in s also becomes U+FFFD, as it would have
-// when the request body was decoded into a JavaScript string.
-func SliceUTF16(s string, n int) string {
-	if len(s) <= n && utf8.ValidString(s) {
-		return s // a UTF-8 string never has more UTF-16 code units than bytes
-	}
-	units := utf16.Encode([]rune(s))
-	if len(units) <= n {
-		return string(utf16.Decode(units))
-	}
-	return string(utf16.Decode(units[:n]))
 }

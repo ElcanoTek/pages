@@ -30,8 +30,9 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/clientip"
 	"github.com/ElcanoTek/pages/internal/env"
-	"github.com/ElcanoTek/pages/internal/mcpproto"
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Options configures New.
@@ -178,10 +179,10 @@ func (l *Limiter) Hit(w http.ResponseWriter, r *http.Request) (bool, error) {
 	remaining := math.Max(l.opts.Limit-hits, 0)
 	reset := math.Max(0, math.Ceil((resetAt-l.nowMs())/1000))
 	h := w.Header()
-	h.Set("RateLimit-Policy", jsjson.FormatNumber(l.opts.Limit)+";w="+jsjson.FormatNumber(l.windowSeconds))
-	h.Set("RateLimit", "limit="+jsjson.FormatNumber(l.opts.Limit)+", remaining="+jsjson.FormatNumber(remaining)+", reset="+jsjson.FormatNumber(reset))
+	h.Set("RateLimit-Policy", jsonv.FormatNumber(l.opts.Limit)+";w="+jsonv.FormatNumber(l.windowSeconds))
+	h.Set("RateLimit", "limit="+jsonv.FormatNumber(l.opts.Limit)+", remaining="+jsonv.FormatNumber(remaining)+", reset="+jsonv.FormatNumber(reset))
 	if hits > l.opts.Limit {
-		h.Set("Retry-After", jsjson.FormatNumber(reset))
+		h.Set("Retry-After", jsonv.FormatNumber(reset))
 		return false, nil
 	}
 	return true, nil
@@ -292,7 +293,7 @@ func SessionKey(token string) string {
 // WriteJSON answers as Express's res.status(status).json(body) did, for a
 // body already serialized: JSON with charset, weak ETag, Content-Length.
 func WriteJSON(w http.ResponseWriter, status int, body []byte) {
-	mcpproto.WriteExpressJSON(w, status, body)
+	httpx.WriteJSON(w, status, body)
 }
 
 // DefaultExceeded is the JSON 429 of the API-style limiters.
@@ -312,7 +313,7 @@ const minuteMs = 60 * 1000
 // envNumber is lib/ratelimit.js N(): the variable as a positive finite
 // JavaScript number, else def.
 func envNumber(name string, def float64) float64 {
-	n := jsjson.Number(env.String(name, ""))
+	n := jsstr.Number(env.String(name, ""))
 	if math.IsNaN(n) || math.IsInf(n, 0) || n <= 0 {
 		return def
 	}

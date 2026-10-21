@@ -24,6 +24,9 @@ package render
 import (
 	"regexp"
 	"strings"
+
+	"github.com/ElcanoTek/pages/internal/datalimits"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
 // DocBlockRE matches the document block. Submatches: 1 the opening tag, 2 the
@@ -39,11 +42,31 @@ func ReadDoc(html string) (any, bool) {
 	if m == nil {
 		return nil, false
 	}
-	v, err := parseJSValue(m[2])
-	if err != nil || v.kind == jsNull {
+	v, err := jsonv.ParseString(m[2])
+	if err != nil || v == nil {
 		return nil, false
 	}
-	return v.toAny(), true
+	return toGo(v), true
+}
+
+// toGo converts a jsonv value to the encoding/json shapes ReadDoc promises.
+func toGo(v any) any {
+	switch x := v.(type) {
+	case []any:
+		out := make([]any, len(x))
+		for i, el := range x {
+			out[i] = toGo(el)
+		}
+		return out
+	case *jsonv.Object:
+		out := make(map[string]any, x.Len())
+		x.Range(func(k string, el any) bool {
+			out[k] = toGo(el)
+			return true
+		})
+		return out
+	}
+	return v
 }
 
 // StripCollab removes the live-collaboration block from a deck's document.
@@ -62,14 +85,15 @@ func StripCollab(html string) (out string, stripped bool) {
 	if loc == nil {
 		return html, false
 	}
-	doc, err := parseJSValue(html[loc[4]:loc[5]])
-	if err != nil || doc.kind != jsObject || !doc.obj.has("collab") {
+	// Lossless: a lone surrogate escape in the document is written back as
+	// the same escape, as JSON.stringify(JSON.parse(...)) would.
+	parsed, err := jsonv.ParseLossless([]byte(html[loc[4]:loc[5]]))
+	doc, ok := parsed.(*jsonv.Object)
+	if err != nil || !ok || !doc.Has("collab") {
 		return html, false
 	}
-	doc.obj.delete("collab")
-	var b strings.Builder
-	doc.stringify(&b)
-	return html[:loc[0]] + html[loc[2]:loc[3]] + escapeJSONText(b.String()) + html[loc[6]:loc[7]] + html[loc[1]:], true
+	doc.Delete("collab")
+	return html[:loc[0]] + html[loc[2]:loc[3]] + datalimits.EscapedJSON(doc) + html[loc[6]:loc[7]] + html[loc[1]:], true
 }
 
 // EditSessionOptions configure an edit session.
@@ -101,9 +125,9 @@ type EditSessionOptions struct {
 func EditSessionScript(saveURL, token, versionID string) string {
 	version := "null"
 	if versionID != "" {
-		version = jsonString(versionID)
+		version = jsonv.Quote(versionID)
 	}
-	config := strings.ReplaceAll(`{"saveUrl":`+jsonString(saveURL)+`,"token":`+jsonString(token)+`,"versionId":`+version+`}`, "<", `\u003c`)
+	config := strings.ReplaceAll(`{"saveUrl":`+jsonv.Quote(saveURL)+`,"token":`+jsonv.Quote(token)+`,"versionId":`+version+`}`, "<", `\u003c`)
 	return `<script data-pages-deck-host>(function(){var s=document.currentScript;var cfg=` + config + `;var saves=Promise.resolve();var saveBlocked=false;` +
 		`if(!(window.origin==="null"&&/^https?:$/.test(location.protocol))){if(s&&s.parentNode)s.parentNode.removeChild(s);return}` +
 		// toast: a shadow root, so the deck's own styles cannot reach it and vice versa

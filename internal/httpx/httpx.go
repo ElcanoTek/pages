@@ -1,58 +1,32 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 
-// Package wire holds the small pieces of Node/Express request and response
-// behaviour the sign-in surface has to reproduce byte for byte: the cookie
-// jar parser lib/auth.js shipped, encodeURIComponent and URLSearchParams
-// serialization, Node's querystring parser (Express 5's "simple" query
-// parser), encodeurl for Location headers, and res.send / res.json /
-// res.redirect with Express's weak ETag and freshness check.
+// Package httpx is the one home for the Node/Express request and response
+// behaviour Pages has to reproduce byte for byte (every surface uses it; do
+// not write another res.json):
 //
-// It is deliberately dependency-free so packages that only need ParseCookies
-// (the content host's page sessions, the rate limiter's key) can import it
-// without pulling in the database.
-package wire
+//   - responses (response.go): res.send / res.json / res.redirect with
+//     Express's weak ETag and freshness check — Send, SendHTML, SendJSON,
+//     WriteJSON, Redirect, ETag, Marshal;
+//   - requests (this file): the cookie jar parser lib/auth.js shipped, Node's
+//     querystring parser (Express 5's "simple" query parser), req.get-style
+//     header joining, req.originalUrl;
+//   - URLs: encodeURIComponent / decodeURIComponent, URLSearchParams
+//     serialization, and encodeurl for Location headers.
+//
+// It depends on nothing heavier than jsstr, so packages that only need
+// ParseCookies (the content host's page sessions, the rate limiter's key) can
+// import it without pulling in the database.
+package httpx
 
 import (
-	"bytes"
-	"crypto/sha1" //nolint:gosec // Express's etag is a sha1 content hash, not a security primitive
-	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
-
-// ── JavaScript string helpers ──────────────────────────────────────────────
-
-// IsJSSpace reports whether r is JavaScript whitespace or a line terminator:
-// what String.prototype.trim strips and what /\s/u matches.
-func IsJSSpace(r rune) bool {
-	switch r {
-	case '\t', '\n', '\v', '\f', '\r', ' ', 0x00a0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
-		return true
-	}
-	return r >= 0x2000 && r <= 0x200a
-}
-
-// TrimJS is String.prototype.trim.
-func TrimJS(s string) string { return strings.TrimFunc(s, IsJSSpace) }
-
-// UTF16Len is a JavaScript string's .length for s.
-func UTF16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		if r >= 0x10000 {
-			n += 2
-		} else {
-			n++
-		}
-	}
-	return n
-}
 
 const upperHex = "0123456789ABCDEF"
 
@@ -275,7 +249,7 @@ func ParseCookies(header string) map[string]string {
 		return out
 	}
 	for _, entry := range strings.Split(header, ";") {
-		pair := TrimJS(entry)
+		pair := jsstr.Trim(entry)
 		if pair == "" {
 			continue
 		}
@@ -283,8 +257,8 @@ func ParseCookies(header string) map[string]string {
 		if eq < 1 {
 			continue
 		}
-		key := TrimJS(pair[:eq])
-		value := TrimJS(pair[eq+1:])
+		key := jsstr.Trim(pair[:eq])
+		value := jsstr.Trim(pair[eq+1:])
 		if dec, err := DecodeURIComponent(value); err == nil {
 			out[key] = dec
 		} else {
@@ -311,141 +285,6 @@ func OriginalURL(r *http.Request) string {
 		return r.RequestURI
 	}
 	return r.URL.RequestURI()
-}
-
-// ── Responses (Express semantics) ─────────────────────────────────────────
-
-// ETag is Express's default weak ETag for a body.
-func ETag(body []byte) string {
-	sum := sha1.Sum(body) //nolint:gosec // content hash for caching, as Express computes it
-	hash := base64.StdEncoding.EncodeToString(sum[:])[:27]
-	return `W/"` + strconv.FormatInt(int64(len(body)), 16) + "-" + hash + `"`
-}
-
-var noCache = func(cc string) bool {
-	for _, part := range strings.Split(cc, ",") {
-		if strings.EqualFold(strings.TrimSpace(part), "no-cache") {
-			return true
-		}
-	}
-	return false
-}
-
-// fresh is the `fresh` package against an ETag (Pages never sets
-// Last-Modified on these responses).
-func fresh(r *http.Request, etag string) bool {
-	ims := r.Header.Get("If-Modified-Since")
-	inm := Header(r, "If-None-Match")
-	if ims == "" && inm == "" {
-		return false
-	}
-	if cc := Header(r, "Cache-Control"); cc != "" && noCache(cc) {
-		return false
-	}
-	if inm != "" {
-		if inm == "*" {
-			return true
-		}
-		for _, m := range strings.Split(inm, ",") {
-			m = strings.TrimSpace(m)
-			if m == etag || "W/"+m == etag || m == "W/"+etag {
-				return true
-			}
-		}
-		return false
-	}
-	// If-Modified-Since without a Last-Modified is always stale.
-	return false
-}
-
-// Send is Express's res.status(status).send(body) for a body whose
-// Content-Type is already chosen: Content-Length, weak ETag, 304 when the
-// request is fresh, no body for HEAD.
-func Send(w http.ResponseWriter, r *http.Request, status int, contentType string, body []byte) {
-	h := w.Header()
-	if h.Get("Content-Type") == "" {
-		h.Set("Content-Type", contentType)
-	}
-	h.Set("Content-Length", strconv.Itoa(len(body)))
-	etag := h.Get("ETag")
-	if etag == "" {
-		etag = ETag(body)
-		h.Set("ETag", etag)
-	}
-	if (r.Method == http.MethodGet || r.Method == http.MethodHead) && status >= 200 && status < 300 && fresh(r, etag) {
-		status = http.StatusNotModified
-	}
-	if status == http.StatusNoContent || status == http.StatusNotModified {
-		h.Del("Content-Type")
-		h.Del("Content-Length")
-		h.Del("Transfer-Encoding")
-		body = nil
-	}
-	w.WriteHeader(status)
-	if r.Method != http.MethodHead && len(body) > 0 {
-		_, _ = w.Write(body)
-	}
-}
-
-// SendHTML is res.status(status).send(html) (or .type("html").send).
-func SendHTML(w http.ResponseWriter, r *http.Request, status int, html string) {
-	Send(w, r, status, "text/html; charset=utf-8", []byte(html))
-}
-
-// Marshal is JSON.stringify for the plain values Pages sends: no HTML
-// escaping (encoding/json escapes <>& by default; JavaScript does not) and no
-// trailing newline.
-func Marshal(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
-}
-
-// SendJSON is res.status(status).json(v).
-func SendJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
-	body, err := Marshal(v)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	Send(w, r, status, "application/json; charset=utf-8", body)
-}
-
-// JSONString is JSON.stringify(s) for a string: like encoding/json, but
-// U+2028/U+2029 and <>& stay literal, as V8 writes them.
-func JSONString(s string) string {
-	var b strings.Builder
-	b.WriteByte('"')
-	for _, r := range strings.ToValidUTF8(s, "�") {
-		switch r {
-		case '"':
-			b.WriteString(`\"`)
-		case '\\':
-			b.WriteString(`\\`)
-		case '\b':
-			b.WriteString(`\b`)
-		case '\f':
-			b.WriteString(`\f`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\t':
-			b.WriteString(`\t`)
-		default:
-			if r < 0x20 {
-				fmt.Fprintf(&b, `\u%04x`, r)
-			} else {
-				b.WriteRune(r)
-			}
-		}
-	}
-	b.WriteByte('"')
-	return b.String()
 }
 
 // EncodeURL is the encodeurl package Express runs every Location through:
@@ -494,101 +333,4 @@ func EncodeURL(s string) string {
 		i += size
 	}
 	return b.String()
-}
-
-var statusText = map[int]string{
-	301: "Moved Permanently", 302: "Found", 303: "See Other", 307: "Temporary Redirect", 308: "Permanent Redirect",
-}
-
-func escapeHTML(s string) string {
-	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&#39;").Replace(s)
-}
-
-// Redirect is Express 5's res.redirect(status, url): Location through
-// encodeurl, a text or HTML body chosen by Accept, Vary: Accept.
-func Redirect(w http.ResponseWriter, r *http.Request, status int, url string) {
-	address := EncodeURL(url)
-	h := w.Header()
-	h.Set("Location", address)
-	h.Add("Vary", "Accept")
-	msg := statusText[status]
-	if msg == "" {
-		msg = http.StatusText(status)
-	}
-	var body string
-	switch negotiate(Header(r, "Accept"), []string{"text/plain", "text/html"}) {
-	case "text/plain":
-		h.Set("Content-Type", "text/plain; charset=utf-8")
-		body = msg + ". Redirecting to " + address
-	case "text/html":
-		h.Set("Content-Type", "text/html; charset=utf-8")
-		u := escapeHTML(address)
-		body = "<!DOCTYPE html><head><title>" + msg + "</title></head><body><p>" + msg + ". Redirecting to " + u + "</p></body>"
-	}
-	h.Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(status)
-	if r.Method != http.MethodHead {
-		_, _ = w.Write([]byte(body))
-	}
-}
-
-// negotiate is the negotiator package's preferred media type among offers
-// (in offer order on ties), "" when Accept excludes them all. No Accept
-// header accepts anything, so the first offer wins.
-func negotiate(accept string, offers []string) string {
-	if strings.TrimSpace(accept) == "" {
-		return offers[0]
-	}
-	type rng struct {
-		typ, sub string
-		q        float64
-		idx      int
-	}
-	var ranges []rng
-	for i, part := range strings.Split(accept, ",") {
-		fields := strings.Split(part, ";")
-		mt := strings.ToLower(strings.TrimSpace(fields[0]))
-		typ, sub, ok := strings.Cut(mt, "/")
-		if !ok {
-			continue
-		}
-		q := 1.0
-		for _, p := range fields[1:] {
-			k, v, _ := strings.Cut(strings.TrimSpace(p), "=")
-			if strings.EqualFold(strings.TrimSpace(k), "q") {
-				if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
-					q = f
-				}
-			}
-		}
-		ranges = append(ranges, rng{typ, sub, q, i})
-	}
-	best, bestQ, bestS, bestO := "", 0.0, -1, 0
-	for _, offer := range offers {
-		typ, sub, _ := strings.Cut(offer, "/")
-		q, s, o := 0.0, -1, -1
-		for _, rg := range ranges {
-			spec := 0
-			switch {
-			case rg.typ == typ && rg.sub == sub:
-				spec = 6
-			case rg.typ == typ && rg.sub == "*":
-				spec = 4
-			case rg.typ == "*" && rg.sub == "*":
-				spec = 0
-			default:
-				continue
-			}
-			if spec > s || (spec == s && rg.q > q) {
-				q, s, o = rg.q, spec, rg.idx
-			}
-		}
-		if q <= 0 {
-			continue
-		}
-		if best == "" || q > bestQ || (q == bestQ && s > bestS) || (q == bestQ && s == bestS && o < bestO) {
-			best, bestQ, bestS, bestO = offer, q, s, o
-		}
-	}
-	return best
 }

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/httpx"
 )
 
 // Client is the relying-party side of Auth's application handoff.
@@ -43,7 +43,7 @@ func (c *Client) CallbackURL() string { return c.Config.PublicURL + "/auth/callb
 
 // AuthorizationURL is Auth's /authorize request for one transaction.
 func (c *Client) AuthorizationURL(state, nonce, codeChallenge string) string {
-	q := wire.FormEncode(
+	q := httpx.FormEncode(
 		[2]string{"response_type", "code"},
 		[2]string{"client_id", c.Config.ClientID},
 		[2]string{"redirect_uri", c.CallbackURL()},
@@ -58,7 +58,7 @@ func (c *Client) AuthorizationURL(state, nonce, codeChallenge string) string {
 
 // LogoutURL is Auth's RP-initiated logout for this application.
 func (c *Client) LogoutURL() string {
-	return c.Config.Issuer + "/logout?client_id=" + wire.EncodeURIComponent(c.Config.ClientID)
+	return c.Config.Issuer + "/logout?client_id=" + httpx.EncodeURIComponent(c.Config.ClientID)
 }
 
 // Principal is the identity a code exchange proved.
@@ -70,7 +70,7 @@ type Principal struct {
 // Exchange trades the code for Auth's identity claims.
 func (c *Client) Exchange(ctx context.Context, code, verifier, nonce string) (Principal, error) {
 	cfg := c.Config
-	body := wire.FormEncode(
+	body := httpx.FormEncode(
 		[2]string{"grant_type", "authorization_code"},
 		[2]string{"code", code},
 		[2]string{"redirect_uri", c.CallbackURL()},

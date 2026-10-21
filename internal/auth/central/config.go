@@ -15,7 +15,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Config is every central-mode setting, validated.
@@ -44,7 +44,7 @@ func MapEnv(m map[string]string) Getenv {
 }
 
 func truthy(v string) bool {
-	switch strings.ToLower(wire.TrimJS(v)) {
+	switch strings.ToLower(jsstr.Trim(v)) {
 	case "1", "true", "yes", "on":
 		return true
 	}
@@ -55,7 +55,7 @@ func truthy(v string) bool {
 // an absolute http(s) URL with no credentials, query, fragment or path, as
 // its origin.
 func parseOrigin(name, raw string, allowHTTP bool) (string, error) {
-	text := wire.TrimJS(raw)
+	text := jsstr.Trim(raw)
 	unparsable := fmt.Errorf("%s must be an absolute https:// origin", name)
 	u, err := url.Parse(text)
 	if err != nil || u.Scheme == "" {
@@ -97,7 +97,7 @@ var b64Std = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
 // DecodePublicKey decodes a base64 (standard alphabet) 32-byte Ed25519 key,
 // nil when it is not one.
 func DecodePublicKey(encoded string) ed25519.PublicKey {
-	text := wire.TrimJS(encoded)
+	text := jsstr.Trim(encoded)
 	if !b64Std.MatchString(text) {
 		return nil
 	}
@@ -118,7 +118,7 @@ func DecodePublicKey(encoded string) ed25519.PublicKey {
 func staticSigningKeys(get func(string) string) ([]ed25519.PublicKey, error) {
 	var encoded []string
 	for _, k := range append([]string{get("AUTH_SIGNING_PUBKEY")}, strings.Split(get("AUTH_SIGNING_PREVIOUS_PUBKEYS"), ",")...) {
-		if k = wire.TrimJS(k); k != "" {
+		if k = jsstr.Trim(k); k != "" {
 			encoded = append(encoded, k)
 		}
 	}
@@ -152,7 +152,7 @@ func LoadConfig(lookup Getenv) (Config, error) {
 	if !cookieSecure && !allowHTTP {
 		return Config{}, errors.New("PAGES_AUTH_COOKIE_SECURE=0 needs AUTH_ALLOW_INSECURE_HTTP=1 (local development only)")
 	}
-	dashboardHost := strings.ToLower(wire.TrimJS(get("DASHBOARD_HOST")))
+	dashboardHost := strings.ToLower(jsstr.Trim(get("DASHBOARD_HOST")))
 	if dashboardHost == "" {
 		return Config{}, errors.New("central mode needs DASHBOARD_HOST: the sign-in callback must land on it")
 	}
@@ -164,9 +164,9 @@ func LoadConfig(lookup Getenv) (Config, error) {
 	if clientID == "" {
 		clientID = "pages"
 	}
-	clientID = wire.TrimJS(clientID)
+	clientID = jsstr.Trim(clientID)
 	clientSecret := get("AUTH_CLIENT_SECRET")
-	if clientID == "" || strings.Contains(clientID, ":") || wire.UTF16Len(clientID) > 128 {
+	if clientID == "" || strings.Contains(clientID, ":") || jsstr.UTF16Len(clientID) > 128 {
 		return Config{}, errors.New("AUTH_CLIENT_ID must be 1-128 characters without ':'")
 	}
 	if n := len(clientSecret); n < 32 || n > 256 || strings.Contains(clientSecret, ":") {

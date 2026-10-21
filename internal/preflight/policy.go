@@ -3,7 +3,11 @@
 
 package preflight
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ElcanoTek/pages/internal/jsstr"
+)
 
 // DefaultContentPolicy is the content host's /raw Content-Security-Policy as
 // the csp package serves it (lib/csp.js rawHeaders), without the trailing
@@ -31,7 +35,7 @@ type policy map[string][]string
 func parsePolicy(csp string) policy {
 	p := policy{}
 	for _, part := range strings.Split(csp, ";") {
-		fields := splitJSWhitespace(jsTrim(part))
+		fields := splitJSWhitespace(jsstr.Trim(part))
 		p[fields[0]] = fields[1:]
 	}
 	return p

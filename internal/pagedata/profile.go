@@ -4,7 +4,6 @@
 package pagedata
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // ── payload profiling (issue #102) ───────────────────────────────────────────
@@ -339,10 +339,10 @@ func profileRows(rows []any, onCapped func()) *Ordered[*FieldProfile] {
 				if isDateLike(v) {
 					f.dates++
 					// Lexicographic comparison is correct for ISO-8601 prefixes.
-					if !f.hasDate || jsonv.LessUTF16(v, f.dateMin) {
+					if !f.hasDate || jsstr.Less(v, f.dateMin) {
 						f.dateMin = v
 					}
-					if !f.hasDate || jsonv.LessUTF16(f.dateMax, v) {
+					if !f.hasDate || jsstr.Less(f.dateMax, v) {
 						f.dateMax = v
 					}
 					f.hasDate = true
@@ -386,12 +386,12 @@ func profileRows(rows []any, onCapped func()) *Ordered[*FieldProfile] {
 				if ci != cj {
 					return ci > cj
 				}
-				return jsonv.LessUTF16(listed[i], listed[j])
+				return jsstr.Less(listed[i], listed[j])
 			})
 			values := jsonv.NewObject()
 			shown := 0
 			for _, v := range listed {
-				if jsonv.UTF16Len(v) > profileMaxValueLen || shown >= profileListDistinct {
+				if jsstr.UTF16Len(v) > profileMaxValueLen || shown >= profileListDistinct {
 					continue
 				}
 				values.Set(v, float64(f.counts[v]))
@@ -469,8 +469,8 @@ func ProfileData(data any) *Profile {
 
 func clipCoverageValue(v any) (any, bool) {
 	s, ok := v.(string)
-	if ok && jsonv.UTF16Len(s) > coverageValueLen {
-		return jsonv.SliceUTF16(s, 0, coverageValueLen-1) + "…", true
+	if ok && jsstr.UTF16Len(s) > coverageValueLen {
+		return jsstr.Slice(s, 0, coverageValueLen-1) + "…", true
 	}
 	return v, false
 }
@@ -499,7 +499,7 @@ func BoundedCoverageProfile(profile *Profile, maxBytes int) (*Profile, bool) {
 	fits := func() bool { return profileBytes(out) <= maxBytes }
 	for _, path := range profile.Arrays.Keys() {
 		entry, _ := profile.Arrays.Get(path)
-		if jsonv.UTF16Len(path) > coverageNameLen {
+		if jsstr.UTF16Len(path) > coverageNameLen {
 			truncated = true
 			continue
 		}
@@ -510,7 +510,7 @@ func BoundedCoverageProfile(profile *Profile, maxBytes int) (*Profile, bool) {
 			if field.Kind != "date" {
 				continue
 			}
-			if jsonv.UTF16Len(name) > coverageNameLen || kept >= coverageMaxDateFields {
+			if jsstr.UTF16Len(name) > coverageNameLen || kept >= coverageMaxDateFields {
 				truncated = true
 				continue
 			}
@@ -552,7 +552,7 @@ func BoundedCoverageProfile(profile *Profile, maxBytes int) (*Profile, bool) {
 		if !isDateLike(value) {
 			continue
 		}
-		if jsonv.UTF16Len(path) > coverageNameLen || jsonv.UTF16Len(value.(string)) > profileMessageValueLen || scalarsKept >= coverageMaxScalars {
+		if jsstr.UTF16Len(path) > coverageNameLen || jsstr.UTF16Len(value.(string)) > profileMessageValueLen || scalarsKept >= coverageMaxScalars {
 			truncated = true
 			continue
 		}
@@ -596,10 +596,10 @@ func (w Warning) WriteJSON(b *strings.Builder) error {
 func (w Warning) MarshalJSON() ([]byte, error) { return marshalWriter(w) }
 
 func truncateForMessage(v string) string {
-	if jsonv.UTF16Len(v) <= profileMessageValueLen {
+	if jsstr.UTF16Len(v) <= profileMessageValueLen {
 		return v
 	}
-	return jsonv.SliceUTF16(v, 0, profileMessageValueLen) + "…"
+	return jsstr.Slice(v, 0, profileMessageValueLen) + "…"
 }
 
 // capWarnings keeps the list bounded, and SAYS so rather than truncating
@@ -723,7 +723,7 @@ func CompareDataProfiles(previous, next *Profile, opts CompareOptions) []Warning
 			fieldPath := path + "." + name
 			if afterField.Kind == "date" && beforeField.Kind == "date" {
 				bMin, aMin := dateString(beforeField.Min), dateString(afterField.Min)
-				if bMin != "" && aMin != "" && jsonv.LessUTF16(bMin, aMin) {
+				if bMin != "" && aMin != "" && jsstr.Less(bMin, aMin) {
 					warnings = append(warnings, Warning{
 						Code: "coverage_start_regressed",
 						Path: fieldPath,
@@ -734,7 +734,7 @@ func CompareDataProfiles(previous, next *Profile, opts CompareOptions) []Warning
 					})
 				}
 				bMax, aMax := dateString(beforeField.Max), dateString(afterField.Max)
-				if bMax != "" && aMax != "" && jsonv.LessUTF16(aMax, bMax) {
+				if bMax != "" && aMax != "" && jsstr.Less(aMax, bMax) {
 					warnings = append(warnings, Warning{
 						Code:     "coverage_end_regressed",
 						Path:     fieldPath,
@@ -891,13 +891,13 @@ func jsNumber(v any) float64 {
 	case float64:
 		return x
 	case string:
-		return jsStringToNumber(x)
+		return jsstr.Number(x)
 	case []any:
 		switch len(x) {
 		case 0:
 			return 0
 		case 1:
-			return jsStringToNumber(jsArrayString(x[0]))
+			return jsstr.Number(jsArrayString(x[0]))
 		}
 	}
 	return math.NaN()
@@ -922,38 +922,6 @@ func jsArrayString(v any) string {
 		return "false"
 	}
 	return jsString(v)
-}
-
-func jsStringToNumber(s string) float64 {
-	s = strings.TrimFunc(s, isJSSpaceRune)
-	if s == "" {
-		return 0
-	}
-	switch s {
-	case "Infinity", "+Infinity":
-		return math.Inf(1)
-	case "-Infinity":
-		return math.Inf(-1)
-	}
-	if len(s) > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X' || s[1] == 'o' || s[1] == 'O' || s[1] == 'b' || s[1] == 'B') {
-		base := map[byte]int{'x': 16, 'X': 16, 'o': 8, 'O': 8, 'b': 2, 'B': 2}[s[1]]
-		n, ok := new(big.Int).SetString(s[2:], base)
-		if !ok {
-			return math.NaN()
-		}
-		f, _ := new(big.Float).SetInt(n).Float64()
-		return f
-	}
-	for _, c := range s {
-		if !strings.ContainsRune("0123456789.eE+-", c) {
-			return math.NaN()
-		}
-	}
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil && !errors.Is(err, strconv.ErrRange) {
-		return math.NaN()
-	}
-	return f
 }
 
 // entries is Object.entries for a parsed JSON value.

@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/db"
+	"github.com/ElcanoTek/pages/internal/httpx"
 )
 
 // Runtime is central mode, configured: the validated settings, the client,
@@ -74,7 +74,7 @@ func LoginCookieName(secure bool) string {
 
 // SessionToken is the request's session cookie value ("" when none).
 func (rt *Runtime) SessionToken(r *http.Request) string {
-	return wire.RequestCookies(r)[rt.SessionCookie]
+	return httpx.RequestCookies(r)[rt.SessionCookie]
 }
 
 // Cookie is a Set-Cookie value with the attributes every central-mode
@@ -227,7 +227,7 @@ func (x *routes) page(w http.ResponseWriter, r *http.Request, status int, title,
 		AssetsBase: "/shell-assets/flag",
 		CTA:        cta,
 	})
-	wire.SendHTML(w, r, status, html)
+	httpx.SendHTML(w, r, status, html)
 }
 
 var retry = &CTA{Href: "/auth/login", Label: "Sign in again"}
@@ -241,7 +241,7 @@ func (x *routes) noAccess(w http.ResponseWriter, r *http.Request) {
 
 func (x *routes) login(w http.ResponseWriter, r *http.Request) {
 	nextRaw := "/admin"
-	if q := wire.QueryParam(r, "next"); q.Present {
+	if q := httpx.QueryParam(r, "next"); q.Present {
 		nextRaw, _ = q.String() // an array is not a string: SafeLocalPath("") → /admin
 	}
 	next := SafeLocalPath(nextRaw)
@@ -251,20 +251,20 @@ func (x *routes) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id != nil {
-		wire.Redirect(w, r, http.StatusSeeOther, next)
+		httpx.Redirect(w, r, http.StatusSeeOther, next)
 		return
 	}
 	tx := NewTransaction(next, 0)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Set-Cookie", x.rt.Cookie(x.rt.LoginCookie, SealTransaction(tx, x.rt.Config.TransactionKey), LoginTransactionSeconds))
-	wire.Redirect(w, r, http.StatusSeeOther, x.rt.Client.AuthorizationURL(tx.State, tx.Nonce, tx.Challenge))
+	httpx.Redirect(w, r, http.StatusSeeOther, x.rt.Client.AuthorizationURL(tx.State, tx.Nonce, tx.Challenge))
 }
 
 func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 	// The transaction is single-use whatever happens next.
 	w.Header().Set("Set-Cookie", x.rt.clearCookie(x.rt.LoginCookie))
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	q := wire.ParseQuery(r.URL.RawQuery)
+	q := httpx.ParseQuery(r.URL.RawQuery)
 	one := func(name string) (string, bool) {
 		v, ok := q[name]
 		if !ok || len(v) != 1 {
@@ -290,7 +290,7 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := func() error {
-		sealed := wire.RequestCookies(r)[x.rt.LoginCookie]
+		sealed := httpx.RequestCookies(r)[x.rt.LoginCookie]
 		tx, err := OpenTransaction(sealed, state, x.rt.Config.TransactionKey, 0)
 		if err != nil {
 			return err
@@ -305,7 +305,7 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		w.Header().Add("Set-Cookie", x.rt.Cookie(x.rt.SessionCookie, token, -1))
-		wire.Redirect(w, r, http.StatusSeeOther, tx.Next)
+		httpx.Redirect(w, r, http.StatusSeeOther, tx.Next)
 		return nil
 	}()
 	switch {
@@ -375,7 +375,7 @@ func parseBackchannelForm(r *http.Request) (map[string][]string, error) {
 	if strings.Count(body, "&")+1 > 4 {
 		return nil, apierror.New(http.StatusRequestEntityTooLarge, "invalid request", "bad_request", nil)
 	}
-	return wire.ParseQuery(body), nil
+	return httpx.ParseQuery(body), nil
 }
 
 // backchannel is Auth's server-to-server channel. Exactly one form field:
@@ -392,7 +392,7 @@ func (x *routes) backchannel(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	invalidRequest := map[string]string{"error": "invalid_request"}
 	if len(form) != 1 {
-		wire.SendJSON(w, r, http.StatusBadRequest, invalidRequest)
+		httpx.SendJSON(w, r, http.StatusBadRequest, invalidRequest)
 		return
 	}
 	var field string
@@ -402,7 +402,7 @@ func (x *routes) backchannel(w http.ResponseWriter, r *http.Request) {
 	}
 	// A key with a bracket is an object or array under qs, never a string.
 	if (field != "logout_token" && field != "access_token") || len(values) != 1 || values[0] == "" {
-		wire.SendJSON(w, r, http.StatusBadRequest, invalidRequest)
+		httpx.SendJSON(w, r, http.StatusBadRequest, invalidRequest)
 		return
 	}
 	raw := values[0]
@@ -414,7 +414,7 @@ func (x *routes) backchannel(w http.ResponseWriter, r *http.Request) {
 	if field == "logout_token" {
 		ev, err := VerifyLogoutToken(raw, opts)
 		if err != nil {
-			wire.SendJSON(w, r, http.StatusBadRequest, map[string]string{"error": "invalid_token"})
+			httpx.SendJSON(w, r, http.StatusBadRequest, map[string]string{"error": "invalid_token"})
 			return
 		}
 		if _, err := x.rt.Store.ConsumeLogoutEvent(r.Context(), ev); err != nil {
@@ -424,7 +424,7 @@ func (x *routes) backchannel(w http.ResponseWriter, r *http.Request) {
 	} else {
 		ev, err := VerifyAccessToken(raw, opts)
 		if err != nil {
-			wire.SendJSON(w, r, http.StatusBadRequest, map[string]string{"error": "invalid_token"})
+			httpx.SendJSON(w, r, http.StatusBadRequest, map[string]string{"error": "invalid_token"})
 			return
 		}
 		if _, err := x.rt.Store.ApplyAccessEvent(r.Context(), ev); err != nil {
@@ -437,7 +437,7 @@ func (x *routes) backchannel(w http.ResponseWriter, r *http.Request) {
 
 func (x *routes) unavailable(w http.ResponseWriter, r *http.Request, err error) {
 	x.opts.Logger.Error("central auth: back-channel event not applied: " + err.Error())
-	wire.SendJSON(w, r, http.StatusServiceUnavailable, map[string]string{"error": "temporarily_unavailable"})
+	httpx.SendJSON(w, r, http.StatusServiceUnavailable, map[string]string{"error": "temporarily_unavailable"})
 }
 
 // logout ends this session and hands the browser to Auth's RP-initiated
@@ -449,10 +449,10 @@ func (x *routes) unavailable(w http.ResponseWriter, r *http.Request, err error) 
 // made to sign out: a nuisance, not a takeover, and the same one Auth's own
 // GET /logout?client_id accepts.
 func (x *routes) logout(w http.ResponseWriter, r *http.Request) {
-	site := wire.Header(r, "Sec-Fetch-Site")
-	origin := wire.Header(r, "Origin")
+	site := httpx.Header(r, "Sec-Fetch-Site")
+	origin := httpx.Header(r, "Origin")
 	if (site != "" && site != "same-origin" && site != "none") || (origin != "" && origin != x.rt.Config.PublicURL) {
-		wire.Redirect(w, r, http.StatusSeeOther, "/admin")
+		httpx.Redirect(w, r, http.StatusSeeOther, "/admin")
 		return
 	}
 	if token := x.rt.SessionToken(r); token != "" {
@@ -465,7 +465,7 @@ func (x *routes) logout(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("Set-Cookie", x.rt.clearCookie(x.rt.SessionCookie))
 	h.Add("Set-Cookie", x.rt.clearCookie(x.rt.LoginCookie))
-	wire.Redirect(w, r, http.StatusSeeOther, x.rt.Client.LogoutURL())
+	httpx.Redirect(w, r, http.StatusSeeOther, x.rt.Client.LogoutURL())
 }
 
 // signedOut is registered with Auth as the post-logout landing. Public and

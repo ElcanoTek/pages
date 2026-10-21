@@ -253,6 +253,9 @@ func IsArrayIndex(key string) bool {
 
 // ── parsing ─────────────────────────────────────────────────────────────────
 
+// ErrSyntax matches (errors.Is) every *SyntaxError.
+var ErrSyntax = errors.New("invalid JSON")
+
 // SyntaxError is a JSON.parse failure.
 type SyntaxError struct {
 	Offset int
@@ -261,13 +264,37 @@ type SyntaxError struct {
 
 func (e *SyntaxError) Error() string { return fmt.Sprintf("%s at position %d", e.msg, e.Offset) }
 
+// Is makes errors.Is(err, ErrSyntax) true for a SyntaxError.
+func (e *SyntaxError) Is(target error) bool { return target == ErrSyntax }
+
 // Parse is JSON.parse: the strict JSON grammar, whitespace limited to space,
 // tab, CR and LF, numbers as doubles (an out-of-range literal becomes ±Inf, as
 // in JavaScript), and a duplicate key keeping its first position with the last
-// value. Invalid UTF-8 and lone surrogate escapes become U+FFFD, since a Go
-// string (and a Postgres text column) cannot hold a lone surrogate.
+// value. Invalid UTF-8 and lone surrogate escapes become U+FFFD, since a
+// Postgres text column cannot hold a lone surrogate: this is the parse for
+// values Pages stores, hashes and validates. ParseLossless is the
+// wire-faithful variant.
 func Parse(data []byte) (any, error) {
-	p := parser{s: data}
+	return parse(data, false)
+}
+
+// ParseLossless is JSON.parse over bytes exactly as Node would see them, for
+// values that are only echoed back (the MCP wire, a re-serialised document):
+// input that is not valid UTF-8 is first decoded as the WHATWG decoder (and so
+// Buffer#toString) does — each maximal invalid subpart becomes one U+FFFD —
+// and a lone surrogate escape such as "\ud800" survives as its WTF-8 bytes,
+// which Stringify writes back as the same escape. So
+// Stringify(ParseLossless(text)) is JSON.stringify(JSON.parse(text)) byte for
+// byte. Such a string is not valid UTF-8; do not store it.
+func ParseLossless(data []byte) (any, error) {
+	if !utf8.Valid(data) {
+		data = []byte(DecodeUTF8(data))
+	}
+	return parse(data, true)
+}
+
+func parse(data []byte, wtf8 bool) (any, error) {
+	p := parser{s: data, wtf8: wtf8}
 	p.ws()
 	v, err := p.value(0)
 	if err != nil {
@@ -286,8 +313,9 @@ func ParseString(s string) (any, error) { return Parse([]byte(s)) }
 const maxDepth = 10000
 
 type parser struct {
-	s []byte
-	i int
+	s    []byte
+	i    int
+	wtf8 bool // keep lone surrogates as WTF-8 (ParseLossless)
 }
 
 func (p *parser) err(msg string) error { return &SyntaxError{Offset: p.i, msg: msg} }
@@ -471,7 +499,7 @@ func (p *parser) str() (any, error) {
 		case c == '"':
 			p.i++
 			s := b.String()
-			if !utf8.ValidString(s) {
+			if !p.wtf8 && !utf8.ValidString(s) {
 				s = strings.ToValidUTF8(s, "�")
 			}
 			return s, nil
@@ -515,6 +543,10 @@ func (p *parser) str() (any, error) {
 						continue
 					}
 					p.i = save
+				}
+				if p.wtf8 {
+					b.Write(appendWTF8(nil, r))
+					continue
 				}
 				r = utf8.RuneError
 			}
@@ -579,6 +611,77 @@ func (p *parser) number() (any, error) {
 	return f, nil
 }
 
+// appendWTF8 is utf8.AppendRune, except that a surrogate code point is kept
+// as its generalized UTF-8 bytes instead of becoming U+FFFD.
+func appendWTF8(b []byte, r rune) []byte {
+	if utf16.IsSurrogate(r) {
+		return append(b, 0xED, byte(0x80|(r>>6)&0x3F), byte(0x80|r&0x3F)) //nolint:gosec // G115: each value is masked to 6 bits
+	}
+	return utf8.AppendRune(b, r)
+}
+
+// DecodeUTF8 converts bytes to a valid UTF-8 string the way the WHATWG
+// decoder (and so Node's Buffer#toString) does: each maximal subpart of an
+// ill-formed sequence becomes one U+FFFD. (strings.ToValidUTF8 instead
+// collapses a whole run of invalid bytes into one.)
+func DecodeUTF8(b []byte) string {
+	if utf8.Valid(b) {
+		return string(b)
+	}
+	out := make([]byte, 0, len(b)+8)
+	for i := 0; i < len(b); {
+		c := b[i]
+		if c < 0x80 {
+			out = append(out, c)
+			i++
+			continue
+		}
+		need, lo, hi := 0, byte(0x80), byte(0xBF)
+		switch {
+		case c >= 0xC2 && c <= 0xDF:
+			need = 1
+		case c >= 0xE0 && c <= 0xEF:
+			need = 2
+			switch c {
+			case 0xE0:
+				lo = 0xA0
+			case 0xED:
+				hi = 0x9F
+			}
+		case c >= 0xF0 && c <= 0xF4:
+			need = 3
+			switch c {
+			case 0xF0:
+				lo = 0x90
+			case 0xF4:
+				hi = 0x8F
+			}
+		default:
+			out = append(out, "�"...)
+			i++
+			continue
+		}
+		j := i + 1
+		ok := true
+		for k := 0; k < need; k++ {
+			if j >= len(b) || b[j] < lo || b[j] > hi {
+				ok = false
+				break
+			}
+			lo, hi = 0x80, 0xBF
+			j++
+		}
+		if !ok {
+			out = append(out, "�"...)
+			i = j
+			continue
+		}
+		out = append(out, b[i:j]...)
+		i = j
+	}
+	return string(out)
+}
+
 // ── stringifying ────────────────────────────────────────────────────────────
 
 // Stringify is JSON.stringify(v) for the value model, with JavaScript number
@@ -601,6 +704,22 @@ func Marshal(v any) (string, error) {
 		return "", err
 	}
 	return b.String(), nil
+}
+
+// AppendValue appends Stringify(v) to b.
+func AppendValue(b []byte, v any) ([]byte, error) {
+	s, err := Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return append(b, s...), nil
+}
+
+// AppendString appends s quoted as JSON.stringify quotes it (see WriteString).
+func AppendString(b []byte, s string) []byte {
+	var sb strings.Builder
+	WriteString(&sb, s)
+	return append(b, sb.String()...)
 }
 
 // Writer is implemented by types that write themselves in JSON.stringify form
@@ -685,6 +804,13 @@ func write(b *strings.Builder, v any) error {
 		b.WriteByte('}')
 	case map[string]any:
 		return write(b, FromMap(x))
+	case json.RawMessage:
+		// JSON text: re-read and printed in JavaScript form, losslessly.
+		parsed, err := ParseLossless(x)
+		if err != nil {
+			return err
+		}
+		return write(b, parsed)
 	case Writer:
 		if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
 			b.WriteString("null")
@@ -786,8 +912,14 @@ const hexDigits = "0123456789abcdef"
 // WriteString writes s as JSON.stringify quotes a string: ", \ and the
 // control characters escaped (\b \f \n \r \t or \u00xx), everything else
 // verbatim — including <, >, & and U+2028/2029, which Go's encoding/json would
-// escape.
+// escape. A WTF-8 lone surrogate (from ParseLossless) is written back as its
+// \udxxx escape, as V8 writes a lone surrogate; any other invalid UTF-8 byte
+// becomes U+FFFD.
 func WriteString(b *strings.Builder, s string) {
+	if !utf8.ValidString(s) {
+		writeStringSlow(b, s)
+		return
+	}
 	b.WriteByte('"')
 	start := 0
 	for i := 0; i < len(s); i++ {
@@ -819,6 +951,60 @@ func WriteString(b *strings.Builder, s string) {
 		start = i + 1
 	}
 	b.WriteString(s[start:])
+	b.WriteByte('"')
+}
+
+func writeStringSlow(b *strings.Builder, s string) {
+	b.WriteByte('"')
+	for i := 0; i < len(s); {
+		c := s[i]
+		if c < utf8.RuneSelf {
+			switch c {
+			case '"':
+				b.WriteString(`\"`)
+			case '\\':
+				b.WriteString(`\\`)
+			case '\b':
+				b.WriteString(`\b`)
+			case '\f':
+				b.WriteString(`\f`)
+			case '\n':
+				b.WriteString(`\n`)
+			case '\r':
+				b.WriteString(`\r`)
+			case '\t':
+				b.WriteString(`\t`)
+			default:
+				if c < 0x20 {
+					b.WriteString(`\u00`)
+					b.WriteByte(hexDigits[c>>4])
+					b.WriteByte(hexDigits[c&0xF])
+				} else {
+					b.WriteByte(c)
+				}
+			}
+			i++
+			continue
+		}
+		// A WTF-8 surrogate (ED A0..BF xx) is a lone surrogate from a parsed
+		// escape: print it back as the escape.
+		if c == 0xED && i+2 < len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2] >= 0x80 && s[i+2] <= 0xBF {
+			r := rune(0xD000) | rune(s[i+1]&0x3F)<<6 | rune(s[i+2]&0x3F)
+			b.WriteString(`\ud`)
+			b.WriteByte(hexDigits[(r>>8)&0xF])
+			b.WriteByte(hexDigits[(r>>4)&0xF])
+			b.WriteByte(hexDigits[r&0xF])
+			i += 3
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size == 1 {
+			b.WriteString("�")
+		} else {
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
 	b.WriteByte('"')
 }
 
@@ -873,84 +1059,42 @@ func Equal(a, b any) bool {
 	return false
 }
 
-// CompareUTF16 orders strings by UTF-16 code units, the order JavaScript's
-// default sort and its < operator use. It differs from Go's byte order for
-// characters above U+FFFF versus U+E000–U+FFFF.
-func CompareUTF16(a, b string) int {
-	for a != "" && b != "" {
-		ra, na := utf8.DecodeRuneInString(a)
-		rb, nb := utf8.DecodeRuneInString(b)
-		if ra != rb {
-			ua, ub := firstUnit(ra), firstUnit(rb)
-			if ua != ub {
-				if ua < ub {
-					return -1
-				}
-				return 1
-			}
-			// Same high surrogate: the low surrogates order as the runes do.
-			if ra < rb {
-				return -1
-			}
-			return 1
+// IsSafeInteger is Number.isSafeInteger for a parsed value.
+func IsSafeInteger(v any) bool {
+	f, ok := v.(float64)
+	return ok && !math.IsInf(f, 0) && f == math.Trunc(f) && math.Abs(f) <= 1<<53-1
+}
+
+// ToString is JavaScript's String(v) for parsed values (objects print as
+// "[object Object]", arrays join their elements with "," with null as "").
+func ToString(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "null"
+	case bool:
+		if x {
+			return "true"
 		}
-		a, b = a[na:], b[nb:]
-	}
-	switch {
-	case a == "" && b == "":
-		return 0
-	case a == "":
-		return -1
-	default:
-		return 1
-	}
-}
-
-func firstUnit(r rune) rune {
-	if r >= 0x10000 {
-		r1, _ := utf16.EncodeRune(r)
-		return r1
-	}
-	return r
-}
-
-// LessUTF16 is CompareUTF16(a, b) < 0.
-func LessUTF16(a, b string) bool { return CompareUTF16(a, b) < 0 }
-
-// SortStrings sorts as Array.prototype.sort() does with no comparator (for
-// strings).
-func SortStrings(s []string) {
-	sort.SliceStable(s, func(i, j int) bool { return LessUTF16(s[i], s[j]) })
-}
-
-// UTF16Len is String.prototype.length.
-func UTF16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		if r >= 0x10000 {
-			n += 2
-		} else {
-			n++
+		return "false"
+	case float64:
+		return FormatNumber(x)
+	case string:
+		return x
+	case []any:
+		var b []byte
+		for i, item := range x {
+			if i > 0 {
+				b = append(b, ',')
+			}
+			if item != nil {
+				b = append(b, ToString(item)...)
+			}
 		}
+		return string(b)
+	case *Object:
+		return "[object Object]"
 	}
-	return n
-}
-
-// SliceUTF16 is s.slice(start, end) in UTF-16 code units. A cut through a
-// surrogate pair yields U+FFFD for the orphaned half, since a Go string cannot
-// hold a lone surrogate.
-func SliceUTF16(s string, start, end int) string {
-	units := utf16.Encode([]rune(s))
-	if start < 0 {
-		start = 0
-	}
-	if end > len(units) {
-		end = len(units)
-	}
-	if start >= end {
-		return ""
-	}
-	return string(utf16.Decode(units[start:end]))
+	return fmt.Sprint(v)
 }
 
 // TypeName is typeof-style naming for diagnostics.

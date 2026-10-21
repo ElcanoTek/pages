@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 )
 
@@ -80,7 +80,7 @@ func TestBuildNavWireShape(t *testing.T) {
 
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
-	b, err := wire.Marshal(v)
+	b, err := httpx.Marshal(v)
 	if err != nil {
 		t.Fatal(err)
 	}

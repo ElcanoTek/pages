@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 var originShape = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://[^/?#]+$`)
@@ -54,7 +56,7 @@ func NormalizeHostname(value string) string {
 func RequestHostname(host string) string { return hostnameOf(host) }
 
 func hostnameOf(candidate string) string {
-	if candidate == "" || strings.ContainsAny(candidate, "@/?#\\") || strings.IndexFunc(candidate, isJSSpace) >= 0 {
+	if candidate == "" || strings.ContainsAny(candidate, "@/?#\\") || strings.IndexFunc(candidate, jsstr.IsSpace) >= 0 {
 		return ""
 	}
 	hostport, ok := parseAuthority(candidate, "http")
@@ -310,17 +312,6 @@ func ipv6Text(addr netip.Addr) string {
 		return hex(words[:])
 	}
 	return hex(words[:best]) + "::" + hex(words[best+bestLen:])
-}
-
-// isJSSpace is JavaScript's WhiteSpace/LineTerminator set for the code
-// points a Latin-1 header value can hold (Node decodes header bytes as
-// Latin-1), plus the wider Unicode ones for completeness.
-func isJSSpace(r rune) bool {
-	switch r {
-	case '\t', '\n', '\v', '\f', '\r', ' ', 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF:
-		return true
-	}
-	return r >= 0x2000 && r <= 0x200A
 }
 
 // jsTrim is String#trim over a header value. Header bytes are Latin-1 to

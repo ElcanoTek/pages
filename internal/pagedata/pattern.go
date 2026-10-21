@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // ── pattern safety (ReDoS screen) ────────────────────────────────────────────
@@ -104,14 +104,6 @@ func runeAt(s []rune, i int) rune {
 	return -1
 }
 
-func isJSSpaceRune(r rune) bool {
-	switch r {
-	case '\t', '\n', '\v', '\f', '\r', ' ', 0xa0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
-		return true
-	}
-	return r >= 0x2000 && r <= 0x200a
-}
-
 // classMatchesChar reports whether a class body can match char (a rough,
 // conservative reading: complement escapes are assumed to match).
 func classMatchesChar(body []rune, char rune) bool {
@@ -139,7 +131,7 @@ func classMatchesChar(body []rune, char rune) bool {
 				i += 2
 				continue
 			case 's':
-				if isJSSpaceRune(char) {
+				if jsstr.IsSpace(char) {
 					matched = true
 				}
 				i += 2
@@ -230,7 +222,7 @@ var braceQuantRe = regexp.MustCompile(`^\{(\d+)(?:,(\d*))?\}`)
 
 // IsSafePattern is the ReDoS screen applied to every schema "pattern".
 func IsSafePattern(pattern string) bool {
-	if jsonv.UTF16Len(pattern) > maxPatternChars {
+	if jsstr.UTF16Len(pattern) > maxPatternChars {
 		return false
 	}
 	// JavaScript indexes the pattern by UTF-16 code units, so the screen does

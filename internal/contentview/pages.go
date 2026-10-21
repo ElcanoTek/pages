@@ -25,10 +25,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
-	"github.com/ElcanoTek/pages/internal/nodebuf"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 	"github.com/ElcanoTek/pages/internal/shell"
 )
@@ -406,17 +406,17 @@ type NavPage struct {
 	Home bool `json:"home"`
 }
 
-func clip(s string) string { return nodebuf.SliceUTF16(s, NavMaxText) }
+func clip(s string) string { return jsstr.Prefix(s, NavMaxText) }
 
 // jsonLen is JSON.stringify(v).length: UTF-16 units, with U+2028/2029 raw
 // (encoding/json escapes them; JavaScript does not).
 func jsonLen(v any) int {
-	b, err := wire.Marshal(v)
+	b, err := httpx.Marshal(v)
 	if err != nil {
 		return 0
 	}
 	s := strings.NewReplacer(` `, " ", ` `, " ").Replace(string(b))
-	return wire.UTF16Len(s)
+	return jsstr.UTF16Len(s)
 }
 
 // BuildNav is the switcher payload. Pure. The list is a function of the
