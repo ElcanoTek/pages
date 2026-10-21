@@ -149,8 +149,22 @@ func (o *Options) precheck() error {
 		o.Log.PlainErr(err.Error())
 		return fail("invalid installation settings")
 	}
-	if _, err := os.Stat(filepath.Join(s.SrcDir, ".git")); err != nil {
+	gitDir := filepath.Join(s.SrcDir, ".git")
+	st, err := os.Lstat(gitDir)
+	if err != nil {
 		return fail("no source checkout at %s", s.SrcDir)
+	}
+	// Root's git reads its objects and refs from wherever .git points. A
+	// linked worktree or submodule (.git a "gitdir:" file) or a shared object
+	// store (commondir) keeps them outside the tree checked below, where the
+	// service account might rewrite origin/<branch> between fetch and merge.
+	// Only a plain repository whose Git data lives inside the checkout is
+	// built as root.
+	if !st.IsDir() {
+		return fail("%s is not a directory (a linked worktree or submodule?) — the updater only builds a plain clone whose Git data lives inside it; re-clone %s", gitDir, s.SrcDir)
+	}
+	if _, err := os.Lstat(filepath.Join(gitDir, "commondir")); err == nil {
+		return fail("%s shares its Git data through commondir — the updater only builds a plain clone whose Git data lives inside it; re-clone %s", gitDir, s.SrcDir)
 	}
 	// Root fetches, merges and builds the checkout (its Makefile, its hooks,
 	// its configuration); the service account must not be able to change it.

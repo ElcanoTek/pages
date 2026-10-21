@@ -135,7 +135,7 @@ func WritableBy(root, name string) (string, error) {
 			groups[gid] = true
 		}
 	}
-	writable := func(st os.FileInfo, stickyOK bool) bool {
+	writable := func(p string, st os.FileInfo, stickyOK bool) bool {
 		sys, ok := st.Sys().(*syscall.Stat_t)
 		if !ok || st.Mode()&os.ModeSymlink != 0 {
 			return false
@@ -144,7 +144,10 @@ func WritableBy(root, name string) (string, error) {
 		switch {
 		case int(sys.Uid) == uid:
 			return true
-		case groups[int(sys.Gid)] && perm&0o020 != 0:
+		case perm&0o020 != 0 && (groups[int(sys.Gid)] || hasAccessACL(p)):
+			// With an access ACL the group bits are its mask, and a
+			// named-user or named-group entry may grant the account write
+			// whatever the owning group is.
 			return true
 		case perm&0o002 != 0:
 			return !stickyOK || !st.IsDir() || st.Mode()&os.ModeSticky == 0
@@ -157,7 +160,7 @@ func WritableBy(root, name string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			if writable(st, true) {
+			if writable(dir, st, true) {
 				return dir, nil
 			}
 			if filepath.Dir(dir) == dir {
@@ -209,7 +212,7 @@ func WritableBy(root, name string) (string, error) {
 			}
 			return nil
 		}
-		if writable(st, false) {
+		if writable(p, st, false) {
 			found = p
 			return filepath.SkipAll
 		}

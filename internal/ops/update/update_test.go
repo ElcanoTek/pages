@@ -95,6 +95,16 @@ func run(t *testing.T, failure string) *fixture {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(source, "deploy/motd"), string(motd), 0)
+	switch failure {
+	case "linked-worktree":
+		// .git as a "gitdir:" file naming Git data outside the checkout.
+		if err := os.Remove(filepath.Join(source, ".git")); err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(source, ".git"), "gitdir: "+filepath.Join(f.dir, "elsewhere")+"\n", 0)
+	case "commondir":
+		write(t, filepath.Join(source, ".git", "commondir"), filepath.Join(f.dir, "elsewhere")+"\n", 0)
+	}
 	write(t, filepath.Join(f.app, "release-marker"), "original", 0)
 	if failure != "legacy-start" {
 		write(t, filepath.Join(f.app, "lib/readiness.js"), "", 0)
@@ -250,7 +260,7 @@ func TestReleaseUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root"} {
+	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir"} {
 		t.Run(failure, func(t *testing.T) {
 			f := run(t, failure)
 			succeeds := failure == "none" || failure == "pull" || failure == "writable-build"
@@ -345,6 +355,10 @@ func TestReleaseUpdate(t *testing.T) {
 			case "symlink-build":
 				if !strings.Contains(f.err.Error(), "refusing to hand off") || f.handoff != "" {
 					t.Fatalf("a linked build output must not be executed:\n%s", f.out.String())
+				}
+			case "linked-worktree", "commondir":
+				if !strings.Contains(f.out.String()+f.err.Error(), "plain clone") || f.handoff != "" || strings.Contains(f.fake.Log(), "fetch") {
+					t.Fatalf("an external Git directory must stop the update before git runs: %v\n%s\n%s", f.err, f.out.String(), f.fake.Log())
 				}
 			case "unsafe-root":
 				if !strings.Contains(f.out.String()+f.err.Error(), "unsafe installation directory") || f.handoff != "" {
