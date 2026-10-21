@@ -13,6 +13,7 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Ported from the page-patch block of test/unit.test.js.
@@ -100,7 +101,7 @@ func TestAnchorsAreLiteral(t *testing.T) {
 func TestSearchReturnsBoundedExcerpts(t *testing.T) {
 	src := "line one\n<div class=\"dr-popover\" id=\"drPopover\">\n" + strings.Repeat("x", 5000) + "\n"
 	res, err := FindMatches(src, "dr-popover", FindOptions{})
-	if err != nil || res.TotalMatches != 1 || res.Matches[0].Line != 2 || jsonv.UTF16Len(res.Matches[0].Excerpt) > 260 || strings.Contains(res.Matches[0].Excerpt, strings.Repeat("x", 300)) {
+	if err != nil || res.TotalMatches != 1 || res.Matches[0].Line != 2 || jsstr.UTF16Len(res.Matches[0].Excerpt) > 260 || strings.Contains(res.Matches[0].Excerpt, strings.Repeat("x", 300)) {
 		t.Errorf("%+v %v", res, err)
 	}
 	filler := strings.Repeat("<p>padding padding padding</p>\n", 12000)

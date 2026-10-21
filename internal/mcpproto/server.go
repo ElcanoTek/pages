@@ -17,7 +17,7 @@
 // The tools are not here: a Tool carries its advertised JSON Schemas as raw
 // JSON and its own argument parser and handler (package mcp registers Pages'
 // catalog). Everything on the wire is serialized as JavaScript would
-// (package jsjson), so key order, number formatting and escaping match.
+// (package jsonv, ParseLossless), so key order, number formatting and escaping match.
 package mcpproto
 
 import (
@@ -29,7 +29,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
 // LatestProtocolVersion is the newest MCP revision; initialize answers with it
@@ -143,16 +143,16 @@ func (r *CallToolResult) appendJSON(b []byte) ([]byte, error) {
 			b = append(b, ',')
 		}
 		b = append(b, `{"type":`...)
-		b = jsjson.AppendString(b, c.Type)
+		b = jsonv.AppendString(b, c.Type)
 		b = append(b, `,"text":`...)
-		b = jsjson.AppendString(b, c.Text)
+		b = jsonv.AppendString(b, c.Text)
 		b = append(b, '}')
 	}
 	b = append(b, ']')
 	if r.hasStructured() {
 		b = append(b, `,"structuredContent":`...)
 		var err error
-		if b, err = jsjson.AppendValue(b, r.StructuredContent); err != nil {
+		if b, err = jsonv.AppendValue(b, r.StructuredContent); err != nil {
 			return nil, fmt.Errorf("structuredContent: %w", err)
 		}
 	}
@@ -285,11 +285,11 @@ func (s *Server) ToolNames() []string {
 }
 
 func isObjectSchema(raw json.RawMessage) bool {
-	v, err := jsjson.Parse(raw)
+	v, err := jsonv.ParseLossless(raw)
 	if err != nil {
 		return false
 	}
-	o, ok := v.(*jsjson.Object)
+	o, ok := v.(*jsonv.Object)
 	if !ok {
 		return false
 	}
@@ -301,23 +301,23 @@ func isObjectSchema(raw json.RawMessage) bool {
 // title, description, inputSchema, annotations, execution, outputSchema.
 func toolDefinition(t Tool) ([]byte, error) {
 	b := []byte(`{"name":`)
-	b = jsjson.AppendString(b, t.Name)
+	b = jsonv.AppendString(b, t.Name)
 	if t.Title != "" {
 		b = append(b, `,"title":`...)
-		b = jsjson.AppendString(b, t.Title)
+		b = jsonv.AppendString(b, t.Title)
 	}
 	if t.Description != "" {
 		b = append(b, `,"description":`...)
-		b = jsjson.AppendString(b, t.Description)
+		b = jsonv.AppendString(b, t.Description)
 	}
 	var err error
 	b = append(b, `,"inputSchema":`...)
-	if b, err = jsjson.AppendValue(b, t.InputSchema); err != nil {
+	if b, err = jsonv.AppendValue(b, t.InputSchema); err != nil {
 		return nil, fmt.Errorf("inputSchema: %w", err)
 	}
 	if len(t.Annotations) > 0 {
 		b = append(b, `,"annotations":`...)
-		if b, err = jsjson.AppendValue(b, t.Annotations); err != nil {
+		if b, err = jsonv.AppendValue(b, t.Annotations); err != nil {
 			return nil, fmt.Errorf("annotations: %w", err)
 		}
 	}
@@ -325,7 +325,7 @@ func toolDefinition(t Tool) ([]byte, error) {
 	b = append(b, `,"execution":{"taskSupport":"forbidden"}`...)
 	if t.OutputSchema != nil {
 		b = append(b, `,"outputSchema":`...)
-		if b, err = jsjson.AppendValue(b, t.OutputSchema); err != nil {
+		if b, err = jsonv.AppendValue(b, t.OutputSchema); err != nil {
 			return nil, fmt.Errorf("outputSchema: %w", err)
 		}
 	}
@@ -336,7 +336,7 @@ func toolDefinition(t Tool) ([]byte, error) {
 // IsJSONRPCRequest; the HTTP handler checks that) with the serialized
 // JSON-RPC response. It never fails: every failure is a JSON-RPC error or an
 // isError tool result, as with the SDK.
-func (s *Server) HandleRequest(ctx context.Context, request *jsjson.Object, authInfo any) []byte {
+func (s *Server) HandleRequest(ctx context.Context, request *jsonv.Object, authInfo any) []byte {
 	id, _ := request.Get("id")
 	methodValue, _ := request.Get("method")
 	method, _ := methodValue.(string)
@@ -361,14 +361,14 @@ func (s *Server) HandleRequest(ctx context.Context, request *jsjson.Object, auth
 	var result []byte
 	switch method {
 	case "initialize":
-		result = s.initialize(params.(*jsjson.Object))
+		result = s.initialize(params.(*jsonv.Object))
 	case "ping":
 		result = []byte("{}")
 	case "tools/list":
 		result = s.listTools()
 	case "tools/call":
 		var err error
-		result, err = s.callTool(ctx, params.(*jsjson.Object), Extra{RequestID: jsjson.ToString(id), AuthInfo: authInfo}).appendJSON(nil)
+		result, err = s.callTool(ctx, params.(*jsonv.Object), Extra{RequestID: jsonv.ToString(id), AuthInfo: authInfo}).appendJSON(nil)
 		if err != nil {
 			s.logger.Error("mcp tool result is not serializable", "err", err)
 			return errorResponse(id, InternalError, "Internal error")
@@ -380,7 +380,7 @@ func (s *Server) HandleRequest(ctx context.Context, request *jsjson.Object, auth
 	return append(b, '}')
 }
 
-func (s *Server) initialize(params *jsjson.Object) []byte {
+func (s *Server) initialize(params *jsonv.Object) []byte {
 	requested, _ := params.Get("protocolVersion")
 	version := LatestProtocolVersion
 	if v, ok := requested.(string); ok && IsSupportedProtocolVersion(v) {
@@ -390,19 +390,19 @@ func (s *Server) initialize(params *jsjson.Object) []byte {
 	// change under a client: listChanged is false. The capability is declared
 	// even when a token can see no tools, as the SDK server did.
 	b := []byte(`{"protocolVersion":`)
-	b = jsjson.AppendString(b, version)
+	b = jsonv.AppendString(b, version)
 	b = append(b, `,"capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":`...)
-	b = jsjson.AppendString(b, s.info.Name)
+	b = jsonv.AppendString(b, s.info.Name)
 	if s.info.Title != "" {
 		b = append(b, `,"title":`...)
-		b = jsjson.AppendString(b, s.info.Title)
+		b = jsonv.AppendString(b, s.info.Title)
 	}
 	b = append(b, `,"version":`...)
-	b = jsjson.AppendString(b, s.info.Version)
+	b = jsonv.AppendString(b, s.info.Version)
 	b = append(b, '}')
 	if s.instructions != "" {
 		b = append(b, `,"instructions":`...)
-		b = jsjson.AppendString(b, s.instructions)
+		b = jsonv.AppendString(b, s.instructions)
 	}
 	return append(b, '}')
 }
@@ -418,7 +418,7 @@ func (s *Server) listTools() []byte {
 	return append(b, "]}"...)
 }
 
-func (s *Server) callTool(ctx context.Context, params *jsjson.Object, extra Extra) (result *CallToolResult) {
+func (s *Server) callTool(ctx context.Context, params *jsonv.Object, extra Extra) (result *CallToolResult) {
 	nameValue, _ := params.Get("name")
 	name, _ := nameValue.(string)
 	tool := s.byName[name]
@@ -434,7 +434,7 @@ func (s *Server) callTool(ctx context.Context, params *jsjson.Object, extra Extr
 	}
 	args := []byte("{}")
 	if a, ok := params.Get("arguments"); ok && a != nil {
-		args = jsjson.MustMarshal(a)
+		args = []byte(jsonv.Stringify(a))
 	}
 	if tool.ParseInput != nil {
 		parsed, err := tool.ParseInput(args)
@@ -474,7 +474,7 @@ func validationFailure(err error, prefix string) string {
 }
 
 func appendID(b []byte, id any) []byte {
-	out, err := jsjson.AppendValue(b, id)
+	out, err := jsonv.AppendValue(b, id)
 	if err != nil {
 		return append(b, "null"...)
 	}
@@ -486,6 +486,6 @@ func errorResponse(id any, code int, message string) []byte {
 	b := []byte(`{"jsonrpc":"2.0","id":`)
 	b = appendID(b, id)
 	b = fmt.Appendf(b, `,"error":{"code":%d,"message":`, code)
-	b = jsjson.AppendString(b, message)
+	b = jsonv.AppendString(b, message)
 	return append(b, "}}"...)
 }

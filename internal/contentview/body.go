@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/text/encoding/charmap"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/httpx"
 )
 
 // The two body parsers the content host runs, as body-parser ran them:
@@ -131,7 +131,7 @@ func readPassword(r *http.Request) (string, error) {
 	if strings.Count(raw, "&")+1 > 1000 {
 		return "", &statusError{status: http.StatusRequestEntityTooLarge, msg: "too many parameters"}
 	}
-	vals := wire.ParseQuery(raw)["password"]
+	vals := httpx.ParseQuery(raw)["password"]
 	if len(vals) != 1 {
 		return "", nil
 	}

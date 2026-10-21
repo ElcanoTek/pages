@@ -28,6 +28,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Block ids and types.
@@ -178,7 +179,7 @@ func canonical(b *strings.Builder, v any) error {
 		b.WriteByte(']')
 	case *jsonv.Object:
 		keys := x.Keys()
-		jsonv.SortStrings(keys)
+		jsstr.Sort(keys)
 		b.WriteByte('{')
 		for i, k := range keys {
 			if i > 0 {
@@ -398,10 +399,10 @@ type ValidationDetails struct {
 }
 
 func clip16(s string, n int) string {
-	if jsonv.UTF16Len(s) <= n {
+	if jsstr.UTF16Len(s) <= n {
 		return s
 	}
-	return jsonv.SliceUTF16(s, 0, n)
+	return jsstr.Slice(s, 0, n)
 }
 
 func boundedValidationErrors(errs []ValidationError) ValidationDetails {

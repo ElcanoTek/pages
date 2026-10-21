@@ -36,6 +36,7 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Limits.
@@ -108,10 +109,10 @@ func ParseEdits(v any) ([]Edit, error) {
 }
 
 func validateEdit(i int, e Edit) error {
-	if n := jsonv.UTF16Len(e.Find); n == 0 || n > MaxFindChars {
+	if n := jsstr.UTF16Len(e.Find); n == 0 || n > MaxFindChars {
 		return invalid(fmt.Sprintf("edit %d: find must be 1-%d characters", i, MaxFindChars))
 	}
-	if jsonv.UTF16Len(e.Replace) > MaxReplaceChars {
+	if jsstr.UTF16Len(e.Replace) > MaxReplaceChars {
 		return invalid(fmt.Sprintf("edit %d: replace must be at most %d characters", i, MaxReplaceChars))
 	}
 	if e.Count < 0 || e.Count > MaxExpectedCount {
@@ -218,7 +219,7 @@ type FindOptions struct {
 // rune by rune (which keeps offsets aligned with the source; JavaScript's
 // toLowerCase could shift them for a handful of characters such as U+0130).
 func FindMatches(source, query string, opts FindOptions) (*FindResult, error) {
-	if n := jsonv.UTF16Len(query); n == 0 || n > MaxFindChars {
+	if n := jsstr.UTF16Len(query); n == 0 || n > MaxFindChars {
 		return nil, apierror.BadRequest(fmt.Sprintf("query must be 1-%d characters", MaxFindChars), "search_query_invalid", nil)
 	}
 	limit := opts.MaxMatches
@@ -231,7 +232,7 @@ func FindMatches(source, query string, opts FindOptions) (*FindResult, error) {
 	if opts.IgnoreCase {
 		haystack, needle = strings.Map(unicode.ToLower, source), strings.Map(unicode.ToLower, query)
 	}
-	needleUnits := jsonv.UTF16Len(needle)
+	needleUnits := jsstr.UTF16Len(needle)
 
 	res := &FindResult{Matches: []Match{}}
 	var units []uint16

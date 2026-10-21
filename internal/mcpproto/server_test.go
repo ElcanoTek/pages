@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
 // Port of test/mcp-protocol.test.js. The JS ran each message through Pages'
@@ -53,20 +53,20 @@ func received(v any) string {
 	return "object"
 }
 
-func mustObject(t testing.TB, raw json.RawMessage) *jsjson.Object {
+func mustObject(t testing.TB, raw json.RawMessage) *jsonv.Object {
 	t.Helper()
-	v, err := jsjson.Parse(raw)
+	v, err := jsonv.ParseLossless(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	o, ok := v.(*jsjson.Object)
+	o, ok := v.(*jsonv.Object)
 	if !ok {
 		t.Fatalf("not an object: %s", raw)
 	}
 	return o
 }
 
-func strictUnknown(o *jsjson.Object, known ...string) []Issue {
+func strictUnknown(o *jsonv.Object, known ...string) []Issue {
 	var extra []string
 	for _, k := range o.Keys() {
 		if !slices.Contains(known, k) {
@@ -114,17 +114,17 @@ func syntheticTools(t testing.TB) []Tool {
 				n, has := o.Get("n")
 				if !has {
 					n = 3.0
-				} else if !jsjson.IsSafeInteger(n) {
+				} else if !jsonv.IsSafeInteger(n) {
 					issues = append(issues, Issue{Path: []any{"n"}, Message: "Invalid input: expected int, received " + received(n)})
 				}
 				issues = append(issues, strictUnknown(o, "value", "n")...)
 				if issues != nil {
 					return nil, &ValidationError{Issues: issues}
 				}
-				out := jsjson.NewObject()
+				out := jsonv.NewObject()
 				out.Set("value", value)
 				out.Set("n", n)
-				return jsjson.MustMarshal(out), nil
+				return []byte(jsonv.Stringify(out)), nil
 			},
 			Handler: func(_ context.Context, args json.RawMessage, _ Extra) (*CallToolResult, error) {
 				return &CallToolResult{Content: text(string(args)), StructuredContent: args}, nil
@@ -135,9 +135,9 @@ func syntheticTools(t testing.TB) []Tool {
 			InputSchema: json.RawMessage(transIn), OutputSchema: json.RawMessage(transOut),
 			ParseInput: func(raw json.RawMessage) (json.RawMessage, error) {
 				id, _ := mustObject(t, raw).Get("id")
-				out := jsjson.NewObject()
-				out.Set("id", jsjson.ToString(id))
-				return jsjson.MustMarshal(out), nil
+				out := jsonv.NewObject()
+				out.Set("id", jsonv.ToString(id))
+				return []byte(jsonv.Stringify(out)), nil
 			},
 			Handler: func(_ context.Context, args json.RawMessage, _ Extra) (*CallToolResult, error) {
 				id, _ := mustObject(t, args).Get("id")
@@ -232,7 +232,7 @@ func TestVersionNegotiation(t *testing.T) {
 		t.Fatalf("supported versions %v", got)
 	}
 	for _, version := range append(SupportedProtocolVersions(), "2023-01-01", "latest", "2025-11-25 ") {
-		req := jsjson.NewObject()
+		req := jsonv.NewObject()
 		req.Set("jsonrpc", "2.0")
 		req.Set("id", 1.0)
 		req.Set("method", "initialize")
@@ -241,7 +241,7 @@ func TestVersionNegotiation(t *testing.T) {
 		req.Set("params", params)
 		resp := mustObject(t, srv.HandleRequest(context.Background(), req, nil))
 		result, _ := resp.Get("result")
-		got, _ := result.(*jsjson.Object).Get("protocolVersion")
+		got, _ := result.(*jsonv.Object).Get("protocolVersion")
 		want := LatestProtocolVersion
 		if IsSupportedProtocolVersion(version) {
 			want = version
@@ -249,8 +249,8 @@ func TestVersionNegotiation(t *testing.T) {
 		if got != want {
 			t.Errorf("%q negotiated %v, want %s", version, got, want)
 		}
-		caps, _ := result.(*jsjson.Object).Get("capabilities")
-		if s := string(jsjson.MustMarshal(caps)); s != `{"tools":{"listChanged":false}}` {
+		caps, _ := result.(*jsonv.Object).Get("capabilities")
+		if s := string([]byte(jsonv.Stringify(caps))); s != `{"tools":{"listChanged":false}}` {
 			t.Errorf("capabilities %s", s)
 		}
 	}
@@ -346,7 +346,7 @@ func TestEnvelopeSchemasAgreeWithTheSDK(t *testing.T) {
 	}
 	for _, row := range rows {
 		text := row["value"].(string)
-		v, err := jsjson.Parse([]byte(text))
+		v, err := jsonv.ParseLossless([]byte(text))
 		if err != nil {
 			t.Fatal(err)
 		}

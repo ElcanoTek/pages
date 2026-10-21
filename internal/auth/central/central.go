@@ -38,9 +38,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"golang.org/x/text/unicode/norm"
-
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 )
 
 // Wire constants of the Auth contract and the session convention.
@@ -128,7 +127,7 @@ func StripTrailingSlashes(value string) string {
 // isControlOrSpace is /[\p{C}\s]/u: control, format, private-use, surrogate
 // and unassigned code points, and JavaScript whitespace.
 func isControlOrSpace(r rune) bool {
-	if wire.IsJSSpace(r) {
+	if jsstr.IsSpace(r) {
 		return true
 	}
 	return !unicode.In(r, unicode.L, unicode.M, unicode.N, unicode.P, unicode.S, unicode.Z)
@@ -179,10 +178,10 @@ func jsLower(s string) string {
 // NormalizeEmail — Auth already sends a normalized address; this applies the
 // same shape to CLI input so `pages access grant` and Auth's events agree.
 func NormalizeEmail(raw string) (string, error) {
-	email := jsLower(wire.TrimJS(norm.NFC.String(strings.ToValidUTF8(raw, "�"))))
+	email := jsLower(jsstr.Trim(norm.NFC.String(strings.ToValidUTF8(raw, "�"))))
 	at := strings.IndexByte(email, '@')
 	if email == "" ||
-		wire.UTF16Len(email) > 254 ||
+		jsstr.UTF16Len(email) > 254 ||
 		at < 1 ||
 		at != strings.LastIndexByte(email, '@') ||
 		at == len(email)-1 ||

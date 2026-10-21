@@ -37,9 +37,10 @@ import (
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/auth/central"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // The two sign-in modes.
@@ -80,7 +81,7 @@ type Authenticator struct {
 
 // ModeFromEnv is PAGES_AUTH_MODE, validated.
 func ModeFromEnv() (string, error) {
-	mode := strings.ToLower(wire.TrimJS(env.String("PAGES_AUTH_MODE", ModeElcano)))
+	mode := strings.ToLower(jsstr.Trim(env.String("PAGES_AUTH_MODE", ModeElcano)))
 	if mode != ModeElcano && mode != ModeCentral {
 		return "", errors.New(`PAGES_AUTH_MODE must be "elcano" or "central"`)
 	}
@@ -162,8 +163,8 @@ func (a *Authenticator) Origin() string { return a.origin }
 func (a *Authenticator) CookieName() string { return a.cookieName }
 
 // ParseCookies is the cookie-jar parser shared by SSO auth and the content
-// host's page sessions (see wire.ParseCookies).
-func ParseCookies(header string) map[string]string { return wire.ParseCookies(header) }
+// host's page sessions (see httpx.ParseCookies).
+func ParseCookies(header string) map[string]string { return httpx.ParseCookies(header) }
 
 func (a *Authenticator) now() time.Time {
 	if a.Now != nil {
@@ -238,7 +239,7 @@ func (a *Authenticator) VerifyElcanoSession(rawToken string) *Session {
 
 // CurrentSession is the elcano-mode session from the request's SSO cookie.
 func (a *Authenticator) CurrentSession(r *http.Request) *Session {
-	return a.VerifyElcanoSession(wire.RequestCookies(r)[a.cookieName])
+	return a.VerifyElcanoSession(httpx.RequestCookies(r)[a.cookieName])
 }
 
 // IsElcanoAdmin: an Elcano staffer (email in the admin domain) is an admin.
@@ -312,15 +313,15 @@ func (a *Authenticator) Resolve(r *http.Request) (*Session, error) {
 
 // LoginRedirectURL is where an anonymous request is sent to sign in.
 func (a *Authenticator) LoginRedirectURL(r *http.Request) string {
-	target := wire.OriginalURL(r)
+	target := httpx.OriginalURL(r)
 	if a.central != nil {
 		if target == "" {
 			target = "/admin"
 		}
-		if wire.UTF16Len(target) > 2048 {
+		if jsstr.UTF16Len(target) > 2048 {
 			target = "/admin"
 		}
-		return "/auth/login?next=" + wire.EncodeURIComponent(target)
+		return "/auth/login?next=" + httpx.EncodeURIComponent(target)
 	}
 	// Caddy terminates TLS and proxies to us over plain HTTP, so the
 	// connection reads as plain on a genuinely https request. Trust the
@@ -329,9 +330,9 @@ func (a *Authenticator) LoginRedirectURL(r *http.Request) string {
 	// the auth service then bounces the user to its home default instead of
 	// back here, so staff land on home.elcanotek.com after sign-in instead of
 	// the page they asked for.
-	xf, _, _ := strings.Cut(wire.Header(r, "X-Forwarded-Proto"), ",")
+	xf, _, _ := strings.Cut(httpx.Header(r, "X-Forwarded-Proto"), ",")
 	protocol := "http"
-	if r.TLS != nil || strings.ToLower(wire.TrimJS(xf)) == "https" {
+	if r.TLS != nil || strings.ToLower(jsstr.Trim(xf)) == "https" {
 		protocol = "https"
 	}
 	host := r.Host
@@ -339,7 +340,7 @@ func (a *Authenticator) LoginRedirectURL(r *http.Request) string {
 		host = "localhost"
 	}
 	returnTo := protocol + "://" + host + target
-	return a.loginURL + "/?return_to=" + wire.EncodeURIComponent(returnTo)
+	return a.loginURL + "/?return_to=" + httpx.EncodeURIComponent(returnTo)
 }
 
 func (a *Authenticator) fail(w http.ResponseWriter, r *http.Request, err error) {
@@ -361,7 +362,7 @@ func (a *Authenticator) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		if s == nil {
-			wire.Redirect(w, r, http.StatusFound, a.LoginRedirectURL(r))
+			httpx.Redirect(w, r, http.StatusFound, a.LoginRedirectURL(r))
 			return
 		}
 		next.ServeHTTP(w, WithSession(r, s))
@@ -382,14 +383,14 @@ func (a *Authenticator) RequireAdmin(next http.Handler) http.Handler {
 			return
 		}
 		if s == nil {
-			wire.Redirect(w, r, http.StatusFound, a.LoginRedirectURL(r))
+			httpx.Redirect(w, r, http.StatusFound, a.LoginRedirectURL(r))
 			return
 		}
-		wire.SendHTML(w, r, http.StatusForbidden, "Forbidden — Elcano staff only.")
+		httpx.SendHTML(w, r, http.StatusForbidden, "Forbidden — Elcano staff only.")
 	})
 }
 
-// Redirect is Express's res.redirect(status, url) (see wire.Redirect).
+// Redirect is Express's res.redirect(status, url) (see httpx.Redirect).
 func Redirect(w http.ResponseWriter, r *http.Request, status int, url string) {
-	wire.Redirect(w, r, status, url)
+	httpx.Redirect(w, r, status, url)
 }

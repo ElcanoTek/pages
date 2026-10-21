@@ -13,8 +13,6 @@ package mcpproto
 
 import (
 	"context"
-	"crypto/sha1" //nolint:gosec // G505: the ETag digest Express computes, not a security primitive
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -24,7 +22,9 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/env"
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Framing is how a Response is written.
@@ -52,7 +52,7 @@ type Response struct {
 func (r Response) Write(w http.ResponseWriter) {
 	switch r.Framing {
 	case FramingExpress:
-		WriteExpressJSON(w, r.Status, r.Body)
+		httpx.WriteJSON(w, r.Status, r.Body)
 	case FramingTransport:
 		writeBody(w, r.Status, "application/json", r.Body)
 	case FramingAccepted:
@@ -68,24 +68,6 @@ func writeBody(w http.ResponseWriter, status int, contentType string, body []byt
 	_, _ = w.Write(body)
 }
 
-// WeakETag is the ETag Express generates for a response body:
-// W/"<length hex>-<first 27 chars of base64 sha1>".
-func WeakETag(body []byte) string {
-	if len(body) == 0 {
-		return `W/"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"`
-	}
-	sum := sha1.Sum(body) //nolint:gosec // G401: see import
-	return `W/"` + strconv.FormatInt(int64(len(body)), 16) + "-" + base64.StdEncoding.EncodeToString(sum[:])[:27] + `"`
-}
-
-// WriteExpressJSON writes body as Express's res.json(…) did (and
-// res.type("application/json").send(string)): JSON content type with charset,
-// weak ETag, Content-Length.
-func WriteExpressJSON(w http.ResponseWriter, status int, body []byte) {
-	w.Header().Set("ETag", WeakETag(body))
-	writeBody(w, status, "application/json; charset=utf-8", body)
-}
-
 // RPCError serializes {"jsonrpc":"2.0","id":id,"error":{"code","message"}};
 // id is a parsed JSON value (nil for null).
 func RPCError(id any, code int, message string) []byte { return errorResponse(id, code, message) }
@@ -93,13 +75,13 @@ func RPCError(id any, code int, message string) []byte { return errorResponse(id
 // WriteRPCError is lib/mcp.js sendRpcError: an Express-framed JSON-RPC error
 // with a null id.
 func WriteRPCError(w http.ResponseWriter, status, code int, message string) {
-	WriteExpressJSON(w, status, RPCError(nil, code, message))
+	httpx.WriteJSON(w, status, RPCError(nil, code, message))
 }
 
 // transportError is the SDK transport's error shape (its own key order).
 func transportError(status, code int, message string) Response {
 	b := fmt.Appendf(nil, `{"jsonrpc":"2.0","error":{"code":%d,"message":`, code)
-	b = jsjson.AppendString(b, message)
+	b = jsonv.AppendString(b, message)
 	b = append(b, `},"id":null}`...)
 	return Response{Status: status, Framing: FramingTransport, Body: b}
 }
@@ -133,13 +115,13 @@ func AnswerPost(ctx context.Context, body any, opts PostOptions) Response {
 	if !IsJSONRPCMessage(body) {
 		return expressRPC(400, nil, InvalidRequest, "Invalid Request")
 	}
-	msg := body.(*jsjson.Object)
+	msg := body.(*jsonv.Object)
 	id, _ := msg.Get("id")
 	methodValue, _ := msg.Get("method")
 	hasID := IsRequestID(id)
 	method := ""
 	if methodValue != nil {
-		method = jsjson.ToString(methodValue)
+		method = jsonv.ToString(methodValue)
 	}
 	_, isRequestMethod := methodValue.(string)
 
@@ -300,7 +282,7 @@ func CheckPostMediaType(w http.ResponseWriter, r *http.Request) bool {
 		refused := false
 		for _, p := range params {
 			if strings.HasPrefix(p, "q=") {
-				q := jsjson.Number(latin1(p[2:]))
+				q := jsstr.Number(latin1(p[2:]))
 				refused = !(q > 0 && q <= 1) // NaN and ±Infinity fail too
 				break
 			}

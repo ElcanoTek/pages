@@ -20,7 +20,8 @@ import (
 	"testing"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // Port of the protocol-level part of test/mcp-wire.integration.js: each case
@@ -144,7 +145,7 @@ func wireHandler(t *testing.T) http.Handler {
 type wireCase struct {
 	name    string
 	method  string
-	body    any // marshalled with jsjson unless rawBody is set
+	body    any // marshalled with jsonv unless rawBody is set
 	rawBody *string
 	headers map[string]*string
 	scoped  bool
@@ -154,8 +155,8 @@ type wireCase struct {
 
 func str(s string) *string { return &s }
 
-func obj(kv ...any) *jsjson.Object {
-	o := jsjson.NewObject()
+func obj(kv ...any) *jsonv.Object {
+	o := jsonv.NewObject()
 	for i := 0; i < len(kv); i += 2 {
 		o.Set(kv[i].(string), kv[i+1])
 	}
@@ -164,22 +165,22 @@ func obj(kv ...any) *jsjson.Object {
 
 func wireCases() []wireCase {
 	const v = "2025-11-25"
-	client := func() *jsjson.Object { return obj("name", "wire", "version", "1.0.0") }
-	request := func(id any, method string, params ...any) *jsjson.Object {
+	client := func() *jsonv.Object { return obj("name", "wire", "version", "1.0.0") }
+	request := func(id any, method string, params ...any) *jsonv.Object {
 		o := obj("jsonrpc", "2.0", "id", id, "method", method)
 		if len(params) > 0 {
 			o.Set("params", params[0])
 		}
 		return o
 	}
-	note := func(method string, params ...any) *jsjson.Object {
+	note := func(method string, params ...any) *jsonv.Object {
 		o := obj("jsonrpc", "2.0", "method", method)
 		if len(params) > 0 {
 			o.Set("params", params[0])
 		}
 		return o
 	}
-	init := func(version string, caps ...*jsjson.Object) *jsjson.Object {
+	init := func(version string, caps ...*jsonv.Object) *jsonv.Object {
 		c := obj()
 		if len(caps) > 0 {
 			c = caps[0]
@@ -194,7 +195,7 @@ func wireCases() []wireCase {
 		}
 		return h
 	}
-	withExtra := func(o *jsjson.Object, k string, val any) *jsjson.Object { o.Set(k, val); return o }
+	withExtra := func(o *jsonv.Object, k string, val any) *jsonv.Object { o.Set(k, val); return o }
 	args := obj
 	return []wireCase{
 		{name: "initialize latest", body: init(v)},
@@ -296,17 +297,6 @@ type observed struct {
 
 var volatileHeaders = map[string]bool{"date": true, "connection": true, "keep-alive": true, "ratelimit": true, "ratelimit-policy": true, "transfer-encoding": true}
 
-func utf16Len(s string) int {
-	n := 0
-	for _, r := range s {
-		n++
-		if r > 0xFFFF {
-			n++
-		}
-	}
-	return n
-}
-
 func send(t *testing.T, base string, c wireCase) observed {
 	t.Helper()
 	method := c.method
@@ -319,7 +309,7 @@ func send(t *testing.T, base string, c wireCase) observed {
 	case c.rawBody != nil:
 		payload, hasPayload = []byte(*c.rawBody), true
 	case c.body != nil:
-		payload, hasPayload = jsjson.MustMarshal(c.body), true
+		payload, hasPayload = []byte(jsonv.Stringify(c.body)), true
 	}
 	req, err := http.NewRequest(method, base+"/mcp", bytes.NewReader(payload))
 	if err != nil {
@@ -363,7 +353,7 @@ func send(t *testing.T, base string, c wireCase) observed {
 		kept["content-length"] = "<body length>"
 	}
 	body := data
-	if utf16Len(data) > 4096 {
+	if jsstr.UTF16Len(data) > 4096 {
 		sum := sha256.Sum256([]byte(data))
 		body = fmt.Sprintf("sha256:%s bytes:%d", hex.EncodeToString(sum[:]), len(data))
 	}
@@ -575,13 +565,5 @@ func TestBodyParserEdges(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != 404 {
 		t.Errorf("subpath: %d", w.Code)
-	}
-}
-
-func TestWeakETag(t *testing.T) {
-	// From the golden: the 405 body.
-	body := `{"jsonrpc":"2.0","id":null,"error":{"code":-32000,"message":"Method not allowed; POST JSON-RPC to /mcp"}}`
-	if got := WeakETag([]byte(body)); got != `W/"69-8Q3Jri+XwYfOu+DRacl1LJszMxY"` {
-		t.Errorf("got %s", got)
 	}
 }

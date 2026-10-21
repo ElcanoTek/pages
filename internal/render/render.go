@@ -24,7 +24,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // flagAssetsBase is where the Flag design system is mounted on the content
@@ -162,11 +164,11 @@ func IsBentoDeck(sourceHTML string) bool {
 // after the name, and enumerating those is how one spelling gets missed.
 func EscapeStyleText(css string) string { return strings.ReplaceAll(css, "</", `<\/`) }
 
-// navBlockTag uses escapedJSON, not plain JSON: the first dashboard title
+// navBlockTag uses datalimits.EscapedJSON, not plain JSON: the first dashboard title
 // containing `</script` would otherwise end the block and put the rest of the
 // payload into the document as markup.
 func navBlockTag(nav any) string {
-	return `<script type="application/json" id="` + NavBlockID + `" data-flag-injected>` + escapedJSON(nav) + `</script>`
+	return `<script type="application/json" id="` + NavBlockID + `" data-flag-injected>` + datalimits.EscapedJSON(nav) + `</script>`
 }
 
 func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool) string {
@@ -175,7 +177,7 @@ func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool) string {
 		`<link rel="stylesheet" href="` + base + `/fonts/fonts.css" data-flag-injected>`,
 		`<link rel="stylesheet" href="` + base + `/tokens/design-tokens.css" data-flag-injected>`,
 	}
-	if overrideCSS != "" && jsTrim(overrideCSS) != "" {
+	if overrideCSS != "" && jsstr.Trim(overrideCSS) != "" {
 		// override_css is curated by Elcano (not agents); still sandboxed regardless.
 		tags = append(tags, "<style data-flag-injected>\n"+EscapeStyleText(overrideCSS)+"\n</style>")
 	}

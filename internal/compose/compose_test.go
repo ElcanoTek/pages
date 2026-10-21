@@ -14,6 +14,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // unit.test.js: "compose.childEnv: strips every server secret, keeps shell
@@ -194,7 +197,7 @@ func TestExpressETag(t *testing.T) {
 		Message string `json:"message"`
 	}
 	w := httptest.NewRecorder()
-	writeJSON(w, httptest.NewRequest("POST", "/", nil), 200, struct {
+	httpx.SendJSON(w, httptest.NewRequest("POST", "/", nil), 200, struct {
 		JSONRPC string `json:"jsonrpc"`
 		ID      int    `json:"id"`
 		Error   rpcErr `json:"error"`
@@ -380,7 +383,7 @@ func TestFirstUTF16(t *testing.T) {
 	if got := firstUTF16("ab😀c", 4); got != "ab😀" {
 		t.Errorf("whole pair: %q", got)
 	}
-	if utf16Len("😀é") != 3 {
+	if jsstr.UTF16Len("😀é") != 3 {
 		t.Error("utf16Len")
 	}
 }
