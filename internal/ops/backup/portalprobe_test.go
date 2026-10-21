@@ -6,6 +6,8 @@ package backup
 import (
 	"context"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -49,14 +51,39 @@ func TestProbeAcceptsPasswordlessPortalMember(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := "<!doctype html><html><body><h1>Contoso</h1></body></html>"
-	if _, err := d.Exec(ctx, `
-WITH p AS (INSERT INTO pages (slug, title) VALUES ('contoso/q3', 'Contoso Q3') RETURNING id),
-v AS (INSERT INTO page_versions (page_id, html, content_sha256, status, render_mode, author)
-      SELECT id, $1::text, encode(sha256(convert_to($1::text, 'UTF8')), 'hex'), 'approved', 'raw', 'probe@example.com' FROM p RETURNING id, page_id),
-u AS (UPDATE pages SET published_version_id = v.id FROM v WHERE pages.id = v.page_id RETURNING pages.id),
-pp AS (INSERT INTO page_portals (slug, name, password_hash) VALUES ('contoso', 'Contoso', $2) RETURNING id)
-INSERT INTO page_portal_members (portal_id, page_id) SELECT pp.id, p.id FROM pp, p`, html, hash); err != nil {
+	var pageID, versionID int64
+	if err := d.QueryRow(ctx, `INSERT INTO pages (slug, title) VALUES ('contoso/q3', 'Contoso Q3') RETURNING id`).Scan(&pageID); err != nil {
 		t.Fatal(err)
+	}
+	if err := d.QueryRow(ctx, `INSERT INTO page_versions (page_id, html, content_sha256, status, render_mode, author)
+		VALUES ($1, $2::text, encode(sha256(convert_to($2::text, 'UTF8')), 'hex'), 'approved', 'raw', 'probe@example.com') RETURNING id`,
+		pageID, html).Scan(&versionID); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`UPDATE pages SET published_version_id = $1 WHERE id = $2`, []any{versionID, pageID}},
+		{`INSERT INTO page_portals (slug, name, password_hash) VALUES ('contoso', 'Contoso', $1)`, []any{hash}},
+		{`INSERT INTO page_portal_members (portal_id, page_id) SELECT id, $1 FROM page_portals WHERE slug = 'contoso'`, []any{pageID}},
+	} {
+		if _, err := d.Exec(ctx, q.sql, q.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	srv, err := server.New(server.Config{DB: d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.Close)
+	req := httptest.NewRequest("GET", "/contoso/q3", nil)
+	req.Host = "content.localhost"
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("content host answered %d for a passwordless portal member, want 401: %q", rec.Code, rec.Header())
 	}
 
 	saved := backupprobe.Hooks.Serve
