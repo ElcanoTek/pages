@@ -170,7 +170,8 @@ func trustedEntry(path string, st os.FileInfo, stickyOK bool) error {
 	if sys.Uid != 0 && int(sys.Uid) != os.Geteuid() {
 		return fmt.Errorf("%s is owned by uid %d, not root", path, sys.Uid)
 	}
-	if st.Mode().Perm()&0o022 != 0 && !(stickyOK && st.IsDir() && st.Mode()&os.ModeSticky != 0) {
+	sticky := stickyOK && st.IsDir() && st.Mode()&os.ModeSticky != 0
+	if st.Mode().Perm()&0o022 != 0 && !sticky {
 		return fmt.Errorf("%s is writable by other accounts (mode %o)", path, st.Mode().Perm())
 	}
 	return nil
