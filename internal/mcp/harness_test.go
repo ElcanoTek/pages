@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ElcanoTek/pages/internal/api"
 	"github.com/ElcanoTek/pages/internal/dataexport"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/jsonv"
@@ -76,6 +77,7 @@ func newHarness(t *testing.T) *harness {
 	mux.Handle("/mcp/", mcpHandler)
 	mux.Handle("/upload/", http.StripPrefix("/upload", uploads.NewHandler(uploads.HandlerOptions{DB: d})))
 	mux.Handle("/export/", http.StripPrefix("/export", &dataexport.Handler{DB: d}))
+	mux.Handle("/api/", api.Handler(api.Deps{DB: d, ClientIP: func(*http.Request) string { return "127.0.0.1" }}))
 	h.srv = httptest.NewServer(mux)
 	t.Cleanup(h.srv.Close)
 	m := h.mint("mcp-agent", tokens.ScopeDeploy)
@@ -465,18 +467,6 @@ func jsonText(v any) string {
 	return string(b)
 }
 
-func truthyAt(v any, path ...any) bool {
-	switch x := dig(v, path...).(type) {
-	case nil:
-		return false
-	case bool:
-		return x
-	case string:
-		return x != ""
-	case float64:
-		return x != 0
-	}
-	return true
-}
-
 var _ = strings.Contains
+
+func jsonUnmarshal(text string, v any) error { return json.Unmarshal([]byte(text), v) }

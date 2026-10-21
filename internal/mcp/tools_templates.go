@@ -203,7 +203,7 @@ func createPageFromTemplate(ctx context.Context, c *call, a *jsonv.Object) (any,
 		renderMode = "themed"
 	}
 	title, _ := argStr(a, "title")
-	var clientID any = versions.Null
+	clientID := versions.Null
 	if s, ok := argStr(a, "client_id"); ok && s != "" {
 		clientID = s
 	}

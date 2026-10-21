@@ -446,7 +446,7 @@ func deployInput(a *jsonv.Object, slug, html string) versions.DeployInput {
 
 func createdOnlyInput(a *jsonv.Object, in versions.DeployInput) versions.CreateAndDeployInput {
 	title, _ := argStr(a, "title")
-	var clientID any = versions.Null
+	clientID := versions.Null
 	if s, ok := argStr(a, "client_id"); ok && s != "" {
 		clientID = s
 	}
