@@ -1,0 +1,1681 @@
+{"compile":false,"reason":"strict mode: required property \"a\" is not defined at \"#\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: required property \"a\" is not defined at \"#/allOf/0\" (strictRequired)"}
+{"compile":true,"valid":false,"errors":[["","#/required","required","must have required property 'a'"]]}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"object\" for keyword \"properties\" at \"#\" (strictTypes)"}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":false,"reason":"strict mode: use allowUnionTypes to allow union type keyword at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/type","type","must be string"],["/a/1","#/properties/a/contains/type","type","must be string"],["/a","#/properties/a/contains","contains","must contain at least 1 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/false schema","false schema","boolean schema is false"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/anyOf/0/type","type","must be string"],["/a","#/properties/a/anyOf/1/minimum","minimum","must be >= 5"],["/a","#/properties/a/anyOf","anyOf","must match a schema in anyOf"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/uniqueItems","uniqueItems","must NOT have duplicate items (items ## 1 and 3 are identical)"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/uniqueItems","uniqueItems","must NOT have duplicate items (items ## 3 and 1 are identical)"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/m/minimum","minimum","must be >= 3"]]}
+{"compile":true,"valid":false,"errors":[["/a/b/b","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^(?=a)a$\""]]}
+{"compile":false,"reason":"Invalid regular expression: /a{/u: Incomplete quantifier"}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/a b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/a%20b/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":false,"reason":"schema is invalid: data/$defs/x/minimum must be number"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":false,"reason":"strict mode: property x matches pattern ^x (use allowMatchingProperties)"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":false,"reason":"strict mode: property x matches pattern ^x (use allowMatchingProperties)"}
+{"compile":true,"valid":false,"errors":[["/a/1","#/properties/a/contains/type","type","must be string"],["/a","#/properties/a/contains","contains","must contain at least 2 and no more than 3 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/multipleOf","multipleOf","must be multiple of 0.01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/propertyNames/pattern","pattern","must match pattern \"^[a-z]+$\""],["/a","#/properties/a/propertyNames","propertyNames","property name must be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/propertyNames/pattern","pattern","must match pattern \"^[a-z]+$\""],["/a","#/properties/a/propertyNames","propertyNames","property name must be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/dependentRequired","dependentRequired","must have properties c, d when property b is present"],["/a","#/properties/a/dependentRequired","dependentRequired","must have properties c, d when property b is present"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/else/minimum","minimum","must be >= 5"],["/a","#/properties/a/if","if","must match \"else\" schema"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/oneOf","oneOf","must match exactly one schema in oneOf"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a~0~1b c","#/properties/a~0~1b%20c/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"url\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"hostname\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"duration\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/formatMinimum","formatMinimum","should be >= 2026-01-01T00:00:00Z"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"int32\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a/1","#/properties/a/items/required","required","must have required property 'x'"],["/a/1","#/properties/a/items/additionalProperties","additionalProperties","must NOT have additional properties"],["/a/2","#/properties/a/items/additionalProperties","additionalProperties","must NOT have additional properties"],["/a/2/x","#/properties/a/items/properties/x/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/multipleOf","multipleOf","must be multiple of 2"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maximum","maximum","must be <= 10"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minimum","minimum","must be >= 0"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/a","#/properties/a/multipleOf","multipleOf","must be multiple of 2"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/multipleOf","multipleOf","must be multiple of 2"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/a","#/properties/a/multipleOf","multipleOf","must be multiple of 2"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/multipleOf","multipleOf","must be multiple of 2"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maximum","maximum","must be <= 10"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMinimum","exclusiveMinimum","must be > 0"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMinimum","exclusiveMinimum","must be > 0"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/exclusiveMaximum","exclusiveMaximum","must be < 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxLength","maxLength","must NOT have more than 4 characters"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^[a-z]+$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxLength","maxLength","must NOT have more than 4 characters"],["/a","#/properties/a/pattern","pattern","must match pattern \"^[a-z]+$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxLength","maxLength","must NOT have more than 4 characters"],["/a","#/properties/a/pattern","pattern","must match pattern \"^[a-z]+$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^[a-z]+$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minLength","minLength","must NOT have fewer than 2 characters"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxLength","maxLength","must NOT have more than 4 characters"],["/a","#/properties/a/pattern","pattern","must match pattern \"^[a-z]+$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxLength","maxLength","must NOT have more than 4 characters"],["/a","#/properties/a/pattern","pattern","must match pattern \"^[a-z]+$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/b","#/properties/b/format","format","must match format \"date-time\""],["/c","#/properties/c/format","format","must match format \"email\""],["/d","#/properties/d/format","format","must match format \"uri\""],["/e","#/properties/e/format","format","must match format \"uuid\""],["/f","#/properties/f/format","format","must match format \"ipv4\""],["/g","#/properties/g/format","format","must match format \"ipv6\""],["/h","#/properties/h/format","format","must match format \"time\""],["/i","#/properties/i/format","format","must match format \"hostname\""],["/j","#/properties/j/format","format","must match format \"uri-reference\""],["/k","#/properties/k/format","format","must match format \"json-pointer\""],["/l","#/properties/l/format","format","must match format \"regex\""],["/m","#/properties/m/format","format","must match format \"byte\""],["/n","#/properties/n/format","format","must match format \"duration\""],["/o","#/properties/o/format","format","must match format \"url\""],["/p","#/properties/p/format","format","must match format \"uri-template\""],["/q","#/properties/q/format","format","must match format \"relative-json-pointer\""],["/r","#/properties/r/format","format","must match format \"iso-date-time\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/format","format","must match format \"email\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/format","format","must match format \"email\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/format","format","must match format \"date-time\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"],["/d","#/properties/d/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/b","#/properties/b/format","format","must match format \"date-time\""],["/c","#/properties/c/format","format","must match format \"email\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/b","#/properties/b/format","format","must match format \"date-time\""],["/c","#/properties/c/format","format","must match format \"email\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/uniqueItems","uniqueItems","must NOT have duplicate items (items ## 2 and 1 are identical)"]]}
+{"compile":true,"valid":false,"errors":[["/a/1","#/properties/a/items/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minItems","minItems","must NOT have fewer than 1 items"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 3 items"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/items/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/items/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a/1","#/properties/a/items/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a/1","#/properties/a/items/type","type","must be integer"],["/a/2","#/properties/a/items/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"],["/a","#/properties/a/items","items","must NOT have more than 2 items"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"],["/a/1","#/properties/a/prefixItems/1/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minItems","minItems","must NOT have fewer than 2 items"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"],["/a","#/properties/a/items","items","must NOT have more than 2 items"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/items","items","must NOT have more than 2 items"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minItems","minItems","must NOT have fewer than 2 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"],["/a","#/properties/a/items","items","must NOT have more than 2 items"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"],["/a/1","#/properties/a/prefixItems/1/type","type","must be integer"],["/a","#/properties/a/items","items","must NOT have more than 2 items"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"],["/a/1","#/properties/a/prefixItems/1/type","type","must be integer"],["/a","#/properties/a/items","items","must NOT have more than 2 items"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/minItems","minItems","must NOT have fewer than 1 items"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxItems","maxItems","must NOT have more than 1 items"],["/a/0","#/properties/a/prefixItems/0/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/1","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/2","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/1","#/properties/a/contains/type","type","must be integer"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/1","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/2","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/3","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/type","type","must be integer"],["/a/1","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/type","type","must be integer"],["/a/1","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/2","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/1","#/properties/a/contains/type","type","must be integer"],["/a/2","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a/0","#/properties/a/contains/minimum","minimum","must be >= 5"],["/a/1","#/properties/a/contains/type","type","must be integer"],["/a/2","#/properties/a/contains/type","type","must be integer"],["/a","#/properties/a/contains","contains","must contain at least 1 and no more than 2 valid item(s)"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a/z","#/properties/a/additionalProperties/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'y'"],["/a/x","#/properties/a/properties/x/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'x'"],["/a","#/properties/a/required","required","must have required property 'y'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'x'"],["/a","#/properties/a/required","required","must have required property 'y'"]]}
+{"compile":true,"valid":false,"errors":[["/a/x","#/properties/a/properties/x/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'x'"],["/a","#/properties/a/required","required","must have required property 'y'"],["/a/c","#/properties/a/additionalProperties/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'x'"],["/a","#/properties/a/required","required","must have required property 'y'"],["/a/b","#/properties/a/additionalProperties/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'x'"],["/a","#/properties/a/required","required","must have required property 'y'"],["/a/kids","#/properties/a/additionalProperties/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'x'"],["/a","#/properties/a/required","required","must have required property 'y'"],["/a/b","#/properties/a/additionalProperties/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a/s_1","#/properties/a/patternProperties/%5Es_/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxProperties","maxProperties","must NOT have more than 2 properties"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxProperties","maxProperties","must NOT have more than 2 properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxProperties","maxProperties","must NOT have more than 2 properties"],["/a","#/properties/a/propertyNames/maxLength","maxLength","must NOT have more than 3 characters"],["/a","#/properties/a/propertyNames","propertyNames","property name must be valid"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/maxProperties","maxProperties","must NOT have more than 2 properties"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/propertyNames/maxLength","maxLength","must NOT have more than 3 characters"],["/a","#/properties/a/propertyNames","propertyNames","property name must be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/dependentRequired","dependentRequired","must have property y when property x is present"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/dependentSchemas/y/required","required","must have required property 'z'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/c/allOf/1\" (strictTypes)"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/const","const","must be equal to constant"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"],["/b","#/properties/b/const","const","must be equal to constant"],["/c","#/properties/c/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/a","#/properties/a/enum","enum","must be equal to one of the allowed values"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"],["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"],["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"],["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string,null"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/then/minLength","minLength","must NOT have fewer than 2 characters"],["/a","#/properties/a/if","if","must match \"then\" schema"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/then/minLength","minLength","must NOT have fewer than 2 characters"],["/a","#/properties/a/if","if","must match \"then\" schema"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/then/minLength","minLength","must NOT have fewer than 2 characters"],["/a","#/properties/a/if","if","must match \"then\" schema"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/then/minLength","minLength","must NOT have fewer than 2 characters"],["/a","#/properties/a/if","if","must match \"then\" schema"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/then/minLength","minLength","must NOT have fewer than 2 characters"],["/a","#/properties/a/if","if","must match \"then\" schema"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/then/minLength","minLength","must NOT have fewer than 2 characters"],["/a","#/properties/a/if","if","must match \"then\" schema"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a/c","#/properties/a/allOf/0/properties/c/type","type","must be string"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a/b","#/properties/a/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"],["/a","#/properties/a/unevaluatedProperties","unevaluatedProperties","must NOT have unevaluated properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a/b","#/properties/a/properties/b/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":false,"reason":"strict mode: \"prefixItems\" is 1-tuple, but minItems or maxItems/items are not specified or different at path \"#/properties/a\""}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/minimum","minimum","must be >= 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/a","#/$defs/pos/minimum","minimum","must be >= 1"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/minimum","minimum","must be >= 1"],["/b/1","#/$defs/pos/minimum","minimum","must be >= 1"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"],["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/pos/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"],["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a/kids/0/v","#/properties/v/type","type","must be integer"],["/a/kids/1/kids/0","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/additionalProperties","additionalProperties","must NOT have additional properties"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"string\" for keyword \"maxLength\" at \"#/properties/a\" (strictTypes)"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"],["/d","#/properties/d/false schema","false schema","boolean schema is false"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"],["/d","#/properties/d/false schema","false schema","boolean schema is false"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"],["/d","#/properties/d/false schema","false schema","boolean schema is false"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"],["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/not","not","must NOT be valid"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""],["/b","#/properties/b/pattern","pattern","must match pattern \"\\s\""],["/c","#/properties/c/pattern","pattern","must match pattern \"^.$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""],["/b","#/properties/b/pattern","pattern","must match pattern \"\\s\""],["/c","#/properties/c/pattern","pattern","must match pattern \"^.$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""],["/b","#/properties/b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/pattern","pattern","must match pattern \"\\s\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/pattern","pattern","must match pattern \"\\s\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""],["/c","#/properties/c/pattern","pattern","must match pattern \"^.$\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"],["/b","#/properties/b/type","type","must be string"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"^\\p{Lu}\\w*$\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a~1b","#/properties/a~1b/type","type","must be integer"],["/c~0d","#/properties/c~0d/type","type","must be integer"],["/e f","#/properties/e%20f/type","type","must be integer"],["/ü","#/properties/%C3%BC/type","type","must be integer"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/a","#/properties/a/format","format","must match format \"int32\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/a","#/properties/a/format","format","must match format \"int32\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"],["/b","#/properties/b/type","type","must be number"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"int32\""],["/c","#/properties/c/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/format","format","must match format \"date\""],["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/formatMaximum","formatMaximum","should be <= 2026-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/formatExclusiveMinimum","formatExclusiveMinimum","should be > 2020-01-01"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/required","required","must have required property 'a'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'b'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'b'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'b'"]]}
+{"compile":true,"valid":false,"errors":[["/a/b","#/properties/a/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'b'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a/b","#/properties/a/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a/b","#/properties/a/properties/b/type","type","must be array"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/required","required","must have required property 'b'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/required","required","must have required property 'a'"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a/b/0/c","#/properties/a/properties/b/items/properties/c/type","type","must be string"],["/a/b/1","#/properties/a/properties/b/items/required","required","must have required property 'c'"],["/a/b/2","#/properties/a/properties/b/items/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["","#/type","type","must be object"]]}
+{"compile":false,"reason":"strict mode: unknown keyword: \"foo\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"foo\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"foo\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"foo\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"foo\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"foo\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"additionalItems\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"additionalItems\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"additionalItems\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"additionalItems\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"additionalItems\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"additionalItems\""}
+{"compile":false,"reason":"strict mode: \"maxContains\" without \"contains\" is ignored"}
+{"compile":false,"reason":"strict mode: \"maxContains\" without \"contains\" is ignored"}
+{"compile":false,"reason":"strict mode: \"maxContains\" without \"contains\" is ignored"}
+{"compile":false,"reason":"strict mode: \"maxContains\" without \"contains\" is ignored"}
+{"compile":false,"reason":"strict mode: \"maxContains\" without \"contains\" is ignored"}
+{"compile":false,"reason":"strict mode: \"maxContains\" without \"contains\" is ignored"}
+{"compile":false,"reason":"strict mode: \"minContains\" == 0 without \"maxContains\": \"contains\" keyword ignored"}
+{"compile":false,"reason":"strict mode: \"minContains\" == 0 without \"maxContains\": \"contains\" keyword ignored"}
+{"compile":false,"reason":"strict mode: \"minContains\" == 0 without \"maxContains\": \"contains\" keyword ignored"}
+{"compile":false,"reason":"strict mode: \"minContains\" == 0 without \"maxContains\": \"contains\" keyword ignored"}
+{"compile":false,"reason":"strict mode: \"minContains\" == 0 without \"maxContains\": \"contains\" keyword ignored"}
+{"compile":false,"reason":"strict mode: \"minContains\" == 0 without \"maxContains\": \"contains\" keyword ignored"}
+{"compile":false,"reason":"strict mode: \"then\" without \"if\" is ignored"}
+{"compile":false,"reason":"strict mode: \"then\" without \"if\" is ignored"}
+{"compile":false,"reason":"strict mode: \"then\" without \"if\" is ignored"}
+{"compile":false,"reason":"strict mode: \"then\" without \"if\" is ignored"}
+{"compile":false,"reason":"strict mode: \"then\" without \"if\" is ignored"}
+{"compile":false,"reason":"strict mode: \"then\" without \"if\" is ignored"}
+{"compile":false,"reason":"strict mode: \"if\" without \"then\" and \"else\" is ignored"}
+{"compile":false,"reason":"strict mode: \"if\" without \"then\" and \"else\" is ignored"}
+{"compile":false,"reason":"strict mode: \"if\" without \"then\" and \"else\" is ignored"}
+{"compile":false,"reason":"strict mode: \"if\" without \"then\" and \"else\" is ignored"}
+{"compile":false,"reason":"strict mode: \"if\" without \"then\" and \"else\" is ignored"}
+{"compile":false,"reason":"strict mode: \"if\" without \"then\" and \"else\" is ignored"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":false,"reason":"unknown format \"nope\" ignored in schema at path \"#/properties/a\""}
+{"compile":false,"reason":"unknown format \"nope\" ignored in schema at path \"#/properties/a\""}
+{"compile":false,"reason":"unknown format \"nope\" ignored in schema at path \"#/properties/a\""}
+{"compile":false,"reason":"unknown format \"nope\" ignored in schema at path \"#/properties/a\""}
+{"compile":false,"reason":"unknown format \"nope\" ignored in schema at path \"#/properties/a\""}
+{"compile":false,"reason":"unknown format \"nope\" ignored in schema at path \"#/properties/a\""}
+{"compile":false,"reason":"parent schema must have dependencies of formatMaximum: format"}
+{"compile":false,"reason":"parent schema must have dependencies of formatMaximum: format"}
+{"compile":false,"reason":"parent schema must have dependencies of formatMaximum: format"}
+{"compile":false,"reason":"parent schema must have dependencies of formatMaximum: format"}
+{"compile":false,"reason":"parent schema must have dependencies of formatMaximum: format"}
+{"compile":false,"reason":"parent schema must have dependencies of formatMaximum: format"}
+{"compile":false,"reason":"\"formatMaximum\": format \"email\" does not define \"compare\" function"}
+{"compile":false,"reason":"\"formatMaximum\": format \"email\" does not define \"compare\" function"}
+{"compile":false,"reason":"\"formatMaximum\": format \"email\" does not define \"compare\" function"}
+{"compile":false,"reason":"\"formatMaximum\": format \"email\" does not define \"compare\" function"}
+{"compile":false,"reason":"\"formatMaximum\": format \"email\" does not define \"compare\" function"}
+{"compile":false,"reason":"\"formatMaximum\": format \"email\" does not define \"compare\" function"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"(?<!a)b\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"(?<!a)b\""]]}
+{"compile":false,"reason":"Invalid regular expression: /\\a/u: Invalid escape"}
+{"compile":false,"reason":"Invalid regular expression: /\\a/u: Invalid escape"}
+{"compile":false,"reason":"Invalid regular expression: /\\a/u: Invalid escape"}
+{"compile":false,"reason":"Invalid regular expression: /\\a/u: Invalid escape"}
+{"compile":false,"reason":"Invalid regular expression: /\\a/u: Invalid escape"}
+{"compile":false,"reason":"Invalid regular expression: /\\a/u: Invalid escape"}
+{"compile":false,"reason":"enum must have non-empty array"}
+{"compile":false,"reason":"enum must have non-empty array"}
+{"compile":false,"reason":"enum must have non-empty array"}
+{"compile":false,"reason":"enum must have non-empty array"}
+{"compile":false,"reason":"enum must have non-empty array"}
+{"compile":false,"reason":"enum must have non-empty array"}
+{"compile":false,"reason":"strict mode: type \"number\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"number\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"number\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"number\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"number\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"number\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"string\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"string\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"string\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"string\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"string\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: type \"string\" not allowed by context \"integer\" at \"#/properties/a/allOf/0\" (strictTypes)"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"],["/a","#/properties/a/allOf/0/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"],["/a","#/properties/a/allOf/0/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"],["/a","#/properties/a/allOf/0/type","type","must be integer"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be number"],["/a","#/properties/a/allOf/0/type","type","must be integer"]]}
+{"compile":false,"reason":"can't resolve reference #/$defs/missing from id #"}
+{"compile":false,"reason":"can't resolve reference #/$defs/missing from id #"}
+{"compile":false,"reason":"can't resolve reference #/$defs/missing from id #"}
+{"compile":false,"reason":"can't resolve reference #/$defs/missing from id #"}
+{"compile":false,"reason":"can't resolve reference #/$defs/missing from id #"}
+{"compile":false,"reason":"can't resolve reference #/$defs/missing from id #"}
+{"compile":false,"reason":"NOT SUPPORTED: keyword \"id\", use \"$id\" for schema ID"}
+{"compile":false,"reason":"NOT SUPPORTED: keyword \"id\", use \"$id\" for schema ID"}
+{"compile":false,"reason":"NOT SUPPORTED: keyword \"id\", use \"$id\" for schema ID"}
+{"compile":false,"reason":"NOT SUPPORTED: keyword \"id\", use \"$id\" for schema ID"}
+{"compile":false,"reason":"NOT SUPPORTED: keyword \"id\", use \"$id\" for schema ID"}
+{"compile":false,"reason":"NOT SUPPORTED: keyword \"id\", use \"$id\" for schema ID"}
+{"compile":false,"reason":"\"nullable\" cannot be used without \"type\""}
+{"compile":false,"reason":"\"nullable\" cannot be used without \"type\""}
+{"compile":false,"reason":"\"nullable\" cannot be used without \"type\""}
+{"compile":false,"reason":"\"nullable\" cannot be used without \"type\""}
+{"compile":false,"reason":"\"nullable\" cannot be used without \"type\""}
+{"compile":false,"reason":"\"nullable\" cannot be used without \"type\""}
+{"compile":false,"reason":"type: null contradicts nullable: false"}
+{"compile":false,"reason":"type: null contradicts nullable: false"}
+{"compile":false,"reason":"type: null contradicts nullable: false"}
+{"compile":false,"reason":"type: null contradicts nullable: false"}
+{"compile":false,"reason":"type: null contradicts nullable: false"}
+{"compile":false,"reason":"type: null contradicts nullable: false"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/type must be equal to one of the allowed values, data/properties/a/type must be array, data/properties/a/type must match a "}
+{"compile":false,"reason":"schema is invalid: data/properties/a/type must be equal to one of the allowed values, data/properties/a/type must be array, data/properties/a/type must match a "}
+{"compile":false,"reason":"schema is invalid: data/properties/a/type must be equal to one of the allowed values, data/properties/a/type must be array, data/properties/a/type must match a "}
+{"compile":false,"reason":"schema is invalid: data/properties/a/type must be equal to one of the allowed values, data/properties/a/type must be array, data/properties/a/type must match a "}
+{"compile":false,"reason":"schema is invalid: data/properties/a/type must be equal to one of the allowed values, data/properties/a/type must be array, data/properties/a/type must match a "}
+{"compile":false,"reason":"schema is invalid: data/properties/a/type must be equal to one of the allowed values, data/properties/a/type must be array, data/properties/a/type must match a "}
+{"compile":false,"reason":"strict mode: property x matches pattern x (use allowMatchingProperties)"}
+{"compile":false,"reason":"strict mode: property x matches pattern x (use allowMatchingProperties)"}
+{"compile":false,"reason":"strict mode: property x matches pattern x (use allowMatchingProperties)"}
+{"compile":false,"reason":"strict mode: property x matches pattern x (use allowMatchingProperties)"}
+{"compile":false,"reason":"strict mode: property x matches pattern x (use allowMatchingProperties)"}
+{"compile":false,"reason":"strict mode: property x matches pattern x (use allowMatchingProperties)"}
+{"compile":false,"reason":"strict mode: required property \"x\" is not defined at \"#/properties/a/allOf/0\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: required property \"x\" is not defined at \"#/properties/a/allOf/0\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: required property \"x\" is not defined at \"#/properties/a/allOf/0\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: required property \"x\" is not defined at \"#/properties/a/allOf/0\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: required property \"x\" is not defined at \"#/properties/a/allOf/0\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: required property \"x\" is not defined at \"#/properties/a/allOf/0\" (strictRequired)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/properties/x\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/properties/x\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/properties/x\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/properties/x\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/properties/x\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/properties/x\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/anyOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/anyOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/anyOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/anyOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/anyOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/properties/a/anyOf/1\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":false,"reason":"strict mode: missing type \"number\" for keyword \"minimum\" at \"#/$defs/m\" (strictTypes)"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/type","type","must be object"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/x/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/$defs/x/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":false,"reason":"strict mode: unknown keyword: \"$anchor\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"$anchor\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"$anchor\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"$anchor\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"$anchor\""}
+{"compile":false,"reason":"strict mode: unknown keyword: \"$anchor\""}
+{"compile":false,"reason":"schema is invalid: data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolea"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolea"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolea"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolea"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolea"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolean, data/properties/a/items must be object,boolea"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/minimum must be number"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/minimum must be number"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/minimum must be number"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/minimum must be number"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/minimum must be number"}
+{"compile":false,"reason":"schema is invalid: data/properties/a/minimum must be number"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"a{2000}\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"a{2000}\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"a{2000}\""]]}
+{"compile":false,"reason":"Invalid regular expression: /[\\d-z]/u: Invalid character class"}
+{"compile":false,"reason":"Invalid regular expression: /[\\d-z]/u: Invalid character class"}
+{"compile":false,"reason":"Invalid regular expression: /[\\d-z]/u: Invalid character class"}
+{"compile":false,"reason":"Invalid regular expression: /[\\d-z]/u: Invalid character class"}
+{"compile":false,"reason":"Invalid regular expression: /[\\d-z]/u: Invalid character class"}
+{"compile":false,"reason":"Invalid regular expression: /[\\d-z]/u: Invalid character class"}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"\\u{1F600}\""]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/pattern","pattern","must match pattern \"\\u{1F600}\""]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["","#/dependencies","dependencies","must have property b when property a is present"]]}
+{"compile":true,"valid":false,"errors":[["","#/dependencies","dependencies","must have property b when property a is present"]]}
+{"compile":true,"valid":false,"errors":[["","#/dependencies","dependencies","must have property b when property a is present"]]}
+{"compile":true,"valid":false,"errors":[["","#/dependencies","dependencies","must have property b when property a is present"],["","#/dependencies/c/required","required","must have required property 'd'"]]}
+{"compile":true,"valid":false,"errors":[["","#/dependencies","dependencies","must have property b when property a is present"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":false,"errors":[["/a","#/properties/a/type","type","must be string"]]}
+{"compile":true,"valid":true,"errors":[]}
+{"compile":true,"valid":true,"errors":[]}
