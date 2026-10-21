@@ -43,12 +43,12 @@ type DB struct {
 // transaction pins a connection per waiter and a single page can exhaust the
 // pool and hang BOTH hosts. 0 disables a bound, matching Postgres.
 type Bounds struct {
-	ConnectTimeout     time.Duration
-	StatementTimeout   time.Duration
-	LockTimeout        time.Duration
-	IdleInTxnTimeout   time.Duration
-	MaxConns           int32
-	ApplicationName    string
+	ConnectTimeout   time.Duration
+	StatementTimeout time.Duration
+	LockTimeout      time.Duration
+	IdleInTxnTimeout time.Duration
+	MaxConns         int32
+	ApplicationName  string
 }
 
 // BoundsFromEnv reads PG_CONNECT_TIMEOUT_MS, PG_STATEMENT_TIMEOUT_MS,
@@ -62,7 +62,7 @@ func BoundsFromEnv() Bounds {
 		StatementTimeout: ms("PG_STATEMENT_TIMEOUT_MS", 15000),
 		LockTimeout:      ms("PG_LOCK_TIMEOUT_MS", 10000),
 		IdleInTxnTimeout: ms("PG_IDLE_TXN_TIMEOUT_MS", 30000),
-		MaxConns:         int32(env.Int("PG_POOL_MAX", 10)),
+		MaxConns:         int32(min(max(env.Int("PG_POOL_MAX", 10), 1), 1000)), // #nosec G115 -- clamped to [1, 1000]
 		ApplicationName:  "pages",
 	}
 }
