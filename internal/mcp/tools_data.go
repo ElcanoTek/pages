@@ -16,6 +16,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/jsstr"
+	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/pagedata"
 	"github.com/ElcanoTek/pages/internal/pageurls"
 	"github.com/ElcanoTek/pages/internal/templates"
@@ -107,8 +108,8 @@ func pageDataSummary(r *versions.PageDataView) (*jsonv.Object, error) {
 	return out, nil
 }
 
-func pageDataExport(r *versions.PageDataView, c *call) (*jsonv.Object, error) {
-	minted, err := dataexport.Mint(dataexport.MintParams{PageID: r.Page.ID, VersionID: r.Version.ID, TokenID: c.actor.TokenID}, dataexport.ExportTTLSeconds)
+func pageDataExport(r *versions.PageDataView, tokenID jsx.ID) (*jsonv.Object, error) {
+	minted, err := dataexport.Mint(dataexport.MintParams{PageID: r.Page.ID, VersionID: r.Version.ID, TokenID: tokenID}, dataexport.ExportTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -140,23 +141,31 @@ func getPageData(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out *jsonv.Object
 	detail, _ := argStr(a, "detail")
+	return pageDataRead(r, detail, !argBoolOr(a, "include_data", true), c.actor.TokenID)
+}
+
+// pageDataRead shapes a managed-data read for detail ("summary", "export",
+// or "" / "full"); tokenID binds an export to the calling token.
+func pageDataRead(r *versions.PageDataView, detail string, omitData bool, tokenID jsx.ID) (*jsonv.Object, error) {
+	var out *jsonv.Object
+	var err error
 	switch detail {
 	case "summary":
 		out, err = pageDataSummary(r)
 	case "export":
-		out, err = pageDataExport(r, c)
+		out, err = pageDataExport(r, tokenID)
 	default:
-		out, err = pageDataFull(r, !argBoolOr(a, "include_data", true))
+		out, err = pageDataFull(r, omitData)
 	}
 	if err != nil {
 		return nil, err
 	}
 	// Issue #109: report the payload against the managed-data limit on every
 	// read, so a refresh run sees its headroom before it writes.
-	if r.Managed != nil {
-		out.Set("data_usage", r.Managed.DataUsage())
+	if r.Envelope != nil {
+		payload := len(jsonv.Stringify(r.Envelope.Value("data")))
+		out.Set("data_usage", datalimits.UsageOf(payload, len(datalimits.EscapedJSON(r.Envelope))))
 	}
 	return out, nil
 }
