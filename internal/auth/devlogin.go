@@ -73,9 +73,10 @@ func (a *Authenticator) DevLoginFromEnv() (DevLogin, bool) {
 
 // devLocalPath keeps only the path and query of raw. The JS passed any
 // "/"-prefixed value through, so "//evil.example" was an open redirect; here
-// a protocol-relative or backslash form also reduces to its path.
+// a protocol-relative or backslash form also reduces to its path, and one
+// carrying a control character to "/".
 func devLocalPath(raw string) string {
-	if strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "//") && !strings.HasPrefix(raw, `/\`) {
+	if httpx.IsLocalPath(raw) {
 		return raw
 	}
 	u, err := url.Parse(raw)
@@ -89,7 +90,7 @@ func devLocalPath(raw string) string {
 	if u.RawQuery != "" {
 		dest += "?" + u.RawQuery
 	}
-	if dest == "" || !strings.HasPrefix(dest, "/") || strings.HasPrefix(dest, "//") {
+	if !httpx.IsLocalPath(dest) {
 		return "/"
 	}
 	return dest

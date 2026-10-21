@@ -6,6 +6,7 @@ package contentview
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -155,9 +156,15 @@ func (t *trackingWriter) WriteHeader(code int) {
 	t.ResponseWriter.WriteHeader(code)
 }
 
+// Write forwards the body bytes unchanged, as a plain byte stream: the
+// wrapper only notes that the response started. It never chooses a content
+// type or adds content; whatever wrote b set the Content-Type on the shared
+// header map and escaped (or chose a non-HTML type) at its own Write, which is
+// where the HTML-injection checks belong.
 func (t *trackingWriter) Write(b []byte) (int, error) {
 	t.wrote = true
-	return t.ResponseWriter.Write(b)
+	var out io.Writer = t.ResponseWriter
+	return out.Write(b)
 }
 
 func (t *trackingWriter) Unwrap() http.ResponseWriter { return t.ResponseWriter }

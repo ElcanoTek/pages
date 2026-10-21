@@ -657,10 +657,7 @@ func (h *handler) createPortal(w http.ResponseWriter, r *http.Request, _ route.P
 		return err
 	}
 	out, err := spread(created, "portal", portal)
-	if err != nil {
-		return err
-	}
-	return sendJSON(w, r, http.StatusCreated, out)
+	return h.replyCredential(w, r, http.StatusCreated, out, err)
 }
 
 func (h *handler) renamePortal(w http.ResponseWriter, r *http.Request, p route.Params) error {
@@ -680,7 +677,7 @@ func (h *handler) setPortalPassword(w http.ResponseWriter, r *http.Request, p ro
 		return err
 	}
 	res, err := portals.SetPassword(r.Context(), h.DB, portals.SetPasswordInput{ID: id, Password: bodyOf(r).arg("password")}, h.actor(r))
-	return h.reply(w, r, res, err)
+	return h.replyCredential(w, r, http.StatusOK, res, err)
 }
 
 // revealPortalPassword shows the current portal password so staff can
@@ -694,7 +691,7 @@ func (h *handler) revealPortalPassword(w http.ResponseWriter, r *http.Request, p
 		return err
 	}
 	res, err := portals.RevealPassword(r.Context(), h.DB, id, h.actor(r))
-	return h.reply(w, r, res, err)
+	return h.replyCredential(w, r, http.StatusOK, res, err)
 }
 
 func (h *handler) addPortalPage(w http.ResponseWriter, r *http.Request, p route.Params) error {
@@ -874,7 +871,7 @@ func jsTruthy(v any) bool {
 
 func (h *handler) setPassword(w http.ResponseWriter, r *http.Request, p route.Params) error {
 	res, err := versions.SetPassword(r.Context(), h.DB, p.Slug, bodyOf(r).arg("password"), h.actor(r))
-	return h.reply(w, r, res, err)
+	return h.replyCredential(w, r, http.StatusOK, res, err)
 }
 
 // revealPassword shows the page's current client password
@@ -883,7 +880,7 @@ func (h *handler) setPassword(w http.ResponseWriter, r *http.Request, p route.Pa
 func (h *handler) revealPassword(w http.ResponseWriter, r *http.Request, p route.Params) error {
 	w.Header().Set("Cache-Control", "no-store")
 	res, err := versions.RevealPassword(r.Context(), h.DB, p.Slug, h.actor(r))
-	return h.reply(w, r, res, err)
+	return h.replyCredential(w, r, http.StatusOK, res, err)
 }
 
 // createPage creates an empty page from the shell (admins with no agent
@@ -1190,4 +1187,19 @@ func (h *handler) reply(w http.ResponseWriter, r *http.Request, v any, err error
 		return err
 	}
 	return sendJSON(w, r, http.StatusOK, v)
+}
+
+// replyCredential is reply for a route whose answer carries a password or
+// answers the request that set one: no-store, and no ETag hashed from it
+// (httpx.SendCredentialJSON).
+func (h *handler) replyCredential(w http.ResponseWriter, r *http.Request, status int, v any, err error) error {
+	if err != nil {
+		return err
+	}
+	s, err := jsonv.Marshal(v)
+	if err != nil {
+		return err
+	}
+	httpx.SendCredentialJSON(w, r, status, []byte(s))
+	return nil
 }

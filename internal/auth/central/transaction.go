@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
@@ -126,16 +127,11 @@ func SafeLocalPath(raw string) string {
 	if raw == "" || jsstr.UTF16Len(raw) > 2048 {
 		return fallback
 	}
-	if !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") || strings.Contains(raw, `\`) {
+	if !httpx.IsLocalPath(raw) || strings.Contains(raw, `\`) {
 		return fallback
 	}
-	for i := 0; i < len(raw); i++ {
-		if raw[i] < 0x20 || raw[i] == 0x7f {
-			return fallback
-		}
-	}
 	out := whatwgPathAndQuery(strings.ToValidUTF8(raw, "�"))
-	if !strings.HasPrefix(out, "/") || strings.HasPrefix(out, "//") || strings.Contains(out, `\`) {
+	if !httpx.IsLocalPath(out) || strings.Contains(out, `\`) {
 		return fallback
 	}
 	return out

@@ -14,6 +14,7 @@
 package shell
 
 import (
+	"html"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -25,17 +26,17 @@ const (
 	favicon = "/shell-assets/flag/logos/elcano-mark-favicon.svg"
 )
 
-var htmlEscaper = strings.NewReplacer(
-	"&", "&amp;",
-	"<", "&lt;",
-	">", "&gt;",
-	`"`, "&quot;",
-	"'", "&#39;",
-)
-
 // Esc escapes the five HTML-significant characters (& < > " ') for text and
-// double- or single-quoted attribute values.
-func Esc(value string) string { return htmlEscaper.Replace(value) }
+// double- or single-quoted attribute values, byte for byte as the
+// escape-html package did: html.EscapeString does the escaping (and is the
+// sanitizer static analysis recognizes), then its &#34; is spelled &quot;.
+func Esc(value string) string {
+	out := html.EscapeString(value)
+	if strings.Contains(out, "&#34;") {
+		out = strings.ReplaceAll(out, "&#34;", "&quot;")
+	}
+	return out
+}
 
 // Field is one key of the bootstrap JSON island. Keys are emitted in slice
 // order, which is the order the JS object literal declared them in.

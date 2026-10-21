@@ -42,6 +42,7 @@ func TestPasswordReveal(t *testing.T) {
 	expect(t, shown, 200, "reveal")
 	eq(t, shown.body, `{"slug":"rv-fabrikam","has_password":true,"available":true,"password":"`+pw+`"}`, "reveal body")
 	eq(t, shown.header.Get("Cache-Control"), "no-store", "a credential must not sit in a cache")
+	eq(t, shown.header.Get("ETag"), "", "no SHA-1 of a body holding a password")
 	eq(t, e.auditCount("reveal_password"), before+1, "every reveal is audited")
 	var actor, actorType, metadata string
 	if err := e.d.QueryRow(ctx, `SELECT actor, actor_type, metadata::text FROM audit_log WHERE action = 'reveal_password' ORDER BY id DESC LIMIT 1`).Scan(&actor, &actorType, &metadata); err != nil {

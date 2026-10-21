@@ -14,8 +14,9 @@ import (
 	"github.com/ElcanoTek/pages/internal/preflight"
 )
 
+// sendBytes is sendJSON for a body already serialized.
 func sendBytes(w http.ResponseWriter, r *http.Request, status int, payload []byte) {
-	httpx.Send(w, r, status, "application/json; charset=utf-8", payload)
+	sendJSONBytes(w, r, status, payload)
 }
 
 // buildRoutes registers every route in the order the Node release's Express

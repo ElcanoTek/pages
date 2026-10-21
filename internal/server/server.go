@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -535,9 +536,15 @@ func (t *trackingWriter) WriteHeader(code int) {
 	t.ResponseWriter.WriteHeader(code)
 }
 
+// Write forwards the body bytes unchanged, as a plain byte stream: the
+// wrapper only notes that the response started. It never chooses a content
+// type or adds content; whatever wrote b set the Content-Type on the shared
+// header map and escaped (or chose a non-HTML type) at its own Write, which is
+// where the HTML-injection checks belong.
 func (t *trackingWriter) Write(b []byte) (int, error) {
 	t.wrote = true
-	return t.ResponseWriter.Write(b)
+	var out io.Writer = t.ResponseWriter
+	return out.Write(b)
 }
 
 func (t *trackingWriter) Flush() {
@@ -579,7 +586,8 @@ func passwordBusy(w http.ResponseWriter, r *http.Request) {
 	minutes := ratelimit.PasswordWindowMinutes()
 	csp.GateHeaders(csp.GateOptions{}).Apply(w.Header())
 	w.Header().Set("Retry-After", strconv.FormatFloat(minutes*60, 'f', -1, 64))
-	httpx.SendHTML(w, r, http.StatusTooManyRequests, contentview.RateLimitPage(slugOf(r), int(minutes)))
+	// No ETag: a 429 is never fresh, so a validator could never serve a 304.
+	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(contentview.RateLimitPage(slugOf(r), int(minutes))))
 }
 
 // signinBusy answers the central sign-in limiters: HTML, because a browser

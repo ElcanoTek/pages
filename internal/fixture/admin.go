@@ -349,14 +349,16 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 		return send(http.StatusOK, page)
 	case "/password":
 		set(page, "has_password", truthy(get(body, "password")))
-		return send(http.StatusOK, page)
+		sendCredential(w, r.Request, http.StatusOK, page)
+		return false
 	case "/reveal-password":
 		hasPassword := truthy(get(page, "has_password"))
 		var password any
 		if hasPassword {
 			password = "fixture-client-pass"
 		}
-		return send(http.StatusOK, o("slug", get(page, "slug"), "has_password", hasPassword, "available", hasPassword, "password", password))
+		sendCredential(w, r.Request, http.StatusOK, o("slug", get(page, "slug"), "has_password", hasPassword, "available", hasPassword, "password", password))
+		return false
 	case "/delete":
 		st.pages = st.pages.filter(func(p obj) bool { return p != page })
 		return send(http.StatusOK, o("deleted", true))
