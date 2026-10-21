@@ -79,7 +79,7 @@ type Getenv func(string) string
 var configRef = regexp.MustCompile(`^\$\{([A-Za-z_][A-Za-z0-9_]*):-(.*)\}$`)
 
 // Load resolves Settings from the process environment and the persisted
-// installation file, exactly as scripts/install-config.sh did.
+// installation file, exactly as the Node release's install-config.sh did.
 func Load(getenv Getenv) Settings {
 	if getenv == nil {
 		getenv = os.Getenv

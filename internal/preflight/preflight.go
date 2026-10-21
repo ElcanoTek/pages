@@ -430,7 +430,7 @@ func checkSandboxCapabilities(text string, tokens map[string]bool) []Finding {
 			Message:       api.label + ` does not work on the content host: its sandbox does not include "` + api.token + `". ` + api.consequence,
 			API:           api.label,
 			RequiredToken: api.token,
-			Fix:           `Remove the control, or ask for "` + api.token + `" to be added to the content-host sandbox in lib/csp.js.`,
+			Fix:           `Remove the control, or ask for "` + api.token + `" to be added to the content-host sandbox in internal/csp.`,
 		})
 	}
 	return errs

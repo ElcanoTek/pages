@@ -34,7 +34,7 @@ const AssetCSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 
 // every dashboard load re-download the font files and the token sheet.
 // `max-age=0` is cacheable-but-revalidate — browsers keep the bytes and get a
 // 304 — which is what these stable, overwritten-in-place paths want. Not
-// `immutable`: scripts/sync-flag.sh replaces them under the same URL, so
+// `immutable`: re-vendoring Flag replaces them under the same URL, so
 // immutable would pin every client to whatever it first loaded.
 func setAssetHeaders(h http.Header) {
 	h.Set("Content-Security-Policy", AssetCSP)

@@ -9,13 +9,16 @@ import (
 	"encoding/json"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 )
 
-// testdata/golden.json.gz holds lib/preflight.js's reports for ~110 documents
-// (recorded with the default CONTENT_ORIGIN and a page-data that reports every
-// page as unmanaged). Reports must match key for key, except the text after
-// "does not parse: " in a syntax error, which was V8's or Acorn's wording.
+// testdata/golden.json.gz holds the Node release's preflight reports for ~110
+// documents (recorded with the default CONTENT_ORIGIN and a page-data that
+// reports every page as unmanaged). Reports must match key for key, except the
+// text after "does not parse: " in a syntax error, which was V8's or Acorn's
+// wording, and the sandbox fix hint, which named the Node release's lib/csp.js
+// where it now names internal/csp.
 
 type goldenCase struct {
 	HTML       string          `json:"html"`
@@ -28,6 +31,7 @@ var parserWording = regexp.MustCompile(`(does not parse: ).*?(\. Nothing in that
 func normalise(t *testing.T, raw []byte) string {
 	t.Helper()
 	s := parserWording.ReplaceAllString(string(raw), "${1}…${2}")
+	s = strings.ReplaceAll(s, "content-host sandbox in lib/csp.js.", "content-host sandbox in internal/csp.")
 	var v any
 	if err := json.Unmarshal([]byte(s), &v); err != nil {
 		t.Fatal(err)

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 ElcanoTek, Inc.
 
 // Package server is Elcano Pages' HTTP front: ONE process, TWO registrable
-// domains (PLAN.md §3, §7), ported from server.js.
+// domains (PLAN.md §3, §7), ported from the Node release's server.js.
 //
 //	DASHBOARD_HOST — trusted auth zone: /view, /admin shells, /api/v1, /mcp.
 //	                 Reads the SSO cookie; admins are @elcanotek.com.

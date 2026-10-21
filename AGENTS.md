@@ -128,12 +128,19 @@ npm holds **test tooling only** — Playwright and axe for the browser suite.
 The MCP wire is held to the official SDK by recordings, not by a live SDK:
 `internal/mcpproto` replays `internal/mcp/testdata/mcp-wire.golden.json` (every response byte
 from the SDK transport) and the corpora in `internal/mcpproto/testdata`
-(`protocol-corpus.json`, `envelope-verdicts.json`), recorded by the scripts in
-`internal/mcpproto/testdata/record`. Re-record only for a deliberate, reviewed
-wire change. To adopt a new MCP protocol version, re-adapt `envelope.go` and
-the supported-version list from the matching SDK release and re-record against
-it.
+(`protocol-corpus.json`, `envelope-verdicts.json`), recorded once from the
+SDK while the Node release was still in the tree. They are fixed now: change
+them only for a deliberate, reviewed wire change. To adopt a new MCP protocol
+version, re-adapt `envelope.go` and the supported-version list from the
+matching SDK release and record the new behaviour against that SDK (the old
+recorder scripts are in git history under `internal/mcpproto/testdata/record`).
 
 Golden files recorded from the Node release pin its old limits with
 `internal/nodedefaults.Setenv(t)`. When a test needs a limit, derive it from
 the `datalimits` / `uploads` / `pagedata` functions, never a literal.
+
+Go comments that cite `lib/*.js`, `server.js`, `scripts/*.js` or `test/*.js`
+name the Node release this server was ported from, which is no longer in the
+tree. They record provenance (what wire format or behaviour a package keeps);
+the Go package is the source of truth. `git log --diff-filter=D -- lib/` finds
+the commit that removed them, and `git show <commit>^:<path>` reads one.

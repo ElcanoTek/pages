@@ -21,7 +21,7 @@ import (
 )
 
 // jsCatalog is testdata/js-catalog.json: the JavaScript tools/list entries
-// and instructions recorded at the Node defaults (testdata/dump-catalog.js).
+// and instructions recorded from the Node release at its defaults.
 type jsCatalog struct {
 	Instructions           string
 	DataUpdateInstructions string

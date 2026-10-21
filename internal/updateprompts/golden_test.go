@@ -22,8 +22,8 @@ import (
 	"github.com/ElcanoTek/pages/internal/versions"
 )
 
-// testdata/golden.json was recorded from lib/update-prompts.js by
-// testdata/gen-golden.js (prompts and other long strings pinned by SHA-256).
+// testdata/golden.json was recorded from the Node release's update-prompts
+// module (prompts and other long strings pinned by SHA-256).
 // Every prompt the agents read must be byte-identical to the JavaScript one.
 
 func loadGolden(t *testing.T) *jsonv.Object {

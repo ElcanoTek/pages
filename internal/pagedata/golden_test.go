@@ -4,8 +4,8 @@
 package pagedata
 
 // Differential tests against golden files produced by the JavaScript
-// implementation itself (testdata/generate.js runs lib/page-data.js, Ajv,
-// parse5 and RegExp over a fixed corpus).
+// implementation itself: the Node release's page-data module, Ajv, parse5 and
+// RegExp run once over a fixed corpus, recorded into testdata/.
 
 import (
 	"bufio"

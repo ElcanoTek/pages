@@ -15,7 +15,7 @@ import (
 )
 
 // DevLogin is the local dev-login (GATED). The real auth service mints the
-// elcano_auth cookie; locally scripts/dev.sh mints a dev one (DEV_ADMIN_COOKIE,
+// elcano_auth cookie; locally `pages dev` mints a dev one (DEV_ADMIN_COOKIE,
 // signed by a throwaway key whose public half it exports as
 // AUTH_SIGNING_PUBKEY) and this exposes it so /admin works in a browser
 // without auth.elcanotek.com.

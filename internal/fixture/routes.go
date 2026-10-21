@@ -18,7 +18,8 @@ func sendBytes(w http.ResponseWriter, r *http.Request, status int, payload []byt
 	httpx.Send(w, r, status, "application/json; charset=utf-8", payload)
 }
 
-// buildRoutes registers every route in the order fixture-server.js did, which
+// buildRoutes registers every route in the order the Node release's Express
+// fixture did, which
 // is the order Express matched them in.
 func (a *App) buildRoutes() []route {
 	var routes []route

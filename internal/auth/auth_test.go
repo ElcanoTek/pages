@@ -19,7 +19,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/auth"
 )
 
-// A cookie minted by scripts/dev-auth.js (Node) with its throwaway key: the
+// A cookie minted by the Node release's dev-auth script with its throwaway key: the
 // Go verifier must accept what the JS signer produced.
 const (
 	nodePubkey = "H6kMgF5PY/+ioK0Ljmqh/7usjVVvCYg/m0KMP2uVRgE="

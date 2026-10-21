@@ -8,7 +8,7 @@
 // suites; this package exists so a browser can drive every screen with no
 // Postgres, no SSO and no clock.
 //
-// It is a port of test/browser/fixture-server.js and answers byte-for-byte as
+// It is a port of the Node release's Express fixture and answers byte-for-byte as
 // that Express app did: the same routes, the same seeded pages, portals,
 // templates and versions, the same fixed NOW, and the same mutation rules.
 // `pages browser-fixture` serves it.
