@@ -144,11 +144,13 @@ func gitEnv() []string {
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_TERMINAL_PROMPT=0",
-		"GIT_CONFIG_COUNT=2",
+		"GIT_CONFIG_COUNT=3",
 		"GIT_CONFIG_KEY_0=core.hooksPath",
 		"GIT_CONFIG_VALUE_0=/dev/null",
 		"GIT_CONFIG_KEY_1=core.fsmonitor",
 		"GIT_CONFIG_VALUE_1=false",
+		"GIT_CONFIG_KEY_2=core.sharedRepository",
+		"GIT_CONFIG_VALUE_2=false",
 	)
 }
 
@@ -167,7 +169,7 @@ var allowedGitKeys = map[string]map[string]bool{
 		"symlinks": true, "autocrlf": true, "eol": true, "safecrlf": true,
 		"compression": true, "loosecompression": true, "packedgitlimit": true,
 		"packedgitwindowsize": true, "bigfilethreshold": true,
-		"sharedrepository": true, "hidedotfiles": true,
+		"hidedotfiles": true,
 	},
 	"remote": {
 		"url": true, "fetch": true, "pushurl": true, "tagopt": true,

@@ -324,8 +324,11 @@ func (b *copyBudget) takeEntries(n int) error {
 }
 
 func (b *copyBudget) takeBytes(size int64, targetDir string) error {
-	if b == nil || size <= 0 {
+	if b == nil {
 		return nil
+	}
+	if size < 0 {
+		size = 0
 	}
 	if b.maxBytes > 0 && b.bytes+size > b.maxBytes {
 		return fmt.Errorf("backup exceeds snapshot size limit (%d bytes)", b.maxBytes)
@@ -336,8 +339,12 @@ func (b *copyBudget) takeBytes(size int64, targetDir string) error {
 			return fmt.Errorf("check snapshot free space: %w", err)
 		}
 		avail := st.Bavail * uint64(max(st.Bsize, 0))
-		if avail < uint64(size)+b.minFreeBytes {
+		need := uint64(max(size, 4096)) + b.minFreeBytes
+		if avail < need {
 			return fmt.Errorf("insufficient free space for check-integrity snapshot (%d bytes available)", avail)
+		}
+		if st.Files > 0 && st.Ffree < 1024 {
+			return fmt.Errorf("insufficient free inodes for check-integrity snapshot (%d available)", st.Ffree)
 		}
 	}
 	b.bytes += size
@@ -436,6 +443,9 @@ func copyOpened(ctx context.Context, in *os.File, wantDir bool, from, to string,
 	}
 	switch {
 	case wantDir && st.IsDir():
+		if err := budget.takeBytes(0, filepath.Dir(to)); err != nil {
+			return err
+		}
 		if err := os.Mkdir(to, 0o700); err != nil {
 			return err
 		}
