@@ -39,11 +39,17 @@ func TestMintVerify(t *testing.T) {
 	raw, _ := base64.RawURLEncoding.DecodeString(body)
 	var p map[string]any
 	_ = json.Unmarshal(raw, &p)
-	if !strings.HasPrefix(string(raw), `{"sub":"ana@elcanotek.com","exp":`) || int64(p["exp"].(float64)) != time.Now().Unix()+csrf.TTLSeconds {
+	if !strings.HasPrefix(string(raw), `{"sub":"ana@elcanotek.com","exp":`) || !expNear(int64(p["exp"].(float64)), time.Now().Unix()+csrf.TTLSeconds) {
 		t.Fatalf("payload = %s", raw)
 	}
+	// Flip the first signature character: it always changes the decoded
+	// bytes, where the last one may only carry padding bits.
+	flipped := "A"
+	if sig[0] == 'A' {
+		flipped = "B"
+	}
 	for name, bad := range map[string]string{
-		"empty": "", "no dot": body, "bad sig": body + "." + sig[:len(sig)-1] + "A", "short sig": body + "." + sig[:10],
+		"empty": "", "no dot": body, "bad sig": body + "." + flipped + sig[1:], "short sig": body + "." + sig[:10],
 	} {
 		if csrf.Verify(bad, "ana@elcanotek.com") {
 			t.Errorf("%s accepted", name)
@@ -151,3 +157,6 @@ func TestRequireAdminJSONAndCsrf(t *testing.T) {
 		t.Fatalf("no session: %d", w.Code)
 	}
 }
+
+// expNear allows for the clock ticking a second between Mint and the check.
+func expNear(got, want int64) bool { return got == want || got == want-1 }
