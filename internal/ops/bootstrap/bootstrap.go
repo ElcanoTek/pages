@@ -187,7 +187,9 @@ func (r *run) all(ctx context.Context) error {
 		if err := os.MkdirAll(s.SrcDir, 0o755); err != nil {
 			return err
 		}
-		if err := r.cmd(ctx, "cp", "-a", o.SrcDir+"/.", s.SrcDir+"/"); err != nil {
+		// Root-owned whoever cloned it: the updater fetches, merges and
+		// builds this checkout as root.
+		if err := r.cmd(ctx, "cp", "-a", "--no-preserve=ownership", o.SrcDir+"/.", s.SrcDir+"/"); err != nil {
 			return die("could not copy the checkout to %s", s.SrcDir)
 		}
 	}
@@ -223,6 +225,9 @@ func (r *run) release(ctx context.Context) error {
 		root, _ := filepath.EvalSymlinks(s.ReleaseRoot())
 		if root != "" && strings.HasPrefix(target, root+"/") && exists(filepath.Join(target, install.BinaryName)) {
 			log.Info("release-managed installation: preserving active release; use pages update to change code")
+			if _, err := install.TrustedFile(filepath.Join(target, install.BinaryName)); err != nil {
+				log.Warn("the active release can be changed by an account other than root (" + err.Error() + "); root runs it — reinstall it root-owned with pages update")
+			}
 			return nil
 		}
 	}
@@ -285,8 +290,21 @@ func (r *run) release(ctx context.Context) error {
 			return err
 		}
 	}
-	if err := o.Chown(ctx, release, true); err != nil {
-		return die("could not give %s to %s", release, s.AppUser)
+	// The release stays root's (0755): root runs its binary (the CLI links
+	// to it, and `sudo pages …` re-executes as root), so the service account
+	// may read and execute it but never replace it. What the service writes
+	// lives outside releases, in the shared assets directory.
+	if err := os.Chmod(release, 0o755); err != nil {
+		return err
+	}
+	if err := os.Chmod(filepath.Join(release, install.BinaryName), 0o755); err != nil {
+		return err
+	}
+	if _, err := install.TrustedFile(filepath.Join(release, install.BinaryName)); err != nil {
+		return die("release %s is not root's alone: %v", release, err)
+	}
+	if err := o.Chown(ctx, filepath.Join(release, "assets"), false); err != nil {
+		return die("could not give %s to %s", filepath.Join(release, "assets"), s.AppUser)
 	}
 	if err := o.Chown(ctx, s.SharedAssets(), true); err != nil {
 		return die("could not give %s to %s", s.SharedAssets(), s.AppUser)

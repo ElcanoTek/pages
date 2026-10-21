@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ type box struct {
 	out      bytes.Buffer
 	roles    map[string]bool
 	stdin    []string // SQL sent to psql
+	chowns   []string // "<path> recursive=<bool>" per Chown
 }
 
 var pubkey = base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))
@@ -103,7 +105,10 @@ func (b *box) run(t *testing.T) error {
 		Probe: func(context.Context, string) bool { return true }, Sleep: func(time.Duration) {},
 		Migrate:      func(context.Context, string) error { return nil },
 		ActiveTokens: func(context.Context, string) int { return map[bool]int{false: 0, true: 1}[b.roles["token"]] },
-		Chown:        func(context.Context, string, bool) error { return nil },
+		Chown: func(_ context.Context, p string, recursive bool) error {
+			b.chowns = append(b.chowns, fmt.Sprintf("%s recursive=%v", p, recursive))
+			return nil
+		},
 	})
 }
 
@@ -147,6 +152,21 @@ func TestBootstrapInstallsAndReruns(t *testing.T) {
 	}
 	if dest, _ := os.Readlink(filepath.Join(b.settings.AppDir, "assets")); dest != b.settings.SharedAssets() {
 		t.Fatal(dest)
+	}
+	// The release stays root's: root runs its binary through the CLI link.
+	// Only the shared assets (and the release's link to them) go to the
+	// service account.
+	release, _ := filepath.EvalSymlinks(b.settings.AppDir)
+	if _, err := install.TrustedFile(filepath.Join(release, "pages")); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := os.Stat(filepath.Join(release, "pages")); st.Mode().Perm() != 0o755 {
+		t.Fatalf("binary mode %v", st.Mode())
+	}
+	for _, c := range b.chowns {
+		if strings.HasPrefix(c, release) && c != filepath.Join(release, "assets")+" recursive=false" {
+			t.Fatalf("release handed to the service account: %v", b.chowns)
+		}
 	}
 	unit, _ := os.ReadFile(filepath.Join(b.dir, "etc/systemd/system/pages.service"))
 	if !strings.Contains(string(unit), "ExecStart="+b.settings.AppDir+"/pages serve") || !strings.Contains(string(unit), "User=contoso") {

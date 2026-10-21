@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -30,6 +32,22 @@ type fixture struct {
 	// in ("" when stopped); stops counts systemctl stop calls.
 	running string
 	stops   int
+	// chowns records every Chown ("<path> recursive=<bool>"); handoff the
+	// binary stage one executed, with its mode and owner at that moment;
+	// asApp each binary a runuser command ran, with its mode then.
+	chowns  []string
+	handoff string
+	asApp   []string
+}
+
+// describe is "<path> <mode> uid=<uid>" for a file as it is now.
+func describe(t *testing.T, p string) string {
+	t.Helper()
+	st, err := os.Lstat(p)
+	if err != nil {
+		return p + " missing"
+	}
+	return fmt.Sprintf("%s %o uid=%d", p, st.Mode().Perm(), st.Sys().(*syscall.Stat_t).Uid)
 }
 
 func write(t *testing.T, name, text string, mode os.FileMode) {
@@ -111,6 +129,11 @@ func run(t *testing.T, failure string) *fixture {
 			}
 			return "", 0
 		case "runuser":
+			for i, a := range c.Args {
+				if a == "_" && i+3 < len(c.Args) {
+					f.asApp = append(f.asApp, describe(t, c.Args[i+3])+" "+c.Args[i+4])
+				}
+			}
 			switch {
 			case strings.Contains(args, " preflight") && failure == "module":
 				return "", 1
@@ -165,9 +188,27 @@ func run(t *testing.T, failure string) *fixture {
 			if failure == "build" {
 				return errors.New("go build: synthetic failure")
 			}
+			switch failure {
+			case "symlink-build":
+				// A build that leaves a link: root must not follow it into
+				// a file another account could control.
+				elsewhere := filepath.Join(f.dir, "elsewhere")
+				if err := os.WriteFile(elsewhere, []byte("candidate"), 0o755); err != nil {
+					return err
+				}
+				return os.Symlink(elsewhere, out)
+			case "writable-build":
+				if err := os.WriteFile(out, []byte("candidate"), 0o755); err != nil {
+					return err
+				}
+				return os.Chmod(out, 0o777)
+			}
 			return os.WriteFile(out, []byte("candidate"), 0o755)
 		},
-		Handoff: func(ctx context.Context, _, candidate string) error { return Activate(ctx, opts, candidate) },
+		Handoff: func(ctx context.Context, bin, candidate string) error {
+			f.handoff = describe(t, bin) + " " + describe(t, candidate)
+			return Activate(ctx, opts, candidate)
+		},
 		Probe: func(_ context.Context, url string) bool {
 			if !strings.Contains(url, ":4312/") {
 				return false
@@ -186,7 +227,19 @@ func run(t *testing.T, failure string) *fixture {
 			}
 			return os.Rename(oldpath, newpath)
 		},
-		Chown: func(context.Context, string, bool) error { return nil },
+		Chown: func(_ context.Context, p string, recursive bool) error {
+			f.chowns = append(f.chowns, fmt.Sprintf("%s recursive=%v", p, recursive))
+			return nil
+		},
+	}
+	if failure == "unsafe-root" {
+		// A release root the service account could write to.
+		if err := os.Mkdir(settings.ReleaseRoot(), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(settings.ReleaseRoot(), 0o777); err != nil {
+			t.Fatal(err)
+		}
 	}
 	f.err = Run(context.Background(), opts)
 	return f
@@ -197,10 +250,10 @@ func TestReleaseUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none"} {
+	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root"} {
 		t.Run(failure, func(t *testing.T) {
 			f := run(t, failure)
-			succeeds := failure == "none" || failure == "pull"
+			succeeds := failure == "none" || failure == "pull" || failure == "writable-build"
 			if (f.err == nil) != succeeds {
 				t.Fatalf("err = %v, want success=%v\n%s", f.err, succeeds, f.out.String())
 			}
@@ -287,6 +340,43 @@ func TestReleaseUpdate(t *testing.T) {
 			}
 			if failure == "pull" && !strings.Contains(f.fake.Log(), "merge --ff-only origin/main") {
 				t.Fatalf("no fast-forward:\n%s", f.fake.Log())
+			}
+			switch failure {
+			case "symlink-build":
+				if !strings.Contains(f.err.Error(), "refusing to hand off") || f.handoff != "" {
+					t.Fatalf("a linked build output must not be executed:\n%s", f.out.String())
+				}
+			case "unsafe-root":
+				if !strings.Contains(f.out.String()+f.err.Error(), "unsafe installation directory") || f.handoff != "" {
+					t.Fatalf("a writable release root must stop the update: %v\n%s", f.err, f.out.String())
+				}
+			}
+			if succeeds {
+				// Stage one executed a root-owned 0755 binary in a 0755
+				// candidate, never one the service account could swap; no
+				// release directory was ever given to the service account.
+				euid := os.Geteuid()
+				if !strings.Contains(f.handoff, "/.candidate.") || strings.Count(f.handoff, fmt.Sprintf(" 755 uid=%d", euid)) != 2 {
+					t.Fatalf("handoff: %s", f.handoff)
+				}
+				for _, c := range f.chowns {
+					if strings.Contains(c, "recursive=true") || (strings.Contains(c, ".releases/") && !strings.HasSuffix(c, "/assets recursive=false")) {
+						t.Fatalf("release handed to the service account: %v", f.chowns)
+					}
+				}
+				// The service account still ran the root-owned binary (world
+				// readable and executable) for every preflight step.
+				for _, want := range []string{"preflight", "check-migrations", "migrate"} {
+					found := false
+					for _, a := range f.asApp {
+						if strings.HasSuffix(a, " "+want) && strings.Contains(a, fmt.Sprintf(" 755 uid=%d ", euid)) {
+							found = true
+						}
+					}
+					if !found {
+						t.Fatalf("%s not run as the service account on a 0755 binary: %v", want, f.asApp)
+					}
+				}
 			}
 			// No candidate directory survives, success or failure.
 			if m, _ := filepath.Glob(filepath.Join(f.app+".releases", ".candidate.*")); len(m) != 0 {

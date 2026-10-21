@@ -152,11 +152,29 @@ func (o *Options) precheck() error {
 	if _, err := os.Stat(filepath.Join(s.SrcDir, ".git")); err != nil {
 		return fail("no source checkout at %s", s.SrcDir)
 	}
+	// Root fetches, merges and builds the checkout (its Makefile, its hooks,
+	// its configuration); the service account must not be able to change it.
+	if p, err := install.WritableBy(s.SrcDir, s.AppUser); err != nil || p != "" {
+		if err != nil {
+			return fail("cannot inspect the source checkout %s: %v", s.SrcDir, err)
+		}
+		return fail("%s is writable by %s, and the updater builds the checkout as root — make %s root-owned (chown -R root:root %s) and review it", p, s.AppUser, s.SrcDir, s.SrcDir)
+	}
 	if st, err := os.Stat(s.AppDir); err != nil || !st.IsDir() {
 		return fail("no installed application at %s — run bootstrap first", s.AppDir)
 	}
 	if st, err := os.Stat(s.EnvFile); err != nil || !st.Mode().IsRegular() {
 		return fail("missing environment file %s", s.EnvFile)
+	}
+	// Root executes the active release (the CLI is a link to it) and the
+	// candidate; the directories holding them must be root's alone.
+	for _, dir := range []string{filepath.Dir(s.AppDir), s.ReleaseRoot()} {
+		if !exists(dir) {
+			continue
+		}
+		if _, err := install.TrustedDir(dir); err != nil {
+			return fail("unsafe installation directory: %v — make it root-owned and not writable by other accounts", err)
+		}
 	}
 	if isSymlink(s.AppDir) {
 		target, err1 := filepath.EvalSymlinks(s.AppDir)
@@ -230,19 +248,47 @@ func Run(ctx context.Context, o Options) error {
 		o.Log.PlainErr(err.Error())
 		return fail("build failed — installed service untouched")
 	}
-	if err := o.Chown(ctx, candidate, true); err != nil {
-		return fail("could not give %s to %s: %v", candidate, s.AppUser, err)
+	// The candidate stays root's: the handoff below executes its binary as
+	// root, and so does every later `sudo pages …` once it is the active
+	// release behind the CLI. The service account only reads and executes
+	// it (0755); what it writes lives outside releases (shared assets).
+	trusted, err := trustedCandidate(candidate)
+	if err != nil {
+		return fail("refusing to hand off to the candidate: %v", err)
 	}
 	// The candidate takes its own lock; release ours first so the handoff
 	// never deadlocks against itself.
 	lock.Close()
 	locked = false
 	handed = true
-	if err := o.Handoff(ctx, bin, candidate); err != nil {
+	if err := o.Handoff(ctx, trusted, candidate); err != nil {
 		_ = os.RemoveAll(candidate)
 		return err
 	}
 	return nil
+}
+
+// trustedCandidate makes the candidate directory and its binary 0755 and
+// confirms that no other account can change either (or anything above
+// them); it returns the resolved binary path to execute.
+func trustedCandidate(candidate string) (string, error) {
+	bin := filepath.Join(candidate, install.BinaryName)
+	st, err := os.Lstat(bin)
+	if err != nil {
+		return "", err
+	}
+	if !st.Mode().IsRegular() {
+		return "", fmt.Errorf("%s is not a regular file", bin)
+	}
+	for _, p := range []string{candidate, bin} {
+		if err := os.Chmod(p, 0o755); err != nil {
+			return "", err
+		}
+	}
+	if _, err := install.TrustedDir(candidate); err != nil {
+		return "", err
+	}
+	return install.TrustedFile(bin)
 }
 
 // Activate is stage two, run by the candidate binary: preflight, migrate,
@@ -260,6 +306,10 @@ func Activate(ctx context.Context, o Options, candidate string) (err error) {
 	root, _ := resolveMissing(s.ReleaseRoot())
 	if c, cerr := resolveMissing(candidate); cerr != nil || filepath.Dir(c) != root || !strings.HasPrefix(filepath.Base(c), ".candidate.") {
 		return fail("refusing to activate %s: not a candidate under %s", candidate, s.ReleaseRoot())
+	}
+	if _, err := trustedCandidate(candidate); err != nil {
+		_ = os.RemoveAll(candidate)
+		return fail("refusing to activate %s: %v", candidate, err)
 	}
 	lock, lerr := install.Lock(s.LockFile(), true)
 	if lerr != nil {

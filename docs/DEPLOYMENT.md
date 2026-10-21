@@ -291,8 +291,8 @@ fatal error, which is what you want in automation.
 
 | Path | What |
 | --- | --- |
-| `/opt/pages-src` | The git checkout. `pages update` fetches and builds here |
-| `/opt/pages.releases/<sha>-<UTC>-<pid>/` | One release: the `pages` binary, plus `assets` (and `.env`, when present) links to the shared paths |
+| `/opt/pages-src` | The git checkout, root-owned. `pages update` fetches and builds here as root, and refuses to while anything in it (or above it) is writable by the service account |
+| `/opt/pages.releases/<sha>-<UTC>-<pid>/` | One release: the `pages` binary (root-owned, `0755`: the service account runs it but cannot replace it, since root runs it too through the CLI link), plus `assets` (and `.env`, when present) links to the shared paths |
 | `/opt/pages` | Symlink to the active release; the service runs `/opt/pages/pages serve` |
 | `/opt/pages.releases/previous` | Link to the last successful predecessor (after the first update) |
 | `/opt/pages.assets` | Writable asset directory shared by every release, reached as `/opt/pages/assets` (the only `ReadWritePaths`) |
