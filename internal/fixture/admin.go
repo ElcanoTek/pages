@@ -8,7 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/render"
 )
 
@@ -26,9 +27,9 @@ func isDeck(html any) bool {
 	return ok && render.IsBentoDeck(s)
 }
 
-func decodeURIComponent(s string) (string, error) { return wire.DecodeURIComponent(s) }
+func decodeURIComponent(s string) (string, error) { return httpx.DecodeURIComponent(s) }
 
-func jsLen(s string) int { return wire.UTF16Len(s) }
+func jsLen(s string) int { return jsstr.UTF16Len(s) }
 
 func errorBody(msg string) obj { return o("error", msg) }
 
@@ -56,7 +57,7 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 		a.mu.Lock()
 		payload := marshal(o("pages", a.st.pageRows(), "workspaces", a.st.workspaceRows()))
 		a.mu.Unlock()
-		wire.Send(w, r.Request, http.StatusOK, "application/json; charset=utf-8", payload)
+		httpx.Send(w, r.Request, http.StatusOK, "application/json; charset=utf-8", payload)
 		return false
 	}
 
@@ -131,8 +132,8 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 			return send(http.StatusNotFound, errorBody("template not found"))
 		}
 		built := get(templateDetail(template), "pages").(*list).len()
-		force, single := wire.QueryParam(r.Request, "force").String()
-		if built > 0 && !(single && force == "true") {
+		force, single := httpx.QueryParam(r.Request, "force").String()
+		if built > 0 && (!single || force != "true") {
 			return send(http.StatusConflict, o("error", str(float64(built))+" pages were built from "+name+"; pass force", "code", "template_has_pages"))
 		}
 		st.templates = st.templates.filter(func(t obj) bool { return get(t, "name") != any(name) })
@@ -173,13 +174,13 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 			"render_mode", mode,
 			"content_sha256", strings.Repeat("e", 64),
 			"has_sample_data", known != nil && truthy(get(known, "has_sample_data")),
-			"url", a.origin+"/preview/tpl-"+wire.EncodeURIComponent(name)+"-r"+str(revision),
+			"url", a.origin+"/preview/tpl-"+httpx.EncodeURIComponent(name)+"-r"+str(revision),
 			"expires_in_seconds", 300,
 		))
 	}
 
 	if method == http.MethodPost && route == "/pages" {
-		slug := strings.ToLower(wire.TrimJS(str(or(get(body, "slug"), ""))))
+		slug := strings.ToLower(jsstr.Trim(str(or(get(body, "slug"), ""))))
 		if slug == "" {
 			return send(http.StatusBadRequest, errorBody("slug is required"))
 		}
@@ -206,7 +207,7 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 	}
 
 	if method == http.MethodPost && route == "/workspaces" {
-		workspace := o("id", st.nextWorkspace, "name", wire.TrimJS(str(or(get(body, "name"), ""))), "created_at", NOW, "updated_at", NOW)
+		workspace := o("id", st.nextWorkspace, "name", jsstr.Trim(str(or(get(body, "name"), ""))), "created_at", NOW, "updated_at", NOW)
 		st.nextWorkspace++
 		st.workspaces.push(workspace)
 		st.events.push(o("method", method, "path", route, "body", body))
@@ -217,7 +218,7 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 		if workspace == nil {
 			return send(http.StatusNotFound, errorBody("workspace not found"))
 		}
-		set(workspace, "name", wire.TrimJS(str(or(get(body, "name"), ""))))
+		set(workspace, "name", jsstr.Trim(str(or(get(body, "name"), ""))))
 		for _, p := range st.pages.items {
 			if sameString(get(p, "workspace_id"), get(workspace, "id")) {
 				set(asObj(p), "workspace_name", get(workspace, "name"))

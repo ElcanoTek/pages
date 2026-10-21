@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // initialTemplates is a template the library can list, inspect and preview.
@@ -75,7 +75,7 @@ func templateReport(body any) obj {
 	html, _ := get(body, "html").(string)
 	rawName := ""
 	if s, ok := get(body, "name").(string); ok {
-		rawName = wire.TrimJS(s)
+		rawName = jsstr.Trim(s)
 	}
 	lower := strings.ToLower(rawName)
 	validName := templateNameRE.MatchString(lower) && rawName != ""

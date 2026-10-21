@@ -8,7 +8,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
 // The fixture state is held as JavaScript values, not Go structs, on purpose.
@@ -18,13 +19,13 @@ import (
 // field set to `undefined` drops out of the payload while keeping its place.
 // Typed structs would have to re-invent each of those rules field by field.
 //
-// Values are what jsjson.Parse produces (nil, bool, float64, string, []any,
-// *jsjson.Object) plus two fixture-only kinds: *list, a JavaScript array held
+// Values are what jsonv.Parse produces (nil, bool, float64, string, []any,
+// *jsonv.Object) plus two fixture-only kinds: *list, a JavaScript array held
 // by reference (so a response built before a delay still shows a later push,
 // exactly as res.json(body) did after setTimeout), and undef, a property whose
 // value is `undefined`.
 
-type obj = *jsjson.Object
+type obj = *jsonv.Object
 
 // undefined is JavaScript's undefined: a missing property, or one assigned
 // undefined, which JSON.stringify leaves out of an object.
@@ -79,7 +80,7 @@ func (l *list) splice(i int) any {
 // o builds an object from key/value pairs in insertion order. Go integer
 // literals become float64, the only JavaScript number.
 func o(kv ...any) obj {
-	out := jsjson.NewObject()
+	out := jsonv.NewObject()
 	for i := 0; i+1 < len(kv); i += 2 {
 		out.Set(kv[i].(string), norm(kv[i+1]))
 	}
@@ -97,7 +98,7 @@ func norm(v any) any {
 }
 
 func asObj(v any) obj {
-	if x, ok := v.(*jsjson.Object); ok {
+	if x, ok := v.(*jsonv.Object); ok {
 		return x
 	}
 	return nil
@@ -124,7 +125,7 @@ func set(x obj, key string, v any) { x.Set(key, norm(v)) }
 
 // spread is `{ ...src, k1: v1, ... }`.
 func spread(src obj, kv ...any) obj {
-	out := jsjson.NewObject()
+	out := jsonv.NewObject()
 	for _, k := range src.Keys() {
 		v, _ := src.Get(k)
 		out.Set(k, v)
@@ -137,7 +138,7 @@ func spread(src obj, kv ...any) obj {
 
 // without is `({ key, ...rest }) => rest`.
 func without(src obj, drop string) obj {
-	out := jsjson.NewObject()
+	out := jsonv.NewObject()
 	for _, k := range src.Keys() {
 		if k == drop {
 			continue
@@ -176,9 +177,9 @@ func str(v any) string {
 	case undefined:
 		return "undefined"
 	case *list:
-		return jsjson.ToString(x.items)
+		return jsonv.ToString(x.items)
 	}
-	return jsjson.ToString(v)
+	return jsonv.ToString(v)
 }
 
 // num is Number(v).
@@ -196,9 +197,9 @@ func num(v any) float64 {
 	case float64:
 		return x
 	case string:
-		return jsjson.Number(x)
+		return jsstr.Number(x)
 	case []any:
-		return jsjson.Number(jsjson.ToString(x))
+		return jsstr.Number(jsonv.ToString(x))
 	}
 	return math.NaN()
 }
@@ -218,8 +219,8 @@ func sameString(a, b any) bool { return str(a) == str(b) }
 // clone is JSON.parse(JSON.stringify(v)) for fixture values.
 func clone(v any) any {
 	switch x := v.(type) {
-	case *jsjson.Object:
-		out := jsjson.NewObject()
+	case *jsonv.Object:
+		out := jsonv.NewObject()
 		for _, k := range x.Keys() {
 			val, _ := x.Get(k)
 			if _, skip := val.(undefined); skip {
@@ -271,7 +272,7 @@ func appendJS(b []byte, v any) ([]byte, error) {
 			}
 		}
 		return append(b, ']'), nil
-	case *jsjson.Object:
+	case *jsonv.Object:
 		b = append(b, '{')
 		first := true
 		for _, k := range x.Keys() {
@@ -283,7 +284,7 @@ func appendJS(b []byte, v any) ([]byte, error) {
 				b = append(b, ',')
 			}
 			first = false
-			b = jsjson.AppendString(b, k)
+			b = jsonv.AppendString(b, k)
 			b = append(b, ':')
 			var err error
 			if b, err = appendJS(b, val); err != nil {
@@ -292,7 +293,7 @@ func appendJS(b []byte, v any) ([]byte, error) {
 		}
 		return append(b, '}'), nil
 	case nil, bool, float64, int, int64, string:
-		return jsjson.AppendValue(b, x)
+		return jsonv.AppendValue(b, x)
 	}
 	return nil, fmt.Errorf("fixture: cannot serialise %T", v)
 }

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
-	"github.com/ElcanoTek/pages/internal/mcpproto/jsjson"
+	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/shell"
 )
 
@@ -93,7 +93,7 @@ func (rt route) match(raw string) (map[string]string, string, bool, bool) {
 			}
 			parts := make([]string, 0, len(got)-i)
 			for _, g := range got[i:] {
-				d, err := wire.DecodeURIComponent(g)
+				d, err := httpx.DecodeURIComponent(g)
 				if err != nil {
 					return nil, "", true, false
 				}
@@ -109,7 +109,7 @@ func (rt route) match(raw string) (map[string]string, string, bool, bool) {
 			if got[i] == "" {
 				return nil, "", false, false
 			}
-			d, err := wire.DecodeURIComponent(got[i])
+			d, err := httpx.DecodeURIComponent(got[i])
 			if err != nil {
 				return nil, "", true, false
 			}
@@ -161,7 +161,7 @@ func parseBody(w http.ResponseWriter, r *http.Request, text bool) (any, bool) {
 	}
 	switch kind {
 	case "text":
-		return jsjson.DecodeUTF8(raw), true
+		return jsonv.DecodeUTF8(raw), true
 	case "form":
 		return parseForm(string(raw)), true
 	}
@@ -174,7 +174,7 @@ func parseBody(w http.ResponseWriter, r *http.Request, text bool) (any, bool) {
 		sendError(w, r, http.StatusBadRequest, "SyntaxError: Unexpected token in JSON")
 		return nil, false
 	}
-	v, err := jsjson.Parse(raw)
+	v, err := jsonv.ParseLossless(raw)
 	if err != nil {
 		sendError(w, r, http.StatusBadRequest, "SyntaxError: "+err.Error())
 		return nil, false
@@ -192,7 +192,7 @@ func fromParsed(v any) any {
 			out.push(fromParsed(item))
 		}
 		return out
-	case *jsjson.Object:
+	case *jsonv.Object:
 		for _, k := range x.Keys() {
 			val, _ := x.Get(k)
 			x.Set(k, fromParsed(val))
@@ -243,7 +243,7 @@ func isList(v any) bool { _, ok := v.(*list); return ok }
 
 func formDecode(s string) string {
 	s = strings.ReplaceAll(s, "+", " ")
-	if d, err := wire.DecodeURIComponent(s); err == nil {
+	if d, err := httpx.DecodeURIComponent(s); err == nil {
 		return d
 	}
 	return s // querystring.unescape falls back to a lenient decode
@@ -266,13 +266,13 @@ func sendError(w http.ResponseWriter, r *http.Request, status int, msg string) {
 
 // sendJSON is res.status(status).json(v).
 func sendJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
-	wire.Send(w, r, status, "application/json; charset=utf-8", marshal(v))
+	httpx.Send(w, r, status, "application/json; charset=utf-8", marshal(v))
 }
 
 func sendHTML(w http.ResponseWriter, r *http.Request, status int, html string) {
-	wire.SendHTML(w, r, status, html)
+	httpx.SendHTML(w, r, status, html)
 }
 
 func sendText(w http.ResponseWriter, r *http.Request, status int, text string) {
-	wire.Send(w, r, status, "text/plain; charset=utf-8", []byte(text))
+	httpx.Send(w, r, status, "text/plain; charset=utf-8", []byte(text))
 }

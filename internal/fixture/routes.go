@@ -8,14 +8,14 @@ import (
 	"math"
 	"net/http"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/preflight"
 )
 
 func sendBytes(w http.ResponseWriter, r *http.Request, status int, payload []byte) {
-	wire.Send(w, r, status, "application/json; charset=utf-8", payload)
+	httpx.Send(w, r, status, "application/json; charset=utf-8", payload)
 }
 
 // buildRoutes registers every route in the order fixture-server.js did, which
@@ -145,7 +145,7 @@ func (a *App) controlRoutes() []route {
 		{method: "POST", pattern: "/__fixture/preflight", h: func(w http.ResponseWriter, r *req) {
 			src, _ := get(r.body, "html").(string)
 			mode, _ := get(r.body, "render_mode").(string)
-			wire.SendJSON(w, r.Request, http.StatusOK, preflight.Analyze(src, preflight.Options{RenderMode: mode}))
+			httpx.SendJSON(w, r.Request, http.StatusOK, preflight.Analyze(src, preflight.Options{RenderMode: mode}))
 		}},
 	}
 }

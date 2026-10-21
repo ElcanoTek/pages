@@ -12,8 +12,8 @@ import (
 	"time"
 
 	pages "github.com/ElcanoTek/pages"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/contentview"
+	"github.com/ElcanoTek/pages/internal/httpx"
 )
 
 // assetTypes is what express.static answers for the files under
@@ -45,7 +45,7 @@ func serveAssets(fsys fs.FS, setHeaders func(http.Header)) func(w http.ResponseW
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			return true
 		}
-		decoded, err := wire.DecodeURIComponent(r.rest)
+		decoded, err := httpx.DecodeURIComponent(r.rest)
 		if err != nil || strings.ContainsRune(decoded, 0) || strings.HasSuffix(decoded, "/") {
 			return true
 		}
@@ -66,7 +66,7 @@ func serveAssets(fsys fs.FS, setHeaders func(http.Header)) func(w http.ResponseW
 		h := w.Header()
 		h.Set("Accept-Ranges", "bytes")
 		h.Set("Cache-Control", "public, max-age=0")
-		h.Set("ETag", wire.ETag(body))
+		h.Set("ETag", httpx.ETag(body))
 		ct, ok := assetTypes[strings.ToLower(path.Ext(name))]
 		if !ok {
 			ct = "application/octet-stream"

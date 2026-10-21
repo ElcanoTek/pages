@@ -44,13 +44,14 @@ No database, no SSO. Test harness only; GET /healthz answers "ok".`)
 	// The port is configurable so several checkouts can run the browser
 	// suite at once (playwright.config.js passes the same variable).
 	port := env.Int("PLAYWRIGHT_FIXTURE_PORT", 3210)
-	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {
 		return Fail("browser-fixture", "%v", err)
 	}
 	srv := &http.Server{Handler: fixture.New(port), ReadHeaderTimeout: 10 * time.Second}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)

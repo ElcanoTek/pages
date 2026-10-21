@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/csp"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/render"
 )
 
@@ -135,7 +135,7 @@ func saveCors(w http.ResponseWriter) {
 }
 
 func headerOrNull(r *http.Request, name string) any {
-	if v := wire.Header(r, name); v != "" {
+	if v := httpx.Header(r, name); v != "" {
 		return v
 	}
 	return nil
@@ -171,7 +171,7 @@ func (a *App) bentoRoutes() []route {
 		// ── the edit session and its save channel ──────────────────────────
 		{method: "GET", pattern: "/bento/edit", h: withHeaders(a.editHeaders, html(http.StatusOK, func(r *req) string {
 			save := "/bento/save"
-			if q := wire.QueryParam(r.Request, "fail"); q.Present && (len(q.Values) > 1 || q.Values[0] != "") {
+			if q := httpx.QueryParam(r.Request, "fail"); q.Present && (len(q.Values) > 1 || q.Values[0] != "") {
 				save = "/bento/save-fail"
 			}
 			return render.EditSession(bentoDeck, render.EditSessionOptions{

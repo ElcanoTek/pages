@@ -12,9 +12,9 @@ import (
 	"time"
 
 	pages "github.com/ElcanoTek/pages"
-	"github.com/ElcanoTek/pages/internal/auth/wire"
 	"github.com/ElcanoTek/pages/internal/contentview"
 	"github.com/ElcanoTek/pages/internal/csp"
+	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 	"github.com/ElcanoTek/pages/internal/render"
 	"github.com/ElcanoTek/pages/internal/shell"
@@ -197,10 +197,10 @@ const sandboxSource = `<!doctype html><html lang="en"><head><meta charset="utf-8
 var nonLowerAlpha = regexp.MustCompile(`[^a-z]`)
 
 func sandboxTarget(r *req) string {
-	token, present := wire.RequestCookies(r.Request)[pagecookie.CookieName(sandboxPageID)]
+	token, present := httpx.RequestCookies(r.Request)[pagecookie.CookieName(sandboxPageID)]
 	verified := present && pagecookie.VerifySession(token, sandboxPageID, "")
 	via := ""
-	if q := wire.QueryParam(r.Request, "via"); q.Present {
+	if q := httpx.QueryParam(r.Request, "via"); q.Present {
 		via = strings.Join(q.Values, ",")
 	}
 	yes := func(b bool) string {
@@ -233,8 +233,8 @@ func (a *App) shellRoutes() []route {
 }
 
 func (a *App) contentRoutes() []route {
-	gate := func(o contentview.GatePageOptions) string { return contentview.GatePage(o) }
-	portalIndex := func(o contentview.PortalIndexOptions) string { return contentview.PortalIndexPage(o) }
+	gate := contentview.GatePage
+	portalIndex := contentview.PortalIndexPage
 	shipped := shippedTemplate()
 	full := func() obj { return fixtureNav(navPages(), false) }
 	onePage := func() obj { return fixtureNav(newList(navPages().items[1]), false) }
@@ -295,7 +295,7 @@ func (a *App) contentRoutes() []route {
 		// source. Secure is off because the fixture is http://127.0.0.1.
 		{method: "GET", pattern: "/sandbox-nav/unlock", h: func(w http.ResponseWriter, r *req) {
 			w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(sandboxPageID, pagecookie.CookieOptions{Insecure: true}))
-			wire.Redirect(w, r.Request, http.StatusFound, "/sandbox-nav/source")
+			httpx.Redirect(w, r.Request, http.StatusFound, "/sandbox-nav/source")
 		}},
 		// The sandboxed document a partner is looking at. Anchor and button
 		// cover the two ways a switcher could navigate: a plain link, and
