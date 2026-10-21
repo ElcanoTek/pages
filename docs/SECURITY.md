@@ -449,13 +449,15 @@ Actions written to `audit_log`:
   `set_portal_password`, `reveal_portal_password`, `add_portal_page`, `update_portal_page`,
   `remove_portal_page`, `set_portal_home`, `delete_portal`.
 
-Those bullets are the machine-checkable part: they must match the `Action`
-literals of the `audit.Entry` values the server writes under `internal/`, in
-both directions, because the list had already drifted by six actions (the whole
-template and config set) before a test compared them. Keep prose out of the
-bullets so the comparison stays exact. The three actions the pointer move
-receives as an argument (publish, rollback, approve) must be named explicitly
-by any such check, since no grep of a call site can see them.
+Those bullets are machine-checked: `TestAuditVocabularyIsDocumented`
+(`internal/audit/vocabulary_test.go`) parses every non-test Go file under
+`internal/` and fails unless the actions the server writes — `Action:` field
+literals, literals assigned to an `action` variable, and literals passed as a
+function's `action` parameter (which is how the pointer move receives publish,
+rollback and approve) — match these bullets in both directions. The list had
+already drifted by six actions (the whole template and config set) before a
+test compared them. Keep prose out of the bullets so the comparison stays
+exact.
 
 Portal-level rows carry the portal identity in metadata with a null page id; the
 three membership actions carry the page id as well, so "who exposed this page, and
