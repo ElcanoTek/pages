@@ -1,0 +1,238 @@
+{
+ "synthetic": [
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":1}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":2}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2099-01-01\",\"capabilities\":{},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":3}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"\",\"capabilities\":{\"roots\":{}},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\",\"title\":\"C\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":4}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"ping\"}",
+   "response": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":5}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"ping\",\"params\":{}}",
+   "response": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":6}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\",\"params\":{\"_meta\":{\"progressToken\":\"p\"}}}",
+   "response": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":7}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"ping\",\"params\":{\"task\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":8,\"error\":{\"code\":-32603,\"message\":\"Server does not support task creation (required for ping)\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/list\"}",
+   "response": "{\"result\":{\"tools\":[{\"name\":\"echo\",\"title\":\"Echo\",\"description\":\"Echo a value.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"string\",\"minLength\":1},\"n\":{\"default\":3,\"type\":\"integer\",\"minimum\":-9007199254740991,\"maximum\":9007199254740991}},\"required\":[\"value\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"string\"},\"n\":{\"type\":\"number\"}},\"required\":[\"value\",\"n\"],\"additionalProperties\":false}},{\"name\":\"transform\",\"title\":\"Transform\",\"description\":\"Arguments reach the handler parsed.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"id\":{\"anyOf\":[{\"type\":\"integer\",\"minimum\":-9007199254740991,\"maximum\":9007199254740991},{\"type\":\"string\"}]}},\"required\":[\"id\"],\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"],\"additionalProperties\":false}},{\"name\":\"bad_output\",\"title\":\"Bad output\",\"description\":\"Returns structured content its schema refuses.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\",\"const\":true},\"items\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"ok\",\"items\"],\"additionalProperties\":false}},{\"name\":\"no_structured\",\"title\":\"No structured content\",\"description\":\"Omits structuredContent despite an output schema.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\"}},\"required\":[\"ok\"],\"additionalProperties\":false}},{\"name\":\"domain_error\",\"title\":\"Domain error\",\"description\":\"An isError result skips output validation.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\",\"const\":true}},\"required\":[\"ok\"],\"additionalProperties\":false}},{\"name\":\"throws\",\"title\":\"Throws\",\"description\":\"A handler that throws becomes a tool error.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}},{\"name\":\"throws_value\",\"title\":\"Throws a value\",\"description\":\"A non-Error throw is stringified.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}]},\"jsonrpc\":\"2.0\",\"id\":9}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/list\",\"params\":{\"_meta\":{}}}",
+   "response": "{\"result\":{\"tools\":[{\"name\":\"echo\",\"title\":\"Echo\",\"description\":\"Echo a value.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"string\",\"minLength\":1},\"n\":{\"default\":3,\"type\":\"integer\",\"minimum\":-9007199254740991,\"maximum\":9007199254740991}},\"required\":[\"value\"],\"additionalProperties\":false},\"annotations\":{\"readOnlyHint\":true},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"string\"},\"n\":{\"type\":\"number\"}},\"required\":[\"value\",\"n\"],\"additionalProperties\":false}},{\"name\":\"transform\",\"title\":\"Transform\",\"description\":\"Arguments reach the handler parsed.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"id\":{\"anyOf\":[{\"type\":\"integer\",\"minimum\":-9007199254740991,\"maximum\":9007199254740991},{\"type\":\"string\"}]}},\"required\":[\"id\"],\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}},\"required\":[\"id\"],\"additionalProperties\":false}},{\"name\":\"bad_output\",\"title\":\"Bad output\",\"description\":\"Returns structured content its schema refuses.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\",\"const\":true},\"items\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"ok\",\"items\"],\"additionalProperties\":false}},{\"name\":\"no_structured\",\"title\":\"No structured content\",\"description\":\"Omits structuredContent despite an output schema.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\"}},\"required\":[\"ok\"],\"additionalProperties\":false}},{\"name\":\"domain_error\",\"title\":\"Domain error\",\"description\":\"An isError result skips output validation.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{\"ok\":{\"type\":\"boolean\",\"const\":true}},\"required\":[\"ok\"],\"additionalProperties\":false}},{\"name\":\"throws\",\"title\":\"Throws\",\"description\":\"A handler that throws becomes a tool error.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}},{\"name\":\"throws_value\",\"title\":\"Throws a value\",\"description\":\"A non-Error throw is stringified.\",\"inputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false},\"execution\":{\"taskSupport\":\"forbidden\"},\"outputSchema\":{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}}]},\"jsonrpc\":\"2.0\",\"id\":10}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\"}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"value\\\":\\\"hi\\\",\\\"n\\\":3}\"}],\"structuredContent\":{\"value\":\"hi\",\"n\":3}},\"jsonrpc\":\"2.0\",\"id\":11}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\",\"n\":7}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"value\\\":\\\"hi\\\",\\\"n\\\":7}\"}],\"structuredContent\":{\"value\":\"hi\",\"n\":7}},\"jsonrpc\":\"2.0\",\"id\":12}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"\"}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool echo: Too small: expected string to have >=1 characters at value\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":13}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\",\"extra\":1}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool echo: Unrecognized key: \\\"extra\\\"\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":14}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\"}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool echo: Invalid input: expected string, received undefined at value\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":15}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":5,\"n\":1.5}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool echo: Invalid input: expected string, received number at value\\nInvalid input: expected int, received number at n\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":16}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":17,\"method\":\"tools/call\",\"params\":{\"name\":\"transform\",\"arguments\":{\"id\":42}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"42\"}],\"structuredContent\":{\"id\":\"42\"}},\"jsonrpc\":\"2.0\",\"id\":17}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":18,\"method\":\"tools/call\",\"params\":{\"name\":\"bad_output\",\"arguments\":{}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Output validation error: Invalid structured content for tool bad_output: Invalid input: expected true at ok\\nInvalid input: expected string, received number at items[0]\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":18}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":19,\"method\":\"tools/call\",\"params\":{\"name\":\"no_structured\",\"arguments\":{}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Output validation error: Tool no_structured has an output schema but no structured content was provided\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":19}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/call\",\"params\":{\"name\":\"domain_error\",\"arguments\":{}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"ok\\\":false}\"}],\"structuredContent\":{\"ok\":false},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":20}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"tools/call\",\"params\":{\"name\":\"throws\",\"arguments\":{}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"boom\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":21}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"tools/call\",\"params\":{\"name\":\"throws_value\",\"arguments\":{}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"plain string\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":22}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"tools/call\",\"params\":{\"name\":\"not_registered\",\"arguments\":{}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool not_registered not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":23}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":24,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\"},\"task\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":24,\"error\":{\"code\":-32603,\"message\":\"Server does not support task creation (required for tools/call)\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":25,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\"},\"_meta\":{\"progressToken\":1}}}",
+   "response": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"value\\\":\\\"hi\\\",\\\"n\\\":3}\"}],\"structuredContent\":{\"value\":\"hi\",\"n\":3}},\"jsonrpc\":\"2.0\",\"id\":25}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":26,\"method\":\"resources/list\"}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":26,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":27,\"method\":\"prompts/list\",\"params\":{}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":27,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":28,\"method\":\"logging/setLevel\",\"params\":{\"level\":\"info\"}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":28,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":29,\"method\":\"completion/complete\",\"params\":{}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":29,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  }
+ ],
+ "empty": [
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":30}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":31}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2099-01-01\",\"capabilities\":{},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":32}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"\",\"capabilities\":{\"roots\":{}},\"clientInfo\":{\"name\":\"contoso\",\"version\":\"1\",\"title\":\"C\"}}}",
+   "response": "{\"result\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\"northwind\",\"title\":\"Northwind\",\"version\":\"9.9.9\"},\"instructions\":\"Use the Northwind tools.\"},\"jsonrpc\":\"2.0\",\"id\":33}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":34,\"method\":\"ping\"}",
+   "response": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":34}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":35,\"method\":\"ping\",\"params\":{}}",
+   "response": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":35}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":36,\"method\":\"ping\",\"params\":{\"_meta\":{\"progressToken\":\"p\"}}}",
+   "response": "{\"result\":{},\"jsonrpc\":\"2.0\",\"id\":36}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":37,\"method\":\"ping\",\"params\":{\"task\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":37,\"error\":{\"code\":-32603,\"message\":\"Server does not support task creation (required for ping)\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":38,\"method\":\"tools/list\"}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":38,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":39,\"method\":\"tools/list\",\"params\":{\"_meta\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":39,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":40,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\"}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":40,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":41,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\",\"n\":7}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":41,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"\"}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":42,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":43,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\",\"extra\":1}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":43,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":44,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\"}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":44,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":45,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":5,\"n\":1.5}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":45,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":46,\"method\":\"tools/call\",\"params\":{\"name\":\"transform\",\"arguments\":{\"id\":42}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":46,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":47,\"method\":\"tools/call\",\"params\":{\"name\":\"bad_output\",\"arguments\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":47,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":48,\"method\":\"tools/call\",\"params\":{\"name\":\"no_structured\",\"arguments\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":48,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":49,\"method\":\"tools/call\",\"params\":{\"name\":\"domain_error\",\"arguments\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":49,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":50,\"method\":\"tools/call\",\"params\":{\"name\":\"throws\",\"arguments\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":50,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":51,\"method\":\"tools/call\",\"params\":{\"name\":\"throws_value\",\"arguments\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":51,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":52,\"method\":\"tools/call\",\"params\":{\"name\":\"not_registered\",\"arguments\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":52,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":53,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\"},\"task\":{}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":53,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":54,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"value\":\"hi\"},\"_meta\":{\"progressToken\":1}}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":54,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":55,\"method\":\"resources/list\"}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":55,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":56,\"method\":\"prompts/list\",\"params\":{}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":56,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":57,\"method\":\"logging/setLevel\",\"params\":{\"level\":\"info\"}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":57,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  },
+  {
+   "request": "{\"jsonrpc\":\"2.0\",\"id\":58,\"method\":\"completion/complete\",\"params\":{}}",
+   "response": "{\"jsonrpc\":\"2.0\",\"id\":58,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"
+  }
+ ]
+}
