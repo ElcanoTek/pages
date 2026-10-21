@@ -60,7 +60,7 @@ func stubRouter(t *testing.T) http.Handler {
 	}
 	for i := range h.routes {
 		name := routeNames[i]
-		h.routes[i].handler = func(_ *handler, w http.ResponseWriter, r *http.Request, p params) error {
+		h.routes[i].Handler = func(_ *handler, w http.ResponseWriter, r *http.Request, p params) error {
 			if name == "createPage" {
 				v, ok := reqbody.From(r)
 				var b any = "<undefined>"
@@ -70,11 +70,11 @@ func stubRouter(t *testing.T) http.Handler {
 				return sendJSON(w, r, 200, jsonv.ObjectOf("route", name, "body", b))
 			}
 			var slug, id any
-			if strings.Contains(h.routes[i].re.String(), "<slug>") {
-				slug = p.slug
+			if strings.Contains(h.routes[i].Re.String(), "<slug>") {
+				slug = p.Slug
 			}
-			if strings.Contains(h.routes[i].re.String(), "<id>") {
-				id = p.id
+			if strings.Contains(h.routes[i].Re.String(), "<id>") {
+				id = p.ID
 			}
 			return sendJSON(w, r, 200, jsonv.ObjectOf("route", name, "slug", slug, "id", id))
 		}

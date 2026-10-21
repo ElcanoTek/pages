@@ -30,6 +30,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/pageurls"
 	"github.com/ElcanoTek/pages/internal/preflight"
 	"github.com/ElcanoTek/pages/internal/reqbody"
+	"github.com/ElcanoTek/pages/internal/route"
 	"github.com/ElcanoTek/pages/internal/shell"
 	"github.com/ElcanoTek/pages/internal/tokens"
 	"github.com/ElcanoTek/pages/internal/versions"
@@ -60,7 +61,7 @@ type Deps struct {
 
 type handler struct {
 	Deps
-	routes []route
+	routes []apiRoute
 	inner  http.Handler
 }
 
@@ -130,11 +131,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // downstream. `*slug` is greedy across segments, so the bare GET
 // /pages/*slug MUST stay after the sub-resource GETs (/versions,
 // /versions/:id) or it would swallow them.
-func (h *handler) buildRoutes() []route {
-	r := func(method, path string, fn func(*handler, http.ResponseWriter, *http.Request, params) error) route {
-		return route{method: method, re: pattern(path), handler: fn}
-	}
-	return []route{
+func (h *handler) buildRoutes() []apiRoute {
+	r := route.New[handlerFunc]
+	return []apiRoute{
 		r(http.MethodGet, "/pages", (*handler).listPages),
 		r(http.MethodPost, "/pages", (*handler).createPage),
 		r(http.MethodPost, "/pages/*slug/password", (*handler).setPassword),
@@ -155,7 +154,7 @@ func (h *handler) dispatch(w http.ResponseWriter, r *http.Request) {
 	var allow []string
 	for i := range h.routes {
 		rt := &h.routes[i]
-		p, ok, err := rt.match(path)
+		p, ok, err := rt.Match(path)
 		if !ok {
 			continue
 		}
@@ -166,18 +165,18 @@ func (h *handler) dispatch(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, r, apierror.New(http.StatusBadRequest, "invalid request", "bad_request", nil))
 			return
 		}
-		if rt.handles(r.Method) {
-			if err := rt.handler(h, w, r, p); err != nil {
+		if rt.Handles(r.Method) {
+			if err := rt.Handler(h, w, r, p); err != nil {
 				h.writeError(w, r, err)
 			}
 			return
 		}
 		if r.Method == http.MethodOptions {
-			allow = append(allow, rt.methods()...)
+			allow = append(allow, rt.Methods()...)
 		}
 	}
 	if len(allow) > 0 {
-		serveOptions(w, allow)
+		route.ServeOptions(w, allow)
 		return
 	}
 	h.NotFound.ServeHTTP(w, r)
@@ -312,7 +311,7 @@ func (h *handler) createPage(w http.ResponseWriter, r *http.Request, _ params) e
 // Setting/changing is agent-allowed; CLEARING (empty/null) is admin-only (the
 // state machine enforces it, so a bearer clear → 403 admin_only).
 func (h *handler) setPassword(w http.ResponseWriter, r *http.Request, p params) error {
-	res, err := versions.SetPassword(r.Context(), h.DB, p.slug, bodyOf(r).arg("password"), h.actor(r))
+	res, err := versions.SetPassword(r.Context(), h.DB, p.Slug, bodyOf(r).arg("password"), h.actor(r))
 	if err != nil {
 		return err
 	}
@@ -321,7 +320,7 @@ func (h *handler) setPassword(w http.ResponseWriter, r *http.Request, p params) 
 
 // setTitle renames a page (agent-owned authoring metadata).
 func (h *handler) setTitle(w http.ResponseWriter, r *http.Request, p params) error {
-	res, err := versions.SetTitle(r.Context(), h.DB, p.slug, bodyOf(r).arg("title"), h.actor(r))
+	res, err := versions.SetTitle(r.Context(), h.DB, p.Slug, bodyOf(r).arg("title"), h.actor(r))
 	if err != nil {
 		return err
 	}
@@ -332,7 +331,7 @@ func (h *handler) setTitle(w http.ResponseWriter, r *http.Request, p params) err
 // approval-gated pages 403 (admin-only). Reversible via the admin restore
 // endpoint.
 func (h *handler) deletePage(w http.ResponseWriter, r *http.Request, p params) error {
-	res, err := versions.DeletePage(r.Context(), h.DB, p.slug, h.actor(r))
+	res, err := versions.DeletePage(r.Context(), h.DB, p.Slug, h.actor(r))
 	if err != nil {
 		return err
 	}
@@ -355,7 +354,7 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, p params) error
 	b := bodyOf(r)
 	html, _ := b.obj.Value("html").(string)
 	res, err := versions.Deploy(r.Context(), h.DB, versions.DeployInput{
-		Slug:            p.slug,
+		Slug:            p.Slug,
 		HTML:            html,
 		RenderMode:      b.arg("render_mode"),
 		Note:            b.arg("note"),
@@ -377,7 +376,7 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, p params) error
 }
 
 func (h *handler) listVersions(w http.ResponseWriter, r *http.Request, p params) error {
-	list, err := versions.ListVersions(r.Context(), h.DB, p.slug, versions.ListVersionsOptions{})
+	list, err := versions.ListVersions(r.Context(), h.DB, p.Slug, versions.ListVersionsOptions{})
 	if err != nil {
 		return err
 	}
@@ -412,16 +411,16 @@ func (h *handler) preflight(w http.ResponseWriter, r *http.Request, p params) er
 		}
 		versionID = id
 	} else {
-		view, err := versions.GetPage(ctx, h.DB, p.slug)
+		view, err := versions.GetPage(ctx, h.DB, p.Slug)
 		if err != nil {
 			return err
 		}
 		if view.Page.PublishedVersionID == 0 {
-			return apierror.BadRequest("page "+p.slug+" has no published version; pass version_id to preflight a draft", "no_published_version", nil)
+			return apierror.BadRequest("page "+p.Slug+" has no published version; pass version_id to preflight a draft", "no_published_version", nil)
 		}
 		versionID = view.Page.PublishedVersionID
 	}
-	v, err := versions.GetVersion(ctx, h.DB, p.slug, versionID)
+	v, err := versions.GetVersion(ctx, h.DB, p.Slug, versionID)
 	if err != nil {
 		return err
 	}
@@ -465,11 +464,11 @@ func rawContentPolicy() string {
 }
 
 func (h *handler) getVersion(w http.ResponseWriter, r *http.Request, p params) error {
-	id, err := toID(p.id, true)
+	id, err := toID(p.ID, true)
 	if err != nil {
 		return err
 	}
-	v, err := versions.GetVersion(r.Context(), h.DB, p.slug, id)
+	v, err := versions.GetVersion(r.Context(), h.DB, p.Slug, id)
 	if err != nil {
 		return err
 	}
@@ -485,7 +484,7 @@ func (h *handler) publish(w http.ResponseWriter, r *http.Request, p params) erro
 		return err
 	}
 	v, err := versions.Publish(r.Context(), h.DB, versions.PublishInput{
-		Slug: p.slug, VersionID: id, ExpectedVersion: b.arg("expected_version"),
+		Slug: p.Slug, VersionID: id, ExpectedVersion: b.arg("expected_version"),
 	}, h.actor(r))
 	if err != nil {
 		return err
@@ -505,7 +504,7 @@ func (h *handler) rollback(w http.ResponseWriter, r *http.Request, p params) err
 		}
 	}
 	v, err := versions.Rollback(r.Context(), h.DB, versions.RollbackInput{
-		Slug: p.slug, VersionID: id, ExpectedVersion: b.arg("expected_version"),
+		Slug: p.Slug, VersionID: id, ExpectedVersion: b.arg("expected_version"),
 	}, h.actor(r))
 	if err != nil {
 		return err
@@ -516,7 +515,7 @@ func (h *handler) rollback(w http.ResponseWriter, r *http.Request, p params) err
 // getPage is the bare page read — registered LAST among the slug GETs. It
 // carries the routing urls (parity with MCP).
 func (h *handler) getPage(w http.ResponseWriter, r *http.Request, p params) error {
-	view, err := versions.GetPage(r.Context(), h.DB, p.slug)
+	view, err := versions.GetPage(r.Context(), h.DB, p.Slug)
 	if err != nil {
 		return err
 	}
