@@ -246,10 +246,10 @@ func TestHostileNestingNeverCrashes(t *testing.T) {
 // syntax-checked, all of it, and the check's cost grows linearly with the
 // script. Both are asserted deterministically: the broken copy must be
 // reported at its last byte (so the whole 6 MiB was parsed, not skipped or
-// cut short), and the check's allocations — counted, not timed — must double,
-// not quadruple, when the script doubles. A wall-clock bound here failed
-// under -race on a loaded machine while proving nothing more; the absolute
-// speed of a 6 MiB analysis is tracked by BenchmarkAnalyzeLargeScript.
+// cut short), and the check's allocations — counted, not timed — may at most
+// about double when the script doubles (no floor: a preallocating parser
+// would be an improvement). A wall-clock bound here failed under -race on a
+// loaded machine; the latency backstop lives in TestAnalyzeLatencyBackstop.
 func TestLargeScriptIsChecked(t *testing.T) {
 	line := "var a" + strings.Repeat("b", 10) + " = function (x) { return x * 2 + 1; };\n"
 	lines := (6 * 1024 * 1024) / len(line)
@@ -270,27 +270,11 @@ func TestLargeScriptIsChecked(t *testing.T) {
 		t.Fatalf("the error is not reported at the end of the script (want %s…): %s", at, hit.Message)
 	}
 
-	// Linear cost: the same script at 1 MiB and 2 MiB. The counts are
-	// deterministic (about 0.22 allocations per byte), so the band is loose
-	// only to absorb small runtime differences between Go releases; a
-	// quadratic check would come out near 4x.
-	cost := func(n int) (mallocs, bytes uint64) {
-		doc := "<script>" + strings.Repeat(line, n/len(line)) + "</script>"
-		return allocCost(func() { Analyze(doc, Options{}) })
-	}
-	m1, b1 := cost(1 << 20)
-	m2, b2 := cost(2 << 20)
-	for _, c := range []struct {
-		what   string
-		small  uint64
-		double uint64
-	}{{"allocations", m1, m2}, {"bytes allocated", b1, b2}} {
-		ratio := float64(c.double) / float64(c.small)
-		t.Logf("%s: 1 MiB %d, 2 MiB %d (x%.2f)", c.what, c.small, c.double, ratio)
-		if ratio < 1.5 || ratio > 2.5 {
-			t.Errorf("doubling the script multiplied the check's %s by %.2f, want about 2 (linear)", c.what, ratio)
-		}
-	}
+	// Linear cost: the same script at 1 MiB and 2 MiB.
+	doc := func(n int) string { return "<script>" + strings.Repeat(line, n/len(line)) + "</script>" }
+	assertNoBlowup(t, "6 MiB script check, 1 → 2 MiB",
+		func() { Analyze(doc(1<<20), Options{}) },
+		func() { Analyze(doc(2<<20), Options{}) })
 }
 
 func TestNetworkStorageSandbox(t *testing.T) {

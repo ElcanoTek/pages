@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Preflight runs on the deploy path, and inline scripts of several MiB are
@@ -16,6 +17,10 @@ import (
 // over) grows it faster. Cost is COUNTED — allocations and bytes allocated,
 // which are deterministic — never timed: a wall-clock bound measures the
 // machine as much as the code, and failed under -race on a loaded host.
+// TestAnalyzeLatencyBackstop is the one timed test: a tolerant bound, ten
+// times the old one, that only catches CPU-only blowups the allocation counts
+// cannot see. It is skipped under -race (which slows the analysis by an order
+// of magnitude); CI runs it in a separate non-race step.
 // BenchmarkAnalyzeLargeScript tracks the absolute speed.
 
 // repeatTo repeats unit until the result is at least n bytes.
@@ -106,6 +111,34 @@ func TestAnalyzeAdversarialScriptsAreLinear(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			assertNoBlowup(t, name, func() { analyzeScript(half[name]) }, func() { analyzeScript(src) })
 		})
+	}
+}
+
+// assertLatency fails when f takes longer than bound. It is a backstop, not a
+// performance test: the bound is about ten times the time a loaded developer
+// machine needs, and the race detector's slowdown makes it meaningless, so
+// race builds skip it.
+func assertLatency(t *testing.T, what string, bound time.Duration, f func()) {
+	t.Helper()
+	if raceEnabled {
+		t.Skip("wall-clock backstop: run without -race")
+	}
+	start := time.Now()
+	f()
+	d := time.Since(start)
+	t.Logf("%s: %v (backstop %v)", what, d, bound)
+	if d > bound {
+		t.Errorf("%s took %v, over the %v backstop: a CPU-only regression the allocation counts cannot see", what, d, bound)
+	}
+}
+
+// TestAnalyzeLatencyBackstop: a 6 MiB ordinary script and each adversarial
+// scanner input at maxScriptBytes analyse within 30 s (the old bound was 3 s).
+func TestAnalyzeLatencyBackstop(t *testing.T) {
+	ordinary := ordinaryScript(6 << 20)
+	assertLatency(t, "6 MiB ordinary script", 30*time.Second, func() { analyzeScript(ordinary) })
+	for name, src := range adversarialScripts(maxScriptBytes) {
+		assertLatency(t, name, 30*time.Second, func() { analyzeScript(src) })
 	}
 }
 
