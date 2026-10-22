@@ -20,6 +20,7 @@ package assetver
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"io"
 	"io/fs"
@@ -44,23 +45,31 @@ var version = sync.OnceValue(func() string { return Of(pages.Public()) })
 // Version is the current asset version: a hash of the embedded public/ tree.
 func Version() string { return version() }
 
-// Of hashes every file under fsys (path and bytes, in WalkDir order) into a
-// 12-hex-digit version.
+// Of hashes every file under fsys into a 12-hex-digit version. Each file is
+// one unambiguous record — len(path), path, len(body), body, with the lengths
+// as big-endian uint64 — in WalkDir's lexical order, so no two different
+// trees can produce the same byte stream (a body cannot be re-read as the
+// next file's path).
 func Of(fsys fs.FS) string {
 	h := sha256.New()
+	var n [8]byte
+	writeLen := func(l int) {
+		binary.BigEndian.PutUint64(n[:], uint64(l)) //nolint:gosec // a length is never negative
+		_, _ = h.Write(n[:])
+	}
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		f, err := fsys.Open(p)
+		body, err := fs.ReadFile(fsys, p)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = f.Close() }()
+		writeLen(len(p))
 		_, _ = io.WriteString(h, p)
-		_, _ = h.Write([]byte{0})
-		_, err = io.Copy(h, f)
-		return err
+		writeLen(len(body))
+		_, _ = h.Write(body)
+		return nil
 	})
 	if err != nil {
 		panic("assetver: hashing the embedded public tree: " + err.Error())

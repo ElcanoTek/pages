@@ -27,6 +27,16 @@ func TestVersionIsAStableContentHash(t *testing.T) {
 	if Of(a) != Of(fstest.MapFS{"x.css": {Data: []byte("a")}}) {
 		t.Fatal("the same tree must hash the same")
 	}
+	// A body must not be re-readable as the next file's path: with a
+	// NUL-delimited stream, a = "b\x00c" and {a = "", b = "c"} collided.
+	one := fstest.MapFS{"a": {Data: []byte("b\x00c")}}
+	two := fstest.MapFS{"a": {Data: []byte("")}, "b": {Data: []byte("c")}}
+	if Of(one) == Of(two) {
+		t.Fatal("repartitioning bytes between files must change the version")
+	}
+	if Of(fstest.MapFS{"ab": {Data: []byte("c")}}) == Of(fstest.MapFS{"a": {Data: []byte("bc")}}) {
+		t.Fatal("moving bytes between a path and its body must change the version")
+	}
 }
 
 func TestBases(t *testing.T) {

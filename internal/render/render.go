@@ -56,16 +56,18 @@ var assetsBase = flagAssetsBase
 var assetsBaseRE = regexp.MustCompile(`^/[A-Za-z0-9._~/-]*$`)
 
 // sameOriginPath reports whether base is a plain path on the serving origin:
-// it matches assetsBaseRE, is not host-relative ("//host", which browsers read
-// as another origin) and has no "." or ".." segment. The content host's CSP
+// it matches assetsBaseRE, has no empty, "." or ".." segment and does not end
+// in "/". flagHead appends "/fonts/…", so "/" (or any trailing slash) would
+// yield "//fonts/…", which browsers read as a scheme-relative URL to the host
+// "fonts"; an empty segment anywhere could do the same at the front. The content host's CSP
 // allows only 'self' for styles, fonts and scripts, so any other origin would
 // be blocked; widening that CSP is not the answer.
 func sameOriginPath(base string) bool {
-	if !assetsBaseRE.MatchString(base) || strings.HasPrefix(base, "//") {
+	if !assetsBaseRE.MatchString(base) {
 		return false
 	}
-	for _, seg := range strings.Split(base, "/") {
-		if seg == "." || seg == ".." {
+	for _, seg := range strings.Split(base[1:], "/") {
+		if seg == "" || seg == "." || seg == ".." {
 			return false
 		}
 	}
