@@ -140,10 +140,17 @@ func (e *Error) Error() string { return e.Msg }
 func fail(format string, args ...any) error { return &Error{Msg: fmt.Sprintf(format, args...)} }
 
 func gitEnv() []string {
-	return append(os.Environ(),
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "GIT_") {
+			env = append(env, kv)
+		}
+	}
+	return append(env,
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_TERMINAL_PROMPT=0",
+		"GIT_ALLOW_PROTOCOL=https:ssh",
 		"GIT_CONFIG_COUNT=3",
 		"GIT_CONFIG_KEY_0=core.hooksPath",
 		"GIT_CONFIG_VALUE_0=/dev/null",
@@ -272,30 +279,60 @@ func checkGitConfig(gitDir string) error {
 			val := ""
 			if i < len(text) && text[i] == '=' {
 				i++
-				valStart := i
+				for i < len(text) && (text[i] == ' ' || text[i] == '\t') {
+					i++
+				}
+				var decoded strings.Builder
 				inQuote := false
+				trailingSpace := 0
 				for i < len(text) && text[i] != '\n' {
 					if !inQuote && (text[i] == '#' || text[i] == ';') {
 						break
 					}
-					if text[i] == '\\' && i+1 < len(text) {
+					if text[i] == '\\' {
+						if i+1 >= len(text) {
+							return errors.New("dangling escape in .git/config")
+						}
+						trailingSpace = 0
+						switch text[i+1] {
+						case '\\', '"':
+							decoded.WriteByte(text[i+1])
+						case 'n':
+							decoded.WriteByte('\n')
+						case 't':
+							decoded.WriteByte('\t')
+						case 'b':
+							decoded.WriteByte('\b')
+						default:
+							return errors.New("unsupported escape in .git/config")
+						}
 						i += 2
 						continue
 					}
 					if text[i] == '"' {
 						inQuote = !inQuote
+						trailingSpace = 0
+						i++
+						continue
 					}
+					if !inQuote && (text[i] == ' ' || text[i] == '\t') {
+						trailingSpace++
+					} else {
+						trailingSpace = 0
+					}
+					decoded.WriteByte(text[i])
 					i++
 				}
 				if inQuote {
 					return errors.New("unclosed quote in .git/config")
 				}
-				val = strings.Trim(strings.TrimSpace(text[valStart:i]), `"`)
+				s := decoded.String()
+				val = s[:len(s)-trailingSpace]
 			}
 			if section == "remote" && (key == "url" || key == "pushurl") {
 				lower := strings.ToLower(strings.TrimSpace(val))
-				if strings.HasPrefix(lower, "ext::") || strings.HasPrefix(lower, "fd::") {
-					return fmt.Errorf("disallowed remote helper in %s.%s", section, key)
+				if !strings.HasPrefix(lower, "https://") && !strings.HasPrefix(lower, "ssh://") && !strings.HasPrefix(lower, "git@") {
+					return fmt.Errorf("disallowed remote URL scheme in %s.%s", section, key)
 				}
 			}
 		}

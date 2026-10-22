@@ -112,6 +112,8 @@ func run(t *testing.T, failure string) *fixture {
 		write(t, filepath.Join(source, ".git", "config"), "[core]\n\trepositoryformatversion = 0\n\thooksPath = "+filepath.Join(f.dir, "hooks")+"\n", 0)
 	case "git-comment-continuation":
 		write(t, filepath.Join(source, ".git", "config"), "[core]\n# comment \\\nsshCommand = "+filepath.Join(f.dir, "wrapper")+"\n", 0)
+	case "git-quoted-ext-url":
+		write(t, filepath.Join(source, ".git", "config"), "[remote \"origin\"]\n\turl = \"ext\"::touch "+filepath.Join(f.dir, "pwned")+"\n", 0)
 	}
 	write(t, filepath.Join(f.app, "release-marker"), "original", 0)
 	if failure != "legacy-start" {
@@ -268,7 +270,7 @@ func TestReleaseUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path", "git-comment-continuation"} {
+	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path", "git-comment-continuation", "git-quoted-ext-url"} {
 		t.Run(failure, func(t *testing.T) {
 			f := run(t, failure)
 			succeeds := failure == "none" || failure == "pull" || failure == "writable-build"
@@ -364,7 +366,7 @@ func TestReleaseUpdate(t *testing.T) {
 				if !strings.Contains(f.err.Error(), "refusing to hand off") || f.handoff != "" {
 					t.Fatalf("a linked build output must not be executed:\n%s", f.out.String())
 				}
-			case "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path", "git-comment-continuation":
+			case "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path", "git-comment-continuation", "git-quoted-ext-url":
 				if !strings.Contains(f.out.String()+f.err.Error(), "plain clone") || f.handoff != "" || strings.Contains(f.fake.Log(), "fetch") {
 					t.Fatalf("an external Git directory or config must stop the update before git runs: %v\n%s\n%s", f.err, f.out.String(), f.fake.Log())
 				}
