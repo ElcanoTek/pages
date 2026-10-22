@@ -3,7 +3,11 @@
 
 package shell
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ElcanoTek/pages/internal/assetver"
+)
 
 // StandaloneCSS is the one inline sheet every standalone page carries (the
 // password gate, the portal index, and every 404/429/500 on either host).
@@ -82,8 +86,8 @@ type StandaloneOptions struct {
 	// BodyHTML is trusted, already-escaped markup placed under the heading.
 	BodyHTML string
 	// AssetsBase is where this host serves the vendored Flag files from: the
-	// content host mounts them at /assets/flag (the default when ""), the
-	// dashboard host at /shell-assets/flag.
+	// content host's versioned assetver.ContentFlag() (the default when ""),
+	// the dashboard host's assetver.ShellFlag().
 	AssetsBase string
 	CTA        *CTA // nil omits the link
 }
@@ -97,7 +101,7 @@ type StandaloneOptions struct {
 func Standalone(o StandaloneOptions) string {
 	base := o.AssetsBase
 	if base == "" {
-		base = "/assets/flag"
+		base = assetver.ContentFlag()
 	}
 	action := ""
 	if o.CTA != nil {

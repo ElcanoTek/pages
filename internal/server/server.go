@@ -34,6 +34,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/adminapi"
 	"github.com/ElcanoTek/pages/internal/api"
 	"github.com/ElcanoTek/pages/internal/apierror"
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/auth"
 	"github.com/ElcanoTek/pages/internal/auth/central"
 	"github.com/ElcanoTek/pages/internal/clientip"
@@ -604,7 +605,7 @@ func signinBusy(w http.ResponseWriter, r *http.Request) {
 		Kicker:     "Sign-in",
 		Heading:    "Too many sign-in attempts",
 		BodyHTML:   "<p>Wait a minute, then try again.</p>",
-		AssetsBase: "/shell-assets/flag",
+		AssetsBase: assetver.ShellFlag(),
 	}))
 }
 

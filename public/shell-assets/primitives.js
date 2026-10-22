@@ -10,7 +10,20 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.PagesUI = api;
 })(typeof window !== "undefined" ? window : null, function () {
-  const SPRITE = "/shell-assets/flag/icons/core-icons.svg";
+  // The shell loads this file from its versioned base
+  // (/shell-assets/_v/<version>/primitives.js, see internal/assetver), so the
+  // sprite is resolved against that URL and shares its version and its
+  // immutable caching. Outside a browser (node --test) it is the stable path.
+  const SPRITE = spriteURL();
+  function spriteURL() {
+    const fallback = "/shell-assets/flag/icons/core-icons.svg";
+    try {
+      const src = typeof document !== "undefined" && document.currentScript && document.currentScript.src;
+      return src ? new URL("flag/icons/core-icons.svg", src).pathname : fallback;
+    } catch {
+      return fallback;
+    }
+  }
   const SVG_NS = "http://www.w3.org/2000/svg";
   let nextId = 0;
 

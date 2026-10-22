@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/httpx"
 )
@@ -224,7 +225,7 @@ func (x *routes) page(w http.ResponseWriter, r *http.Request, status int, title,
 		Kicker:     title,
 		Heading:    heading,
 		BodyHTML:   "<p>" + body + "</p>",
-		AssetsBase: "/shell-assets/flag",
+		AssetsBase: assetver.ShellFlag(),
 		CTA:        cta,
 	})
 	httpx.SendHTML(w, r, status, html)

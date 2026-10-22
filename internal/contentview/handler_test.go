@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 	"github.com/ElcanoTek/pages/internal/passwordgate"
@@ -919,6 +920,20 @@ func TestZoneHeaderContract(t *testing.T) {
 	expect(t, f.get("/assets/flag/../flag/tokens/design-tokens.css").status == 404, "traversal falls through")
 	expect(t, f.do(http.MethodHead, "/assets/flag/tokens/design-tokens.css", reqOpt{}).body == "", "HEAD")
 
+	// The versioned form of the same file (what our chrome and the themed
+	// render link) is immutable for a year; an older release's version still
+	// serves the current bytes, revalidating; HTML stays uncacheable.
+	cur := f.get(assetver.ContentFlag() + "/tokens/design-tokens.css")
+	expect(t, cur.status == 200 && cur.body == asset.body, "versioned asset serves the same bytes: %d", cur.status)
+	expect(t, cur.header.Get("Cache-Control") == "public, max-age=31536000, immutable", "current version is immutable: %s", cur.header.Get("Cache-Control"))
+	expect(t, cur.csp == asset.csp && cur.header.Get("ETag") == etag, "versioned asset keeps the asset CSP and ETag")
+	expect(t, f.do(http.MethodGet, assetver.ContentFlag()+"/tokens/design-tokens.css", reqOpt{headers: map[string]string{"If-None-Match": etag}}).status == 304, "versioned revalidation → 304")
+	stale := f.get("/assets/_v/000000000000/flag/tokens/design-tokens.css")
+	expect(t, stale.status == 200 && stale.body == asset.body && stale.header.Get("Cache-Control") == "public, max-age=0", "a stale version revalidates: %d %s", stale.status, stale.header.Get("Cache-Control"))
+	expect(t, f.get(assetver.ContentFlag()+"/nope.css").status == 404, "a missing versioned asset falls to the 404")
+	expect(t, f.get(assetver.Content()+"/../flag/tokens/design-tokens.css").status == 404, "versioned traversal falls through")
+	expect(t, f.get(assetver.ContentFlag()+"/motion/flag-motion.js").header.Get("Cache-Control") == "public, max-age=31536000, immutable", "the motion kit is versioned too")
+
 	fav := f.get("/favicon.ico")
 	expect(t, fav.status == 301 && fav.header.Get("Location") == "/assets/flag/logos/elcano-mark-favicon.svg", "favicon redirect")
 
@@ -995,6 +1010,18 @@ func TestShellAssets(t *testing.T) {
 	}
 	css := get("/shell-assets/flag/tokens/design-tokens.css")
 	expect(t, css.Code == 200 && css.Header().Get("Cache-Control") == "public, max-age=0", "the Flag tree is mounted under /shell-assets/flag")
+
+	// Versioned URLs, as the shell links them: immutable when current.
+	for _, p := range []string{assetver.ShellFlag() + "/tokens/design-tokens.css", assetver.Shell() + "/shell.css", assetver.Shell() + "/primitives.js", assetver.ShellFlag() + "/fonts/nebula-sans/NebulaSans-400.woff2"} {
+		r := get(p)
+		expect(t, r.Code == 200 && r.Header().Get("Cache-Control") == "public, max-age=31536000, immutable", "%s: %d %s", p, r.Code, r.Header().Get("Cache-Control"))
+	}
+	vcss := get(assetver.ShellFlag() + "/tokens/design-tokens.css")
+	expect(t, vcss.Body.String() == css.Body.String() && vcss.Header().Get("ETag") == css.Header().Get("ETag"), "versioned is the same file")
+	stale := get("/shell-assets/_v/000000000000/shell.css")
+	expect(t, stale.Code == 200 && stale.Header().Get("Cache-Control") == "public, max-age=0", "a stale version revalidates: %d %s", stale.Code, stale.Header().Get("Cache-Control"))
+	expect(t, get(assetver.Shell()+"/nope.js").Code == 418, "a versioned miss goes to next")
+	expect(t, get(assetver.Shell()+"/../shell.css").Code == 418, "versioned traversal goes to next")
 	expect(t, get("/shell-assets/nope.js").Code == 418, "a miss goes to next")
 	expect(t, get("/elsewhere").Code == 418, "other paths go to next")
 }

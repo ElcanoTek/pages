@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/tdewolff/parse/v2"
 	"github.com/tdewolff/parse/v2/js"
@@ -329,4 +330,20 @@ func TestEscapedJSONMatchesDataLimits(t *testing.T) {
 	if got != want {
 		t.Errorf("got %s want %s", got, want)
 	}
+}
+
+// The injected Flag tags use the content host's versioned base, so they are
+// cached immutable; FLAG_ASSETS_BASE, when an operator sets it, wins.
+func TestFlagTagsUseVersionedBase(t *testing.T) {
+	t.Setenv("FLAG_ASSETS_BASE", "")
+	out := RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+	for _, f := range []string{"/fonts/fonts.css", "/tokens/design-tokens.css", "/theme/theme-controller.js"} {
+		mustContain(t, out, `"`+assetver.ContentFlag()+f+`"`, "versioned "+f)
+	}
+	if strings.Contains(out, `"/assets/flag/`) {
+		t.Error("an injected tag uses the unversioned base")
+	}
+	t.Setenv("FLAG_ASSETS_BASE", "https://cdn.example.com/flag")
+	out = RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+	mustContain(t, out, `"https://cdn.example.com/flag/tokens/design-tokens.css"`, "operator override")
 }

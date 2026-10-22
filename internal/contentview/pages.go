@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/jsstr"
@@ -33,8 +34,10 @@ import (
 	"github.com/ElcanoTek/pages/internal/shell"
 )
 
-// FlagBase is where the content host serves the vendored Flag files (same
-// origin, so a gate page can use them under its CSP).
+// FlagBase is the stable, unversioned path where the content host serves the
+// vendored Flag files (same origin, so a gate page can use them under its
+// CSP). Our own chrome links assetver.ContentFlag(), the versioned and
+// immutable-cached form of the same files.
 const FlagBase = "/assets/flag"
 
 const defaultPasswordWindowMinutes = 15
@@ -57,7 +60,7 @@ func esc(s string) string { return shell.Esc(s) }
 // content is NEVER rendered here — this is our chrome only (invariant #2).
 func chrome(title, kicker, heading, body string) string {
 	return shell.Standalone(shell.StandaloneOptions{
-		Title: title, Kicker: kicker, Heading: heading, BodyHTML: body, AssetsBase: FlagBase,
+		Title: title, Kicker: kicker, Heading: heading, BodyHTML: body, AssetsBase: assetver.ContentFlag(),
 	})
 }
 

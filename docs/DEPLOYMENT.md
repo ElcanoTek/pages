@@ -566,7 +566,7 @@ transaction cannot pin every pool client and hang both hosts.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `FLAG_ASSETS_BASE` | `/assets/flag` | Base URL for the vendored Flag assets. Change only if you serve them from elsewhere |
+| `FLAG_ASSETS_BASE` | `/assets/_v/<version>/flag` | Base URL themed pages load the vendored Flag assets from. Unset, it is the versioned, immutable-cached mount. Set it only if you serve them from elsewhere |
 
 ### Never set these in production
 
@@ -1173,9 +1173,11 @@ certificate blocks the frame silently), and that nothing added
 
 ### Every asset request re-downloads the fonts, or theming looks wrong
 
-`/assets` sets its cache policy explicitly. If you put a CDN or another proxy in
-front of the content host, make sure it is not stripping `Cache-Control` or the
-CSP. Check `FLAG_ASSETS_BASE` is still `/assets/flag`.
+`/assets` sets its cache policy explicitly: `/assets/_v/<version>/…` (what
+Pages links) is `immutable` for a year, and the stable `/assets/flag/…` paths
+revalidate. If you put a CDN or another proxy in front of the content host,
+make sure it is not stripping `Cache-Control` or the CSP. Check
+`FLAG_ASSETS_BASE` is unset (or points at a copy you maintain).
 
 ### `429` from `/api/v1` or `/mcp`
 

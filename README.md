@@ -173,7 +173,7 @@ you cannot ignore.
 | `MCP_ALLOWED_ORIGINS` | no | — | Extra exact origins accepted at `/mcp` |
 | `RL_API_PER_MIN` | no | `120` | Per-IP rate limit on `/api/v1` |
 | `MAX_HTML_BYTES` | no | `32mb` | Whole JSON request limit, MCP envelope included; also the inline deploy cap |
-| `FLAG_ASSETS_BASE` | no | `/assets/flag` | Where the vendored Flag assets are served from |
+| `FLAG_ASSETS_BASE` | no | `/assets/_v/<version>/flag` | Where themed pages load the vendored Flag assets from (the default is versioned and cached immutable) |
 
 `pages bootstrap` generates the three secrets and writes the environment file
 for you. The full reference — including upload bounds, schema-validation

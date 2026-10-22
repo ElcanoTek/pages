@@ -77,6 +77,28 @@ no frontend build step:
   database, and outside the standard's no-CDN rule; the content-host sandbox
   CSP governs them.
 - npm (`package.json`) holds devDependencies only: Playwright and axe.
+- **Asset URLs are versioned** (`internal/assetver`). Every asset is embedded,
+  and one content hash of `public/` is the version, carried as a path segment:
+  `/shell-assets/_v/<version>/…` on the dashboard, `/assets/_v/<version>/…` on
+  the content host. The shells, the gate pages and the Flag tags injected into
+  themed pages all link that form, and it is served
+  `Cache-Control: public, max-age=31536000, immutable` when the version is
+  current. Because it is a path segment, relative URLs inherit it: the font
+  files that vendored `fonts.css` names, and the sprite that `primitives.js`
+  resolves against its own URL. Any other version (an open tab from the
+  previous release) gets the current bytes, revalidating. Link new assets
+  through `assetver.Shell()` / `assetver.ContentFlag()`, never a bare path.
+  HTML is `no-store`.
+- **Scoped exception: the stable `/assets/flag/…` paths stay revalidating**
+  (`public, max-age=0` plus an ETag, so a cached copy costs a 304). Client
+  pages hard-code them (the documented `/assets/flag/motion/…` kit, the token
+  sheet in `raw` pages), and Pages cannot rewrite the stored source
+  (invariant 2), so those URLs cannot carry a version; making them immutable
+  would pin every client to the first release it saw. `/favicon.ico`
+  redirects there for the same reason: a cached 301 must not name a version.
+  Nothing user-published is served under `/assets`: it is the embedded
+  `public/assets` tree only, and page content and uploads live in the
+  database.
 - Components (buttons, fields, toasts, dialogs) are product CSS in
   `public/shell-assets/shell.css` that reads Flag tokens and follows Flag's
   `COMPONENTS.md`. They predate Flag's `components/components.css`, which is

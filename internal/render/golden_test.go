@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
@@ -101,6 +102,12 @@ func TestGoldenAgainstJS(t *testing.T) {
 			got = EditSession(in.HTML, EditSessionOptions{SaveURL: in.SaveURL, Token: in.Token, VersionID: in.VersionID, ContentOrigin: in.ContentOrigin})
 		default:
 			t.Fatalf("case %d: unknown fn %q", i, c.Fn)
+		}
+		// The one deliberate departure from the JS output: the injected Flag
+		// tags use the versioned base (internal/assetver), which the goldens
+		// recorded as /assets/flag. TestFlagTagsUseVersionedBase pins it.
+		if gs, ok := got.(string); ok {
+			got = strings.ReplaceAll(gs, assetver.ContentFlag()+"/", "/assets/flag/")
 		}
 		if !matchesGolden(t, got, c.Output) {
 			if c.Fn == "renderVersion" && dollarExpansionCase(in) {

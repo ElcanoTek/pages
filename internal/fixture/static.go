@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pages "github.com/ElcanoTek/pages"
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/contentview"
 	"github.com/ElcanoTek/pages/internal/httpx"
 )
@@ -45,7 +46,10 @@ func serveAssets(fsys fs.FS, setHeaders func(http.Header)) func(w http.ResponseW
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			return true
 		}
-		decoded, err := httpx.DecodeURIComponent(r.rest)
+		// The versioned form (/assets/_v/<version>/...) is the same file,
+		// immutable when the version is current, as on the content host.
+		rest, _, current := assetver.Strip(r.rest)
+		decoded, err := httpx.DecodeURIComponent(rest)
 		if err != nil || strings.ContainsRune(decoded, 0) || strings.HasSuffix(decoded, "/") {
 			return true
 		}
@@ -65,7 +69,7 @@ func serveAssets(fsys fs.FS, setHeaders func(http.Header)) func(w http.ResponseW
 		}
 		h := w.Header()
 		h.Set("Accept-Ranges", "bytes")
-		h.Set("Cache-Control", "public, max-age=0")
+		h.Set("Cache-Control", assetver.Revalidate)
 		h.Set("ETag", httpx.ETag(body))
 		ct, ok := assetTypes[strings.ToLower(path.Ext(name))]
 		if !ok {
@@ -74,6 +78,9 @@ func serveAssets(fsys fs.FS, setHeaders func(http.Header)) func(w http.ResponseW
 		h.Set("Content-Type", ct)
 		if setHeaders != nil {
 			setHeaders(h)
+		}
+		if current {
+			h.Set("Cache-Control", assetver.Immutable)
 		}
 		http.ServeContent(w, r.Request, name, time.Time{}, bytes.NewReader(body))
 		return false

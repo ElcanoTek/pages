@@ -24,14 +24,22 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
-// flagAssetsBase is where the Flag design system is mounted on the content
-// host. Read at call time so tests can set FLAG_ASSETS_BASE.
-func flagAssetsBase() string { return env.String("FLAG_ASSETS_BASE", "/assets/flag") }
+// flagAssetsBase is where the injected Flag tags point: by default the content
+// host's versioned, immutable-cached base (internal/assetver), or
+// FLAG_ASSETS_BASE when an operator serves Flag from elsewhere. Read at call
+// time so tests can set FLAG_ASSETS_BASE.
+func flagAssetsBase() string {
+	if base := env.String("FLAG_ASSETS_BASE", ""); base != "" {
+		return base
+	}
+	return assetver.ContentFlag()
+}
 
 // NavBlockID is the id Pages owns. A page switcher needs the CURRENT membership
 // of whichever portal authorised this request, which is not knowable at deploy

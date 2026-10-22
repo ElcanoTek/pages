@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/shell"
 	"github.com/ElcanoTek/pages/internal/tokens"
@@ -130,6 +131,9 @@ func TestShells(t *testing.T) {
 	e.publish("adm", pageHTML)
 	admin := opt{cookie: e.adminCk}
 
+	// The shells link their assets under the current, immutable-cached
+	// version (internal/assetver).
+	sa := regexp.QuoteMeta(assetver.Shell())
 	sh := e.get("/admin/adm", admin)
 	if sh.status != 200 || sh.header.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("/admin/adm = %d", sh.status)
@@ -137,8 +141,8 @@ func TestShells(t *testing.T) {
 	for _, re := range []string{
 		`id="pages-bootstrap"`, `id="page-switcher"[^>]+aria-busy="true"`,
 		`id="page-switcher-select"[^>]+aria-describedby="page-switcher-count"[^>]+disabled`,
-		`/shell-assets/page-switcher\.js`, `/shell-assets/primitives\.js`, `/shell-assets/admin\.js`,
-		`shell-assets/flag/tokens/design-tokens\.css`, `shell-assets/flag/logos/elcano-mark-primary\.svg`,
+		sa + `/page-switcher\.js`, sa + `/primitives\.js`, sa + `/admin\.js`,
+		sa + `/flag/tokens/design-tokens\.css`, sa + `/flag/logos/elcano-mark-primary\.svg`,
 	} {
 		if !regexp.MustCompile(re).MatchString(sh.body) {
 			t.Errorf("admin shell lacks %s", re)
@@ -149,7 +153,7 @@ func TestShells(t *testing.T) {
 	}
 	for _, p := range []string{"/admin", "/admin/welcome"} {
 		l := e.get(p, admin)
-		if l.status != 200 || !strings.Contains(l.body, "/shell-assets/welcome.js") || !regexp.MustCompile(`"csrf":"[^"]+"`).MatchString(l.body) {
+		if l.status != 200 || !strings.Contains(l.body, assetver.Shell()+"/welcome.js") || !regexp.MustCompile(`"csrf":"[^"]+"`).MatchString(l.body) {
 			t.Errorf("%s = %d (welcome shell)", p, l.status)
 		}
 	}
@@ -164,11 +168,11 @@ func TestShells(t *testing.T) {
 		t.Errorf("admin.js = %d", a.status)
 	}
 	lib := e.get("/admin/templates", admin)
-	if lib.status != 200 || !strings.Contains(lib.body, "/shell-assets/templates.js") || !strings.Contains(lib.body, `"csrf":"`) {
+	if lib.status != 200 || !strings.Contains(lib.body, assetver.Shell()+"/templates.js") || !strings.Contains(lib.body, `"csrf":"`) {
 		t.Errorf("/admin/templates = %d", lib.status)
 	}
 	por := e.get("/admin/portals", admin)
-	if por.status != 200 || !strings.Contains(por.body, "/shell-assets/portals.js") ||
+	if por.status != 200 || !strings.Contains(por.body, assetver.Shell()+"/portals.js") ||
 		!regexp.MustCompile(`context-tab[^>]*href="/admin/portals"[^>]*aria-current="page"`).MatchString(por.body) {
 		t.Errorf("/admin/portals = %d", por.status)
 	}
