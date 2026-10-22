@@ -7,12 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/env"
@@ -212,26 +210,35 @@ func TestSyntax(t *testing.T) {
 }
 
 // A Go stack overflow is a fatal crash, not an error: no document may be able
-// to recurse a parser without bound.
+// to recurse a parser without bound. Each hostile input must be stopped by the
+// nesting limit (script_analysis_limit, not a crash and not a syntax verdict
+// reached by recursing all the way down), and stopping it must cost no more
+// than linear work: doubling the input may at most about double the cost,
+// counted in allocations, never timed.
 func TestHostileNestingNeverCrashes(t *testing.T) {
+	hostile := func(n int) map[string]string {
+		return map[string]string{
+			"arrays":      "var " + strings.Repeat("[", n/2) + strings.Repeat("]", n/2) + "=x",
+			"objects":     "var " + strings.Repeat("{a:", n/4) + "b" + strings.Repeat("}", n/4) + "=x",
+			"parens":      strings.Repeat("(", n/2) + strings.Repeat(")", n/2),
+			"unary":       strings.Repeat("!", n) + "1",
+			"assignments": strings.Repeat("a=", n/2) + "1",
+			"arrows":      strings.Repeat("x=>", n/3) + "1",
+			"templates":   strings.Repeat("`${", n/6) + strings.Repeat("}`", n/6),
+		}
+	}
 	n := 1024*1024 - 16
-	for _, src := range []string{
-		"var " + strings.Repeat("[", n/2) + strings.Repeat("]", n/2) + "=x",
-		"var " + strings.Repeat("{a:", n/4) + "b" + strings.Repeat("}", n/4) + "=x",
-		strings.Repeat("(", n/2) + strings.Repeat(")", n/2),
-		strings.Repeat("!", n) + "1",
-		strings.Repeat("a=", n/2) + "1",
-		strings.Repeat("x=>", n/3) + "1",
-		strings.Repeat("`${", n/6) + strings.Repeat("}`", n/6),
-	} {
-		start := time.Now()
-		r := Analyze("<script>"+src+"</script>", Options{})
-		if len(r.Errors) == 0 || r.Errors[0].Code != "script_analysis_limit" {
-			t.Errorf("%.12q…: %v", src, codes(r.Errors))
-		}
-		if d := time.Since(start); d > 5*time.Second {
-			t.Errorf("%.12q… took %v", src, d)
-		}
+	half := hostile(n / 2)
+	for name, src := range hostile(n) {
+		t.Run(name, func(t *testing.T) {
+			r := Analyze("<script>"+src+"</script>", Options{})
+			if len(r.Errors) == 0 || r.Errors[0].Code != "script_analysis_limit" {
+				t.Fatalf("%.12q…: %v", src, codes(r.Errors))
+			}
+			assertNoBlowup(t, name,
+				func() { Analyze("<script>"+half[name]+"</script>", Options{}) },
+				func() { Analyze("<script>"+src+"</script>", Options{}) })
+		})
 	}
 }
 
@@ -242,7 +249,7 @@ func TestHostileNestingNeverCrashes(t *testing.T) {
 // cut short), and the check's allocations — counted, not timed — must double,
 // not quadruple, when the script doubles. A wall-clock bound here failed
 // under -race on a loaded machine while proving nothing more; the absolute
-// speed of a 6 MiB analysis is pinned by TestAnalyzeLargeOrdinaryScriptIsFast.
+// speed of a 6 MiB analysis is tracked by BenchmarkAnalyzeLargeScript.
 func TestLargeScriptIsChecked(t *testing.T) {
 	line := "var a" + strings.Repeat("b", 10) + " = function (x) { return x * 2 + 1; };\n"
 	lines := (6 * 1024 * 1024) / len(line)
@@ -269,12 +276,7 @@ func TestLargeScriptIsChecked(t *testing.T) {
 	// quadratic check would come out near 4x.
 	cost := func(n int) (mallocs, bytes uint64) {
 		doc := "<script>" + strings.Repeat(line, n/len(line)) + "</script>"
-		var before, after runtime.MemStats
-		runtime.GC()
-		runtime.ReadMemStats(&before)
-		Analyze(doc, Options{})
-		runtime.ReadMemStats(&after)
-		return after.Mallocs - before.Mallocs, after.TotalAlloc - before.TotalAlloc
+		return allocCost(func() { Analyze(doc, Options{}) })
 	}
 	m1, b1 := cost(1 << 20)
 	m2, b2 := cost(2 << 20)
