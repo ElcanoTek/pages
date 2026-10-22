@@ -37,8 +37,9 @@ const Segment = "_v"
 const Immutable = "public, max-age=31536000, immutable"
 
 // Revalidate is the Cache-Control of an unversioned or stale-version asset:
-// cacheable, but checked (ETag → 304) on every use.
-const Revalidate = "public, max-age=0"
+// no-cache, so it may be stored but is revalidated (ETag → 304) before every
+// use and is never served stale.
+const Revalidate = "public, no-cache"
 
 var version = sync.OnceValue(func() string { return Of(pages.Public()) })
 

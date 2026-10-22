@@ -96,7 +96,7 @@ no frontend build step:
   and the renderer escapes it anyway; the content CSP is `'self'` and stays
   that way).
 - **Scoped exception: the stable `/assets/flag/…` paths stay revalidating**
-  (`public, max-age=0` plus an ETag, so a cached copy costs a 304). Client
+  (`public, no-cache` plus an ETag, so a cached copy costs a 304). Client
   pages hard-code them (the documented `/assets/flag/motion/…` kit, the token
   sheet in `raw` pages), and Pages cannot rewrite the stored source
   (invariant 2), so those URLs cannot carry a version; making them immutable

@@ -38,14 +38,14 @@ npm install --no-audit --no-fund --loglevel=error
 # playwright.config.js launches PLAYWRIGHT_CHROMIUM_EXECUTABLE when set.
 chromium=""
 for c in "${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"/chromium-*/chrome-linux/chrome; do
-  [ -x "$c" ] && chromium="$c"
+  if [ -x "$c" ]; then chromium="$c"; fi
 done
 
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   {
     echo "export PATH=\"$gobin:\$PATH\""
     echo "export GOTOOLCHAIN=auto"
-    [ -n "$chromium" ] && echo "export PLAYWRIGHT_CHROMIUM_EXECUTABLE=\"$chromium\""
+    if [ -n "$chromium" ]; then echo "export PLAYWRIGHT_CHROMIUM_EXECUTABLE=\"$chromium\""; fi
   } >> "$CLAUDE_ENV_FILE"
 fi
 

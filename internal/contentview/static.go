@@ -36,7 +36,8 @@ const AssetCSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 
 // carrying the current asset version (internal/assetver: what our own chrome
 // and the themed-render tags link) is immutable for a year. Every other path —
 // the stable /assets/flag/... URLs that client pages hard-code, and an older
-// release's version — is `max-age=0`, cacheable-but-revalidate (an ETag 304):
+// release's version — is `no-cache`, stored but revalidated on every use (an
+// ETag 304):
 // a new release replaces those bytes under the same URL, so immutable would
 // pin every client to whatever it first loaded.
 func assetHeaders(current bool) func(http.Header) {
