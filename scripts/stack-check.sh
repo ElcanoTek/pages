@@ -17,7 +17,7 @@
 #   4. npm trees: no server frameworks (next, express, ...); Tier A has no runtime deps.
 set -euo pipefail
 
-STACK_CHECK_VERSION=13
+STACK_CHECK_VERSION=14
 STANDARD_SHA=5b3a1c9dab098277570a37d58366b0802d4378370f9717d48743c386b194bdbb
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONF="$ROOT/stack.conf"
@@ -85,7 +85,7 @@ for d in $web; do
                while (/(<link\b[^>]*>)/gis) { my $t = $1;
                  if ($t =~ /\brel\s*=\s*["'"'"']?[^"'"'"'>]*\b(?:stylesheet|preload|modulepreload|icon|apple-touch-icon|manifest)\b/i && $t =~ /\bhref\s*=\s*$remote/i) {
                    (my $one = $t) =~ s/\s+/ /g; print "$f: $one\n"; } }
-               while (/(?:\.src\s*=|\bsetAttribute\s*\(\s*["'"'"']src["'"'"']\s*,|\bnew\s+(?:Shared)?Worker\s*\(|\bimportScripts\s*\(|<base\b[^>]*?\bhref\s*=)\s*$remote/gi) { (my $m = $&) =~ s/\s+/ /g; print "$f: $m\n"; }
+               while (/(?:\.src\s*=|(?<!\blocation)\.href\s*=|\bsetAttribute\s*\(\s*["'"'"'](?:src|href)["'"'"']\s*,|\bnew\s+(?:Shared)?Worker\s*\(|\bimportScripts\s*\(|<base\b[^>]*?\bhref\s*=)\s*$remote/gi) { (my $m = $&) =~ s/\s+/ /g; print "$f: $m\n"; }
                while (/(?:\@import\s*(?:url\()?|(?<![\w.\$])url\(|(?<![\w.\$])import\s*\(?|(?<![\w.\$])from)\s*$remote/gi) { (my $m = $&) =~ s/\s+/ /g; print "$f: $m\n"; }
              ' > "$scan"); then
     err "remote-asset scanner failed in $d (is perl installed?)"
