@@ -351,7 +351,8 @@ func TestFlagTagsUseVersionedBase(t *testing.T) {
 	}
 	// Another origin would be blocked by the content CSP ('self' only): it is
 	// refused at startup and, should it get through, never emitted.
-	for _, bad := range []string{"https://cdn.example.com/flag", "//cdn.example.com/flag", "/\\cdn.example.com/flag", "flag", "javascript:alert(1)"} {
+	for _, bad := range []string{"https://cdn.example.com/flag", "//cdn.example.com/flag", "/\\cdn.example.com/flag", "flag", "javascript:alert(1)",
+		`/"/><script>alert(1)</script>`, "/a'b", "/a b", "/a%2fb", "/assets/../x", "/assets/./x", "/a?x", "/a#x", "/a<b"} {
 		t.Setenv("FLAG_ASSETS_BASE", bad)
 		if err := ValidateAssetsBase(); err == nil {
 			t.Errorf("FLAG_ASSETS_BASE=%q accepted", bad)
@@ -359,4 +360,21 @@ func TestFlagTagsUseVersionedBase(t *testing.T) {
 		out = RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
 		mustContain(t, out, `"`+assetver.ContentFlag()+`/tokens/design-tokens.css"`, "fallback for "+bad)
 	}
+}
+
+// Defence in depth: even a FLAG_ASSETS_BASE that skipped validation cannot
+// break out of the attribute it is written into.
+func TestFlagHeadEscapesAnUnvalidatedBase(t *testing.T) {
+	payload := `/"/><script>alert(1)</script>`
+	if err := func() error { t.Setenv("FLAG_ASSETS_BASE", payload); return ValidateAssetsBase() }(); err == nil {
+		t.Fatal("the injection payload passed validation")
+	}
+	saved := assetsBase
+	assetsBase = func() string { return payload }
+	t.Cleanup(func() { assetsBase = saved })
+	out := RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+	if strings.Contains(out, "<script>alert(1)") || strings.Contains(out, `/"/>`) {
+		t.Fatalf("unescaped base reached the markup: %s", out)
+	}
+	mustContain(t, out, `href="/&#34;/&gt;&lt;script&gt;alert(1)&lt;/script&gt;/tokens/design-tokens.css"`, "escaped base")
 }

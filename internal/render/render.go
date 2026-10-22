@@ -21,6 +21,7 @@ package render
 
 import (
 	"fmt"
+	"html"
 	"reflect"
 	"regexp"
 	"strings"
@@ -44,14 +45,31 @@ func flagAssetsBase() string {
 	return assetver.ContentFlag()
 }
 
-// sameOriginPath reports whether base is a path on the serving origin: it
-// starts with one "/" and is not scheme- or host-relative ("//host",
-// "/\\host", which browsers read as another origin). The content host's CSP
+// assetsBase is flagAssetsBase, swappable so a test can hand flagHead a base
+// that skipped validation and prove the escaping alone keeps it inert.
+var assetsBase = flagAssetsBase
+
+// assetsBaseRE is the whole allowed shape of FLAG_ASSETS_BASE: an absolute
+// path made of unreserved URL characters and slashes. Nothing that could
+// close an attribute or start markup (quotes, angle brackets, spaces), no
+// query or fragment, no percent-escapes, no backslash.
+var assetsBaseRE = regexp.MustCompile(`^/[A-Za-z0-9._~/-]*$`)
+
+// sameOriginPath reports whether base is a plain path on the serving origin:
+// it matches assetsBaseRE, is not host-relative ("//host", which browsers read
+// as another origin) and has no "." or ".." segment. The content host's CSP
 // allows only 'self' for styles, fonts and scripts, so any other origin would
 // be blocked; widening that CSP is not the answer.
 func sameOriginPath(base string) bool {
-	return strings.HasPrefix(base, "/") && !strings.HasPrefix(base, "//") &&
-		!strings.ContainsAny(base, "\\?#\x00\t\n\r ")
+	if !assetsBaseRE.MatchString(base) || strings.HasPrefix(base, "//") {
+		return false
+	}
+	for _, seg := range strings.Split(base, "/") {
+		if seg == "." || seg == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // ValidateAssetsBase is the startup check for FLAG_ASSETS_BASE: unset, or a
@@ -203,7 +221,9 @@ func navBlockTag(nav any) string {
 }
 
 func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool) string {
-	base := flagAssetsBase()
+	// Escaped as an attribute value as well as validated (sameOriginPath), so
+	// no base can ever close the attribute it is written into.
+	base := html.EscapeString(assetsBase())
 	tags := []string{
 		`<link rel="stylesheet" href="` + base + `/fonts/fonts.css" data-flag-injected>`,
 		`<link rel="stylesheet" href="` + base + `/tokens/design-tokens.css" data-flag-injected>`,

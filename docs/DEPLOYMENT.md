@@ -566,7 +566,7 @@ transaction cannot pin every pool client and hang both hosts.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `FLAG_ASSETS_BASE` | `/assets/_v/<version>/flag` | Base path themed pages load the vendored Flag assets from. Unset, it is the versioned, immutable-cached mount. Set it only to serve a copy from another path on the content host: it must be same-origin (the content CSP allows only `'self'`), and startup refuses an absolute or `//` URL |
+| `FLAG_ASSETS_BASE` | `/assets/_v/<version>/flag` | Base path themed pages load the vendored Flag assets from. Unset, it is the versioned, immutable-cached mount. Set it only to serve a copy from another path on the content host: it must be a same-origin path of letters, digits and `. _ ~ / -` with no `..` segment (the content CSP allows only `'self'`), and startup refuses anything else |
 
 ### Never set these in production
 

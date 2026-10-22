@@ -91,8 +91,10 @@ no frontend build step:
   HTML is `no-store`: `httpx.SendHTML` sets it on every page (the dashboard
   shells carry the signed-in email and a CSRF token), and an asset error
   such as a 416 is `no-store` too, never the asset's immutable policy.
-  `FLAG_ASSETS_BASE` may only be a same-origin path (startup refuses another
-  origin; the content CSP is `'self'` and stays that way).
+  `FLAG_ASSETS_BASE` may only be a same-origin path matching
+  `^/[A-Za-z0-9._~/-]*$` without `//` or `..` (startup refuses anything else,
+  and the renderer escapes it anyway; the content CSP is `'self'` and stays
+  that way).
 - **Scoped exception: the stable `/assets/flag/…` paths stay revalidating**
   (`public, max-age=0` plus an ETag, so a cached copy costs a 304). Client
   pages hard-code them (the documented `/assets/flag/motion/…` kit, the token
