@@ -5,12 +5,12 @@ package preflight
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/env"
@@ -210,45 +210,86 @@ func TestSyntax(t *testing.T) {
 }
 
 // A Go stack overflow is a fatal crash, not an error: no document may be able
-// to recurse a parser without bound.
+// to recurse a parser without bound. Each hostile input must be stopped by the
+// nesting limit (script_analysis_limit, not a crash and not a syntax verdict
+// reached by recursing all the way down), and stopping it must cost no more
+// than linear work: doubling the input may at most about double the cost,
+// counted in allocations, never timed.
 func TestHostileNestingNeverCrashes(t *testing.T) {
+	hostile := func(n int) map[string]string {
+		return map[string]string{
+			"arrays":      "var " + strings.Repeat("[", n/2) + strings.Repeat("]", n/2) + "=x",
+			"objects":     "var " + strings.Repeat("{a:", n/4) + "b" + strings.Repeat("}", n/4) + "=x",
+			"parens":      strings.Repeat("(", n/2) + strings.Repeat(")", n/2),
+			"unary":       strings.Repeat("!", n) + "1",
+			"assignments": strings.Repeat("a=", n/2) + "1",
+			"arrows":      strings.Repeat("x=>", n/3) + "1",
+			"templates":   strings.Repeat("`${", n/6) + strings.Repeat("}`", n/6),
+		}
+	}
 	n := 1024*1024 - 16
-	for _, src := range []string{
-		"var " + strings.Repeat("[", n/2) + strings.Repeat("]", n/2) + "=x",
-		"var " + strings.Repeat("{a:", n/4) + "b" + strings.Repeat("}", n/4) + "=x",
-		strings.Repeat("(", n/2) + strings.Repeat(")", n/2),
-		strings.Repeat("!", n) + "1",
-		strings.Repeat("a=", n/2) + "1",
-		strings.Repeat("x=>", n/3) + "1",
-		strings.Repeat("`${", n/6) + strings.Repeat("}`", n/6),
-	} {
-		start := time.Now()
-		r := Analyze("<script>"+src+"</script>", Options{})
-		if len(r.Errors) == 0 || r.Errors[0].Code != "script_analysis_limit" {
-			t.Errorf("%.12q…: %v", src, codes(r.Errors))
-		}
-		if d := time.Since(start); d > 5*time.Second {
-			t.Errorf("%.12q… took %v", src, d)
-		}
+	half := hostile(n / 2)
+	for name, src := range hostile(n) {
+		t.Run(name, func(t *testing.T) {
+			r := Analyze("<script>"+src+"</script>", Options{})
+			if len(r.Errors) == 0 || r.Errors[0].Code != "script_analysis_limit" {
+				t.Fatalf("%.12q…: %v", src, codes(r.Errors))
+			}
+			assertNoBlowup(t, name,
+				func() { Analyze("<script>"+half[name]+"</script>", Options{}) },
+				func() { Analyze("<script>"+src+"</script>", Options{}) })
+		})
 	}
 }
 
 // A large but ordinary inline script (a bundled chart library) is still
-// syntax-checked, and quickly.
+// syntax-checked, all of it, and the check's cost grows linearly with the
+// script. Both are asserted deterministically: the broken copy must be
+// reported at its last byte (so the whole 6 MiB was parsed, not skipped or
+// cut short), and the check's allocations — counted, not timed — must double,
+// not quadruple, when the script doubles. A wall-clock bound here failed
+// under -race on a loaded machine while proving nothing more; the absolute
+// speed of a 6 MiB analysis is tracked by BenchmarkAnalyzeLargeScript.
 func TestLargeScriptIsChecked(t *testing.T) {
 	line := "var a" + strings.Repeat("b", 10) + " = function (x) { return x * 2 + 1; };\n"
-	src := strings.Repeat(line, (6*1024*1024)/len(line))
-	start := time.Now()
-	r := Analyze("<script>"+src+"</script>", Options{})
-	if d := time.Since(start); d > 5*time.Second {
-		t.Errorf("6 MiB script took %v", d)
+	lines := (6 * 1024 * 1024) / len(line)
+	src := strings.Repeat(line, lines)
+	if len(src) > maxScriptBytes {
+		t.Fatalf("the %d-byte fixture is over maxScriptBytes (%d), so it would be skipped, not checked", len(src), maxScriptBytes)
 	}
-	if find(r.Errors, "script_syntax_error") != nil {
+	if r := Analyze("<script>"+src+"</script>", Options{}); find(r.Errors, "script_syntax_error") != nil {
 		t.Fatalf("valid script reported: %v", codes(r.Errors))
 	}
 	broken := Analyze("<script>"+src+"function (</script>", Options{})
-	if find(broken.Errors, "script_syntax_error") == nil {
+	hit := find(broken.Errors, "script_syntax_error")
+	if hit == nil {
 		t.Fatalf("a broken 6 MiB script is not reported: %v", codes(broken.Errors))
+	}
+	// The error sits on the line after the last ordinary one.
+	if at := fmt.Sprintf("(%d:", lines+1); !strings.Contains(hit.Message, at) {
+		t.Fatalf("the error is not reported at the end of the script (want %s…): %s", at, hit.Message)
+	}
+
+	// Linear cost: the same script at 1 MiB and 2 MiB. The counts are
+	// deterministic (about 0.22 allocations per byte), so the band is loose
+	// only to absorb small runtime differences between Go releases; a
+	// quadratic check would come out near 4x.
+	cost := func(n int) (mallocs, bytes uint64) {
+		doc := "<script>" + strings.Repeat(line, n/len(line)) + "</script>"
+		return allocCost(func() { Analyze(doc, Options{}) })
+	}
+	m1, b1 := cost(1 << 20)
+	m2, b2 := cost(2 << 20)
+	for _, c := range []struct {
+		what   string
+		small  uint64
+		double uint64
+	}{{"allocations", m1, m2}, {"bytes allocated", b1, b2}} {
+		ratio := float64(c.double) / float64(c.small)
+		t.Logf("%s: 1 MiB %d, 2 MiB %d (x%.2f)", c.what, c.small, c.double, ratio)
+		if ratio < 1.5 || ratio > 2.5 {
+			t.Errorf("doubling the script multiplied the check's %s by %.2f, want about 2 (linear)", c.what, ratio)
+		}
 	}
 }
 

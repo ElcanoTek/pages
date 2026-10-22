@@ -640,9 +640,17 @@ func TestStripTrailingSlashes(t *testing.T) {
 			t.Errorf("%q → %q", in, got)
 		}
 	}
+	// The JS used /\/+$/, which backtracks quadratically on a long run of
+	// slashes that does not end the string. The port is one backward scan with
+	// no allocation: checked by result and by counted allocations, not timed.
 	long := strings.Repeat("/", 200000) + "x"
-	start := time.Now()
-	if StripTrailingSlashes(long) != long || time.Since(start) > time.Second {
-		t.Fatal("not linear")
+	if StripTrailingSlashes(long) != long {
+		t.Fatal("a slash run that does not end the string was stripped")
+	}
+	if got := StripTrailingSlashes(strings.Repeat("/", 200000)); got != "" {
+		t.Fatalf("an all-slash string kept %d bytes", len(got))
+	}
+	if n := testing.AllocsPerRun(10, func() { _ = StripTrailingSlashes(long) }); n != 0 {
+		t.Fatalf("StripTrailingSlashes allocates (%v per call); it must only reslice", n)
 	}
 }

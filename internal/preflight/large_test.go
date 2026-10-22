@@ -4,15 +4,19 @@
 package preflight
 
 import (
+	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 // Preflight runs on the deploy path, and inline scripts of several MiB are
-// ordinary since the page limits were raised. These tests pin that a large
-// document is analysed quickly and that no input built to defeat the rule
-// scanners (every keyword or a near miss of it, over and over) is slow.
+// ordinary since the page limits were raised. These tests pin that the cost of
+// analysing a large document grows linearly with it, and that no input built
+// to defeat the rule scanners (every keyword or a near miss of it, over and
+// over) grows it faster. Cost is COUNTED — allocations and bytes allocated,
+// which are deterministic — never timed: a wall-clock bound measures the
+// machine as much as the code, and failed under -race on a loaded host.
+// BenchmarkAnalyzeLargeScript tracks the absolute speed.
 
 // repeatTo repeats unit until the result is at least n bytes.
 func repeatTo(unit string, n int) string {
@@ -51,41 +55,56 @@ func adversarialScripts(n int) map[string]string {
 	}
 }
 
-func analyzeScript(src string) (Report, time.Duration) {
-	doc := "<!doctype html><html><body><script>" + src + "</script></body></html>"
-	start := time.Now()
-	r := Analyze(doc, Options{})
-	return r, time.Since(start)
+func analyzeScript(src string) Report {
+	return Analyze("<!doctype html><html><body><script>"+src+"</script></body></html>", Options{})
 }
 
-// assertFast fails when d exceeds bound, unless the race detector (or -short
-// on a loaded machine) makes wall time meaningless.
-func assertFast(t *testing.T, what string, d, bound time.Duration) {
+// allocCost is what f allocates: the number of allocations and the bytes.
+// Both are deterministic for a given input, unlike elapsed time.
+func allocCost(f func()) (mallocs, bytes uint64) {
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.Mallocs - before.Mallocs, after.TotalAlloc - before.TotalAlloc
+}
+
+// assertNoBlowup runs half (an input at half size) and whole (the same input
+// at full size) and fails if doubling the input more than doubled the cost,
+// with headroom: a linear check comes out at or under 2x, a quadratic one
+// near 4x. The small additive slack keeps a handful of fixed allocations from
+// dominating when the counts are tiny.
+func assertNoBlowup(t *testing.T, what string, half, whole func()) {
 	t.Helper()
-	t.Logf("%s: %v", what, d)
-	if raceEnabled {
-		return
+	m1, b1 := allocCost(half)
+	m2, b2 := allocCost(whole)
+	t.Logf("%s: allocations %d → %d, bytes %d → %d", what, m1, m2, b1, b2)
+	if float64(m2) > 2.5*float64(m1)+64 {
+		t.Errorf("%s: doubling the input multiplied the allocations by %.2f, want at most 2.5 (linear)", what, float64(m2)/float64(m1))
 	}
-	if d > bound {
-		t.Errorf("%s took %v, want under %v", what, d, bound)
+	if float64(b2) > 2.5*float64(b1)+64<<10 {
+		t.Errorf("%s: doubling the input multiplied the bytes allocated by %.2f, want at most 2.5 (linear)", what, float64(b2)/float64(b1))
 	}
 }
 
-func TestAnalyzeLargeOrdinaryScriptIsFast(t *testing.T) {
-	src := ordinaryScript(6 << 20)
-	r, d := analyzeScript(src)
-	if !r.OK || len(r.Warnings) != 0 {
+func TestAnalyzeLargeOrdinaryScriptIsLinear(t *testing.T) {
+	if r := analyzeScript(ordinaryScript(6 << 20)); !r.OK || len(r.Warnings) != 0 {
 		t.Fatalf("ordinary script should be clean: %+v %+v", r.Errors, r.Warnings)
 	}
-	// ~0.6 s on a developer machine; the regexp-based rules took ~4 s.
-	assertFast(t, "6 MiB ordinary script", d, 3*time.Second)
+	assertNoBlowup(t, "ordinary script 3 → 6 MiB",
+		func() { analyzeScript(ordinaryScript(3 << 20)) },
+		func() { analyzeScript(ordinaryScript(6 << 20)) })
 }
 
-func TestAnalyzeAdversarialScriptsAreFast(t *testing.T) {
-	for name, src := range adversarialScripts(maxScriptBytes) {
+// The adversarial inputs target the rule scanners, so both sizes sit above
+// maxScriptBytes: the syntax check skips them alike and the comparison is
+// scanner against scanner, not a parsed run against a skipped one.
+func TestAnalyzeAdversarialScriptsAreLinear(t *testing.T) {
+	half := adversarialScripts(maxScriptBytes)
+	for name, src := range adversarialScripts(2 * maxScriptBytes) {
 		t.Run(name, func(t *testing.T) {
-			_, d := analyzeScript(src)
-			assertFast(t, name, d, 3*time.Second)
+			assertNoBlowup(t, name, func() { analyzeScript(half[name]) }, func() { analyzeScript(src) })
 		})
 	}
 }
@@ -122,7 +141,7 @@ func TestHugeTokensParse(t *testing.T) {
 				t.Errorf("%s (module=%v): %+v", name, module, v)
 			}
 		}
-		if r, _ := analyzeScript(src); !r.OK {
+		if r := analyzeScript(src); !r.OK {
 			t.Errorf("%s: Analyze reported %+v", name, r.Errors)
 		}
 	}
@@ -130,7 +149,7 @@ func TestHugeTokensParse(t *testing.T) {
 
 func TestHugeInvalidScriptReportsTheError(t *testing.T) {
 	// The golden's case 106/107 shape with the 8 MiB bound in force.
-	r, _ := analyzeScript(strings.Repeat("x", 1<<20+1) + " }}}")
+	r := analyzeScript(strings.Repeat("x", 1<<20+1) + " }}}")
 	if len(r.Errors) != 1 || r.Errors[0].Code != "script_syntax_error" ||
 		!strings.Contains(r.Errors[0].Message, "does not parse: Unexpected } in expression (1:1048579).") {
 		t.Fatalf("got %+v", r.Errors)

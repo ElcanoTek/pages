@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
@@ -313,14 +313,38 @@ func TestStripInjectedNav(t *testing.T) {
 	}
 }
 
-func TestLargeDocumentRenderIsFast(t *testing.T) {
+// A themed render of a large document costs linear work: doubling the
+// document at most about doubles the allocations and bytes the render makes.
+// Counted, not timed: a 100 ms wall-clock bound here measured the machine as
+// much as the code. BenchmarkRenderLargeDocument tracks the absolute speed.
+func TestLargeDocumentRenderIsLinear(t *testing.T) {
+	doc := func(paragraphs int) string {
+		return "<!doctype html><html><head><title>Big</title></head><body>" + strings.Repeat("<p>x</p>", paragraphs) + "</body></html>"
+	}
+	big := doc(280_000)
+	mustContain(t, RenderVersion(Renderable{HTML: big, RenderMode: "themed", Nav: navFixture}), `id="pages-nav"`, "payload")
+	cost := func(html string) (mallocs, bytes uint64) {
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		RenderVersion(Renderable{HTML: html, RenderMode: "themed", Nav: navFixture})
+		runtime.ReadMemStats(&after)
+		return after.Mallocs - before.Mallocs, after.TotalAlloc - before.TotalAlloc
+	}
+	half := doc(140_000)
+	m1, b1 := cost(half)
+	m2, b2 := cost(big)
+	t.Logf("allocations %d → %d, bytes %d → %d", m1, m2, b1, b2)
+	if float64(m2) > 2.5*float64(m1)+64 || float64(b2) > 2.5*float64(b1)+64<<10 {
+		t.Errorf("doubling the document multiplied the render's cost by %.2f allocations / %.2f bytes, want at most 2.5 (linear)", float64(m2)/float64(m1), float64(b2)/float64(b1))
+	}
+}
+
+func BenchmarkRenderLargeDocument(b *testing.B) {
 	big := "<!doctype html><html><head><title>Big</title></head><body>" + strings.Repeat("<p>x</p>", 280_000) + "</body></html>"
-	start := time.Now()
-	out := RenderVersion(Renderable{HTML: big, RenderMode: "themed", Nav: navFixture})
-	elapsed := time.Since(start)
-	mustContain(t, out, `id="pages-nav"`, "payload")
-	if elapsed > 100*time.Millisecond {
-		t.Errorf("2 MiB themed render took %v", elapsed)
+	b.SetBytes(int64(len(big)))
+	for b.Loop() {
+		RenderVersion(Renderable{HTML: big, RenderMode: "themed", Nav: navFixture})
 	}
 }
 
