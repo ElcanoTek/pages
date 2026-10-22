@@ -289,9 +289,11 @@ stops a delete-then-recreate bypass of a takedown.
 
 ### Flag theming
 
-`public/assets/flag/` holds the Flag design system — tokens, fonts, icons,
-logos — committed in-repo and embedded in the binary, so there is no vendoring
-or asset build step. Two
+`public/assets/flag/` holds the Flag design system (`ElcanoTek/flag`, MIT) —
+tokens, fonts, icons, logos — committed in-repo and embedded in the binary, so
+there is no asset build step. The files are vendored verbatim and pinned by
+`flag.lock`; `scripts/flag-sync.sh sync` refreshes them from a flag checkout
+and CI fails on any hand edit (see [AGENTS.md](AGENTS.md#vendored-flag)). Two
 self-hosted typefaces ship, and only two: **Nebula Sans** (SIL OFL 1.1) for UI,
 body and headings, and **Hack** (MIT) for code, slugs and tabular output. One
 sheet, `fonts/fonts.css`, declares both and binds them to `--font-brand` /

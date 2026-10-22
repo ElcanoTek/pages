@@ -17,6 +17,15 @@ subject to the Covenants of Licensor reproduced in LICENSE. The licence text is
 reproduced verbatim and unmodified.
 
 -------------------------------------------------------------------------------
+Flag design system — public/assets/flag/ (the files listed in flag.lock)
+-------------------------------------------------------------------------------
+Flag design system — Copyright (c) 2026 ElcanoTek, Inc. — MIT License.
+Vendored verbatim from https://github.com/ElcanoTek/flag (design-system/) at
+the commit recorded in flag.lock. The fonts it bundles keep their own licences,
+below. The Flag Motion kit under public/assets/flag/motion/ is not part of Flag:
+it is Pages code under the Business Source License 1.1.
+
+-------------------------------------------------------------------------------
 Nebula Sans — public/assets/flag/fonts/nebula-sans/NebulaSans-*.woff2
 -------------------------------------------------------------------------------
 Copyright (c) 2024 Nebula Entertainment & Broadcasting LLC, with Reserved Font

@@ -21,8 +21,14 @@ playwright-report/
 
 # Claude Code working state. The harness puts agent git worktrees under
 # .claude/worktrees/, i.e. a whole second checkout inside this one — an
-# unignored `git add -A` would commit the entire duplicate tree.
-.claude/
+# unignored `git add -A` would commit the entire duplicate tree. Only the
+# shared project settings and the cloud SessionStart hook are tracked.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+
+# A Flag checkout the weekly flag-drift workflow (or you) may put in the tree.
+.flag/
 
 # Ad-hoc captures taken while working on a screen. Not the README's two
 # images, which are tracked under docs/images/.
