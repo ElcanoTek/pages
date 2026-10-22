@@ -28,6 +28,7 @@ package update
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -138,8 +139,205 @@ func (e *Error) Error() string { return e.Msg }
 
 func fail(format string, args ...any) error { return &Error{Msg: fmt.Sprintf(format, args...)} }
 
+func gitEnv() []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "GIT_") {
+			env = append(env, kv)
+		}
+	}
+	return append(env,
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_ALLOW_PROTOCOL=https:ssh",
+		"GIT_CONFIG_COUNT=3",
+		"GIT_CONFIG_KEY_0=core.hooksPath",
+		"GIT_CONFIG_VALUE_0=/dev/null",
+		"GIT_CONFIG_KEY_1=core.fsmonitor",
+		"GIT_CONFIG_VALUE_1=false",
+		"GIT_CONFIG_KEY_2=core.sharedRepository",
+		"GIT_CONFIG_VALUE_2=false",
+	)
+}
+
 func (o *Options) git(ctx context.Context, args ...string) (string, error) {
-	return runner.Output(ctx, o.Runner, runner.Cmd{Name: "git", Args: append([]string{"-C", o.Settings.SrcDir}, args...)})
+	return runner.Output(ctx, o.Runner, runner.Cmd{
+		Name: "git",
+		Args: append([]string{"-C", o.Settings.SrcDir}, args...),
+		Env:  gitEnv(),
+	})
+}
+
+var allowedGitKeys = map[string]map[string]bool{
+	"core": {
+		"repositoryformatversion": true, "filemode": true, "bare": true,
+		"logallrefupdates": true, "ignorecase": true, "precomposeunicode": true,
+		"symlinks": true, "autocrlf": true, "eol": true, "safecrlf": true,
+		"compression": true, "loosecompression": true, "packedgitlimit": true,
+		"packedgitwindowsize": true, "bigfilethreshold": true,
+		"hidedotfiles": true,
+	},
+	"remote": {
+		"url": true, "fetch": true, "pushurl": true, "tagopt": true,
+		"prune": true, "prunetags": true, "mirror": true, "skipfetchall": true,
+	},
+	"branch": {
+		"remote": true, "merge": true, "rebase": true, "pushremote": true,
+		"mergeoptions": true, "vscode-merge-base": true,
+	},
+	"fetch":  {"prune": true, "prunetags": true, "writecommitgraph": true},
+	"pull":   {"ff": true, "rebase": true},
+	"gc":     {"auto": true, "autopacklimit": true, "autodetach": true, "pruneexpire": true, "reflogexpire": true, "reflogexpireunreachable": true, "writecommitgraph": true},
+	"status": {},
+	"advice": {},
+}
+
+// checkGitConfig inspects gitDir/config and refuses any section or key that
+// delegates configuration, object lookup or command execution outside the
+// repository (such as [include]/[includeIf], core.hooksPath, core.fsmonitor,
+// core.sshCommand, core.worktree, remote.*.uploadpack or ext:: helpers).
+func checkGitConfig(gitDir string) error {
+	raw, err := os.ReadFile(filepath.Join(gitDir, "config"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	// Do not globally join backslash-newlines before parsing comments: in Git's
+	// config syntax a '#' or ';' comment ends at the physical newline even if
+	// it ends with '\', whereas backslash-newlines inside values continue to
+	// the next line. Refusing backslash-continued lines outright avoids any
+	// parser discrepancy on a plain clone's .git/config.
+	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	if strings.ContainsRune(text, 0) || strings.Contains(text, "\\\n") || strings.Contains(text, "\\\r") {
+		return errors.New("disallowed line continuation or NUL in .git/config")
+	}
+	section := ""
+	for i := 0; i < len(text); {
+		for i < len(text) && (text[i] == ' ' || text[i] == '\t' || text[i] == '\n') {
+			i++
+		}
+		if i >= len(text) {
+			break
+		}
+		switch text[i] {
+		case '#', ';':
+			for i < len(text) && text[i] != '\n' {
+				i++
+			}
+		case '[':
+			i++
+			start := i
+			inQuote := false
+			for i < len(text) && (inQuote || text[i] != ']') {
+				if text[i] == '\\' && inQuote && i+1 < len(text) {
+					i += 2
+					continue
+				}
+				switch text[i] {
+				case '"':
+					inQuote = !inQuote
+				case '\n':
+					return errors.New("malformed section header in .git/config")
+				}
+				i++
+			}
+			if i >= len(text) || text[i] != ']' {
+				return errors.New("unclosed section header in .git/config")
+			}
+			header := strings.TrimSpace(text[start:i])
+			i++ // consume ']'
+			name := header
+			if j := strings.IndexAny(header, " \t.\""); j >= 0 {
+				name = header[:j]
+			}
+			section = strings.ToLower(strings.TrimSpace(name))
+			if _, ok := allowedGitKeys[section]; !ok {
+				return fmt.Errorf("disallowed [%s] section in .git/config", section)
+			}
+		default:
+			if section == "" {
+				return errors.New("key outside section in .git/config")
+			}
+			start := i
+			for i < len(text) && ((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= '0' && text[i] <= '9') || text[i] == '-') {
+				i++
+			}
+			if i == start {
+				return errors.New("malformed key in .git/config")
+			}
+			key := strings.ToLower(text[start:i])
+			allowed := allowedGitKeys[section]
+			if len(allowed) > 0 && !allowed[key] {
+				return fmt.Errorf("disallowed %s.%s in .git/config", section, key)
+			}
+			for i < len(text) && (text[i] == ' ' || text[i] == '\t') {
+				i++
+			}
+			val := ""
+			if i < len(text) && text[i] == '=' {
+				i++
+				for i < len(text) && (text[i] == ' ' || text[i] == '\t') {
+					i++
+				}
+				var decoded strings.Builder
+				inQuote := false
+				trailingSpace := 0
+				for i < len(text) && text[i] != '\n' {
+					if !inQuote && (text[i] == '#' || text[i] == ';') {
+						break
+					}
+					if text[i] == '\\' {
+						if i+1 >= len(text) {
+							return errors.New("dangling escape in .git/config")
+						}
+						trailingSpace = 0
+						switch text[i+1] {
+						case '\\', '"':
+							decoded.WriteByte(text[i+1])
+						case 'n':
+							decoded.WriteByte('\n')
+						case 't':
+							decoded.WriteByte('\t')
+						case 'b':
+							decoded.WriteByte('\b')
+						default:
+							return errors.New("unsupported escape in .git/config")
+						}
+						i += 2
+						continue
+					}
+					if text[i] == '"' {
+						inQuote = !inQuote
+						trailingSpace = 0
+						i++
+						continue
+					}
+					if !inQuote && (text[i] == ' ' || text[i] == '\t') {
+						trailingSpace++
+					} else {
+						trailingSpace = 0
+					}
+					decoded.WriteByte(text[i])
+					i++
+				}
+				if inQuote {
+					return errors.New("unclosed quote in .git/config")
+				}
+				s := decoded.String()
+				val = s[:len(s)-trailingSpace]
+			}
+			if section == "remote" && (key == "url" || key == "pushurl") {
+				lower := strings.ToLower(strings.TrimSpace(val))
+				if !strings.HasPrefix(lower, "https://") && !strings.HasPrefix(lower, "ssh://") && !strings.HasPrefix(lower, "git@") {
+					return fmt.Errorf("disallowed remote URL scheme in %s.%s", section, key)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // precheck validates the installation before any change.
@@ -154,17 +352,22 @@ func (o *Options) precheck() error {
 	if err != nil {
 		return fail("no source checkout at %s", s.SrcDir)
 	}
-	// Root's git reads its objects and refs from wherever .git points. A
-	// linked worktree or submodule (.git a "gitdir:" file) or a shared object
-	// store (commondir) keeps them outside the tree checked below, where the
-	// service account might rewrite origin/<branch> between fetch and merge.
-	// Only a plain repository whose Git data lives inside the checkout is
-	// built as root.
+	// Root's git reads its objects, refs and configuration from wherever .git
+	// points. A linked worktree or submodule (.git a "gitdir:" file), a shared
+	// object store (commondir or objects/info/alternates), or an external
+	// config/hook indirection keeps them outside the tree checked below, where
+	// the service account might rewrite them. Only a plain repository whose
+	// Git data lives entirely inside the checkout is built as root.
 	if !st.IsDir() {
 		return fail("%s is not a directory (a linked worktree or submodule?) — the updater only builds a plain clone whose Git data lives inside it; re-clone %s", gitDir, s.SrcDir)
 	}
-	if _, err := os.Lstat(filepath.Join(gitDir, "commondir")); err == nil {
-		return fail("%s shares its Git data through commondir — the updater only builds a plain clone whose Git data lives inside it; re-clone %s", gitDir, s.SrcDir)
+	for _, rel := range []string{"commondir", "objects/info/alternates", "objects/info/http-alternates", "info/grafts", "config.worktree"} {
+		if _, err := os.Lstat(filepath.Join(gitDir, rel)); !errors.Is(err, os.ErrNotExist) {
+			return fail("%s shares or redirects its Git data through %s — the updater only builds a plain clone whose Git data lives inside it; re-clone %s", gitDir, rel, s.SrcDir)
+		}
+	}
+	if err := checkGitConfig(gitDir); err != nil {
+		return fail("%s has an unsafe Git configuration (%v) — the updater only builds a plain clone whose Git data lives inside it; re-clone %s", gitDir, err, s.SrcDir)
 	}
 	// Root fetches, merges and builds the checkout (its Makefile, its hooks,
 	// its configuration); the service account must not be able to change it.
@@ -230,7 +433,7 @@ func Run(ctx context.Context, o Options) error {
 		if branch == "" || branch == "HEAD" {
 			branch = "main"
 		}
-		if _, err := o.Runner.Run(ctx, runner.Cmd{Name: "git", Args: []string{"-C", s.SrcDir, "merge", "--ff-only", "origin/" + branch}, Stdout: o.Log.Out, Stderr: o.Log.Err}); err != nil {
+		if _, err := o.Runner.Run(ctx, runner.Cmd{Name: "git", Args: []string{"-C", s.SrcDir, "merge", "--ff-only", "origin/" + branch}, Env: gitEnv(), Stdout: o.Log.Out, Stderr: o.Log.Err}); err != nil {
 			return fail("fast-forward failed — resolve the source checkout first")
 		}
 	}

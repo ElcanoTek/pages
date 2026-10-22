@@ -192,6 +192,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Body readers below arm a size-scaled read deadline through this, so a
 	// declared but stalled body cannot hold the connection open forever.
 	r = httpx.WithBodyReadControl(w, r)
+	defer httpx.BoundUnreadBody(r)
 	if contentview.IsContentHost(r) {
 		s.content.ServeHTTP(w, r)
 		return
