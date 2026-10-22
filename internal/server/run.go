@@ -24,6 +24,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/pagedata"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/readiness"
+	"github.com/ElcanoTek/pages/internal/render"
 	"github.com/ElcanoTek/pages/internal/tokens"
 	"github.com/ElcanoTek/pages/internal/uploads"
 )
@@ -47,7 +48,7 @@ func Validate() error {
 }
 
 func validateSettings() error {
-	for _, check := range []func() error{rawtoken.Validate, pagecookie.Validate, tokens.Validate} {
+	for _, check := range []func() error{rawtoken.Validate, pagecookie.Validate, tokens.Validate, render.ValidateAssetsBase} {
 		if err := check(); err != nil {
 			return err
 		}

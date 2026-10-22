@@ -20,18 +20,69 @@
 package render
 
 import (
+	"fmt"
+	"html"
 	"reflect"
 	"regexp"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
-// flagAssetsBase is where the Flag design system is mounted on the content
-// host. Read at call time so tests can set FLAG_ASSETS_BASE.
-func flagAssetsBase() string { return env.String("FLAG_ASSETS_BASE", "/assets/flag") }
+// flagAssetsBase is where the injected Flag tags point: by default the content
+// host's versioned, immutable-cached base (internal/assetver), or
+// FLAG_ASSETS_BASE when an operator serves a copy elsewhere on the content
+// host. Read at call time so tests can set FLAG_ASSETS_BASE. An invalid value
+// (ValidateAssetsBase refuses it at startup) falls back to the default rather
+// than emitting tags the content CSP would block.
+func flagAssetsBase() string {
+	if base := env.String("FLAG_ASSETS_BASE", ""); base != "" && sameOriginPath(base) {
+		return base
+	}
+	return assetver.ContentFlag()
+}
+
+// assetsBase is flagAssetsBase, swappable so a test can hand flagHead a base
+// that skipped validation and prove the escaping alone keeps it inert.
+var assetsBase = flagAssetsBase
+
+// assetsBaseRE is the whole allowed shape of FLAG_ASSETS_BASE: an absolute
+// path made of unreserved URL characters and slashes. Nothing that could
+// close an attribute or start markup (quotes, angle brackets, spaces), no
+// query or fragment, no percent-escapes, no backslash.
+var assetsBaseRE = regexp.MustCompile(`^/[A-Za-z0-9._~/-]*$`)
+
+// sameOriginPath reports whether base is a plain path on the serving origin:
+// it matches assetsBaseRE, has no empty, "." or ".." segment and does not end
+// in "/". flagHead appends "/fonts/…", so "/" (or any trailing slash) would
+// yield "//fonts/…", which browsers read as a scheme-relative URL to the host
+// "fonts"; an empty segment anywhere could do the same at the front. The content host's CSP
+// allows only 'self' for styles, fonts and scripts, so any other origin would
+// be blocked; widening that CSP is not the answer.
+func sameOriginPath(base string) bool {
+	if !assetsBaseRE.MatchString(base) {
+		return false
+	}
+	for _, seg := range strings.Split(base[1:], "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidateAssetsBase is the startup check for FLAG_ASSETS_BASE: unset, or a
+// same-origin absolute path such as /assets/flag-copy.
+func ValidateAssetsBase() error {
+	base := env.String("FLAG_ASSETS_BASE", "")
+	if base == "" || sameOriginPath(base) {
+		return nil
+	}
+	return fmt.Errorf("FLAG_ASSETS_BASE must be a path on the content host such as /assets/flag-copy (got %q): the content CSP allows only 'self', so another origin would be blocked", base)
+}
 
 // NavBlockID is the id Pages owns. A page switcher needs the CURRENT membership
 // of whichever portal authorised this request, which is not knowable at deploy
@@ -172,7 +223,9 @@ func navBlockTag(nav any) string {
 }
 
 func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool) string {
-	base := flagAssetsBase()
+	// Escaped as an attribute value as well as validated (sameOriginPath), so
+	// no base can ever close the attribute it is written into.
+	base := html.EscapeString(assetsBase())
 	tags := []string{
 		`<link rel="stylesheet" href="` + base + `/fonts/fonts.css" data-flag-injected>`,
 		`<link rel="stylesheet" href="` + base + `/tokens/design-tokens.css" data-flag-injected>`,

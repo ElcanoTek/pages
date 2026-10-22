@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	pages "github.com/ElcanoTek/pages"
+	"github.com/ElcanoTek/pages/internal/assetver"
 )
 
 // These guard the browser assets the shells boot (public/shell-assets), ported
@@ -291,9 +292,16 @@ func TestShellsReferenceEmbeddedAssets(t *testing.T) {
 				continue
 			}
 			seen = append(seen, m[1])
+			// Every link carries the current asset version, so it is served
+			// immutable; the file behind it is the unversioned path.
+			rest, versioned, current := assetver.Strip("/" + m[1])
+			if !versioned || !current {
+				t.Errorf("shell references /shell-assets/%s, which is not under the current version %s", m[1], assetver.Shell())
+			}
+			rel := strings.TrimPrefix(rest, "/")
 			// /shell-assets/flag is served from public/assets/flag.
-			p := "shell-assets/" + m[1]
-			if rest, ok := strings.CutPrefix(m[1], "flag/"); ok {
+			p := "shell-assets/" + rel
+			if rest, ok := strings.CutPrefix(rel, "flag/"); ok {
 				p = "assets/flag/" + rest
 			}
 			if _, err := fs.Stat(pub, p); err != nil {

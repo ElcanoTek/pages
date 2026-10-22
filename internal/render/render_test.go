@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/tdewolff/parse/v2"
 	"github.com/tdewolff/parse/v2/js"
@@ -328,5 +329,67 @@ func TestEscapedJSONMatchesDataLimits(t *testing.T) {
 	want := `{"a":"\u003c/script\u003e\u0026\u2028\u2029'"}`
 	if got != want {
 		t.Errorf("got %s want %s", got, want)
+	}
+}
+
+// The injected Flag tags use the content host's versioned base, so they are
+// cached immutable; FLAG_ASSETS_BASE, when an operator sets it, wins.
+func TestFlagTagsUseVersionedBase(t *testing.T) {
+	t.Setenv("FLAG_ASSETS_BASE", "")
+	out := RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+	for _, f := range []string{"/fonts/fonts.css", "/tokens/design-tokens.css", "/theme/theme-controller.js"} {
+		mustContain(t, out, `"`+assetver.ContentFlag()+f+`"`, "versioned "+f)
+	}
+	if strings.Contains(out, `"/assets/flag/`) {
+		t.Error("an injected tag uses the unversioned base")
+	}
+	t.Setenv("FLAG_ASSETS_BASE", "/assets/flag-copy")
+	out = RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+	mustContain(t, out, `"/assets/flag-copy/tokens/design-tokens.css"`, "same-origin operator override")
+	if err := ValidateAssetsBase(); err != nil {
+		t.Errorf("same-origin base refused: %v", err)
+	}
+	// Another origin would be blocked by the content CSP ('self' only): it is
+	// refused at startup and, should it get through, never emitted.
+	for _, bad := range []string{"https://cdn.example.com/flag", "//cdn.example.com/flag", "/\\cdn.example.com/flag", "flag", "javascript:alert(1)",
+		`/"/><script>alert(1)</script>`, "/a'b", "/a b", "/a%2fb", "/assets/../x", "/assets/./x", "/a?x", "/a#x", "/a<b", "/", "//", "/x/", "/x//y", "/x/../y"} {
+		t.Setenv("FLAG_ASSETS_BASE", bad)
+		if err := ValidateAssetsBase(); err == nil {
+			t.Errorf("FLAG_ASSETS_BASE=%q accepted", bad)
+		}
+		out = RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+		mustContain(t, out, `"`+assetver.ContentFlag()+`/tokens/design-tokens.css"`, "fallback for "+bad)
+	}
+}
+
+// Defence in depth: even a FLAG_ASSETS_BASE that skipped validation cannot
+// break out of the attribute it is written into.
+func TestFlagHeadEscapesAnUnvalidatedBase(t *testing.T) {
+	payload := `/"/><script>alert(1)</script>`
+	if err := func() error { t.Setenv("FLAG_ASSETS_BASE", payload); return ValidateAssetsBase() }(); err == nil {
+		t.Fatal("the injection payload passed validation")
+	}
+	saved := assetsBase
+	assetsBase = func() string { return payload }
+	t.Cleanup(func() { assetsBase = saved })
+	out := RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+	if strings.Contains(out, "<script>alert(1)") || strings.Contains(out, `/"/>`) {
+		t.Fatalf("unescaped base reached the markup: %s", out)
+	}
+	mustContain(t, out, `href="/&#34;/&gt;&lt;script&gt;alert(1)&lt;/script&gt;/tokens/design-tokens.css"`, "escaped base")
+}
+
+// No accepted base can make an injected URL start with "//" (scheme-relative,
+// so another host): flagHead appends "/fonts/…" to it.
+func TestNoAcceptedBaseYieldsASchemeRelativeURL(t *testing.T) {
+	for _, base := range []string{"/assets/flag-copy", "/x", "/a/b.c_d~e-f", "/", "//", "/x/", "//x", "/x//"} {
+		t.Setenv("FLAG_ASSETS_BASE", base)
+		out := RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+		if strings.Contains(out, `href="//`) || strings.Contains(out, `src="//`) {
+			t.Errorf("FLAG_ASSETS_BASE=%q produced a scheme-relative URL", base)
+		}
+		if ok := ValidateAssetsBase() == nil; ok && strings.HasSuffix(base, "/") {
+			t.Errorf("FLAG_ASSETS_BASE=%q accepted", base)
+		}
 	}
 }

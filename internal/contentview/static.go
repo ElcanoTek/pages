@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	pages "github.com/ElcanoTek/pages"
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/shell"
 )
@@ -28,24 +29,39 @@ import (
 // pure noise.
 const AssetCSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; base-uri 'none'; form-action 'none'"
 
-// setAssetHeaders is the content host's /assets header hook.
+// assetHeaders is the content host's /assets header hook.
 //
 // Cache-Control is set EXPLICITLY: the floor's `no-store` would otherwise make
-// every dashboard load re-download the font files and the token sheet.
-// `max-age=0` is cacheable-but-revalidate — browsers keep the bytes and get a
-// 304 — which is what these stable, overwritten-in-place paths want. Not
-// `immutable`: re-vendoring Flag replaces them under the same URL, so
-// immutable would pin every client to whatever it first loaded.
-func setAssetHeaders(h http.Header) {
-	h.Set("Content-Security-Policy", AssetCSP)
-	h.Set("Cache-Control", "public, max-age=0")
+// every dashboard load re-download the font files and the token sheet. A URL
+// carrying the current asset version (internal/assetver: what our own chrome
+// and the themed-render tags link) is immutable for a year. Every other path —
+// the stable /assets/flag/... URLs that client pages hard-code, and an older
+// release's version — is `no-cache`, stored but revalidated on every use (an
+// ETag 304):
+// a new release replaces those bytes under the same URL, so immutable would
+// pin every client to whatever it first loaded.
+func assetHeaders(current bool) func(http.Header) {
+	return func(h http.Header) {
+		h.Set("Content-Security-Policy", AssetCSP)
+		if current {
+			h.Set("Cache-Control", assetver.Immutable)
+		} else {
+			h.Set("Cache-Control", assetver.Revalidate)
+		}
+	}
 }
 
-// setDefaultCache is express.static's own default: revalidating, unless the
-// zone already chose a Cache-Control.
-func setDefaultCache(h http.Header) {
-	if h.Get("Cache-Control") == "" {
-		h.Set("Cache-Control", "public, max-age=0")
+// shellCache is the dashboard's /shell-assets header hook: immutable for the
+// current asset version; otherwise express.static's own default, revalidating
+// unless the zone already chose a Cache-Control.
+func shellCache(current bool) func(http.Header) {
+	return func(h http.Header) {
+		switch {
+		case current:
+			h.Set("Cache-Control", assetver.Immutable)
+		case h.Get("Cache-Control") == "":
+			h.Set("Cache-Control", assetver.Revalidate)
+		}
 	}
 }
 
@@ -298,6 +314,13 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 			case ok && len(ranges) == 0:
 				// The Content-Range send attached is kept (RFC 9110 §15.5.17).
 				h.Set("Content-Range", "bytes */"+strconv.FormatInt(size, 10))
+				// setHeaders chose the cache policy for a successful asset
+				// response — for a current-version URL, immutable for a year.
+				// The forwarded error page must never be cached under that
+				// policy, so it is no-store and does not carry the asset's
+				// validator.
+				h.Set("Cache-Control", "no-store")
+				h.Del("ETag")
 				return true, &statusError{status: http.StatusRequestedRangeNotSatisfiable, msg: "range not satisfiable"}
 			case ok && len(ranges) == 1:
 				rg := ranges[0]
@@ -318,7 +341,9 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 // ShellAssets serves the dashboard host's /shell-assets (the trusted /view and
 // /admin UI's CSS/JS) and, behind it, /shell-assets/flag from the vendored
 // Flag tree — the same files the content host serves at /assets/flag, in the
-// other zone. Requests it does not serve go to next. Cache-Control is the
+// other zone. Each is also served under /shell-assets/_v/<version>/, the URLs
+// the shell links (internal/assetver): immutable when the version is current.
+// Requests it does not serve go to next. Otherwise Cache-Control is the
 // revalidating default unless the zone already set one; a forwarded 412/416
 // answers with the dashboard's branded request-error page.
 func ShellAssets(next http.Handler) http.Handler {
@@ -330,13 +355,18 @@ func ShellAssets(next http.Handler) http.Handler {
 		fsys   fs.FS
 	}{{"/shell-assets", shellFS}, {"/shell-assets/flag", flagFS}}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.EscapedPath()
+		p, current := r.URL.EscapedPath(), false
+		if rel, ok := mountRel(p, "/shell-assets"); ok {
+			if rest, versioned, cur := assetver.Strip(rel); versioned {
+				p, current = "/shell-assets"+rest, cur
+			}
+		}
 		for _, m := range mounts {
 			rel, ok := mountRel(p, m.prefix)
 			if !ok {
 				continue
 			}
-			handled, err := serveStatic(w, r, m.fsys, rel, setDefaultCache)
+			handled, err := serveStatic(w, r, m.fsys, rel, shellCache(current))
 			if !handled {
 				continue
 			}

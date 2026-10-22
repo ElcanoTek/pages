@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/ElcanoTek/pages/internal/assetver"
 )
 
 // The goldens in testdata/ were captured from lib/*shell.js and
@@ -70,11 +72,22 @@ func TestGoldens(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// The one deliberate departure from the JS output: asset URLs carry
+			// the asset version (internal/assetver), which changes with every
+			// asset edit. The goldens keep the unversioned paths;
+			// TestShellsReferenceEmbeddedAssets checks the version itself.
+			got := unversioned(got)
 			if got != string(want) {
 				t.Errorf("output differs from the JS golden\n got: %q\nwant: %q", got, want)
 			}
 		})
 	}
+}
+
+// unversioned maps the versioned asset bases back to the stable paths.
+func unversioned(html string) string {
+	html = strings.ReplaceAll(html, assetver.Shell()+"/", "/shell-assets/")
+	return strings.ReplaceAll(html, assetver.Content()+"/", "/assets/")
 }
 
 func TestEsc(t *testing.T) {
@@ -105,8 +118,8 @@ func TestNothingCallsPagesInternal(t *testing.T) {
 // dashboard-host half; the gate half lives with contentview).
 func TestOneChrome(t *testing.T) {
 	for _, tc := range []struct{ name, html, base string }{
-		{"404", NotFound(), "/shell-assets/flag"},
-		{"default base", Standalone(StandaloneOptions{Title: "t", Heading: "h"}), "/assets/flag"},
+		{"404", NotFound(), assetver.ShellFlag()},
+		{"default base", Standalone(StandaloneOptions{Title: "t", Heading: "h"}), assetver.ContentFlag()},
 	} {
 		if !strings.Contains(tc.html, `<link rel="icon" href="`+tc.base+`/logos/elcano-mark-favicon.svg"`) {
 			t.Errorf("%s has no favicon", tc.name)

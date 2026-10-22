@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 ElcanoTek, Inc.
-.PHONY: all build compile test test-race test-db test-db-stop lint fmt tidy vet ci clean help
+.PHONY: all build compile test test-race test-db test-db-stop lint stack-check flag-status fmt tidy vet ci clean help
 
 GOTOOLCHAIN ?= auto
 export GOTOOLCHAIN
@@ -25,7 +25,9 @@ help:
 	@echo "make test-race  the same, with -race"
 	@echo "make test-db    start a throwaway Postgres on :$(TEST_PG_PORT) for the database tests"
 	@echo "make lint       golangci-lint run"
-	@echo "make ci         vet + lint + test-race, as CI runs them"
+	@echo "make stack-check  the Elcano frontend standard: AGENTS.md block, flag.lock, no CDNs, npm"
+	@echo "make flag-status  is the vendored Flag behind a flag checkout? (FLAG_DIR, default ../flag)"
+	@echo "make ci         stack-check + vet + lint + test-race, as CI runs them"
 
 build: compile
 	go build -trimpath -ldflags '$(LDFLAGS)' -o '$(BIN)' ./cmd/pages
@@ -51,13 +53,20 @@ test-db-stop:
 lint:
 	golangci-lint run ./...
 
+# Offline: no flag checkout needed. CI runs it first.
+stack-check:
+	@bash scripts/stack-check.sh
+
+flag-status:
+	@bash scripts/flag-sync.sh status $(FLAG_DIR)
+
 fmt:
 	gofmt -w .
 
 tidy:
 	go mod tidy
 
-ci: vet lint test-race
+ci: stack-check vet lint test-race
 
 clean:
 	rm -f pages

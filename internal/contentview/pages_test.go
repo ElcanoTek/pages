@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
 )
@@ -165,7 +166,7 @@ func TestNothingClientFacingCallsThisInternal(t *testing.T) {
 
 func TestOneChromeOneFavicon(t *testing.T) {
 	gate := GatePage(GatePageOptions{Slug: "acme/q2", ShowForm: true})
-	base := "/assets/flag"
+	base := assetver.ContentFlag() // versioned, so cached immutable
 	for _, want := range []string{
 		`<link rel="icon" href="` + base + `/logos/elcano-mark-favicon.svg"`,
 		base + "/tokens/design-tokens.css",

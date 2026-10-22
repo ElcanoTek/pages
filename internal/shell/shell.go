@@ -18,13 +18,24 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ElcanoTek/pages/internal/assetver"
 )
 
-const (
-	sprite  = "/shell-assets/flag/icons/core-icons.svg"
-	mark    = "/shell-assets/flag/logos/elcano-mark-primary.svg"
-	favicon = "/shell-assets/flag/logos/elcano-mark-favicon.svg"
-)
+// The shell links its assets under the versioned /shell-assets/_v/<version>
+// base (internal/assetver), so they are cached immutable and a release can
+// never serve a stale copy.
+func sprite() string  { return assetver.ShellFlag() + "/icons/core-icons.svg" }
+func mark() string    { return assetver.ShellFlag() + "/logos/elcano-mark-primary.svg" }
+func favicon() string { return assetver.ShellFlag() + "/logos/elcano-mark-favicon.svg" }
+
+// shellAsset versions a /shell-assets/... path; any other src is unchanged.
+func shellAsset(src string) string {
+	if rest, ok := strings.CutPrefix(src, "/shell-assets/"); ok {
+		return assetver.Shell() + "/" + rest
+	}
+	return src
+}
 
 // Esc escapes the five HTML-significant characters (& < > " ') for text and
 // double- or single-quoted attribute values, byte for byte as the
@@ -132,18 +143,18 @@ func writeJSONString(sb *strings.Builder, s string) {
 func Head(title string, bootstrap Bootstrap, scripts []string) string {
 	tags := make([]string, len(scripts))
 	for i, src := range scripts {
-		tags[i] = `<script src="` + Esc(src) + `" defer></script>`
+		tags[i] = `<script src="` + Esc(shellAsset(src)) + `" defer></script>`
 	}
 	return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="` + favicon + `" type="image/svg+xml">
+<link rel="icon" href="` + favicon() + `" type="image/svg+xml">
 <title>` + Esc(title) + `</title>
-<link rel="stylesheet" href="/shell-assets/flag/fonts/fonts.css">
-<link rel="stylesheet" href="/shell-assets/flag/tokens/design-tokens.css">
-<link rel="stylesheet" href="/shell-assets/shell.css">
-<script src="/shell-assets/flag/theme/theme-controller.js"></script>
+<link rel="stylesheet" href="` + assetver.ShellFlag() + `/fonts/fonts.css">
+<link rel="stylesheet" href="` + assetver.ShellFlag() + `/tokens/design-tokens.css">
+<link rel="stylesheet" href="` + assetver.Shell() + `/shell.css">
+<script src="` + assetver.ShellFlag() + `/theme/theme-controller.js"></script>
 <script type="application/json" id="pages-bootstrap">` + jsonIsland(bootstrap) + `</script>
-<script src="/shell-assets/primitives.js" defer></script>
+<script src="` + assetver.Shell() + `/primitives.js" defer></script>
 ` + strings.Join(tags, "\n")
 }
 
@@ -153,7 +164,7 @@ func Icon(name, className string) string {
 	if className == "" {
 		className = "icon-inline"
 	}
-	return `<svg class="` + Esc(className) + `" aria-hidden="true"><use href="` + sprite + `#` + Esc(name) + `"></use></svg>`
+	return `<svg class="` + Esc(className) + `" aria-hidden="true"><use href="` + sprite() + `#` + Esc(name) + `"></use></svg>`
 }
 
 // Header is the Flag app header: brand, the signed-in email, the theme toggle
@@ -162,7 +173,7 @@ func Header(email string) string {
 	return `<header class="page-header">
   <div class="ds-app-header shell-header">
     <a class="ds-app-header__brand brand-link" href="/admin" aria-label="Pages home">
-      <img class="ds-app-header__mark" src="` + mark + `" alt="">
+      <img class="ds-app-header__mark" src="` + mark() + `" alt="">
       <span class="ds-app-header__text">
         <span class="ds-app-header__title">Pages</span>
       </span>

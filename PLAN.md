@@ -486,7 +486,7 @@ before Phase 1.**
   **Neither half shipped.** `public/assets/` contains only the vendored Flag
   tokens, fonts, icons and theme controller — no chart library — and the paths
   that do exist are stable (`/assets/flag/tokens/design-tokens.css`), overwritten
-  in place by `scripts/sync-flag.sh`, so they are served *revalidating* on
+  in place by `scripts/flag-sync.sh sync` (the planned `sync-flag.sh`), so they are served *revalidating* on
   purpose: `immutable` would pin every client to the tokens it first loaded and a
   Flag sync would never reach them. (`docs/API.md`'s authoring guidance still
   tells agents to load Chart.js/ECharts from `/assets/` and is wrong; correcting
@@ -516,7 +516,9 @@ asset ≤ ~10–25 MB), rate limits (§9).
 ## 8. Theming (Flag default + per-client) & library policy
 
 **Default look = Flag.** We vendor a pinned copy of `/root/flag/design-system` into
-`pages/vendor/flag/` (refreshed by `scripts/sync-flag.sh`) and serve it from the
+`pages/vendor/flag/` (refreshed by `scripts/sync-flag.sh`; as shipped:
+`public/assets/flag/`, pinned by `flag.lock` and refreshed by
+`scripts/flag-sync.sh sync` — see AGENTS.md "Vendored Flag") and serve it from the
 **content host** at `/assets/flag/`: `tokens/design-tokens.css`,
 `fonts/fonts.css` + the Nebula Sans and Hack font files, `icons/core-icons.svg`,
 `theme/theme-controller.js`.

@@ -83,12 +83,15 @@ and never under `PAGES_ENV=production`. It must never be set in production.
 
 ## Tests and checks
 
-CI (`.github/workflows/ci.yml`) runs three jobs and a pull request needs all of
+CI (`.github/workflows/ci.yml`) runs four jobs and a pull request needs all of
 them green, through the single `CI gate` check. CodeQL
 (`.github/workflows/codeql.yml`) scans the Go and the JavaScript on every push
 and PR and weekly; a new alert on your branch is yours to look at.
 
 ```bash
+# Frontend standard job (offline; see the standard block in AGENTS.md)
+make stack-check
+
 # Go job (against a PostgreSQL 16 service, PAGES_TEST_REQUIRE_DB=1)
 make build
 go vet ./...
@@ -103,11 +106,19 @@ node --test test/frontend.test.js
 npx playwright test
 
 # Shell job
-for f in install.sh scripts/*.sh scripts/lib/*.sh; do bash -n "$f"; done
-shellcheck -S warning install.sh scripts/*.sh scripts/lib/*.sh
+for f in install.sh scripts/*.sh scripts/lib/*.sh .claude/hooks/*.sh; do bash -n "$f"; done
+shellcheck -S warning install.sh scripts/*.sh scripts/lib/*.sh .claude/hooks/*.sh
 ```
 
-Locally, `make ci` is vet + lint + `test-race`. What each one is for:
+Locally, `make ci` is stack-check + vet + lint + `test-race`. What each one is for:
+
+- **`make stack-check`** — `scripts/stack-check.sh`, shared by every Elcano
+  repo: the frontend standard block in AGENTS.md is intact, the vendored Flag
+  files match `flag.lock` (`scripts/flag-sync.sh check`), no served file under
+  the `web=` directories of `stack.conf` (`public/`, `templates/` and the Go
+  packages that write HTML) loads a script, stylesheet or font from another
+  host, and npm holds test tooling only. A weekly `Flag drift` workflow
+  separately reports when Flag upstream has moved past `flag.lock`.
 
 - **`go test ./...`** — the whole server: unit tests beside each package, the
   HTTP surfaces driven end to end through `httptest`, and the database suites
@@ -201,9 +212,9 @@ these at length. Read it before touching the security surface.
 | `embed.go` | Embeds `public/`, `migrations/`, `templates/` and `docs/` into the binary |
 | `migrations/` | Ordered SQL. Append a new file; never edit an applied one |
 | `public/shell-assets/` | First-party admin UI JavaScript and CSS (plain browser JS, no build) |
-| `public/assets/flag/` | The Flag design system — **vendored, do not hand-edit** |
+| `public/assets/flag/` | The Flag design system — **vendored and pinned by `flag.lock`; update with `scripts/flag-sync.sh sync`, never by hand**. `motion/` is the first-party Flag Motion kit, not Flag |
 | `templates/` | Shipped page templates, registered by `pages template sync` |
-| `scripts/` | The pre-binary install bridge (`bootstrap.sh`), the test cluster, the licence-date helper |
+| `scripts/` | The pre-binary install bridge (`bootstrap.sh`), the test cluster, the licence-date helper, and the shared `flag-sync.sh` / `stack-check.sh` |
 | `deploy/` | systemd unit, Caddy site blocks, the login banner |
 | `test/` | Front-end unit tests, the Playwright browser suite, the MCP wire golden |
 | `docs/` | The reference documentation index is in the README |
@@ -218,7 +229,12 @@ these at length. Read it before touching the security surface.
   ```
   Use the file's own comment syntax elsewhere (`#` in shell and SQL's `--`),
   keep a shebang on line 1 and insert after it. New files need one. Do not add
-  one to anything under `public/assets/flag/`; generated Go files (such as
+  one to the vendored Flag files under `public/assets/flag/` (the first-party
+  `motion/` kit there has one), to `.github/workflows/flag-drift.yml` (shared
+  verbatim across Elcano repos) or to the generated `flag.lock`.
+  `scripts/flag-sync.sh` and `scripts/stack-check.sh` are vendored MIT copies
+  of Flag's `tools/product/`, kept byte-identical, with their own MIT header —
+  never edit it; generated Go files (such as
   `internal/preflight/shadowed_names.go`) get theirs from their generator.
 - Go code is `gofmt`ed and passes `go vet` and `golangci-lint`. Errors are
   returned, not panicked; `ctx context.Context` comes first; exported names

@@ -3,6 +3,8 @@
 
 package shell
 
+import "github.com/ElcanoTek/pages/internal/assetver"
+
 // Admin is the per-page review shell (/admin/<slug>). contentOrigin (for
 // example https://pages-content.example.com) lets admin.js show the live
 // client URL in the password / client-access card.
@@ -144,7 +146,7 @@ func NotFound() string {
 		Kicker:     "Not found",
 		Heading:    "Page not found",
 		BodyHTML:   "<p>This address is not a Pages route.</p>",
-		AssetsBase: "/shell-assets/flag",
+		AssetsBase: assetver.ShellFlag(),
 		CTA:        &CTA{Href: "/admin", Label: "Back to Pages"},
 	})
 }
@@ -161,7 +163,7 @@ func RequestError(status int) string {
 		Kicker:     "Request failed",
 		Heading:    heading,
 		BodyHTML:   body,
-		AssetsBase: "/shell-assets/flag",
+		AssetsBase: assetver.ShellFlag(),
 		CTA:        &CTA{Href: "/admin", Label: "Back to Pages"},
 	})
 }

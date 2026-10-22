@@ -16,6 +16,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  stack:
+    name: Frontend standard (stack-check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Offline: the AGENTS.md standard block, flag.lock against the vendored
+      # Flag files, no remote script/style/font hosts in served files, and npm
+      # holding test tooling only. No flag checkout needed.
+      - name: Stack check
+        run: make stack-check
+
   go:
     name: Go (build, vet, lint, test)
     runs-on: ubuntu-latest
@@ -131,7 +145,7 @@ jobs:
       - name: Syntax and shellcheck
         run: |
           shopt -s nullglob
-          files=(install.sh scripts/*.sh scripts/lib/*.sh)
+          files=(install.sh scripts/*.sh scripts/lib/*.sh .claude/hooks/*.sh)
           for f in "${files[@]}"; do bash -n "$f"; done
           shellcheck -S warning "${files[@]}"
 
@@ -140,9 +154,9 @@ jobs:
   gate:
     name: CI gate
     if: always()
-    needs: [go, browser, shell]
+    needs: [stack, go, browser, shell]
     runs-on: ubuntu-latest
     steps:
       - name: Every job passed
         run: |
-          [[ "${{ needs.go.result }}" == success && "${{ needs.browser.result }}" == success && "${{ needs.shell.result }}" == success ]]
+          [[ "${{ needs.stack.result }}" == success && "${{ needs.go.result }}" == success && "${{ needs.browser.result }}" == success && "${{ needs.shell.result }}" == success ]]

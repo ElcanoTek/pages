@@ -127,3 +127,19 @@ func TestEscapeHTMLMatchesEscapeHTMLPackage(t *testing.T) {
 		t.Fatalf("escapeHTML = %q", got)
 	}
 }
+
+// Every HTML response is no-store, whatever the caller set before: the
+// dashboard shells carry the signed-in email and a CSRF token, and an error
+// page must not inherit an asset's immutable policy.
+func TestSendHTMLIsNoStore(t *testing.T) {
+	for _, preset := range []string{"", "public, max-age=31536000, immutable"} {
+		w := httptest.NewRecorder()
+		if preset != "" {
+			w.Header().Set("Cache-Control", preset)
+		}
+		SendHTML(w, httptest.NewRequest("GET", "/admin", nil), 200, "<p>ops@example.com</p>")
+		if got := w.Header().Get("Cache-Control"); got != "no-store" || w.Header().Get("Content-Type") != "text/html; charset=utf-8" {
+			t.Errorf("preset %q: Cache-Control %q", preset, got)
+		}
+	}
+}

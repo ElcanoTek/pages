@@ -18,6 +18,7 @@ import (
 
 	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/apierror"
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/db"
@@ -257,7 +258,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Vendored Flag tokens/fonts/icons, served from the content host so /raw
 	// pages can reference them CSP-clean. See serveAssets for the headers.
 	if rel, ok := mountRel(path, "/assets"); ok && h.assets != nil {
-		handled, err := serveStatic(w, r, h.assets, rel, setAssetHeaders)
+		rel, _, current := assetver.Strip(rel)
+		handled, err := serveStatic(w, r, h.assets, rel, assetHeaders(current))
 		if err != nil {
 			h.fail(tw, r, err)
 			return

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/shell"
 	"github.com/ElcanoTek/pages/internal/tokens"
@@ -130,6 +131,9 @@ func TestShells(t *testing.T) {
 	e.publish("adm", pageHTML)
 	admin := opt{cookie: e.adminCk}
 
+	// The shells link their assets under the current, immutable-cached
+	// version (internal/assetver).
+	sa := regexp.QuoteMeta(assetver.Shell())
 	sh := e.get("/admin/adm", admin)
 	if sh.status != 200 || sh.header.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("/admin/adm = %d", sh.status)
@@ -137,8 +141,8 @@ func TestShells(t *testing.T) {
 	for _, re := range []string{
 		`id="pages-bootstrap"`, `id="page-switcher"[^>]+aria-busy="true"`,
 		`id="page-switcher-select"[^>]+aria-describedby="page-switcher-count"[^>]+disabled`,
-		`/shell-assets/page-switcher\.js`, `/shell-assets/primitives\.js`, `/shell-assets/admin\.js`,
-		`shell-assets/flag/tokens/design-tokens\.css`, `shell-assets/flag/logos/elcano-mark-primary\.svg`,
+		sa + `/page-switcher\.js`, sa + `/primitives\.js`, sa + `/admin\.js`,
+		sa + `/flag/tokens/design-tokens\.css`, sa + `/flag/logos/elcano-mark-primary\.svg`,
 	} {
 		if !regexp.MustCompile(re).MatchString(sh.body) {
 			t.Errorf("admin shell lacks %s", re)
@@ -149,7 +153,7 @@ func TestShells(t *testing.T) {
 	}
 	for _, p := range []string{"/admin", "/admin/welcome"} {
 		l := e.get(p, admin)
-		if l.status != 200 || !strings.Contains(l.body, "/shell-assets/welcome.js") || !regexp.MustCompile(`"csrf":"[^"]+"`).MatchString(l.body) {
+		if l.status != 200 || !strings.Contains(l.body, assetver.Shell()+"/welcome.js") || !regexp.MustCompile(`"csrf":"[^"]+"`).MatchString(l.body) {
 			t.Errorf("%s = %d (welcome shell)", p, l.status)
 		}
 	}
@@ -164,11 +168,11 @@ func TestShells(t *testing.T) {
 		t.Errorf("admin.js = %d", a.status)
 	}
 	lib := e.get("/admin/templates", admin)
-	if lib.status != 200 || !strings.Contains(lib.body, "/shell-assets/templates.js") || !strings.Contains(lib.body, `"csrf":"`) {
+	if lib.status != 200 || !strings.Contains(lib.body, assetver.Shell()+"/templates.js") || !strings.Contains(lib.body, `"csrf":"`) {
 		t.Errorf("/admin/templates = %d", lib.status)
 	}
 	por := e.get("/admin/portals", admin)
-	if por.status != 200 || !strings.Contains(por.body, "/shell-assets/portals.js") ||
+	if por.status != 200 || !strings.Contains(por.body, assetver.Shell()+"/portals.js") ||
 		!regexp.MustCompile(`context-tab[^>]*href="/admin/portals"[^>]*aria-current="page"`).MatchString(por.body) {
 		t.Errorf("/admin/portals = %d", por.status)
 	}
@@ -462,6 +466,40 @@ func TestInvalidTrustProxyFailsClosed(t *testing.T) {
 	}
 }
 
+// Every dashboard HTML route is no-store: the shells carry the signed-in
+// email and a CSRF token, so no browser or proxy may keep a copy. Assets keep
+// their own policy (the versioned shell CSS stays immutable).
+func TestDashboardHTMLIsNoStore(t *testing.T) {
+	e := setup(t, nil)
+	e.publish("adm", pageHTML)
+	admin := opt{cookie: e.adminCk}
+	for _, c := range []struct {
+		path   string
+		o      opt
+		status int
+	}{
+		{"/admin", admin, 200},
+		{"/admin/welcome", admin, 200},
+		{"/admin/templates", admin, 200},
+		{"/admin/portals", admin, 200},
+		{"/admin/adm", admin, 200},
+		{"/admin/not/a/page", admin, 200},
+		{"/no-such-dashboard-route", opt{}, 404},
+		{"/no-such-dashboard-route", admin, 404},
+	} {
+		r := e.get(c.path, c.o)
+		if r.status != c.status || !strings.HasPrefix(r.header.Get("Content-Type"), "text/html") {
+			t.Errorf("%s = %d %s", c.path, r.status, r.header.Get("Content-Type"))
+		}
+		if got := r.header.Get("Cache-Control"); got != "no-store" {
+			t.Errorf("%s: Cache-Control %q, want no-store", c.path, got)
+		}
+	}
+	if css := e.get(assetver.Shell()+"/shell.css", opt{}); css.status != 200 || css.header.Get("Cache-Control") != assetver.Immutable {
+		t.Errorf("versioned shell.css = %d %q", css.status, css.header.Get("Cache-Control"))
+	}
+}
+
 func TestValidateFailsClosed(t *testing.T) {
 	pub, _, _ := ed25519GenerateKey()
 	for _, c := range []struct {
@@ -475,6 +513,8 @@ func TestValidateFailsClosed(t *testing.T) {
 		{"max html", map[string]string{"MAX_HTML_BYTES": "lots"}, "MAX_HTML_BYTES"},
 		{"central", map[string]string{"PAGES_AUTH_MODE": "central"}, "AUTH_"},
 		{"mode", map[string]string{"PAGES_AUTH_MODE": "bogus"}, "PAGES_AUTH_MODE"},
+		{"cross-origin flag base", map[string]string{"FLAG_ASSETS_BASE": "https://assets.example.com/flag"}, "FLAG_ASSETS_BASE"},
+		{"host-relative flag base", map[string]string{"FLAG_ASSETS_BASE": "//assets.example.com/flag"}, "FLAG_ASSETS_BASE"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			baseEnv(t, pub)
@@ -489,6 +529,10 @@ func TestValidateFailsClosed(t *testing.T) {
 	baseEnv(t, pub)
 	if err := Validate(); err != nil {
 		t.Fatalf("valid configuration refused: %v", err)
+	}
+	t.Setenv("FLAG_ASSETS_BASE", "/assets/flag")
+	if err := Validate(); err != nil {
+		t.Fatalf("a same-origin FLAG_ASSETS_BASE refused: %v", err)
 	}
 }
 

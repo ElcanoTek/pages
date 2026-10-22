@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/ElcanoTek/pages/internal/assetver"
 )
 
 func do(t *testing.T, h http.Handler, method, path, contentType, body string) *httptest.ResponseRecorder {
@@ -119,5 +121,22 @@ func TestDeckWithoutBlobDropsOnlyTheGrant(t *testing.T) {
 	edit := do(t, app, "GET", "/bento/edit", "", "").Header().Get("Content-Security-Policy")
 	if !strings.Contains(edit, "connect-src http://127.0.0.1:3210") {
 		t.Fatalf("edit CSP %q", edit)
+	}
+}
+
+// The fixture serves the content host's versioned asset URLs the way the
+// server does: immutable when the version is current, revalidating otherwise.
+func TestVersionedAssets(t *testing.T) {
+	app := New(3210)
+	for _, c := range []struct{ path, cache string }{
+		{assetver.ContentFlag() + "/tokens/design-tokens.css", assetver.Immutable},
+		{"/assets/_v/000000000000/flag/tokens/design-tokens.css", assetver.Revalidate},
+		{"/assets/flag/tokens/design-tokens.css", assetver.Revalidate},
+		{assetver.ShellFlag() + "/tokens/design-tokens.css", assetver.Immutable},
+	} {
+		rec := do(t, app, "GET", c.path, "", "")
+		if rec.Code != 200 || rec.Header().Get("Cache-Control") != c.cache || !strings.Contains(rec.Body.String(), "--color") {
+			t.Errorf("%s = %d %q", c.path, rec.Code, rec.Header().Get("Cache-Control"))
+		}
 	}
 }
