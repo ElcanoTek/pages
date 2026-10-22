@@ -115,7 +115,8 @@ Locally, `make ci` is stack-check + vet + lint + `test-race`. What each one is f
 - **`make stack-check`** — `scripts/stack-check.sh`, shared by every Elcano
   repo: the frontend standard block in AGENTS.md is intact, the vendored Flag
   files match `flag.lock` (`scripts/flag-sync.sh check`), no served file under
-  `public/` or `templates/` loads a script, stylesheet or font from another
+  the `web=` directories of `stack.conf` (`public/`, `templates/` and the Go
+  packages that write HTML) loads a script, stylesheet or font from another
   host, and npm holds test tooling only. A weekly `Flag drift` workflow
   separately reports when Flag upstream has moved past `flag.lock`.
 
@@ -231,7 +232,7 @@ these at length. Read it before touching the security surface.
   one to the vendored Flag files under `public/assets/flag/` (the first-party
   `motion/` kit there has one), or to the files shared verbatim across Elcano
   repos (`scripts/flag-sync.sh`, `scripts/stack-check.sh`,
-  `.github/workflows/flag-drift.yml`); generated Go files (such as
+  `.github/workflows/flag-drift.yml`) or to the generated `flag.lock`; generated Go files (such as
   `internal/preflight/shadowed_names.go`) get theirs from their generator.
 - Go code is `gofmt`ed and passes `go vet` and `golangci-lint`. Errors are
   returned, not panicked; `ctx context.Context` comes first; exported names

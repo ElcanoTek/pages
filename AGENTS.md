@@ -56,9 +56,15 @@ multi-step builders).
 
 ### How Pages meets it
 
-Pages is **Tier A** (`stack.conf`: `tier=A`, `web=public templates`, `npm=.`,
-`backend=go`). There is no frontend build step:
+Pages is **Tier A** (`stack.conf`: `tier=A`, `npm=.`, `backend=go`). There is
+no frontend build step:
 
+- `web=` lists everything that serves markup, CSS or JS, so the no-CDN scan
+  covers it: `public/`, `templates/`, and the Go packages that write HTML
+  (`internal/shell` for the admin shell and gate pages, `internal/render` for
+  the tags injected into themed pages, `internal/contentview` and
+  `internal/httpx` for the content host's own documents and redirect bodies).
+  A new Go package that emits HTML joins that list.
 - The admin shell's HTML comes from Go (`internal/shell`); its CSS and plain
   browser JS are `public/shell-assets/*`, edited directly and embedded by
   `embed.go`. `node --test test/frontend.test.js` covers their pure halves.
@@ -73,9 +79,10 @@ Pages is **Tier A** (`stack.conf`: `tier=A`, `web=public templates`, `npm=.`,
 - npm (`package.json`) holds devDependencies only: Playwright and axe.
 - Components (buttons, fields, toasts, dialogs) are product CSS in
   `public/shell-assets/shell.css` that reads Flag tokens and follows Flag's
-  `COMPONENTS.md`; Flag has no component stylesheet to vendor yet. When it
-  ships one, vendor it with `scripts/flag-sync.sh add` and move the matching
-  shell primitives onto its classes rather than restyling them here.
+  `COMPONENTS.md`. They predate Flag's `components/components.css`, which is
+  not vendored yet: when a shell primitive is next substantially changed,
+  vendor that sheet with `scripts/flag-sync.sh add` and move the primitive onto
+  its classes rather than restyling it here.
 
 ## Run and test
 
@@ -147,7 +154,8 @@ database proves little. Run `make test-db` first (or point
   licence headers; the first-party `motion/` kit there does carry one), to the
   files shared verbatim across Elcano repos (`scripts/flag-sync.sh`,
   `scripts/stack-check.sh`, `.github/workflows/flag-drift.yml` and the
-  standard block above), or to `deploy/motd` (the login banner, installed verbatim
+  standard block above), to `flag.lock` (generated: `flag-sync.sh` rewrites
+  it whole, header included), or to `deploy/motd` (the login banner, installed verbatim
   as `/etc/motd`, so a header would print at every ssh login). Generated Go
   files such as `internal/preflight/shadowed_names.go` get theirs from the
   generator; regenerate, do not hand-edit.
@@ -184,8 +192,11 @@ under `internal/ops`. The full doc index is in the [README](README.md).
 Flag (`ElcanoTek/flag`, MIT) is the design system. `flag.lock` lists every
 vendored file, the flag commit it came from and its sha256:
 `public/assets/flag/{fonts,icons,theme,tokens}/` are locked whole (any
-unlocked file in them fails the check) and `logos/` file by file (only the two
-Elcano marks Pages uses). To update, with a flag checkout beside this one:
+unlocked file in them fails the check), `logos/` file by file (only the two
+Elcano marks Pages uses), and Flag's MIT licence text travels with the copies
+as `public/assets/flag/FLAG-LICENSE` (NOTICE points at it). `flag-sync.sh`
+refuses a Flag source with uncommitted changes, so the lock's commit always
+reproduces its hashes. To update, with a flag checkout beside this one:
 
 ```bash
 scripts/flag-sync.sh status ../flag   # what differs (make flag-status FLAG_DIR=../flag)
