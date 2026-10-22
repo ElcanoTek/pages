@@ -26,6 +26,10 @@ test("defaults to newest pending version, auto-previews it, and shows only valid
   await expect(actions.getByRole("button", { name: "Approve & publish", exact: true })).toBeVisible();
   await expect(actions.getByRole("button", { name: "Reject" })).toBeVisible();
   await expect(actions.getByRole("button", { name: "Publish", exact: true })).toHaveCount(0);
+  // A page that is not a Bento deck has no Bento button, and no stray "null" text
+  // where that button would have been.
+  await expect(actions.getByRole("button", { name: /Edit in Bento/ })).toHaveCount(0);
+  await expect(actions).not.toContainText("null");
   await expect(page.getByText("Refresh the revenue totals", { exact: false })).toBeVisible();
   await expectNoSeriousAxeViolations(page, "detail default review");
 });

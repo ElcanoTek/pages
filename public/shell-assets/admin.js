@@ -437,14 +437,16 @@
       // save channel back to Pages: every Save there lands as a new draft on
       // this page, attributed to whoever opened it, to be published from here.
       // Offered only when the page's newest version is a deck (the server says).
-      data.deck
-        ? el("button", {
+      // Spread, not `: null`: DOM append() turns a null argument into the text
+      // "null", which is what every non-deck page showed beside Edit source.
+      ...(data.deck
+        ? [el("button", {
             id: "edit-in-bento",
             class: "btn btn-sm",
             type: "button",
             onclick: (event) => openBentoEditor(event.currentTarget),
-          }, "Edit in Bento", el("span", { "aria-hidden": "true" }, "\u2197"))
-        : null
+          }, "Edit in Bento", el("span", { "aria-hidden": "true" }, "\u2197"))]
+        : [])
     );
     if (version.status === "pending") {
       actions.append(
