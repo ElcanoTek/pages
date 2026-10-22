@@ -83,6 +83,11 @@ jobs:
           echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - name: Test (race)
         run: go test -race -count=1 ./...
+      - name: Latency backstops (no race detector)
+        # Tolerant wall-clock bounds for CPU-only regressions the counted
+        # allocation checks cannot see. They skip under -race, which slows them
+        # by an order of magnitude, so they run here without it.
+        run: go test -count=1 -run 'LatencyBackstop' ./...
       - name: Dependency CVE scan
         # v1.1.4's x/tools cannot build SSA for the Go 1.27 standard library.
         # GOTOOLCHAIN pins the module's toolchain: `go run pkg@version` would

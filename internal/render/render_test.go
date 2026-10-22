@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
@@ -316,7 +317,8 @@ func TestStripInjectedNav(t *testing.T) {
 // A themed render of a large document costs linear work: doubling the
 // document at most about doubles the allocations and bytes the render makes.
 // Counted, not timed: a 100 ms wall-clock bound here measured the machine as
-// much as the code. BenchmarkRenderLargeDocument tracks the absolute speed.
+// much as the code. TestRenderLatencyBackstop keeps a tolerant timed bound for
+// CPU-only regressions; BenchmarkRenderLargeDocument tracks the absolute speed.
 func TestLargeDocumentRenderIsLinear(t *testing.T) {
 	doc := func(paragraphs int) string {
 		return "<!doctype html><html><head><title>Big</title></head><body>" + strings.Repeat("<p>x</p>", paragraphs) + "</body></html>"
@@ -337,6 +339,24 @@ func TestLargeDocumentRenderIsLinear(t *testing.T) {
 	t.Logf("allocations %d → %d, bytes %d → %d", m1, m2, b1, b2)
 	if float64(m2) > 2.5*float64(m1)+64 || float64(b2) > 2.5*float64(b1)+64<<10 {
 		t.Errorf("doubling the document multiplied the render's cost by %.2f allocations / %.2f bytes, want at most 2.5 (linear)", float64(m2)/float64(m1), float64(b2)/float64(b1))
+	}
+}
+
+// TestRenderLatencyBackstop: the 2 MiB themed render finishes within 1 s, ten
+// times the old 100 ms bound. It only exists to catch a CPU-only blowup the
+// allocation counts cannot see, so it is skipped under -race; CI runs it in a
+// separate non-race step.
+func TestRenderLatencyBackstop(t *testing.T) {
+	if raceEnabled {
+		t.Skip("wall-clock backstop: run without -race")
+	}
+	big := "<!doctype html><html><head><title>Big</title></head><body>" + strings.Repeat("<p>x</p>", 280_000) + "</body></html>"
+	start := time.Now()
+	RenderVersion(Renderable{HTML: big, RenderMode: "themed", Nav: navFixture})
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("2 MiB themed render took %v, over the 1 s backstop", d)
+	} else {
+		t.Logf("2 MiB themed render: %v", d)
 	}
 }
 
