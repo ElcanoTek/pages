@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 ElcanoTek, Inc. (canonical copy: ElcanoTek/flag tools/product/)
+#
 # stack-check.sh — enforce the Elcano frontend standard (see the
 # "Elcano frontend standard" block in AGENTS.md). Shared verbatim by every
 # Elcano repo; change it in all of them at once (bump STACK_CHECK_VERSION).
@@ -14,13 +17,15 @@
 #   1. AGENTS.md carries the shared standard block, byte-identical (hash pinned below).
 #   2. flag.lock is honest (scripts/flag-sync.sh check).
 #   3. No served file loads a script, stylesheet, font, image, frame or module from another host.
-#   4. npm trees: no server frameworks (next, express, ...); Tier A has no runtime deps.
+#   4. npm trees: no server frameworks (next, express, ...) unless backend= is a
+#      JavaScript runtime; Tier A has no runtime deps; every Tier B runtime dep
+#      beyond react/react-dom is named in AGENTS.md with its reason.
 set -euo pipefail
 set -f # stack.conf values are words, never globs
 unset CDPATH
 export LC_ALL=C
 
-STACK_CHECK_VERSION=20
+STACK_CHECK_VERSION=29
 STANDARD_SHA=5b3a1c9dab098277570a37d58366b0802d4378370f9717d48743c386b194bdbb
 ROOT="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 CONF="$ROOT/stack.conf"
@@ -34,6 +39,11 @@ sha() {
 conf() { sed -n "s/^$1=//p" "$CONF" | sed 's/[[:space:]]*#.*$//' | tail -1; }
 # outside_block: AGENTS.md without the shared standard block.
 outside_block() { awk '/^<!-- BEGIN:elcano-frontend-standard/{f=1} !f{print} /^<!-- END:elcano-frontend-standard/{f=0}' "$ROOT/AGENTS.md" 2>/dev/null; }
+# agents_names WORD: AGENTS.md (outside the shared block) names WORD as a whole
+# word, so "ws" is not satisfied by "rows". It reads a captured copy: under
+# pipefail, `outside_block | grep -q` fails whenever grep exits before awk
+# finishes writing (SIGPIPE), which made the answer depend on timing.
+agents_names() { grep -wF -- "$1" <<< "$OUTSIDE" >/dev/null; }
 # repo_dir NAME: a stack.conf directory must be a plain path inside the repo.
 repo_dir() {
   case "$1" in /*|*\\*) return 1 ;; esac
@@ -44,6 +54,7 @@ repo_dir() {
 [ -f "$CONF" ] || { echo "stack-check: missing stack.conf" >&2; exit 2; }
 command -v perl >/dev/null 2>&1 || { echo "stack-check: perl is required (core JSON::PP)" >&2; exit 2; }
 tier="$(conf tier)"; backend="$(conf backend)"
+OUTSIDE="$(outside_block || true)"
 read -r -a web <<< "$(conf web)" || true
 read -r -a npm <<< "$(conf npm)" || true
 read -r -a dev_allow <<< "$(conf dev_allow)" || true
@@ -61,15 +72,14 @@ else
   [ "$got" = "$STANDARD_SHA" ] || err "AGENTS.md: the elcano-frontend-standard block is missing or edited (sha $got). It is shared verbatim across repos; change it everywhere and bump STANDARD_SHA in every scripts/stack-check.sh."
   # A non-Go backend needs its own AGENTS.md heading naming the exception and
   # the backend (the shared block mentions exceptions, so it does not count).
-  if [ -n "$backend" ] && [ "$backend" != go ] && ! outside_block | grep -iE '^#{1,6} .*exception' | grep -qiF -- "$backend"; then
+  if [ -n "$backend" ] && [ "$backend" != go ] && ! { grep -iE '^#{1,6} .*exception' <<< "$OUTSIDE" || true; } | grep -iF -- "$backend" >/dev/null; then
     err "stack.conf: backend=$backend needs an AGENTS.md heading like '## Exception: $backend backend' explaining why"
   fi
 fi
 
-# dev_allow= names are exceptions to Tier A: each must be explained in AGENTS.md
-# (as a whole word, so "ws" is not satisfied by "rows").
+# dev_allow= names are exceptions to Tier A: each must be explained in AGENTS.md.
 for pkg in "${dev_allow[@]+"${dev_allow[@]}"}"; do
-  if ! outside_block | grep -qwF -- "$pkg"; then
+  if ! agents_names "$pkg"; then
     err "stack.conf: dev_allow=$pkg must be explained in AGENTS.md (name the package and why it is needed)"
   fi
 done
@@ -88,7 +98,9 @@ fi
 # gitignored are skipped but anything committed — in dist/, test/, wherever —
 # is scanned. Without git, every file under the dir except node_modules/ and
 # dist/. Only Go's own test-only paths are skipped (*_test.go, testdata/): the
-# go tool never builds them into the binary. Binary assets (fonts, images,
+# go tool never builds them into the binary, and test fixtures (sanitizer
+# goldens, for one) must be free to hold remote URLs. Don't //go:embed a
+# directory that contains testdata/; embed the served subdirectory instead. Binary assets (fonts, images,
 # archives) are skipped by extension. A symlink or submodule in a web dir fails
 # the check: its target would be served unscanned.
 #
@@ -170,12 +182,16 @@ sub tags { my ($t, $html) = @_;
     my $p = pos($t);
     if ($t =~ /\G([a-zA-Z][^\s\/>]*)((?:$attr)*+)/gc) {
       my ($name, $as, $end) = (lc $1, $2, pos($t));
+      # XML documents may prefix any element or attribute (svg:script,
+      # x:href): compare local names.
+      $name =~ s/^[^:]*://;
       my %a; while ($as =~ /$nattr/g) { my ($n, $v) = (lc $1, $2 // ""); $v =~ s/^"(.*)"$/$1/s or $v =~ s/^\x27(.*)\x27$/$1/s; push @{$a{$n}}, $v; }
       my $bad = 0;
-      for my $n (qw(src poster background data-src lowsrc dynsrc)) { $bad ||= grep { remote_val($_, $html) } @{$a{$n} || []}; }
+      # xml:base rebases every relative reference beneath it onto its host.
+      for my $n (qw(src poster background data-src lowsrc dynsrc xml:base)) { $bad ||= grep { remote_val($_, $html) } @{$a{$n} || []}; }
       for my $n (qw(srcset data-srcset imagesrcset)) { $bad ||= grep { remote_srcset($_, $html) } @{$a{$n} || []}; }
       $bad ||= grep { remote_val($_, $html) } @{$a{data} || []} if $name eq "object";
-      if ($refel{$name}) { for my $n (qw(href xlink:href xlinkhref)) { $bad ||= grep { remote_val($_, $html) } @{$a{$n} || []}; } }
+      if ($refel{$name}) { for my $n (grep { /^(?:[^:]*:)?href$|^xlinkhref$/ } keys %a) { $bad ||= grep { remote_val($_, $html) } @{$a{$n}}; } }
       if ($name eq "link") {
         my @rel = map { lc } map { split " ", ents($_) } @{$a{rel} || []};
         if (grep { !$navrel{$_} } @rel) { $bad ||= grep { remote_val($_, $html) } @{$a{href} || []}; }
@@ -192,21 +208,31 @@ sub tags { my ($t, $html) = @_;
 sub patterns { my ($t, $pre) = @_;
   my $r = qr{["`$Q(]?$sp$pre(?!$lb)$host+};
   my $q = qr{["`$Q]};
+  # A URL object stringifies to its href, so new URL("https://…") (also as
+  # window./globalThis./self.URL) loads the same remote file as the bare string.
+  # Any assignment that can store the URL: = ||= ??= &&= += (not == or =>).
+  my $set = qr{(?:\|\||\?\?|&&|\+)?=(?![=>])};
+  my $nu = qr{(?:\bnew$sp+(?:(?:window|globalThis|self)$sp\.$sp)?URL$sp\($sp)?};
   my @re = (
-    qr{(?:\.(?:src|poster)|(?<!\blocation)\.href|\[$sp$q(?:src|href|srcset|poster)$q$sp\])$sp=(?!=)$sp$r},
-    qr{\.srcset$sp=(?!=)$sp$q(?:[^"`$Q]*,)?\s*$pre(?!$lb)$host+},
-    qr{\bsetAttribute$sp\($sp$q(?:src|href|xlink:href|srcset|poster|data)$q$sp,$sp$r}i,
-    qr{\bsetAttributeNS$sp\(${sp}[^,()]*,$sp$q(?:xlink:)?(?:src|href)$q$sp,$sp$r}i,
-    qr{(?<![\w\$.\-])$q?src$q?$sp:$sp$r},
-    qr{\bnew(?=[\s/])$sp(?:Shared)?Worker$sp\($sp(?:new$sp+URL$sp\($sp)?$r},
-    qr{\bimportScripts$sp\($sp$r},
+    # location.href / location["href"] is navigation, not an asset load.
+    qr{(?:\.(?:src|poster)|(?<!\blocation)\.href|\[$sp$q(?:src|srcset|poster)$q$sp\]|(?<!\blocation)\[$sp${q}href$q$sp\])$sp$set$sp$nu$r},
+    qr{\.srcset$sp$set$sp$q(?:[^"`$Q]*,)?\s*$pre(?!$lb)$host+},
+    qr{\bsetAttribute$sp\($sp$q(?:src|href|xlink:href|srcset|poster|data)$q$sp,$sp$nu$r}i,
+    qr{\bsetAttributeNS$sp\(${sp}[^,()]*,$sp$q(?:xlink:)?(?:src|href)$q$sp,$sp$nu$r}i,
+    # Object-form props (React.createElement, JSX compiled output): src, poster,
+    # srcset/srcSet (whose first candidate is a URL).
+    qr{(?<![\w\$.\-])$q?(?:src|poster|srcset|srcSet)$q?$sp:$sp$nu$r},
+    qr{\bnew(?=[\s/])$sp(?:(?:window|globalThis|self)$sp\.$sp)?(?:Shared)?Worker$sp\($sp$nu$r},
+    qr{\bimportScripts$sp\($sp$nu$r},
     # Constructors and loaders that fetch media or code as soon as they run.
-    qr{\bnew(?=[\s/])${sp}Audio$sp\($sp$r},
-    qr{\.addModule$sp\($sp(?:new$sp+URL$sp\($sp)?$r},
+    qr{\bnew(?=[\s/])$sp(?:(?:window|globalThis|self)$sp\.$sp)?Audio$sp\($sp$nu$r},
+    qr{\.addModule$sp\($sp$nu$r},
     qr{\@import$sp(?:url$sp\()?$sp$r}i,
+    # <?xml-stylesheet href="…"?> links a stylesheet like <link rel=stylesheet>.
+    qr{<\?xml-stylesheet\b[^>]*?\bhref$sp=$sp$r}i,
     qr{(?<![\w.\$])url\($sp$r}i,
     qr{\bimage-set$sp\((?:[^;{}()]|\([^()]*\))*?$q$sp$pre(?!$lb)$host+}i,
-    qr{(?<![\w.\$])import$sp\(?$sp(?:new$sp+URL$sp\($sp)?$r},
+    qr{(?<![\w.\$])import$sp\(?$sp$nu$r},
     qr{(?<![\w.\$])from$sp$r},
   );
   for my $re (@re) { while ($t =~ /$re/g) { hit($&); } }
@@ -231,6 +257,15 @@ for (@ARGV) {
 for d in "${web[@]+"${web[@]}"}"; do
   repo_dir "$d" || { err "stack.conf: web dir $d must be a path inside the repo"; continue; }
   if [ ! -d "$ROOT/$d" ] || [ -L "$ROOT/$d" ]; then err "stack.conf: web dir $d does not exist (or is a symlink)"; continue; fi
+  # A symlinked ancestor hides the files from git ls-files while a server
+  # still serves them: every component must be a real directory.
+  p="$ROOT"; anc=""
+  IFS=/ read -r -a segs <<< "$d"
+  for seg in "${segs[@]}"; do
+    [ -n "$seg" ] && [ "$seg" != . ] || continue
+    p="$p/$seg"; [ -L "$p" ] && { anc="${p#"$ROOT"/}"; break; }
+  done
+  if [ -n "$anc" ]; then err "stack.conf: web dir $d is under a symlink ($anc)"; continue; fi
   list="$(mktemp)"; scan="$(mktemp)"
   if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     lister=(git -C "$ROOT" -c core.quotePath=false --literal-pathspecs ls-files -z --cached --others --exclude-standard -- "$d")
@@ -314,7 +349,13 @@ use strict; use warnings; use JSON::PP;
 local $/; my $txt = <STDIN>;
 my $j = eval { JSON::PP->new->decode($txt) };
 unless (ref $j eq "HASH") { print "is not a valid JSON object\n"; exit 0; }
-my $servers = qr/^(?:next|express|koa|fastify|\@hapi\/hapi|\@remix-run\/.+|nuxt|\@sveltejs\/kit|astro|hono)$/;
+my $servers = qr/^(?:next|express|koa|fastify|\@hapi\/.+|\@remix-run\/.+|\@react-router\/(?:serve|node|express|architect|cloudflare)|nuxt|\@sveltejs\/kit|astro|hono|\@hono\/node-server|\@nestjs\/.+|\@adonisjs\/.+|\@feathersjs\/.+|\@loopback\/.+|\@redwoodjs\/.+|\@solidjs\/start|\@tanstack\/(?:react-)?start|\@builder\.io\/qwik-city|\@angular\/ssr|\@analogjs\/platform|\@marko\/run|connect|sails|restify|polka|micro|h3|nitropack|nitro|vinxi|elysia|waku|gatsby)$/;
+# A documented JavaScript backend exception (backend=node|bun|deno) may use a
+# server framework; every other backend serves the app itself.
+my $backend = $ENV{BACKEND} // "go";
+my $js_backend = $backend =~ /^(?:node|nodejs|bun|deno)$/;
+# The Tier B runtime baseline; anything else must be justified by name in AGENTS.md.
+my %tier_b_base = map { $_ => 1 } qw(react react-dom);
 my $testing = qr/^(?:\@playwright\/test|playwright(?:-core)?|axe-core|\@axe-core\/[\w.-]+|\@types\/node)$/;
 my @runtime = qw(dependencies optionalDependencies peerDependencies);
 my %extra = map { $_ => 1 } split " ", ($ENV{DEV_ALLOW} // "");
@@ -329,14 +370,24 @@ for my $f (@runtime, "devDependencies") {
   next unless exists $j->{$f};
   unless (ref $j->{$f} eq "HASH") { print "$f must be an object\n"; next; }
   for my $n (sort keys %{$j->{$f}}) {
-    for my $real (names($n, $j->{$f}{$n})) { print "depends on JavaScript server framework $real ($f: $n); the server is Go\n" if $real =~ $servers; }
+    for my $real (names($n, $j->{$f}{$n})) { print "depends on JavaScript server framework $real ($f: $n); the server is $backend\n" if !$js_backend && $real =~ $servers; }
   }
 }
 # overrides / resolutions can swap any installed package for another one.
 sub walk { my ($v, $k) = @_;
   if (ref $v eq "HASH") { walk($v->{$_}, $_) for sort keys %$v; }
-  elsif (!ref $v && defined $v) { for my $real (names($k // "", $v)) { print "overrides/resolutions install JavaScript server framework $real\n" if $real =~ $servers; } } }
+  elsif (!ref $v && defined $v) { for my $real (names($k // "", $v)) { print "overrides/resolutions install JavaScript server framework $real; the server is $backend\n" if !$js_backend && $real =~ $servers; } } }
 walk($j->{overrides}); walk($j->{resolutions}); walk($j->{pnpm}{overrides}) if ref $j->{pnpm} eq "HASH";
+if ($ENV{TIER} eq "B") {
+  # Tier B keeps runtime dependencies few and justified: the shell checks that
+  # each name below appears in AGENTS.md (outside the shared block).
+  for my $f (@runtime) {
+    next unless ref $j->{$f} eq "HASH";
+    for my $n (sort keys %{$j->{$f}}) {
+      for my $real (names($n, $j->{$f}{$n})) { print "\tJUSTIFY\t$real\t$f\n" unless $tier_b_base{$real}; }
+    }
+  }
+}
 if ($ENV{TIER} eq "A") {
   # Tier A ships no build step: dev deps are browser-test tooling only,
   # plus any names stack.conf lists in dev_allow= (explained in AGENTS.md).
@@ -365,10 +416,20 @@ for d in "${npm[@]+"${npm[@]}"}"; do
   repo_dir "$d" || continue
   pj="$ROOT/$d/package.json"
   [ -f "$pj" ] || { err "stack.conf: no package.json in $d"; continue; }
-  if ! out="$(TIER="$tier" DEV_ALLOW="${dev_allow[*]+"${dev_allow[*]}"}" perl -e "$NPM_RULES_PL" < "$pj")"; then
+  if ! out="$(TIER="$tier" BACKEND="$backend" DEV_ALLOW="${dev_allow[*]+"${dev_allow[*]}"}" perl -e "$NPM_RULES_PL" < "$pj")"; then
     err "$d/package.json: rules check failed"; continue
   fi
-  while IFS= read -r msg; do [ -z "$msg" ] || err "$d/package.json: $msg"; done <<< "$out"
+  while IFS= read -r msg; do
+    case "$msg" in
+      "") ;;
+      $'\t'JUSTIFY$'\t'*)
+        IFS=$'\t' read -r _ pkg field <<< "$msg"
+        if ! agents_names "$pkg"; then
+          err "$d/package.json: Tier B runtime dependency $pkg ($field) must be named in AGENTS.md with why it is needed (outside the shared block)"
+        fi ;;
+      *) err "$d/package.json: $msg" ;;
+    esac
+  done <<< "$out"
 done
 
 if [ "$fail" -ne 0 ]; then echo "stack-check: FAILED (frontend standard v2, tier $tier)" >&2; exit 1; fi

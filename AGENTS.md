@@ -179,11 +179,14 @@ database proves little. Run `make test-db` first (or point
   // Copyright (c) 2026 ElcanoTek, Inc.
   ```
   Do not add one under `public/assets/flag/` (vendored; it keeps its upstream
-  licence headers; the first-party `motion/` kit there does carry one), to the
-  files shared verbatim across Elcano repos (`scripts/flag-sync.sh`,
-  `scripts/stack-check.sh`, `.github/workflows/flag-drift.yml` and the
-  standard block above), to `flag.lock` (generated: `flag-sync.sh` rewrites
-  it whole, header included), or to `deploy/motd` (the login banner, installed verbatim
+  licence headers; the first-party `motion/` kit there does carry one). Do not
+  touch the header of `scripts/flag-sync.sh` or `scripts/stack-check.sh`: they
+  are vendored MIT copies of Flag's `tools/product/` (their own
+  `SPDX-License-Identifier: MIT` header names the canonical copy), kept
+  byte-identical across Elcano repos. Nor add one to the other shared files
+  (`.github/workflows/flag-drift.yml`, the standard block above), to
+  `flag.lock` (generated: `flag-sync.sh` rewrites it whole, header included),
+  or to `deploy/motd` (the login banner, installed verbatim
   as `/etc/motd`, so a header would print at every ssh login). Generated Go
   files such as `internal/preflight/shadowed_names.go` get theirs from the
   generator; regenerate, do not hand-edit.

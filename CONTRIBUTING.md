@@ -230,9 +230,11 @@ these at length. Read it before touching the security surface.
   Use the file's own comment syntax elsewhere (`#` in shell and SQL's `--`),
   keep a shebang on line 1 and insert after it. New files need one. Do not add
   one to the vendored Flag files under `public/assets/flag/` (the first-party
-  `motion/` kit there has one), or to the files shared verbatim across Elcano
-  repos (`scripts/flag-sync.sh`, `scripts/stack-check.sh`,
-  `.github/workflows/flag-drift.yml`) or to the generated `flag.lock`; generated Go files (such as
+  `motion/` kit there has one), to `.github/workflows/flag-drift.yml` (shared
+  verbatim across Elcano repos) or to the generated `flag.lock`.
+  `scripts/flag-sync.sh` and `scripts/stack-check.sh` are vendored MIT copies
+  of Flag's `tools/product/`, kept byte-identical, with their own MIT header —
+  never edit it; generated Go files (such as
   `internal/preflight/shadowed_names.go`) get theirs from their generator.
 - Go code is `gofmt`ed and passes `go vet` and `golangci-lint`. Errors are
   returned, not panicked; `ctx context.Context` comes first; exported names

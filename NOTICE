@@ -25,7 +25,9 @@ the commit recorded in flag.lock. The full licence text is bundled at
 public/assets/flag/FLAG-LICENSE.
 Icons: some glyphs in Flag's core-icons.svg are drawn after Lucide
 (https://lucide.dev), ISC License — the full notice is retained at the top of
-the vendored sprite (public/assets/flag/icons/core-icons.svg). The fonts it bundles keep their own licences,
+the vendored sprite (public/assets/flag/icons/core-icons.svg).
+scripts/flag-sync.sh and scripts/stack-check.sh are byte-identical copies of
+Flag's tools/product/ scripts, under the same MIT License (see their headers). The fonts it bundles keep their own licences,
 below. The Flag Motion kit under public/assets/flag/motion/ is not part of Flag:
 it is Pages code under the Business Source License 1.1.
 
