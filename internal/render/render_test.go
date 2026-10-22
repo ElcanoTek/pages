@@ -343,7 +343,20 @@ func TestFlagTagsUseVersionedBase(t *testing.T) {
 	if strings.Contains(out, `"/assets/flag/`) {
 		t.Error("an injected tag uses the unversioned base")
 	}
-	t.Setenv("FLAG_ASSETS_BASE", "https://cdn.example.com/flag")
+	t.Setenv("FLAG_ASSETS_BASE", "/assets/flag-copy")
 	out = RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
-	mustContain(t, out, `"https://cdn.example.com/flag/tokens/design-tokens.css"`, "operator override")
+	mustContain(t, out, `"/assets/flag-copy/tokens/design-tokens.css"`, "same-origin operator override")
+	if err := ValidateAssetsBase(); err != nil {
+		t.Errorf("same-origin base refused: %v", err)
+	}
+	// Another origin would be blocked by the content CSP ('self' only): it is
+	// refused at startup and, should it get through, never emitted.
+	for _, bad := range []string{"https://cdn.example.com/flag", "//cdn.example.com/flag", "/\\cdn.example.com/flag", "flag", "javascript:alert(1)"} {
+		t.Setenv("FLAG_ASSETS_BASE", bad)
+		if err := ValidateAssetsBase(); err == nil {
+			t.Errorf("FLAG_ASSETS_BASE=%q accepted", bad)
+		}
+		out = RenderVersion(Renderable{HTML: "<!doctype html><html><head></head><body></body></html>", RenderMode: "themed"})
+		mustContain(t, out, `"`+assetver.ContentFlag()+`/tokens/design-tokens.css"`, "fallback for "+bad)
+	}
 }

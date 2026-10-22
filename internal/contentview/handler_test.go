@@ -933,6 +933,12 @@ func TestZoneHeaderContract(t *testing.T) {
 	expect(t, f.get(assetver.ContentFlag()+"/nope.css").status == 404, "a missing versioned asset falls to the 404")
 	expect(t, f.get(assetver.Content()+"/../flag/tokens/design-tokens.css").status == 404, "versioned traversal falls through")
 	expect(t, f.get(assetver.ContentFlag()+"/motion/flag-motion.js").header.Get("Cache-Control") == "public, max-age=31536000, immutable", "the motion kit is versioned too")
+	// An unsatisfiable Range on a current-version URL is an error, not an
+	// asset: it must not be cached under the asset's immutable policy.
+	bad := f.do(http.MethodGet, assetver.ContentFlag()+"/tokens/design-tokens.css", reqOpt{headers: map[string]string{"Range": "bytes=99999999-"}})
+	expect(t, bad.status == 416 && bad.header.Get("Cache-Control") == "no-store" && bad.header.Get("ETag") != etag, "versioned 416 is no-store: %d %q", bad.status, bad.header.Get("Cache-Control"))
+	okRange := f.do(http.MethodGet, assetver.ContentFlag()+"/tokens/design-tokens.css", reqOpt{headers: map[string]string{"Range": "bytes=0-9"}})
+	expect(t, okRange.status == 206 && okRange.header.Get("Cache-Control") == "public, max-age=31536000, immutable", "versioned 206 stays immutable: %d %q", okRange.status, okRange.header.Get("Cache-Control"))
 
 	fav := f.get("/favicon.ico")
 	expect(t, fav.status == 301 && fav.header.Get("Location") == "/assets/flag/logos/elcano-mark-favicon.svg", "favicon redirect")
@@ -1020,6 +1026,22 @@ func TestShellAssets(t *testing.T) {
 	expect(t, vcss.Body.String() == css.Body.String() && vcss.Header().Get("ETag") == css.Header().Get("ETag"), "versioned is the same file")
 	stale := get("/shell-assets/_v/000000000000/shell.css")
 	expect(t, stale.Code == 200 && stale.Header().Get("Cache-Control") == "public, max-age=0", "a stale version revalidates: %d %s", stale.Code, stale.Header().Get("Cache-Control"))
+	rangeGet := func(p, rg string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, p, nil)
+		req.Header.Set("Range", rg)
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	bad := rangeGet(assetver.Shell()+"/shell.css", "bytes=99999999-")
+	expect(t, bad.Code == 416 && bad.Header().Get("Cache-Control") == "no-store" && bad.Header().Get("ETag") != get(assetver.Shell()+"/shell.css").Header().Get("ETag"), "versioned 416 is no-store: %d %q", bad.Code, bad.Header().Get("Cache-Control"))
+	part := rangeGet(assetver.Shell()+"/shell.css", "bytes=0-9")
+	expect(t, part.Code == 206 && part.Header().Get("Cache-Control") == "public, max-age=31536000, immutable", "versioned 206 stays immutable: %d", part.Code)
+	notMod := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, assetver.Shell()+"/shell.css", nil)
+	req.Header.Set("If-None-Match", get(assetver.Shell()+"/shell.css").Header().Get("ETag"))
+	h.ServeHTTP(notMod, req)
+	expect(t, notMod.Code == 304 && notMod.Header().Get("Cache-Control") == "public, max-age=31536000, immutable", "versioned 304 stays immutable: %d", notMod.Code)
 	expect(t, get(assetver.Shell()+"/nope.js").Code == 418, "a versioned miss goes to next")
 	expect(t, get(assetver.Shell()+"/../shell.css").Code == 418, "versioned traversal goes to next")
 	expect(t, get("/shell-assets/nope.js").Code == 418, "a miss goes to next")

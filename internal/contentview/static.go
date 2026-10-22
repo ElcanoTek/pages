@@ -313,6 +313,13 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, rel string,
 			case ok && len(ranges) == 0:
 				// The Content-Range send attached is kept (RFC 9110 §15.5.17).
 				h.Set("Content-Range", "bytes */"+strconv.FormatInt(size, 10))
+				// setHeaders chose the cache policy for a successful asset
+				// response — for a current-version URL, immutable for a year.
+				// The forwarded error page must never be cached under that
+				// policy, so it is no-store and does not carry the asset's
+				// validator.
+				h.Set("Cache-Control", "no-store")
+				h.Del("ETag")
 				return true, &statusError{status: http.StatusRequestedRangeNotSatisfiable, msg: "range not satisfiable"}
 			case ok && len(ranges) == 1:
 				rg := ranges[0]

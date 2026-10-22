@@ -173,7 +173,7 @@ you cannot ignore.
 | `MCP_ALLOWED_ORIGINS` | no | — | Extra exact origins accepted at `/mcp` |
 | `RL_API_PER_MIN` | no | `120` | Per-IP rate limit on `/api/v1` |
 | `MAX_HTML_BYTES` | no | `32mb` | Whole JSON request limit, MCP envelope included; also the inline deploy cap |
-| `FLAG_ASSETS_BASE` | no | `/assets/_v/<version>/flag` | Where themed pages load the vendored Flag assets from (the default is versioned and cached immutable) |
+| `FLAG_ASSETS_BASE` | no | `/assets/_v/<version>/flag` | Where themed pages load the vendored Flag assets from (the default is versioned and cached immutable). A same-origin path only; startup refuses another origin |
 
 `pages bootstrap` generates the three secrets and writes the environment file
 for you. The full reference — including upload bounds, schema-validation
@@ -293,7 +293,10 @@ stops a delete-then-recreate bypass of a takedown.
 tokens, fonts, icons, logos — committed in-repo and embedded in the binary, so
 there is no asset build step. The files are vendored verbatim and pinned by
 `flag.lock`; `scripts/flag-sync.sh sync` refreshes them from a flag checkout
-and CI fails on any hand edit (see [AGENTS.md](AGENTS.md#vendored-flag)). Two
+and CI fails on any hand edit (see [AGENTS.md](AGENTS.md#vendored-flag)).
+Icons: some glyphs in Flag's `core-icons.svg` are drawn after
+[Lucide](https://lucide.dev), ISC License — the full notice is retained at the
+top of the vendored sprite (`public/assets/flag/icons/core-icons.svg`). Two
 self-hosted typefaces ship, and only two: **Nebula Sans** (SIL OFL 1.1) for UI,
 body and headings, and **Hack** (MIT) for code, slugs and tabular output. One
 sheet, `fonts/fonts.css`, declares both and binds them to `--font-brand` /

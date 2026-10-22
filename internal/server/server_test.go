@@ -466,6 +466,40 @@ func TestInvalidTrustProxyFailsClosed(t *testing.T) {
 	}
 }
 
+// Every dashboard HTML route is no-store: the shells carry the signed-in
+// email and a CSRF token, so no browser or proxy may keep a copy. Assets keep
+// their own policy (the versioned shell CSS stays immutable).
+func TestDashboardHTMLIsNoStore(t *testing.T) {
+	e := setup(t, nil)
+	e.publish("adm", pageHTML)
+	admin := opt{cookie: e.adminCk}
+	for _, c := range []struct {
+		path   string
+		o      opt
+		status int
+	}{
+		{"/admin", admin, 200},
+		{"/admin/welcome", admin, 200},
+		{"/admin/templates", admin, 200},
+		{"/admin/portals", admin, 200},
+		{"/admin/adm", admin, 200},
+		{"/admin/not/a/page", admin, 200},
+		{"/no-such-dashboard-route", opt{}, 404},
+		{"/no-such-dashboard-route", admin, 404},
+	} {
+		r := e.get(c.path, c.o)
+		if r.status != c.status || !strings.HasPrefix(r.header.Get("Content-Type"), "text/html") {
+			t.Errorf("%s = %d %s", c.path, r.status, r.header.Get("Content-Type"))
+		}
+		if got := r.header.Get("Cache-Control"); got != "no-store" {
+			t.Errorf("%s: Cache-Control %q, want no-store", c.path, got)
+		}
+	}
+	if css := e.get(assetver.Shell()+"/shell.css", opt{}); css.status != 200 || css.header.Get("Cache-Control") != assetver.Immutable {
+		t.Errorf("versioned shell.css = %d %q", css.status, css.header.Get("Cache-Control"))
+	}
+}
+
 func TestValidateFailsClosed(t *testing.T) {
 	pub, _, _ := ed25519GenerateKey()
 	for _, c := range []struct {
@@ -479,6 +513,8 @@ func TestValidateFailsClosed(t *testing.T) {
 		{"max html", map[string]string{"MAX_HTML_BYTES": "lots"}, "MAX_HTML_BYTES"},
 		{"central", map[string]string{"PAGES_AUTH_MODE": "central"}, "AUTH_"},
 		{"mode", map[string]string{"PAGES_AUTH_MODE": "bogus"}, "PAGES_AUTH_MODE"},
+		{"cross-origin flag base", map[string]string{"FLAG_ASSETS_BASE": "https://assets.example.com/flag"}, "FLAG_ASSETS_BASE"},
+		{"host-relative flag base", map[string]string{"FLAG_ASSETS_BASE": "//assets.example.com/flag"}, "FLAG_ASSETS_BASE"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			baseEnv(t, pub)
@@ -493,6 +529,10 @@ func TestValidateFailsClosed(t *testing.T) {
 	baseEnv(t, pub)
 	if err := Validate(); err != nil {
 		t.Fatalf("valid configuration refused: %v", err)
+	}
+	t.Setenv("FLAG_ASSETS_BASE", "/assets/flag")
+	if err := Validate(); err != nil {
+		t.Fatalf("a same-origin FLAG_ASSETS_BASE refused: %v", err)
 	}
 }
 

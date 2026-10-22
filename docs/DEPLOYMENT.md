@@ -566,7 +566,7 @@ transaction cannot pin every pool client and hang both hosts.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `FLAG_ASSETS_BASE` | `/assets/_v/<version>/flag` | Base URL themed pages load the vendored Flag assets from. Unset, it is the versioned, immutable-cached mount. Set it only if you serve them from elsewhere |
+| `FLAG_ASSETS_BASE` | `/assets/_v/<version>/flag` | Base path themed pages load the vendored Flag assets from. Unset, it is the versioned, immutable-cached mount. Set it only to serve a copy from another path on the content host: it must be same-origin (the content CSP allows only `'self'`), and startup refuses an absolute or `//` URL |
 
 ### Never set these in production
 
@@ -1177,7 +1177,7 @@ certificate blocks the frame silently), and that nothing added
 Pages links) is `immutable` for a year, and the stable `/assets/flag/…` paths
 revalidate. If you put a CDN or another proxy in front of the content host,
 make sure it is not stripping `Cache-Control` or the CSP. Check
-`FLAG_ASSETS_BASE` is unset (or points at a copy you maintain).
+`FLAG_ASSETS_BASE` is unset (or is a same-origin path to a copy you maintain).
 
 ### `429` from `/api/v1` or `/mcp`
 

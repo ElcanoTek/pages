@@ -20,6 +20,7 @@
 package render
 
 import (
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -32,13 +33,35 @@ import (
 
 // flagAssetsBase is where the injected Flag tags point: by default the content
 // host's versioned, immutable-cached base (internal/assetver), or
-// FLAG_ASSETS_BASE when an operator serves Flag from elsewhere. Read at call
-// time so tests can set FLAG_ASSETS_BASE.
+// FLAG_ASSETS_BASE when an operator serves a copy elsewhere on the content
+// host. Read at call time so tests can set FLAG_ASSETS_BASE. An invalid value
+// (ValidateAssetsBase refuses it at startup) falls back to the default rather
+// than emitting tags the content CSP would block.
 func flagAssetsBase() string {
-	if base := env.String("FLAG_ASSETS_BASE", ""); base != "" {
+	if base := env.String("FLAG_ASSETS_BASE", ""); base != "" && sameOriginPath(base) {
 		return base
 	}
 	return assetver.ContentFlag()
+}
+
+// sameOriginPath reports whether base is a path on the serving origin: it
+// starts with one "/" and is not scheme- or host-relative ("//host",
+// "/\\host", which browsers read as another origin). The content host's CSP
+// allows only 'self' for styles, fonts and scripts, so any other origin would
+// be blocked; widening that CSP is not the answer.
+func sameOriginPath(base string) bool {
+	return strings.HasPrefix(base, "/") && !strings.HasPrefix(base, "//") &&
+		!strings.ContainsAny(base, "\\?#\x00\t\n\r ")
+}
+
+// ValidateAssetsBase is the startup check for FLAG_ASSETS_BASE: unset, or a
+// same-origin absolute path such as /assets/flag-copy.
+func ValidateAssetsBase() error {
+	base := env.String("FLAG_ASSETS_BASE", "")
+	if base == "" || sameOriginPath(base) {
+		return nil
+	}
+	return fmt.Errorf("FLAG_ASSETS_BASE must be a path on the content host such as /assets/flag-copy (got %q): the content CSP allows only 'self', so another origin would be blocked", base)
 }
 
 // NavBlockID is the id Pages owns. A page switcher needs the CURRENT membership

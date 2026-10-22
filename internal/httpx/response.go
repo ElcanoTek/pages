@@ -89,7 +89,13 @@ func Send(w http.ResponseWriter, r *http.Request, status int, contentType string
 }
 
 // SendHTML is res.status(status).send(html) (or .type("html").send).
+//
+// Every HTML response is Cache-Control: no-store. The dashboard's shells carry
+// the signed-in email and a CSRF token, and an error page answering an asset
+// request must not inherit that asset's long-lived cache policy; no HTML Pages
+// serves is meant to be stored. Static assets go through their own handler.
 func SendHTML(w http.ResponseWriter, r *http.Request, status int, html string) {
+	w.Header().Set("Cache-Control", "no-store")
 	Send(w, r, status, "text/html; charset=utf-8", []byte(html))
 }
 
