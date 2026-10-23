@@ -513,6 +513,7 @@ func TestManagedDataPromptsAndScopes(t *testing.T) {
 	prompt := strAt(recurring, "prompt")
 	mustNotMatch(t, `(?i)scheduler`, prompt)
 	mustMatch(t, `(?i)Use prompt verbatim`, strAt(recurring, "next_step"))
+	mustMatch(t, `call set_page_refresh_schedule with this slug, the task's cadence as a five-field UTC cron`, strAt(recurring, "next_step"))
 	eq(t, recurring["instructions_removed"], []any{})
 	mustMatch(t, `PARTITIONED by date`, prompt)
 	mustMatch(t, `never take only the newest`, prompt)

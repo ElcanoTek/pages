@@ -20,11 +20,11 @@ var expectedTools = []string{
 	"append_page_upload", "cancel_page_upload", "configure_page_refresh", "create_page_from_template",
 	"create_template_from_page", "create_upload_ticket", "create_workspace", "delete_page", "delete_template",
 	"deploy_page", "deploy_page_upload", "find_in_version", "get_guide", "get_page", "get_page_config",
-	"get_page_data", "get_page_refresh", "get_template", "get_version", "list_pages", "list_template_pages",
+	"get_page_data", "get_page_refresh", "get_template", "get_version", "list_pages", "list_refresh_health", "list_template_pages",
 	"list_template_revisions", "list_templates", "list_themes", "list_versions", "list_workspaces", "page_urls",
 	"patch_page", "preflight_page", "prepare_dashboard_update", "publish_page", "record_refresh_check",
 	"register_template_upload", "rename_workspace", "rerender_page_from_template", "rollback_page",
-	"set_page_workspace", "set_password", "set_title", "start_page_upload", "template_urls", "update_page",
+	"set_page_refresh_schedule", "set_page_workspace", "set_password", "set_title", "start_page_upload", "template_urls", "update_page",
 	"update_page_config", "update_page_data", "update_page_data_upload", "validate_template",
 }
 

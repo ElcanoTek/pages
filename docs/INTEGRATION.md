@@ -148,11 +148,12 @@ and CSRF. An agent cannot read a portal either: there is no `list_portals`. If a
 future change does add one, this paragraph is the thing to delete, and every
 consumer allowlist is the thing to update.
 
-### Current catalog (46 tools)
+### Current catalog (48 tools)
 
 <!-- pages:allowlist:start -->
 ```text
 list_pages, get_page, get_page_data, get_page_refresh, record_refresh_check,
+set_page_refresh_schedule, list_refresh_health,
 prepare_dashboard_update, find_in_version, patch_page, preflight_page,
 get_version, list_versions, update_page_data_upload,
 list_workspaces, create_workspace, rename_workspace, set_page_workspace,

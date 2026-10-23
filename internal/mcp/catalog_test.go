@@ -60,9 +60,66 @@ func nodeCatalog(t *testing.T) *catalog {
 	return buildCatalog(l)
 }
 
+// postPortTools are tools added after the Node release was recorded. The
+// JavaScript catalog and the SDK golden never had them, so the comparisons
+// leave them out; TestRegistryExposesThePromisedTools and the docs allowlist
+// pin them instead.
+var postPortTools = map[string]bool{"set_page_refresh_schedule": true, "list_refresh_health": true}
+
+// legacyCatalog is the catalog without postPortTools.
+func legacyCatalog(cat *catalog) []*toolDef {
+	var out []*toolDef
+	for _, def := range cat.tools {
+		if !postPortTools[def.name] {
+			out = append(out, def)
+		}
+	}
+	return out
+}
+
+// legacyListPagesFreshness is the list_pages sentence that
+// listPagesHealthDescription replaced.
+const legacyListPagesFreshness = "Each row carries freshness: source_as_of, refreshed_at, checked_at, and days_since_* for each. That is how you find dashboards that have quietly stopped updating — Pages states no opinion on what counts as overdue, because it does not know any page's expected cadence."
+
+// undoRefreshHealth takes refresh health back out of a tools/list entry:
+// the description sentences and the refresh_health output property, both on
+// get_page_data and on every list_pages row.
+func undoRefreshHealth(tool *jsonv.Object) {
+	desc := tool.Value("description").(string)
+	desc = strings.Replace(desc, listPagesHealthDescription, legacyListPagesFreshness, 1)
+	desc = strings.Replace(desc, pageDataHealthDescription, "", 1)
+	tool.Set("description", desc)
+	drop := func(schema *jsonv.Object) {
+		if props, ok := schema.Value("properties").(*jsonv.Object); ok {
+			props.Delete("refresh_health")
+		}
+		if required, ok := schema.Value("required").([]any); ok {
+			kept := []any{}
+			for _, r := range required {
+				if r != "refresh_health" {
+					kept = append(kept, r)
+				}
+			}
+			schema.Set("required", kept)
+		}
+	}
+	out, ok := tool.Value("outputSchema").(*jsonv.Object)
+	if !ok {
+		return
+	}
+	drop(out)
+	if props, ok := out.Value("properties").(*jsonv.Object); ok {
+		if pages, ok := props.Value("pages").(*jsonv.Object); ok {
+			if items, ok := pages.Value("items").(*jsonv.Object); ok {
+				drop(items)
+			}
+		}
+	}
+}
+
 // legacyDefinition is a Go tools/list entry with the deliberate additions
 // the JavaScript never had removed: issue #109's data_usage output field and
-// the sentence describing it.
+// the sentence describing it, and refresh health (undoRefreshHealth).
 func legacyDefinition(t *testing.T, def *toolDef) *jsonv.Object {
 	t.Helper()
 	tool := def.protoTool(nil)
@@ -87,16 +144,18 @@ func legacyDefinition(t *testing.T, def *toolDef) *jsonv.Object {
 		props.Delete("data_usage")
 	}
 	o.Set("outputSchema", schema)
+	undoRefreshHealth(o)
 	return o
 }
 
 func TestCatalogMatchesJavaScriptAtNodeDefaults(t *testing.T) {
 	js := loadJSCatalog(t)
-	cat := nodeCatalog(t)
-	if len(cat.tools) != len(js.Tools) {
-		t.Fatalf("catalog has %d tools, JavaScript %d", len(cat.tools), len(js.Tools))
+	tools := legacyCatalog(nodeCatalog(t))
+	if len(tools) != len(js.Tools) {
+		t.Fatalf("catalog has %d tools, JavaScript %d", len(tools), len(js.Tools))
 	}
-	for i, def := range cat.tools {
+	cat := nodeCatalog(t)
+	for i, def := range tools {
 		want := jsonv.Stringify(js.Tools[i])
 		got := jsonv.Stringify(legacyDefinition(t, def))
 		if got != want {
@@ -125,9 +184,8 @@ func firstDiff(a, b string) string {
 // JavaScript one plus the reviewed additions, so the digest is checked with
 // those taken out again.
 func TestToolsListMatchesGoldenDigest(t *testing.T) {
-	cat := nodeCatalog(t)
 	b := []byte(`{"result":{"tools":[`)
-	for i, def := range cat.tools {
+	for i, def := range legacyCatalog(nodeCatalog(t)) {
 		if i > 0 {
 			b = append(b, ',')
 		}

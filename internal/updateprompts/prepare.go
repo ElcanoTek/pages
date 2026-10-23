@@ -66,6 +66,11 @@ type Result struct {
 	NextStep              string       `json:"next_step"`
 }
 
+// ScheduleHandoffStep closes a recurring next_step. Pages judges a page's
+// refresh health only against a schedule someone told it about, and the
+// agent installing the task is the one that knows the cadence and who asked.
+const ScheduleHandoffStep = " Once the task is installed, call set_page_refresh_schedule with this slug, the task's cadence as a five-field UTC cron and the requester's email as owner, so Pages can flag the page when a run is missed or blocked."
+
 // reader is the page state Prepare reads; tests substitute it.
 type reader interface {
 	getPage(ctx context.Context, slug string) (*versions.PageView, error)
@@ -200,7 +205,8 @@ func prepare(ctx context.Context, r reader, in PrepareInput) (*Result, error) {
 	case mode == "migration_required":
 		nextStep = "Run this migration prompt once and leave its version unpublished. The data-only follow-up depends on separately authorized publication of the migrated contract. Pages has not changed the dashboard."
 	case in.Recurring:
-		nextStep = "Use prompt verbatim, including its EXECUTION REQUIREMENTS line, as the prompt of the recurring task; set the cadence on the task itself, not in the prompt. Pages has not scheduled or executed anything."
+		nextStep = "Use prompt verbatim, including its EXECUTION REQUIREMENTS line, as the prompt of the recurring task; set the cadence on the task itself, not in the prompt. Pages has not scheduled or executed anything." +
+			ScheduleHandoffStep
 	}
 	return &Result{
 		Page:                  pv.Page,
