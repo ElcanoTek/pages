@@ -8,6 +8,7 @@
   const UI = window.PagesUI;
   const { el, icon, toast, makeDialog, confirmDialog, setBusy, keepingFocus, statusChip, copyText, errorState, emptyState, loadFailed, credentialDialog } = UI;
   const { field, runAction, formatWhen, timeWhen, slugPath, loadingContent, looksLikeBentoDeck } = UI;
+  const Health = window.PagesRefreshHealth;
   const boot = UI.bootstrap();
   const { slug, contentOrigin } = boot;
   // page-switcher.js is still its own module (it loads first and must not depend
@@ -246,7 +247,20 @@
     }
   }
 
-  function pageOverview(page, pendingCount) {
+  // The one line a reviewer cannot miss when this page's scheduled refresh is
+  // not keeping up: what is wrong, in the run's or the schedule's own words,
+  // and a way to the section that says the rest. Staff screen only — the
+  // client's page and its portals never show any of this.
+  function refreshBanner(health) {
+    if (!Health.needsAttention(health)) return null;
+    const { kind, label } = Health.describeHealth(health);
+    return el("p", { id: "refresh-banner", class: `refresh-banner refresh-banner--${kind}` },
+      statusChip(kind, label),
+      el("span", { class: "refresh-banner__reason" }, health.health_reason || ""),
+      el("a", { class: "refresh-banner__link", href: "#refresh-title" }, "Refresh schedule"));
+  }
+
+  function pageOverview(page, pendingCount, health) {
     return el("header", { class: "panel page-overview" },
       el("div", { class: "page-overview__top" },
         el("div", { class: "page-overview__identity" },
@@ -269,7 +283,8 @@
           pendingCount
             ? el("a", { class: "page-overview__todo", href: "#review-title" },
                 `${pendingCount} ${pendingCount === 1 ? "version" : "versions"} waiting for review`)
-            : null)));
+            : null)),
+      refreshBanner(health));
   }
 
   function versionOption(version, page) {
@@ -1107,6 +1122,142 @@
     source.focus();
   }
 
+  // ── Refresh schedule ────────────────────────────────────────────────────────
+  //
+  // When this page's recurring refresh is meant to run, and who answers for it.
+  // Pages runs nothing on it: the refresh is scheduled elsewhere, and this is
+  // the expectation Pages judges the page against (blocked, overdue, source
+  // stuck). Agents set it over MCP when they install a task; this is where staff
+  // see the verdict and correct the expectation. One form and one Save, like the
+  // client password beside it: a preset, a time and a day are one value.
+  function refreshFact(term, ...detail) {
+    return [el("dt", {}, term), el("dd", {}, ...detail)];
+  }
+
+  function utcWhen(value) {
+    if (!value) return "—";
+    return [timeWhen(value, { style: "datetime", timeZone: "UTC" }), " UTC"];
+  }
+
+  function refreshSection(data) {
+    const health = data.refresh_health || { health: "unscheduled", refresh_schedule: null, refresh_owner: null };
+    const { kind, label } = Health.describeHealth(health);
+    const scheduled = Boolean(health.refresh_schedule);
+
+    const facts = el("dl", { class: "template-kv refresh-facts" },
+      ...refreshFact("Schedule", scheduled
+        ? [Health.describeSchedule(health.refresh_schedule), " ", el("code", {}, health.refresh_schedule)]
+        : "Not scheduled"),
+      ...refreshFact("Owner", health.refresh_owner || "Nobody yet"),
+      ...(scheduled ? refreshFact("Last due", utcWhen(health.last_due_at)) : []),
+      ...(scheduled ? refreshFact("Next due", utcWhen(health.next_due_at)) : []),
+      ...refreshFact("Last activity", timeWhen(health.last_activity_at, { fallback: "Never" })),
+      ...(health.health_since ? refreshFact("Since", timeWhen(health.health_since)) : []));
+
+    const current = Health.presetFromCron(health.refresh_schedule);
+    const preset = el("select", { id: "refresh-preset" },
+      el("option", { value: "none" }, "No schedule"),
+      el("option", { value: "daily" }, "Daily"),
+      el("option", { value: "weekdays" }, "Weekdays (Monday to Friday)"),
+      el("option", { value: "weekly" }, "Weekly"),
+      el("option", { value: "custom" }, "Custom cron"));
+    preset.value = current.preset;
+    const time = el("input", { id: "refresh-time", type: "time", value: current.time });
+    const day = el("select", { id: "refresh-day" }, ...Health.DAYS.map(([value, name]) => el("option", { value }, name)));
+    day.value = current.day;
+    const cron = el("input", {
+      id: "refresh-cron",
+      type: "text",
+      value: current.preset === "custom" ? current.cron : "",
+      placeholder: "30 14 * * 1-5",
+      autocapitalize: "off",
+      autocomplete: "off",
+      spellcheck: "false",
+    });
+    const owner = el("input", {
+      id: "refresh-owner",
+      type: "email",
+      value: health.refresh_owner || "",
+      placeholder: "name@elcanotek.com",
+      autocomplete: "off",
+    });
+    const error = el("p", { id: "refresh-error", class: "field-error", role: "alert" });
+    const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
+    const save = el("button", { id: "save-refresh-schedule", class: "btn btn-primary", type: "submit" }, "Save schedule");
+
+    const timeField = field({ id: "refresh-time", label: "Time (UTC)", control: time });
+    const dayField = field({ id: "refresh-day", label: "Day", control: day });
+    const cronField = field({
+      id: "refresh-cron",
+      label: "Cron (UTC)",
+      control: cron,
+      help: "Five fields: minute hour day-of-month month day-of-week. Numbers, ranges, lists and */n steps.",
+    });
+    // Only the inputs the chosen preset reads are on screen.
+    function showFields() {
+      const p = preset.value;
+      timeField.hidden = !(p === "daily" || p === "weekdays" || p === "weekly");
+      dayField.hidden = p !== "weekly";
+      cronField.hidden = p !== "custom";
+    }
+    preset.addEventListener("change", () => {
+      // Moving to Custom starts from what the presets meant, not a blank box.
+      if (preset.value === "custom" && !cron.value.trim()) {
+        const from = Health.cronFromPreset({ preset: current.preset, time: time.value, day: day.value, cron: current.cron });
+        if (from.cron) cron.value = from.cron;
+      }
+      showFields();
+    });
+    showFields();
+
+    // novalidate: the hidden inputs a preset does not read must not block a
+    // save, and the server's own words are the better error for the rest.
+    const form = el("form", { class: "form-stack", novalidate: true, "aria-describedby": "refresh-error" },
+      field({ id: "refresh-preset", label: "Refreshes", control: preset }),
+      el("div", { class: "form-grid" }, timeField, dayField),
+      cronField,
+      field({
+        id: "refresh-owner",
+        label: "Owner",
+        control: owner,
+        help: "Who a missed or blocked refresh should reach. Leave blank for nobody.",
+      }),
+      error,
+      el("div", { class: "cluster" }, save, status));
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      error.textContent = "";
+      const chosen = Health.cronFromPreset({ preset: preset.value, time: time.value, day: day.value, cron: cron.value });
+      if (chosen.error) {
+        error.textContent = chosen.error;
+        return;
+      }
+      setBusy(save, true, "Saving…");
+      try {
+        const result = await post("/refresh-schedule", { schedule: chosen.cron, owner: owner.value.trim() || null });
+        toast(result.changed ? "Refresh schedule saved" : "No changes to the refresh schedule");
+        await reload({ parts: ["overview", "refresh"], focusFrom: "save-refresh-schedule" });
+      } catch (failure) {
+        error.textContent = failure.message;
+        setBusy(save, false);
+      }
+    });
+
+    return el("section", { class: "section-block", "aria-labelledby": "refresh-title" },
+      el("div", { class: "section-heading" },
+        el("p", { class: "overline" }, "Monitoring"),
+        el("h2", { id: "refresh-title", tabindex: "-1" }, "Refresh schedule"),
+        el("p", {}, "When this page's recurring refresh runs (in UTC) and who answers for it. Pages runs nothing on it: it is what Pages checks the page against, here and on the Pages index. Clients never see it.")),
+      el("div", { class: "access-grid" },
+        el("div", { class: "subpanel", id: "refresh-status" },
+          el("div", { class: "subpanel__head" }, el("h3", {}, "Health"), statusChip(kind, label)),
+          el("p", { class: "refresh-health__summary" }, health.health_reason || ""),
+          facts),
+        el("div", { class: "subpanel" },
+          el("div", { class: "subpanel__head" }, el("h3", {}, "Schedule")),
+          form)));
+  }
+
   // ── Settings: one save model for the whole panel ─────────────────────────────
   //
   // #156: five rows used to commit four different ways — a "Save title" button, an
@@ -1569,12 +1720,13 @@
   // input actually changed. The builders stay pure — this is only about which of
   // them run.
   const SECTIONS = {
-    overview: (data) => pageOverview(data.page, data.versions.filter((v) => v.status === "pending").length),
+    overview: (data) => pageOverview(data.page, data.versions.filter((v) => v.status === "pending").length, data.refresh_health),
     review: (data) => reviewSection(data, currentSelection(data)),
     access: (data) => clientAccessSection(data.page),
+    refresh: (data) => refreshSection(data),
     settings: (data) => settingsSection(data),
   };
-  const ORDER = ["overview", "review", "access", "settings"];
+  const ORDER = ["overview", "review", "access", "refresh", "settings"];
   const mounted = {};
 
   // The version the preview iframe is actually showing, so re-rendering for an
@@ -1600,6 +1752,7 @@
   const NAV_SECTIONS = [
     { part: "review", target: "review-title", label: "Review" },
     { part: "access", target: "access-title", label: "Client access" },
+    { part: "refresh", target: "refresh-title", label: "Refresh" },
     { part: "settings", target: "settings-title", label: "Settings" },
   ];
   let sectionNav = null;

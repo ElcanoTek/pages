@@ -718,6 +718,48 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 .index-more { margin-block-start: var(--space-4); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-3); }
 .index-more__button { min-width: 10rem; }
 
+/* Refresh health — staff screens only; nothing here reaches a client page or a
+   portal. The index's filter and per-row chip, and the detail's banner and
+   section. Red and amber are the status tokens the badges already use. */
+.index-toolbar__tools { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.attention-filter[aria-pressed="true"] { color: var(--color-status-warning-fg); border-color: var(--color-status-warning-border); background: var(--color-status-warning-bg); }
+.refresh-health { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+/* LAST UPDATE cannot grow (see the column widths above), so its longest chip,
+   "Source stuck", gives up some tracking to fit the 104px it has. */
+.refresh-health .badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
+/* Two lines at most in a table row; the whole reason is on hover and on the
+   page's own screen. */
+.refresh-health__reason {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  overflow-wrap: anywhere;
+}
+.refresh-banner {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-overlay-soft);
+  color: var(--color-text-primary);
+}
+.refresh-banner--warning { border-color: var(--color-status-warning-border); background: var(--color-status-warning-bg); }
+.refresh-banner--error { border-color: var(--color-status-error-border); background: var(--color-status-error-bg); }
+.refresh-banner__reason { min-width: 0; flex: 1 1 16rem; overflow-wrap: anywhere; }
+.refresh-banner__link { color: var(--color-text-primary); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); }
+.refresh-health__summary { margin: 0; overflow-wrap: anywhere; }
+.refresh-facts code { color: var(--color-text-muted); font-size: var(--font-size-caption); }
+
 .operation-table-wrap { min-width: 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--gradient-surface-panel); box-shadow: var(--shadow-section); }
 /* A list is framed once. The wrap draws its own border, radius and shadow, so
    inside a panel — which draws the same three — it must not draw them again: the
@@ -1132,6 +1174,10 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 }
 
 @media (max-width: 40rem) {
+  /* A phone gives the index's Last update cell half a card: a sentence there is
+     a column of single words. The chip stays, with the reason as its title, and
+     the page's own screen leads with the reason. */
+  .refresh-health__reason { display: none; }
   /* The header shrinks here, so everything pinned under it follows. */
   :root { --pages-sticky-header: 4rem; }
   .shell-header { min-height: 4rem; padding-inline: var(--space-4); }

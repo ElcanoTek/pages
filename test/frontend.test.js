@@ -348,6 +348,64 @@ test("workspace index: renders All, selected, Ungrouped, and search views", () =
   assert.deepEqual(filterWorkspacePages(pages, "ungrouped", "loose").map((p) => p.slug), ["loose"]);
 });
 
+// ── refresh health: one vocabulary for the index and the page detail ─────────
+
+const RefreshHealth = require("../public/shell-assets/refresh-health");
+
+test("refresh health: only blocked, overdue and stuck sources need a human, worst first", () => {
+  const row = (slug, health) => ({ slug, refresh_health: health ? { health, health_reason: `${slug} reason` } : undefined });
+  const pages = [
+    row("fine", "ok"), row("late-a", "overdue"), row("none", "unscheduled"), row("stuck", "source_stale"),
+    row("legacy", null), row("failed", "blocked"), row("late-b", "overdue"),
+  ];
+  assert.deepEqual(RefreshHealth.attentionRows(pages).map((p) => p.slug), ["failed", "late-a", "late-b", "stuck"]);
+  assert.deepEqual(pages.filter(RefreshHealth.needsAttention).map((p) => p.slug), ["late-a", "stuck", "failed", "late-b"]);
+  // The words the screens print, and the tones: red for a failed run, amber for
+  // late or stuck, nothing alarming for the rest.
+  assert.deepEqual(RefreshHealth.describeHealth(row("x", "blocked")), { kind: "error", label: "Blocked", rank: 0, attention: true });
+  assert.equal(RefreshHealth.describeHealth(row("x", "overdue")).kind, "warning");
+  assert.equal(RefreshHealth.describeHealth(row("x", "source_stale")).label, "Source stuck");
+  assert.equal(RefreshHealth.describeHealth({ health: "ok" }).label, "On schedule");
+  assert.equal(RefreshHealth.describeHealth(row("x", "something_new")).label, "Not scheduled");
+  assert.equal(RefreshHealth.describeHealth(null), null);
+  assert.deepEqual(RefreshHealth.attentionRows(undefined), []);
+});
+
+test("refresh health: schedule presets round-trip through the cron the server stores", () => {
+  const cases = [
+    [{ preset: "none" }, null, "Not scheduled"],
+    [{ preset: "daily", time: "14:30" }, "30 14 * * *", "Daily at 14:30 UTC"],
+    [{ preset: "daily", time: "09:05" }, "5 9 * * *", "Daily at 09:05 UTC"],
+    [{ preset: "weekdays", time: "15:00" }, "0 15 * * 1-5", "Weekdays at 15:00 UTC"],
+    [{ preset: "weekly", time: "09:00", day: "1" }, "0 9 * * 1", "Mondays at 09:00 UTC"],
+    [{ preset: "weekly", time: "00:00", day: "0" }, "0 0 * * 0", "Sundays at 00:00 UTC"],
+    [{ preset: "custom", cron: "  */15   6-18 * * 1-5 " }, "*/15 6-18 * * 1-5", "*/15 6-18 * * 1-5 (cron, UTC)"],
+  ];
+  for (const [input, cron, words] of cases) {
+    assert.deepEqual(RefreshHealth.cronFromPreset(input), { cron }, JSON.stringify(input));
+    assert.equal(RefreshHealth.describeSchedule(cron), words);
+    if (cron && input.preset !== "custom") {
+      const back = RefreshHealth.presetFromCron(cron);
+      assert.equal(back.preset, input.preset, cron);
+      assert.equal(back.time, input.time, cron);
+      if (input.preset === "weekly") assert.equal(back.day, input.day, cron);
+    }
+  }
+  // Sunday written as 7 reads back as the same day.
+  assert.equal(RefreshHealth.presetFromCron("0 9 * * 7").day, "0");
+  assert.equal(RefreshHealth.describeSchedule("0 9 * * 7"), "Sundays at 09:00 UTC");
+  // Anything a preset cannot say is custom, verbatim.
+  assert.deepEqual(RefreshHealth.presetFromCron("0 9 1 * *"), { preset: "custom", time: "09:00", day: "1", cron: "0 9 1 * *" });
+  assert.equal(RefreshHealth.presetFromCron("75 9 * * *").preset, "custom");
+  assert.equal(RefreshHealth.presetFromCron(null).preset, "none");
+  // What the form refuses before it asks the server.
+  assert.match(RefreshHealth.cronFromPreset({ preset: "daily", time: "" }).error, /HH:MM/);
+  assert.match(RefreshHealth.cronFromPreset({ preset: "daily", time: "24:00" }).error, /HH:MM/);
+  assert.match(RefreshHealth.cronFromPreset({ preset: "weekly", time: "09:00", day: "9" }).error, /day/);
+  assert.match(RefreshHealth.cronFromPreset({ preset: "custom", cron: "  " }).error, /cron/);
+  assert.match(RefreshHealth.cronFromPreset({}).error, /schedule/);
+});
+
 // ── portal admin screen: what an admin is told about one membership ──────────
 
 const { describeMember, portalIdFromSearch, resolveSelection,
@@ -837,12 +895,29 @@ test("shell.css: every class the portals screen renders is defined", () => {
   assert.deepEqual(missing, [], `portals.js renders classes shell.css never defines: ${missing.join(", ")}`);
 });
 
+test("shell.css: every class the refresh-health views render is defined", () => {
+  const defined = new Set();
+  for (const selector of cssSelectors(SHELL_CSS)) {
+    for (const match of selector.matchAll(/\.([A-Za-z0-9_-]+)/g)) defined.add(match[1]);
+  }
+  // Read from welcome.js (the index chip and filter) and admin.js (the banner
+  // and the Refresh schedule section).
+  const used = [
+    "index-toolbar__tools", "attention-filter", "refresh-health", "refresh-health__reason",
+    "refresh-banner", "refresh-banner--error", "refresh-banner--warning", "refresh-banner__reason", "refresh-banner__link",
+    "refresh-health__summary", "refresh-facts", "template-kv", "access-grid", "subpanel", "subpanel__head",
+    "form-stack", "form-grid", "field", "field-error", "form-status", "cluster",
+  ];
+  const missing = used.filter((name) => !defined.has(name));
+  assert.deepEqual(missing, [], `refresh health renders classes shell.css never defines: ${missing.join(", ")}`);
+});
+
 test("shell-assets: only primitives.js and page-switcher.js may fetch, encode, or format", () => {
   // The issue's own done-when condition, as a test. Once a screen can reach for
   // fetch() or toLocaleString() itself, the fifth variant of the behaviour is
   // one session away — which is how four incompatible fetch wrappers and four
   // date fallbacks got here in the first place.
-  const screens = ["welcome.js", "admin.js", "templates.js", "portals.js"];
+  const screens = ["welcome.js", "admin.js", "templates.js", "portals.js", "refresh-health.js"];
   const banned = [
     [/\bfetch\(/, "fetch( — use UI.request or UI.requestScope"],
     [/toLocale/, "toLocale… — use UI.formatWhen or UI.formatCount"],
