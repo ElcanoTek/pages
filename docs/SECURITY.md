@@ -440,7 +440,7 @@ Actions written to `audit_log`:
 - **Pages and versions** — `create_page`, `deploy`, `data_update`, `config_update`,
   `publish`, `rollback`, `approve`, `reject`, `disable`/`enable`, `set_approval`,
   `set_theme`, `set_password`/`clear_password`, `reveal_password`, `set_title`,
-  `delete_page`, `restore_page`, `record_refresh_check`.
+  `delete_page`, `restore_page`, `record_refresh_check`, `set_refresh_schedule`.
 - **Templates** — `create_template`, `register_template`, `update_template_metadata`, `delete_template`,
   `template_build`, `template_rerender`.
 - **Workspaces** — `create_workspace`, `rename_workspace`, `delete_workspace`,

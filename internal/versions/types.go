@@ -113,12 +113,14 @@ type VersionNumbers struct {
 }
 
 // PageSummary is one listPages row. The embedded *VersionNumbers is nil (and
-// its keys absent) unless IncludeVersionNumbers was requested.
+// its keys absent) unless IncludeVersionNumbers was requested. RefreshHealth
+// is never nil.
 type PageSummary struct {
 	Page
 	IsLive bool `json:"is_live"`
 	*VersionNumbers
-	Freshness *Freshness `json:"freshness"`
+	Freshness     *Freshness     `json:"freshness"`
+	RefreshHealth *RefreshHealth `json:"refresh_health"`
 }
 
 // LastCheck is the page's last recorded deliberate refresh check.

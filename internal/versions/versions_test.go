@@ -192,7 +192,7 @@ func TestListPagesQuery(t *testing.T) {
 
 func TestPageSummaryVersionNumbersOptIn(t *testing.T) {
 	b, _ := json.Marshal(PageSummary{Page: Page{ID: 8, Slug: "client/q2"}})
-	if strings.Contains(string(b), "version_count") || !strings.HasSuffix(string(b), `"has_password":false,"is_live":false,"freshness":null}`) {
+	if strings.Contains(string(b), "version_count") || !strings.HasSuffix(string(b), `"has_password":false,"is_live":false,"freshness":null,"refresh_health":null}`) {
 		t.Fatal(string(b))
 	}
 	b, _ = json.Marshal(PageSummary{Page: Page{ID: 8}, VersionNumbers: &VersionNumbers{VersionCount: 2}})
