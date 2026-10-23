@@ -415,7 +415,7 @@ omitting `require_approval` on page creation also defaults to `false`.
 
 | Method & path | Body | Purpose |
 |---------------|------|---------|
-| `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`) |
+| `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`, `freshness`, `refresh_health`) |
 | `POST /api/v1/pages` | `{slug, title?, client_id?, require_approval?}` | create a page |
 | `GET  /api/v1/pages/:slug` | — | metadata + published version + `urls` |
 | `POST /api/v1/pages/:slug/versions` | `{html, render_mode?, note?, publish?, expected_version?}` | deploy/update (`deploy_page`/`update_page`) |
@@ -455,8 +455,10 @@ automatically.
 
 | Method & path | Body | Purpose |
 |---------------|------|---------|
-| `GET /api/v1/admin/pages` | — | page index with `workspace_id`, `workspace_name`, plus `workspaces[]` and response-consistent `page_count` values |
-| `GET /api/v1/admin/pages/:slug` | — | page detail, versions, and themes |
+| `GET /api/v1/admin/pages` | — | page index with `workspace_id`, `workspace_name`, each row's `freshness` and `refresh_health`, plus `workspaces[]` and response-consistent `page_count` values |
+| `GET /api/v1/admin/pages/:slug` | — | page detail, versions, themes, `freshness` and `refresh_health` |
+| `GET /api/v1/admin/refresh-health` | `?needs_attention=false` optional | the estate's refresh health, worst first: `{generated_at, counts, pages[]}`, each row `slug, title, workspace_id, workspace_name, is_live, refresh_owner, refresh_schedule, health, health_reason, health_since, last_due_at, source_as_of, last_activity_at`. Default: only blocked, overdue and source_stale pages; `counts` always cover every page. The staff-authenticated twin of MCP `list_refresh_health` (see *Refresh health*) |
+| `POST /api/v1/admin/pages/:slug/refresh-schedule` | `{schedule?, owner?}` | set the page's refresh schedule (five-field cron, UTC) and owner email; `null` or `""` clears one, an omitted key is unchanged. Returns `{slug, changed, refresh_health}`; a change writes a `set_refresh_schedule` audit row naming the person |
 | `GET /api/v1/admin/pages/:slug/versions/:id` | — | one version's full row **including `html`** — the detail read above deliberately strips `html` from every entry in `versions` (the whole history would be megabytes), so the admin source editor reads the one version it is opening. `404` if that version belongs to another page |
 | `GET /api/v1/admin/workspaces` | — | list workspaces and active-page counts |
 | `POST /api/v1/admin/workspaces` | `{name}` | create a workspace (case-insensitive unique name, max 100 characters) |
@@ -738,7 +740,35 @@ check. `latest_outcome`, `latest_detail`, and `latest_source_as_of` describe tha
 activity: a newer successful live refresh reports `updated` and no old blocker.
 `last_check_at` timestamps the unchanged historical `last_check_*` fields.
 An explicit check at or after the refresh wins, so a subsequent failure remains
-visible. This does not infer a schedule, declare a page overdue, or erase history.
+visible. `freshness` does not infer a schedule, declare a page overdue, or erase
+history; that verdict is `refresh_health`'s, below.
+
+### Refresh health
+
+`freshness` reports facts. `refresh_health` (beside it on `list_pages` rows, the
+`get_page_data` summary, the admin index and page detail) states a verdict — but
+only for a page with a **refresh schedule**: a five-field cron, in **UTC**, set
+by whoever installed the recurring task (`set_page_refresh_schedule`, the page's
+review screen, or `pages refresh-schedule set`). Pages runs nothing on it; the
+refresh is scheduled elsewhere. Fields: `refresh_schedule`, `refresh_owner`,
+`health`, `health_reason` (one sentence), `health_since` (when the problem
+started, where known), `last_due_at` (the latest fire at or before now),
+`next_due_at`, `last_activity_at` (the latest refresh on any version, published
+or not, or recorded check).
+
+The rules, first match wins:
+
+| `health` | When | `health_reason` / `health_since` |
+|---|---|---|
+| `unscheduled` | no schedule. No judgement — clearing a schedule is how staff stop Pages judging a page | — |
+| `blocked` | the latest activity is a recorded check whose outcome is `blocked`, `source_unreachable` or `failed` (freshness's `latest_outcome`, with a pending refresh counting as later activity) | the check's own detail / the check |
+| `overdue` | the latest scheduled fire that is more than **3 hours** old has no refresh or recorded check since it. A run up to an hour early counts for its fire (never more than half the gap to the previous fire). A page never refreshed is judged from its creation | "Expected a refresh at Oct 22 15:00 UTC; last activity Oct 20." / the first fire nothing answered |
+| `source_stale` | runs are happening, but the published data's `source_as_of` is older than the schedule's longest gap between fires over a week **plus 2 days** — 3 days for a daily schedule, 5 for weekdays only, 9 for weekly | "Source data hasn't advanced since Sep 28; …" / `source_as_of` |
+| `ok` | none of the above | — |
+
+Day-of-month and day-of-week combine as in Vixie cron (either matches when both
+are restricted). Names (`MON`), macros (`@daily`), `L`/`W`/`#`/`?` and a step on
+a single number (`5/15`) are refused, as is a schedule that can never fire.
 
 ### File-capable MCP clients
 

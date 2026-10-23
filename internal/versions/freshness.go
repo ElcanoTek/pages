@@ -27,9 +27,10 @@ import (
 // and therefore never called Pages at all.
 //
 // Deliberately NOT an "is this overdue?" verdict. Pages retired its scheduler
-// on purpose and does not know how often any given page should refresh;
-// inferring overdue is the consumer's job. These are the facts that let a
-// consumer decide it in one query instead of by noticing.
+// on purpose and, on its own, does not know how often any given page should
+// refresh. These are the facts that let a consumer decide it in one query
+// instead of by noticing. The verdict lives beside them in refresh health
+// (refreshhealth.go), and only for a page someone gave a refresh schedule.
 
 const dayMs = 86400000
 
