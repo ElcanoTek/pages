@@ -32,6 +32,10 @@ not trust the generated HTML.
   the config that differs, not another copy of the design.
 - **Data-only updates.** Refresh a dashboard's numbers against a stored JSON
   Schema without re-transmitting or re-storing its HTML.
+- **Refresh health.** Give a page the cron its refresh runs on and an owner,
+  and the staff index flags it when a refresh fails (Blocked), does not run
+  (Overdue) or keeps finding no new data (Source stuck), with the reason on the
+  row and a "Needs attention" filter. Staff-only: clients never see it.
 - **Large-document paths that don't burn context.** Durable staged uploads,
   out-of-band upload tickets, and anchored server-side patching, so a one-line
   fix costs anchors rather than two copies of a dashboard.
@@ -428,6 +432,7 @@ sudo bash scripts/bootstrap.sh
 pages status | logs | env | tls
 pages update            # fetch → build a release → migrate → switch → /readyz, or roll back
 pages token add <label> [scope] [slug…]
+pages refresh-schedule set <slug> --cron '0 15 * * 1-5' --owner <email>
 pages doctor --check    # box-level diagnostics, read-only
 pages backup            # complete backup with a rehearsed restore
 ```

@@ -15,7 +15,7 @@ func Admin(slug, csrfToken, email, contentOrigin string) string {
 <head>
 ` + Head(PageTitle("/"+slug), Bootstrap{
 		{"slug", slug}, {"csrf", csrfToken}, {"admin", email}, {"contentOrigin", contentOrigin},
-	}, []string{"/shell-assets/page-switcher.js", "/shell-assets/admin.js"}) + `
+	}, []string{"/shell-assets/page-switcher.js", "/shell-assets/refresh-health.js", "/shell-assets/admin.js"}) + `
 </head>
 <body>
 ` + Header(email) + `
@@ -117,7 +117,7 @@ func Welcome(email, contentOrigin string, opts WelcomeOptions) string {
 <head>
 ` + Head(PageTitle("Client pages"), Bootstrap{
 		{"admin", email}, {"contentOrigin", contentOrigin}, {"csrf", opts.CSRF}, {"compose", opts.Compose},
-	}, []string{"/shell-assets/welcome.js"}) + `
+	}, []string{"/shell-assets/refresh-health.js", "/shell-assets/welcome.js"}) + `
 </head>
 <body>
 ` + Header(email) + `

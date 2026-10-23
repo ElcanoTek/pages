@@ -69,9 +69,11 @@ test("the operations list says how old each dashboard's DATA is", async ({ page 
   expect(detail).toContain("Latest outcome: source_not_updated");
   expect(detail).toContain("upstream max date still 2026-07-02");
 
-  // No verdict language anywhere: Pages does not know any page's expected
-  // cadence, so it reports the number and leaves the judgement to the reader.
-  await expect(frozen).not.toContainText(/overdue|stale/i);
+  // No verdict for a page with no refresh schedule: Pages does not know its
+  // expected cadence, so it reports the number and leaves the judgement to the
+  // reader (refresh-health.spec.js covers the pages that have one).
+  await expect(frozen).not.toContainText(/overdue|stale|stuck|blocked/i);
+  await expect(frozen.locator(".refresh-health")).toHaveCount(0);
 
   // A page with no managed data renders no freshness line rather than zeroes.
   const unpublished = page.locator(".operation-table tbody tr", { hasText: "Client 04" }).first();

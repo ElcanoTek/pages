@@ -668,12 +668,15 @@ re-invokes itself through `sudo`, keeping the installation settings.
 | `pages token revoke <id>` | Revoke; the server 401s it immediately |
 | `pages template list` \| `show` \| `register` \| `sync` | Page templates. See [TEMPLATES.md](TEMPLATES.md) |
 | `pages access grant` \| `revoke` \| `list <email>` | Central mode's access list (§2) |
+| `pages refresh-schedule list [--all]` | Each scheduled page's refresh health, schedule and owner (`--all` adds unscheduled pages) |
+| `pages refresh-schedule set <slug> --cron '<cron>' [--owner <email>]` | Set the UTC cron a page's refresh health is judged against, e.g. `--cron '0 15 * * 1-5'`; `--owner` alone changes only the owner. Audited as `pages-cli:<you>` |
+| `pages refresh-schedule clear <slug>` | Remove the schedule and owner: the page is no longer judged |
 | `pages backup [dest]` | Capture recovery inputs and rehearse a restore before completion |
 | `pages check-integrity <backup-dir>` | Verify checksums and repeat an isolated restore/application check |
 | `pages version` | The build version, revision and Go version |
 | `pages help` | Usage |
 
-`pages token`, `pages template` and `pages access` connect with `DATABASE_URL`
+`pages token`, `pages template`, `pages access` and `pages refresh-schedule` connect with `DATABASE_URL`
 and (for tokens) hash with `API_TOKEN_PEPPER` from the environment they run in,
 so they must run with the **service's** environment file, as the `pages` user.
 On an installed box they arrange that themselves: when neither `DATABASE_URL`

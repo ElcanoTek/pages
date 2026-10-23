@@ -328,6 +328,12 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 	case "/title":
 		set(page, "title", str(or(get(body, "title"), "")))
 		return send(http.StatusOK, page)
+	case "/refresh-schedule":
+		result, failure := setRefreshSchedule(page, body)
+		if failure != nil {
+			return send(failure.Status, o("error", failure.Message, "code", failure.Code))
+		}
+		return send(http.StatusOK, result)
 	case "/theme":
 		var themeID any
 		if get(body, "theme") == any("client-brand") {

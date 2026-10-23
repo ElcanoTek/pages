@@ -1547,7 +1547,7 @@ test("the section bar reaches Client access and Settings without dragging the pr
   // landmark to anyone listening.
   await expect(bar).toHaveAttribute("aria-label", "On this page");
   await expect(page.getByRole("navigation", { name: "On this page" })).toHaveCount(1);
-  await expect(bar.getByRole("link")).toHaveText(["Review", "Client access", "Settings"]);
+  await expect(bar.getByRole("link")).toHaveText(["Review", "Client access", "Refresh", "Settings"]);
 
   // The screen this is for: ~4,000px of it, one viewport at a time.
   const before = await navGeometry(page, "access-title");
@@ -1647,7 +1647,8 @@ test("a window taller than the whole detail is not reported as the bottom of it"
   // scrollY 0 + innerHeight >= scrollHeight is true of every document that does
   // not scroll at all — a portrait monitor, a zoomed-out tab — so the end-of-
   // document rule marked Settings on a page the reader had not touched.
-  await page.setViewportSize({ width: 1440, height: 2400 });
+  // Tall enough for the detail with its Refresh schedule section.
+  await page.setViewportSize({ width: 1440, height: 3000 });
   await page.goto("/admin/client-01");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   const fits = await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 2);
@@ -1746,6 +1747,7 @@ test("a keyboard operator reaches the section bar from the top and lands on the 
   // the next Tab carries on from the top of the document.
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
   await expect(page.locator("#detail-nav a:focus")).toHaveText("Settings");
   await page.keyboard.press("Enter");
   await expect(page.locator("#settings-title")).toBeFocused();
@@ -1765,7 +1767,7 @@ test("the section bar survives a partial re-render of the section under it", asy
 
   await expect(page.locator("#detail-nav")).toHaveCount(1);
   await expect(page.locator("#detail-nav")).toHaveAttribute("data-probe", "same-node");
-  await expect(page.locator("#detail-nav").getByRole("link")).toHaveText(["Review", "Client access", "Settings"]);
+  await expect(page.locator("#detail-nav").getByRole("link")).toHaveText(["Review", "Client access", "Refresh", "Settings"]);
   await page.locator("#detail-nav").getByRole("link", { name: "Client access" }).click();
   await expect(page.locator('#detail-nav a[aria-current="true"]')).toHaveText("Client access");
 });

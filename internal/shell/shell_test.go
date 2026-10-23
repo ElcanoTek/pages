@@ -16,7 +16,8 @@ import (
 // The goldens in testdata/ were captured from lib/*shell.js and
 // lib/standalone-chrome.js under node for the same inputs. The front end and
 // the browser suite key off exact ids, classes and data attributes, so the Go
-// output must match byte for byte.
+// output must match byte for byte. Edited by hand since only to load a new
+// browser module (refresh-health.js on the index and the page detail).
 const (
 	nasty = `a"<b>&'c</script>`
 	weird = "line\u2028sep\u2029x\b\f\n\r\t\u0001\u001f\\\"é😀"

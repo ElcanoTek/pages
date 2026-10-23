@@ -247,8 +247,8 @@ func digest(s string) string {
 }
 
 // legacyToolsList undoes the reviewed additions to a tools/list body (issue
-// #109's data_usage, and pagepatch's raised bounds) so it can be compared
-// with the SDK recording.
+// #109's data_usage, pagepatch's raised bounds, and refresh health with its
+// postPortTools) so it can be compared with the SDK recording.
 func legacyToolsList(t *testing.T, body string) string {
 	t.Helper()
 	v, err := jsonv.ParseLossless([]byte(body))
@@ -279,8 +279,17 @@ func legacyToolsList(t *testing.T, body string) string {
 			}
 		}
 	}
+	kept := []any{}
+	for _, e := range tools {
+		if !postPortTools[e.(*jsonv.Object).Value("name").(string)] {
+			kept = append(kept, e)
+		}
+	}
+	tools = kept
+	resp.Value("result").(*jsonv.Object).Set("tools", tools)
 	for _, e := range tools {
 		tool := e.(*jsonv.Object)
+		undoRefreshHealth(tool)
 		tool.Set("description", strings.Replace(tool.Value("description").(string), usageDescription, "", 1))
 		if props, ok := tool.Value("outputSchema").(*jsonv.Object).Value("properties").(*jsonv.Object); ok {
 			props.Delete("data_usage")

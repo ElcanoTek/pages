@@ -142,7 +142,26 @@ func getPageData(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
 		return nil, err
 	}
 	detail, _ := argStr(a, "detail")
-	return pageDataRead(r, detail, !argBoolOr(a, "include_data", true), c.actor.TokenID)
+	out, err := pageDataRead(r, detail, !argBoolOr(a, "include_data", true), c.actor.TokenID)
+	if err != nil || detail != "summary" {
+		return out, err
+	}
+	// The summary is the read a refresh run starts with, so it says how the
+	// page stands against its schedule. Read separately: the full and export
+	// reads, and every other GetPageData caller, never pay for it.
+	health, err := versions.RefreshHealthFor(ctx, c.d, r.Page.Slug, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	keys := out.Keys()
+	summary := jsonv.NewObject()
+	for _, k := range keys {
+		summary.Set(k, out.Value(k))
+		if k == "freshness" {
+			summary.Set("refresh_health", health.RefreshHealth)
+		}
+	}
+	return summary, nil
 }
 
 // pageDataRead shapes a managed-data read for detail ("summary", "export",

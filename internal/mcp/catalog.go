@@ -145,6 +145,17 @@ func groupedInt(n int) string {
 // usageDescription is the #109 sentence the managed-data tools carry.
 const usageDescription = " The response also reports data_usage: payload_bytes, envelope_bytes, limit_bytes and headroom_bytes against the managed-data limit, so a run can see its headroom before the next refresh."
 
+// listPagesHealthDescription is list_pages' account of the two blocks every
+// row carries. It replaced a sentence saying Pages had no opinion on
+// overdue, which stopped being true when pages could carry a schedule.
+const listPagesHealthDescription = "Each row carries freshness (source_as_of, refreshed_at, checked_at, and days_since_* for each) and refresh_health. " +
+	"freshness states facts; refresh_health states a verdict only for a page with a refresh schedule (set_page_refresh_schedule): ok, overdue, blocked or source_stale, with a one-line health_reason. " +
+	"list_refresh_health returns just the pages that need attention."
+
+// pageDataHealthDescription is the sentence get_page_data gained with
+// refresh_health.
+const pageDataHealthDescription = " A summary read also carries refresh_health: Pages' verdict on this page against its refresh schedule, if one is set."
+
 func buildCatalog(l limits) *catalog {
 	inlineBytes := groupedInt(l.maxInlineHTMLBytes)
 	deployInputShape := []field{
@@ -257,7 +268,7 @@ func buildCatalog(l limits) *catalog {
 			name:  "list_pages",
 			title: "List Pages",
 			description: "List active Pages with workspace, theme, client-access, serving state, and routing URLs. Supports bounded keyset pagination and filters; workspace_id:null selects Ungrouped.\n\n" +
-				"Each row carries freshness: source_as_of, refreshed_at, checked_at, and days_since_* for each. That is how you find dashboards that have quietly stopped updating — Pages states no opinion on what counts as overdue, because it does not know any page's expected cadence.",
+				listPagesHealthDescription,
 			input: zObject(
 				f("query", zString().Min(1).Max(200).Optional()),
 				f("workspace_id", nullableIDArg.Optional()),
@@ -292,7 +303,7 @@ func buildCatalog(l limits) *catalog {
 			description: "Read the currently published managed-data contract. Use its live_version_id as update_page_data.expected_version. Fails with page_not_data_managed unless the published HTML has exactly one pages-data-schema block and one pages-data block.\n\n" +
 				"detail picks how much comes back. 'summary' (~1–2 KB): brief page flags, live_version_id, the three hashes, envelope stamps, freshness and a coverage profile (per-array row counts, date field min/max/distinct, date-stamped scalars). Read it first; it is enough to decide whether a refresh is due. 'export': short-lived URLs for the schema, data and envelope of the live version, for a client that downloads URLs into workspace files host-side; the bytes then never enter your context, and sha256 of the schema/data files equals schema_sha256/data_sha256. 'full' (default): today's complete answer — schema, envelope with data, full data_profile, URLs and live state. Read the schema or rows once per run, by export where you can; do not re-read after a compaction.\n\n" +
 				"freshness.source_as_of is the coverage watermark to compare your source against before refreshing: refresh when the source holds a period this page does not already represent, not because a file's timestamp moved." +
-				usageDescription,
+				pageDataHealthDescription + usageDescription,
 			input: zObject(
 				f("slug", slugSchema),
 				f("detail", zEnum("summary", "full", "export").Optional().Describe(
@@ -320,6 +331,7 @@ func buildCatalog(l limits) *catalog {
 				f("coverage_truncated", zLiteral(true).Optional().Describe(
 					"Summary reads: coverage_profile is incomplete (size bound, a clipped extent, or the profile's array/field/scalar/depth limits); the exported data file is complete.")),
 				f("freshness", freshnessSchema.Optional()),
+				f("refresh_health", refreshHealthSchema.Optional().Describe("Summary reads only.")),
 				f("exports", pageDataExportsSchema.Optional()),
 				f("next_step", zString().Optional()),
 				f("data_usage", dataUsage),
@@ -367,6 +379,46 @@ func buildCatalog(l limits) *catalog {
 			// same state.
 			annotations: idempotentNonDestructiveAnnotate,
 			handler:     recordRefreshCheck,
+		},
+		// The expectation refresh health is judged against. Pages runs
+		// nothing on it; whoever installs the recurring task says what it
+		// installed.
+		{
+			name:  "set_page_refresh_schedule",
+			title: "Set Page Refresh Schedule",
+			description: "Tell Pages when this page's recurring refresh is scheduled and who answers for it, so Pages can flag the page when a run is missed (overdue), fails (blocked) or keeps finding no new data (source_stale) — on the staff home, in list_pages and in list_refresh_health. " +
+				"Call it right after you install or change the recurring task for this page, with that task's cadence as a five-field cron in UTC ('30 14 * * *' daily at 14:30, '0 15 * * 1-5' weekdays at 15:00, '0 9 * * 1' Mondays at 09:00) and the requester's email as owner. " +
+				"Pages does not run anything on this schedule. schedule:null stops Pages judging the page (the task was removed); an omitted field is left unchanged. Staff-only metadata: nothing a client sees changes.",
+			input: zObject(
+				f("slug", slugSchema),
+				f("schedule", zString().Min(1).Max(100).Nullable().Optional().Describe(
+					"Five fields — minute hour day-of-month month day-of-week — in UTC: numbers, ranges, lists and */n steps only (no names, no @daily). Must match the cadence the task actually runs at; null clears.")),
+				f("owner", zString().Min(3).Max(254).Nullable().Optional().Describe(
+					"Email of the person a missed refresh should reach — usually whoever asked for the recurring refresh. null clears.")),
+			).Strict(),
+			output: zObject(
+				f("slug", zString()),
+				f("changed", zBool().Describe("False when the page already had exactly this schedule and owner.")),
+				f("refresh_health", refreshHealthSchema),
+			).Strict(),
+			annotations: idempotentWriteAnnotations,
+			handler:     setPageRefreshSchedule,
+		},
+		{
+			name:  "list_refresh_health",
+			title: "List Refresh Health",
+			description: "The pages whose scheduled refresh needs a human, worst first: blocked (the latest run recorded a failure; health_reason is its own detail), overdue (a scheduled refresh did not happen within three hours of its time), then source_stale (runs are happening but the source data has not advanced for longer than the schedule's longest gap plus two days). " +
+				"Each row names the page, its workspace, refresh_owner, health, health_reason, health_since, source_as_of and last_activity_at; counts cover every page. Only pages with a refresh schedule are judged (set_page_refresh_schedule). needs_attention:false lists every page. Read-only.",
+			input: zObject(
+				f("needs_attention", zBool().Optional().Describe("Default true: only blocked, overdue and source_stale pages. False lists every page, ok and unscheduled included.")),
+			).Strict(),
+			output: zObject(
+				f("generated_at", dateTime),
+				f("counts", healthCountsSchema),
+				f("pages", zArray(refreshHealthRowSchema)),
+			).Strict(),
+			annotations: readAnnotations,
+			handler:     listRefreshHealth,
 		},
 		{
 			name:        "prepare_dashboard_update",

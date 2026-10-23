@@ -233,11 +233,16 @@ Pages prepares refresh prompts; it does not schedule anything.
    otherwise create one task at the cadence the user asked for. Never leave two
    recurring tasks for one page. If you cannot install it, hand the prompt to the
    user verbatim and say it still needs installing.
-4. Every tool a run may call must be in the binding's `required_tools`; a run
+4. **Telling Pages the cadence:** once the task is installed, call
+   `set_page_refresh_schedule` with the slug, the task's cadence as a five-field
+   UTC cron and the requester's email as `owner`, so Pages can flag the page when
+   a run is missed, blocked or keeps finding no new data (DATA_UPDATES.md,
+   "Refresh health"). Removing the task means `schedule: null`.
+5. Every tool a run may call must be in the binding's `required_tools`; a run
    offered only its required tools never sees one that is not listed.
-5. Saved prompts do not update themselves. After a Pages upgrade or a change to
+6. Saved prompts do not update themselves. After a Pages upgrade or a change to
    the page's sources, regenerate the prompt and replace the task's copy.
-6. A one-time request ("refresh it now") is not a recurring task: follow the
+7. A one-time request ("refresh it now") is not a recurring task: follow the
    returned prompt in this conversation.
 
 A refresh run ends in exactly one outcome: updated, unchanged
