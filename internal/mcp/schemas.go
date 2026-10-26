@@ -75,8 +75,9 @@ var pageSchema = zObject(
 // right?". Both stamps are already columns on page_versions; the days_*
 // fields are derived at read time so a consumer can rank an estate by
 // staleness in one call instead of noticing a frozen dashboard when a client
-// asks. Pages states no opinion on whether a number is too high: it retired
-// its scheduler deliberately and does not know any page's expected cadence.
+// asks. These facts stay verdict-free: Pages runs no scheduler, and its
+// opinion on whether a number is too high lives beside them in
+// refresh_health, only for pages someone gave an expected cadence.
 var freshnessSchema = zObject(
 	f("source_as_of", nullableDateTime.Describe("Latest source coverage the published data represents.")),
 	f("refreshed_at", nullableDateTime.Describe("When that data was written to Pages.")),
@@ -103,10 +104,54 @@ var refreshCheckOutcome = zEnum(versions.RefreshCheckOutcomes...).Describe(
 		"source_unreachable: the bound source could not be reached or authenticated. blocked: a gate stopped the run " +
 		"(schema drift, approval required, missing tool). failed: the run errored.")
 
+// refreshHealthSchema is freshness's verdict-bearing sibling: Pages judges a
+// page only against a refresh schedule someone set on it
+// (set_page_refresh_schedule), and states which rule it applied. The rules
+// are versions.HealthOf's.
+var refreshHealthSchema = zObject(
+	f("refresh_schedule", zString().Nullable().Describe("Five-field cron, in UTC, that this page's refresh is scheduled at; null when none is set.")),
+	f("refresh_owner", zString().Nullable().Describe("Email of the person a missed refresh should reach.")),
+	f("health", zEnum(versions.Healths...).Describe(
+		"unscheduled: no schedule, so no judgement. blocked: the latest outcome is a recorded failed check (blocked, source_unreachable, failed). "+
+			"overdue: a scheduled refresh passed three hours ago with no refresh or check since. source_stale: runs are happening but source_as_of "+
+			"is older than the schedule's longest gap plus two days. ok: none of those.")),
+	f("health_reason", zString().Describe("One sentence a human can act on; for blocked, the run's own detail.")),
+	f("health_since", nullableDateTime.Describe("When the problem started, where known: the failing check, the first missed refresh, or the stale source_as_of.")),
+	f("last_due_at", nullableDateTime.Describe("The schedule's most recent fire at or before now.")),
+	f("next_due_at", nullableDateTime),
+	f("last_activity_at", nullableDateTime.Describe("Latest refresh (on any version, published or not) or recorded check.")),
+).Strict()
+
 var pageSummarySchema = pageSchema.Extend(
 	f("is_live", zBool()),
 	f("urls", urlsSchema),
 	f("freshness", freshnessSchema),
+	f("refresh_health", refreshHealthSchema),
+).Strict()
+
+var healthCountsSchema = zObject(
+	f("blocked", zInt().NonNegative()),
+	f("overdue", zInt().NonNegative()),
+	f("source_stale", zInt().NonNegative()),
+	f("ok", zInt().NonNegative()),
+	f("unscheduled", zInt().NonNegative()),
+).Strict()
+
+var refreshHealthRowSchema = zObject(
+	f("slug", zString()),
+	f("title", zString()),
+	f("workspace_id", idOut.Nullable()),
+	f("workspace_name", zString().Nullable()),
+	f("is_live", zBool()),
+	f("refresh_owner", zString().Nullable()),
+	f("refresh_schedule", zString().Nullable()),
+	f("health", zEnum(versions.Healths...)),
+	f("health_reason", zString()),
+	f("health_since", nullableDateTime),
+	f("last_due_at", nullableDateTime),
+	f("source_as_of", nullableDateTime),
+	f("last_activity_at", nullableDateTime),
+	f("urls", urlsSchema),
 ).Strict()
 
 var versionSchema = zObject(
@@ -225,7 +270,7 @@ var pageDataExportsSchema = zObject(
 var pageDataModeFields = map[string]struct{ required, forbidden []string }{
 	"full": {
 		required:  []string{"schema", "version", "version_is_live", "page_is_live", "urls", "data_profile", "freshness"},
-		forbidden: []string{"coverage_profile", "coverage_truncated", "exports", "next_step"},
+		forbidden: []string{"coverage_profile", "coverage_truncated", "exports", "next_step", "refresh_health"},
 	},
 	"summary": {
 		required:  []string{"coverage_profile", "freshness", "next_step"},
@@ -233,7 +278,7 @@ var pageDataModeFields = map[string]struct{ required, forbidden []string }{
 	},
 	"export": {
 		required:  []string{"exports", "next_step"},
-		forbidden: []string{"schema", "version", "version_is_live", "page_is_live", "urls", "data_profile", "data_omitted", "coverage_profile", "coverage_truncated", "freshness"},
+		forbidden: []string{"schema", "version", "version_is_live", "page_is_live", "urls", "data_profile", "data_omitted", "coverage_profile", "coverage_truncated", "freshness", "refresh_health"},
 	},
 }
 

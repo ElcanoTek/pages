@@ -40,7 +40,7 @@ func hint(t *testing.T, tool, name string) bool {
 
 func TestRegistryExposesThePromisedTools(t *testing.T) {
 	cat := currentCatalog()
-	eq(t, len(cat.tools), 46)
+	eq(t, len(cat.tools), 48)
 	for _, retired := range []string{"run_page_refresh_now", "pause_page_refresh"} {
 		if cat.byName[retired] != nil {
 			t.Fatalf("%s must be retired", retired)
@@ -57,6 +57,8 @@ func TestRegistryExposesThePromisedTools(t *testing.T) {
 		"list_template_revisions":     {"readOnlyHint": true},
 		"register_template_upload":    {"readOnlyHint": false, "idempotentHint": true},
 		"record_refresh_check":        {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true},
+		"set_page_refresh_schedule":   {"readOnlyHint": false, "idempotentHint": true},
+		"list_refresh_health":         {"readOnlyHint": true},
 		"get_page_config":             {"readOnlyHint": true},
 		"update_page_config":          {"idempotentHint": true},
 		"create_page_from_template":   {"idempotentHint": true},

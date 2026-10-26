@@ -23,7 +23,8 @@ if (typeof module !== "undefined" && module.exports) module.exports = { filterWo
 
 if (typeof document !== "undefined") (function () {
   const UI = window.PagesUI;
-  const { el, icon, toast, makeDialog, confirmDialog, setBusy, field, runAction, formatWhen, timeWhen, slugPath, errorState, emptyState, keepingFocus, statusDot, pageHeader, statTile, loadFailed } = UI;
+  const { el, icon, toast, makeDialog, confirmDialog, setBusy, field, runAction, formatWhen, timeWhen, slugPath, errorState, emptyState, keepingFocus, statusDot, statusChip, pageHeader, statTile, loadFailed } = UI;
+  const Health = window.PagesRefreshHealth;
   const boot = UI.bootstrap();
   const api = UI.requestScope("/api/v1/admin");
   const app = document.getElementById("app");
@@ -43,6 +44,20 @@ if (typeof document !== "undefined") (function () {
     return /^\d+$/.test(value || "") ? `workspace:${value}` : "all";
   }
   let currentView = viewFromURL();
+  // "Which dashboards did not refresh?" used to mean opening every one of them.
+  // ?attention=1 is the list of the ones that need a human, so a digest or a
+  // colleague can link straight to it.
+  const attentionFromURL = () => new URL(window.location.href).searchParams.get("attention") === "1";
+  let attentionOnly = attentionFromURL();
+
+  function setAttention(on) {
+    attentionOnly = on;
+    shown = PAGE_WINDOW;
+    const url = new URL(window.location.href);
+    if (on) url.searchParams.set("attention", "1");
+    else url.searchParams.delete("attention");
+    window.history.replaceState({}, "", url);
+  }
 
   function setView(view, options = {}) {
     currentView = view;
@@ -103,11 +118,12 @@ if (typeof document !== "undefined") (function () {
     // which moves when someone renames a page and does not move when a daily
     // refresh silently stops. This line is about the DATA.
     //
-    // No red badge and no "overdue": Pages does not know any page's expected
-    // cadence, so the number is reported and the judgement left to the reader.
-    // "checked" only appears when someone looked MORE RECENTLY than the last
-    // write — that is the whole point of it, and repeating the refresh date
-    // under a second name would just be noise.
+    // The age itself carries no verdict: it is reported for every page, and the
+    // judgement lives in the refresh-health chip below it, which only a page
+    // with a refresh schedule can earn (Pages knows a page's expected cadence
+    // only when someone sets it). "checked" only appears when someone looked
+    // MORE RECENTLY than the last write — that is the whole point of it, and
+    // repeating the refresh date under a second name would just be noise.
     const dataAgeNode = (freshness) => {
       if (!freshness) return null;
       const { days_since_source: source, days_since_refresh: refresh, days_since_check: check } = freshness;
@@ -126,6 +142,19 @@ if (typeof document !== "undefined") (function () {
       ].filter(Boolean).join("\n");
       return el("span", { class: "table-meta", title: detail },
         ...parts.map((part) => el("span", { class: "table-meta__line" }, part)));
+    };
+
+    // Red for a run that failed, amber for one that is late or keeps finding no
+    // new data — and nothing at all for a page that is fine or has no schedule,
+    // so the chips that do appear are the list of things to fix. The reason is
+    // on the row, not only in a tooltip: it is what the reader acts on.
+    const refreshHealthNode = (row) => {
+      if (!Health.needsAttention(row)) return null;
+      const { kind, label } = Health.describeHealth(row);
+      const reason = row.refresh_health.health_reason || "";
+      return el("div", { class: "refresh-health" },
+        statusChip(kind, label, { title: reason }),
+        el("span", { class: "refresh-health__reason", title: reason }, reason));
     };
 
     // The title is the link to the review screen, so the row does not need a button
@@ -167,7 +196,8 @@ if (typeof document !== "undefined") (function () {
       el("td", { "data-label": "Last update" },
         el("div", { class: "page-cell" },
           timeWhen(page.updated_at, { class: "table-meta" }),
-          dataAgeNode(page.freshness))),
+          dataAgeNode(page.freshness),
+          refreshHealthNode(page))),
       el("td", { "data-label": "Workspace" },
         el("div", { class: "workspace-assignment" }, assignment)),
       el("td", { "data-label": "Actions" }, actions));
@@ -302,7 +332,22 @@ if (typeof document !== "undefined") (function () {
   function pageIndex(pages, workspaces) {
     const label = activeWorkspaceLabel(workspaces);
     const baseCount = filterWorkspacePages(pages, currentView).length;
+    const attentionCount = Health.attentionRows(filterWorkspacePages(pages, currentView)).length;
     const count = el("span", { class: "workspace-index__count", role: "status", "aria-live": "polite", "aria-atomic": "true", tabindex: "-1" });
+    // A filter, so it says whether it is on (aria-pressed) and how many it
+    // would show, in the scope the reader is already looking at.
+    const attention = el("button", {
+      id: "attention-filter",
+      class: "btn btn-sm attention-filter",
+      type: "button",
+      "aria-pressed": attentionOnly ? "true" : "false",
+      title: "Pages whose scheduled refresh is blocked, overdue, or finding no new source data",
+      onclick: () => {
+        setAttention(!attentionOnly);
+        attention.setAttribute("aria-pressed", attentionOnly ? "true" : "false");
+        draw();
+      },
+    }, `Needs attention (${attentionCount})`);
     const search = el("input", {
       type: "search",
       value: currentQuery,
@@ -313,12 +358,14 @@ if (typeof document !== "undefined") (function () {
 
     function draw() {
       currentQuery = search.value;
-      const visible = filterWorkspacePages(pages, currentView, currentQuery);
+      let visible = filterWorkspacePages(pages, currentView, currentQuery);
+      // Worst first: a blocked run before a late one before a stuck source.
+      if (attentionOnly) visible = Health.attentionRows(visible);
       const windowed = visible.slice(0, shown);
       const remaining = visible.length - windowed.length;
       // The count is the only thing that says the list is not all of it, so it
       // has to say so rather than reporting a total the table does not show.
-      const total = currentQuery.trim()
+      const total = currentQuery.trim() || attentionOnly
         ? `${visible.length} of ${baseCount} ${baseCount === 1 ? "page" : "pages"}`
         : `${baseCount} ${baseCount === 1 ? "page" : "pages"}`;
       count.textContent = remaining > 0 ? `Showing ${windowed.length} of ${total}` : total;
@@ -368,6 +415,22 @@ if (typeof document !== "undefined") (function () {
         return;
       }
       const searching = Boolean(currentQuery.trim());
+      if (attentionOnly && !searching) {
+        results.replaceChildren(emptyState(
+          "Nothing needs attention",
+          "Every page with a refresh schedule here is on time and finding new data.",
+          el("button", {
+            class: "btn",
+            type: "button",
+            onclick: () => {
+              setAttention(false);
+              attention.setAttribute("aria-pressed", "false");
+              draw();
+              attention.focus();
+            },
+          }, "Show all pages")));
+        return;
+      }
       // An empty workspace used to say "Move a page here from another workspace."
       // and render no way to do it. The pages exist — they are just somewhere
       // else — so the useful action is to go and look at them.
@@ -403,9 +466,11 @@ if (typeof document !== "undefined") (function () {
           // for one screen. The scope and how much of it is showing are one fact.
           el("h2", { id: "page-list-title" }, label),
           count),
-        el("label", { class: "search-field" },
-          el("span", { class: "sr-only" }, `Search ${label}`),
-          icon("search"), search)),
+        el("div", { class: "index-toolbar__tools" },
+          attention,
+          el("label", { class: "search-field" },
+            el("span", { class: "sr-only" }, `Search ${label}`),
+            icon("search"), search))),
       results);
   }
 
@@ -654,6 +719,7 @@ if (typeof document !== "undefined") (function () {
     }
     const live = currentData.pages.filter((page) => page.published_version_id && !page.disabled).length;
     const gated = currentData.pages.filter((page) => page.require_approval).length;
+    const attention = Health.attentionRows(currentData.pages).length;
 
 
     // A workspace move re-renders the index, and the row control that triggered it
@@ -673,6 +739,7 @@ if (typeof document !== "undefined") (function () {
           statTile(currentData.pages.length, "page"),
           statTile(live, "live", "live"),
           statTile(gated, "approval gated", "approval gated"),
+          statTile(attention, "needs attention", "need attention"),
         ],
       }),
       mobileWorkspacePicker(currentData.pages, currentData.workspaces),
@@ -691,6 +758,7 @@ if (typeof document !== "undefined") (function () {
 
   window.addEventListener("popstate", () => {
     currentView = viewFromURL();
+    attentionOnly = attentionFromURL();
     render(currentData);
   });
   load();

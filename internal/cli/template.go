@@ -60,8 +60,9 @@ func init() {
 	})
 }
 
-// templateActor: the operator is the actor. These registrations are
-// attributable to a person with shell access, not to an agent token.
+// templateActor: the operator is the actor. These registrations (and
+// refresh-schedule changes) are attributable to a person with shell access,
+// not to an agent token.
 func templateActor() versions.Actor {
 	who := os.Getenv("SUDO_USER")
 	if who == "" {

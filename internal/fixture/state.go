@@ -108,7 +108,42 @@ func initialState() *state {
 		// no managed data at all, which must render no freshness line rather
 		// than a row of zeroes.
 		var freshness any
-		if published != nil {
+		switch {
+		case published == nil:
+		// Two rows whose LATEST event is a recorded check rather than a write:
+		// a run that failed this morning, and one that ran and found no new
+		// source data — for the third day running.
+		case index == 3:
+			freshness = o(
+				"source_as_of", iso(3*1440),
+				"refreshed_at", iso(3*1440),
+				"checked_at", iso(45),
+				"last_check_at", iso(45),
+				"latest_outcome", "blocked",
+				"latest_detail", "Required source ssp_daily could not be authenticated",
+				"last_check_outcome", "blocked",
+				"last_check_detail", "Required source ssp_daily could not be authenticated",
+				"last_check_source_as_of", nil,
+				"days_since_source", 3,
+				"days_since_refresh", 3,
+				"days_since_check", 0,
+			)
+		case index == 5:
+			freshness = o(
+				"source_as_of", iso(5*1440),
+				"refreshed_at", iso(5*1440),
+				"checked_at", iso(20),
+				"last_check_at", iso(20),
+				"latest_outcome", "source_not_updated",
+				"latest_detail", "Upstream max date still 2026-07-17",
+				"last_check_outcome", "source_not_updated",
+				"last_check_detail", "Upstream max date still 2026-07-17",
+				"last_check_source_as_of", iso(5*1440),
+				"days_since_source", 5,
+				"days_since_refresh", 5,
+				"days_since_check", 0,
+			)
+		default:
 			day := float64(index * 1440)
 			freshness = o(
 				"source_as_of", iso(day),
@@ -143,6 +178,11 @@ func initialState() *state {
 			"updated_at", iso(float64(index*13)),
 			"freshness", freshness,
 		))
+	}
+	for _, item := range pages.items {
+		page := asObj(item)
+		sched := seededSchedules[str(get(page, "slug"))]
+		set(page, "refresh_health", healthFor(page, sched[0], sched[1]))
 	}
 	return &state{
 		pages: pages,
@@ -270,6 +310,8 @@ func (s *state) detailFor(page obj) obj {
 			o("id", 1, "name", "flag", "default_mode", "system"),
 			o("id", 2, "name", "client-brand", "default_mode", "light"),
 		),
+		"freshness", get(page, "freshness"),
+		"refresh_health", get(page, "refresh_health"),
 		"csrfOk", true,
 	)
 }

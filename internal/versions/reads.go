@@ -214,7 +214,9 @@ func buildListPagesQuery(o ListPagesOptions) (string, []any, error) {
             CASE WHEN pv.data_sha256 IS NULL AND position('pages-data' IN pv.html) > 0
                  THEN pv.html END AS legacy_managed_html,
             p.last_check_at, p.last_check_outcome, p.last_check_detail,
-            p.last_check_source_as_of` + versionNumberFields + `
+            p.last_check_source_as_of,
+            p.refresh_schedule, p.refresh_owner,
+            ` + newestRefreshSQL + ` AS newest_refreshed_at` + versionNumberFields + `
        FROM pages p
        LEFT JOIN workspaces w ON w.id = p.workspace_id
        LEFT JOIN themes t ON t.id = p.theme_id
@@ -226,9 +228,10 @@ func buildListPagesQuery(o ListPagesOptions) (string, []any, error) {
 
 // ListPages lists live (non-deleted) pages newest first, each with its
 // published version id, has_password / is_live (published AND not disabled →
-// actually serving on the content host) and freshness. q may be a snapshot
-// transaction (the admin index reads several things consistently). The raw
-// coverage stamps stay off the row: every caller wants the derived answer.
+// actually serving on the content host), freshness and refresh health. q may
+// be a snapshot transaction (the admin index reads several things
+// consistently). The raw coverage stamps stay off the row: every caller wants
+// the derived answer.
 func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSummary, error) {
 	sql, params, err := buildListPagesQuery(o)
 	if err != nil {
@@ -244,6 +247,8 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 		source, refreshed jsx.Time
 		legacy            *string
 		lastCheck         LastCheck
+		schedule, owner   *string
+		newest            jsx.Time
 	}
 	var extras []extra
 	for rows.Next() {
@@ -253,7 +258,8 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 			&p.ThemeID, &p.ThemeName, &p.RequireApproval, &p.Disabled,
 			&p.PublishedVersionID, &p.CreatedAt, &p.UpdatedAt, &p.HasPassword, &p.IsLive,
 			&e.source, &e.refreshed, &e.legacy,
-			&e.lastCheck.LastCheckAt, &e.lastCheck.LastCheckOutcome, &e.lastCheck.LastCheckDetail, &e.lastCheck.LastCheckSourceAsOf}
+			&e.lastCheck.LastCheckAt, &e.lastCheck.LastCheckOutcome, &e.lastCheck.LastCheckDetail, &e.lastCheck.LastCheckSourceAsOf,
+			&e.schedule, &e.owner, &e.newest}
 		if o.IncludeVersionNumbers {
 			p.VersionNumbers = &VersionNumbers{}
 			dest = append(dest, &p.VersionCount, &p.PublishedVersionNumber)
@@ -276,6 +282,7 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 			return nil, err
 		}
 		out[i].Freshness = FreshnessOf(lastCheckInput(e.lastCheck, c), now)
+		out[i].RefreshHealth = HealthOf(healthInput(e.schedule, e.owner, out[i].CreatedAt, c, e.newest, e.lastCheck), now)
 	}
 	return out, nil
 }

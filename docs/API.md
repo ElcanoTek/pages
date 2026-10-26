@@ -81,11 +81,13 @@ a machine consumer reads its `structuredContent` instead.
 
 | Tool | Args | Does |
 |------|------|------|
-| `list_pages` | `query?, workspace_id?, client_id?, is_live?, require_approval?, disabled?, limit?, cursor?` | bounded active-page discovery with workspace/theme/access state, URLs, and each row's **`freshness`** so one call ranks the estate by staleness; `workspace_id:null` selects Ungrouped |
+| `list_pages` | `query?, workspace_id?, client_id?, is_live?, require_approval?, disabled?, limit?, cursor?` | bounded active-page discovery with workspace/theme/access state, URLs, and each row's **`freshness`** so one call ranks the estate by staleness, plus **`refresh_health`** (Pages' verdict against the page's refresh schedule, if one is set — see *Refresh health*); `workspace_id:null` selects Ungrouped |
 | `get_page` | `slug, include_html?` | metadata + routing URLs + page-level `is_live`; published HTML only when `include_html:true` |
-| `get_page_data` | `slug, detail?, include_data?` | the published managed-data contract, in three sizes. `detail:'full'` (default, unchanged): schema/envelope, deterministic data/schema/template hashes, **`data_profile`**, **`freshness`** (coverage/refresh/check stamps plus `days_since_*`), metadata, URLs, and truthful live state, plus `data_usage`; `include_data:false` drops `envelope.data`. `detail:'summary'` (~1–2 KB typically; `coverage_profile` never exceeds 3 KB): brief page flags, `live_version_id`, the three hashes, envelope stamps, `freshness` and a **`coverage_profile`** (row counts and date extents only; `coverage_truncated:true` when entries were left out to stay within the bound). `detail:'export'`: short-lived `schema_url`/`data_url`/`envelope_url` for the live version, to download into files instead of context. See *Reading managed data by reference* |
+| `get_page_data` | `slug, detail?, include_data?` | the published managed-data contract, in three sizes. `detail:'full'` (default, unchanged): schema/envelope, deterministic data/schema/template hashes, **`data_profile`**, **`freshness`** (coverage/refresh/check stamps plus `days_since_*`), metadata, URLs, and truthful live state, plus `data_usage`; `include_data:false` drops `envelope.data`. `detail:'summary'` (~1–2 KB typically; `coverage_profile` never exceeds 3 KB): brief page flags, `live_version_id`, the three hashes, envelope stamps, `freshness`, `refresh_health` and a **`coverage_profile`** (row counts and date extents only; `coverage_truncated:true` when entries were left out to stay within the bound). `detail:'export'`: short-lived `schema_url`/`data_url`/`envelope_url` for the live version, to download into files instead of context. See *Reading managed data by reference* |
 | `get_page_refresh` | `slug` | read-only compatibility guidance for older static Chat/Cutlass allowlists; returns `scheduling:user_owned` and never reads or creates a Pages schedule |
 | `record_refresh_check` | `slug, outcome, detail?, source_as_of_seen?` | record that a refresh looked at this page and what it concluded, **without creating a version**. Moves `freshness.checked_at` only — the published pointer, the data, and every hash are untouched. Call it when a run ends without publishing (`source_not_updated`, `source_unreachable`, `blocked`, `failed`); that outcome otherwise writes nothing anywhere, so a page whose upstream has frozen reads exactly like one nobody runs any more. In `data_update` scope, slug-gated like the other two data tools |
+| `set_page_refresh_schedule` | `slug, schedule?, owner?` | record the cadence the page's recurring refresh was scheduled at (five-field cron, **UTC**) and the email of the person who answers for it, so Pages can judge the page's `refresh_health`. Call it after installing or changing the recurring task. Pages runs nothing on it. `null` clears a field, an omitted one is unchanged; an unchanged value writes no audit row. Staff-only metadata — the page's content, versions and `updated_at` are untouched |
+| `list_refresh_health` | `needs_attention?` | the pages whose scheduled refresh needs a human, worst first (blocked, overdue, source_stale), each with workspace, `refresh_owner`, `health_reason`, `health_since`, `source_as_of` and `last_activity_at`, plus `counts` for every state. `needs_attention:false` lists every page. Read-only; the input for a daily digest |
 | `prepare_dashboard_update` | `slug, instructions, recurring?, update_type?, publish?, sources?` | prepare a pinned exact-slug one-time workflow or the task prompt of a recurring job; never changes a page or schedules work. `sources` declares which MCP server/tool serves each input, optionally its `path` and date `partition`, so the prompt forbids substitutions and requires enumerating a partitioned folder rather than taking its newest file. **`sources` is required when `recurring` is true** (`update_sources_required`): an unattended run cannot safely re-derive bindings from prose. The response carries `execution_requirements` — the MCP servers, tools, network and model a run needs — so a scheduler can validate the task before accepting it |
 | `get_version` | `slug, version_id` | one version's full row **including HTML** (read back a draft, inspect a rollback target). Prefer `preflight_page` when you only want to know whether the page *works* — it costs a few hundred tokens instead of the whole document |
 | `find_in_version` | `slug, query, version_id?, max_matches?, ignore_case?` | literal search inside a stored version — bounded line numbers and short excerpts, not the document. Locates anchors for `patch_page` |
@@ -366,6 +368,7 @@ nothing in Pages can check what a consumer actually deployed.
 <!-- pages:allowlist:start -->
 ```text
 list_pages, get_page, get_page_data, get_page_refresh, record_refresh_check,
+set_page_refresh_schedule, list_refresh_health,
 prepare_dashboard_update, find_in_version, patch_page, preflight_page,
 get_version, list_versions, update_page_data_upload,
 list_workspaces, create_workspace, rename_workspace, set_page_workspace,
@@ -380,7 +383,7 @@ delete_page, page_urls
 ```
 <!-- pages:allowlist:end -->
 
-That is the complete **46-tool** catalog. A consumer list written for the
+That is the complete **48-tool** catalog. A consumer list written for the
 update-prompt transition still works — it carries the two compatibility names —
 but any list predating templates, `find_in_version`, `patch_page`,
 `preflight_page`, or `create_upload_ticket` does not carry those, and **a name a
@@ -412,7 +415,7 @@ omitting `require_approval` on page creation also defaults to `false`.
 
 | Method & path | Body | Purpose |
 |---------------|------|---------|
-| `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`) |
+| `GET  /api/v1/pages` | — | list pages (+ `has_password`, `is_live`, `freshness`, `refresh_health`) |
 | `POST /api/v1/pages` | `{slug, title?, client_id?, require_approval?}` | create a page |
 | `GET  /api/v1/pages/:slug` | — | metadata + published version + `urls` |
 | `POST /api/v1/pages/:slug/versions` | `{html, render_mode?, note?, publish?, expected_version?}` | deploy/update (`deploy_page`/`update_page`) |
@@ -452,8 +455,10 @@ automatically.
 
 | Method & path | Body | Purpose |
 |---------------|------|---------|
-| `GET /api/v1/admin/pages` | — | page index with `workspace_id`, `workspace_name`, plus `workspaces[]` and response-consistent `page_count` values |
-| `GET /api/v1/admin/pages/:slug` | — | page detail, versions, and themes |
+| `GET /api/v1/admin/pages` | — | page index with `workspace_id`, `workspace_name`, each row's `freshness` and `refresh_health`, plus `workspaces[]` and response-consistent `page_count` values |
+| `GET /api/v1/admin/pages/:slug` | — | page detail, versions, themes, `freshness` and `refresh_health` |
+| `GET /api/v1/admin/refresh-health` | `?needs_attention=false` optional | the estate's refresh health, worst first: `{generated_at, counts, pages[]}`, each row `slug, title, workspace_id, workspace_name, is_live, refresh_owner, refresh_schedule, health, health_reason, health_since, last_due_at, source_as_of, last_activity_at`. Default: only blocked, overdue and source_stale pages; `counts` always cover every page. The staff-authenticated twin of MCP `list_refresh_health` (see *Refresh health*) |
+| `POST /api/v1/admin/pages/:slug/refresh-schedule` | `{schedule?, owner?}` | set the page's refresh schedule (five-field cron, UTC) and owner email; `null` or `""` clears one, an omitted key is unchanged. Returns `{slug, changed, refresh_health}`; a change writes a `set_refresh_schedule` audit row naming the person |
 | `GET /api/v1/admin/pages/:slug/versions/:id` | — | one version's full row **including `html`** — the detail read above deliberately strips `html` from every entry in `versions` (the whole history would be megabytes), so the admin source editor reads the one version it is opening. `404` if that version belongs to another page |
 | `GET /api/v1/admin/workspaces` | — | list workspaces and active-page counts |
 | `POST /api/v1/admin/workspaces` | `{name}` | create a workspace (case-insensitive unique name, max 100 characters) |
@@ -735,7 +740,35 @@ check. `latest_outcome`, `latest_detail`, and `latest_source_as_of` describe tha
 activity: a newer successful live refresh reports `updated` and no old blocker.
 `last_check_at` timestamps the unchanged historical `last_check_*` fields.
 An explicit check at or after the refresh wins, so a subsequent failure remains
-visible. This does not infer a schedule, declare a page overdue, or erase history.
+visible. `freshness` does not infer a schedule, declare a page overdue, or erase
+history; that verdict is `refresh_health`'s, below.
+
+### Refresh health
+
+`freshness` reports facts. `refresh_health` (beside it on `list_pages` rows, the
+`get_page_data` summary, the admin index and page detail) states a verdict — but
+only for a page with a **refresh schedule**: a five-field cron, in **UTC**, set
+by whoever installed the recurring task (`set_page_refresh_schedule`, the page's
+review screen, or `pages refresh-schedule set`). Pages runs nothing on it; the
+refresh is scheduled elsewhere. Fields: `refresh_schedule`, `refresh_owner`,
+`health`, `health_reason` (one sentence), `health_since` (when the problem
+started, where known), `last_due_at` (the latest fire at or before now),
+`next_due_at`, `last_activity_at` (the latest refresh on any version, published
+or not, or recorded check).
+
+The rules, first match wins:
+
+| `health` | When | `health_reason` / `health_since` |
+|---|---|---|
+| `unscheduled` | no schedule. No judgement — clearing a schedule is how staff stop Pages judging a page | — |
+| `blocked` | the latest activity is a recorded check whose outcome is `blocked`, `source_unreachable` or `failed` (freshness's `latest_outcome`, with a pending refresh counting as later activity) | the check's own detail / the check |
+| `overdue` | the latest scheduled fire that is more than **3 hours** old has no refresh or recorded check since it. A run up to an hour early counts for its fire (never more than half the gap to the previous fire). A page never refreshed is judged from its creation | "Expected a refresh at Oct 22 15:00 UTC; last activity Oct 20." / the first fire nothing answered |
+| `source_stale` | runs are happening, but the published data's `source_as_of` is older than the schedule's longest gap between fires over a week **plus 2 days** — 3 days for a daily schedule, 5 for weekdays only, 9 for weekly | "Source data hasn't advanced since Sep 28; …" / `source_as_of` |
+| `ok` | none of the above | — |
+
+Day-of-month and day-of-week combine as in Vixie cron (either matches when both
+are restricted). Names (`MON`), macros (`@daily`), `L`/`W`/`#`/`?` and a step on
+a single number (`5/15`) are refused, as is a schedule that can never fire.
 
 ### File-capable MCP clients
 

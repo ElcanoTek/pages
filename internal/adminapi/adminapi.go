@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -147,6 +148,7 @@ func buildRoutes() (reads, mutations []adminRoute) {
 	get, post := http.MethodGet, http.MethodPost
 	reads = []adminRoute{
 		r(get, "/pages", (*handler).listPages),
+		r(get, "/refresh-health", (*handler).refreshHealth),
 		r(get, "/workspaces", (*handler).listWorkspaces),
 		r(get, "/portals", (*handler).listPortals),
 		r(get, "/portals/:id", (*handler).getPortal),
@@ -181,6 +183,7 @@ func buildRoutes() (reads, mutations []adminRoute) {
 		r(post, "/pages", (*handler).createPage),
 		r(post, "/pages/*slug/workspace", (*handler).assignWorkspace),
 		r(post, "/pages/*slug/title", (*handler).setTitle),
+		r(post, "/pages/*slug/refresh-schedule", (*handler).setRefreshSchedule),
 		r(post, "/pages/*slug/delete", (*handler).deletePage),
 		r(post, "/pages/*slug/restore", (*handler).restorePage),
 		r(post, "/pages/*slug/edit-token", (*handler).editToken),
@@ -416,6 +419,29 @@ func (h *handler) listPages(w http.ResponseWriter, r *http.Request, _ route.Para
 	return sendJSON(w, r, http.StatusOK, out)
 }
 
+// refreshHealth is the estate's refresh health, worst first
+// (versions.ListRefreshHealth): what the daily digest and anything else
+// staff-authenticated reads instead of opening every dashboard.
+// ?needs_attention=false lists every page; the default is only blocked,
+// overdue and source_stale.
+func (h *handler) refreshHealth(w http.ResponseWriter, r *http.Request, _ route.Params) error {
+	only := true
+	if q := httpx.QueryParam(r, "needs_attention"); q.Present {
+		switch v := q.Values[len(q.Values)-1]; v {
+		case "true", "1":
+		case "false", "0":
+			only = false
+		default:
+			return apierror.BadRequest("needs_attention must be true or false", "bad_boolean", nil)
+		}
+	}
+	report, err := versions.ListRefreshHealth(r.Context(), h.DB, only)
+	if err != nil {
+		return err
+	}
+	return sendJSON(w, r, http.StatusOK, report)
+}
+
 func (h *handler) listWorkspaces(w http.ResponseWriter, r *http.Request, _ route.Params) error {
 	list, err := workspaces.List(r.Context(), h.DB)
 	if err != nil {
@@ -490,19 +516,21 @@ func (h *handler) getVersion(w http.ResponseWriter, r *http.Request, p route.Par
 }
 
 type pageDetail struct {
-	Page      versions.Page            `json:"page"`
-	Deck      bool                     `json:"deck"`
-	Published *versions.VersionDetail  `json:"published"`
-	Versions  []versions.ListedVersion `json:"versions"`
-	Pending   []versions.ListedVersion `json:"pending"`
-	Themes    []versions.Theme         `json:"themes"`
-	Portals   []portals.PageMembership `json:"portals"`
-	CsrfOK    bool                     `json:"csrfOk"`
+	Page          versions.Page            `json:"page"`
+	Deck          bool                     `json:"deck"`
+	Published     *versions.VersionDetail  `json:"published"`
+	Versions      []versions.ListedVersion `json:"versions"`
+	Pending       []versions.ListedVersion `json:"pending"`
+	Themes        []versions.Theme         `json:"themes"`
+	Portals       []portals.PageMembership `json:"portals"`
+	Freshness     *versions.Freshness      `json:"freshness"`
+	RefreshHealth *versions.RefreshHealth  `json:"refresh_health"`
+	CsrfOK        bool                     `json:"csrfOk"`
 }
 
 // getPage is everything the shell needs to render: page meta, full history,
-// pending queue, the published version, the theme list for the picker, and
-// which portals expose the page.
+// pending queue, the published version, the theme list for the picker, which
+// portals expose the page, and how its refresh stands against its schedule.
 func (h *handler) getPage(w http.ResponseWriter, r *http.Request, p route.Params) error {
 	ctx := r.Context()
 	view, err := versions.GetPage(ctx, h.DB, p.Slug)
@@ -540,9 +568,14 @@ func (h *handler) getPage(w http.ResponseWriter, r *http.Request, p route.Params
 			pending = append(pending, v)
 		}
 	}
+	health, err := versions.RefreshHealthFor(ctx, h.DB, p.Slug, time.Time{})
+	if err != nil {
+		return err
+	}
 	return sendJSON(w, r, http.StatusOK, pageDetail{
 		Page: view.Page, Deck: deck, Published: view.Published, Versions: all,
-		Pending: pending, Themes: themes, Portals: memberOf, CsrfOK: true,
+		Pending: pending, Themes: themes, Portals: memberOf,
+		Freshness: health.Freshness, RefreshHealth: health.RefreshHealth, CsrfOK: true,
 	})
 }
 
@@ -915,6 +948,17 @@ func (h *handler) assignWorkspace(w http.ResponseWriter, r *http.Request, p rout
 
 func (h *handler) setTitle(w http.ResponseWriter, r *http.Request, p route.Params) error {
 	res, err := versions.SetTitle(r.Context(), h.DB, p.Slug, bodyOf(r).arg("title"), h.actor(r))
+	return h.reply(w, r, res, err)
+}
+
+// setRefreshSchedule is the detail screen's schedule editor: {schedule,
+// owner}, each a string, null/"" to clear, or absent to leave alone. The
+// same state-machine call agents make over MCP, audited the same way.
+func (h *handler) setRefreshSchedule(w http.ResponseWriter, r *http.Request, p route.Params) error {
+	b := bodyOf(r)
+	res, err := versions.SetRefreshSchedule(r.Context(), h.DB, versions.RefreshScheduleInput{
+		Slug: p.Slug, Schedule: b.arg("schedule"), Owner: b.arg("owner"),
+	}, h.actor(r))
 	return h.reply(w, r, res, err)
 }
 

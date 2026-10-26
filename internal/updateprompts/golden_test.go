@@ -293,6 +293,15 @@ func TestGoldenPrepare(t *testing.T) {
 		wantOK, got = wantOK.Clone(), got.Clone()
 		wantOK.Delete("page")
 		got.Delete("page")
+		// A reviewed addition the JavaScript never had: a recurring next_step
+		// ends by handing the task's cadence back to Pages.
+		if step, ok := got.Value("next_step").(string); ok && boolean(a, "recurring") {
+			trimmed := strings.TrimSuffix(step, ScheduleHandoffStep)
+			if trimmed == step && strings.HasPrefix(step, "Use prompt verbatim") {
+				t.Errorf("%s: a recurring next_step ends with the schedule handoff", label)
+			}
+			got.Set("next_step", trimmed)
+		}
 		same(t, label, wantOK, got)
 	}
 }

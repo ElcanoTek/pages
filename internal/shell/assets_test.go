@@ -45,7 +45,7 @@ var (
 	referenceProp = regexp.MustCompile(`var\(\s*(--[a-z0-9-]+)`)
 )
 
-var browserModules = []string{"admin.js", "welcome.js", "portals.js", "templates.js", "primitives.js", "page-switcher.js"}
+var browserModules = []string{"admin.js", "welcome.js", "portals.js", "templates.js", "primitives.js", "page-switcher.js", "refresh-health.js"}
 
 // stripComments drops /* */ and // comments: a hex or rgb() inside a comment
 // is prose (a PR reference like "#125"), not a hard-coded colour.

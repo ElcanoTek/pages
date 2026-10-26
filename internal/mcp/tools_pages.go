@@ -225,6 +225,31 @@ func recordRefreshCheck(ctx context.Context, c *call, a *jsonv.Object) (any, err
 	return versions.RecordRefreshCheck(ctx, c.d, in, c.actor)
 }
 
+// ── refresh schedule and health ─────────────────────────────────────────────
+
+func setPageRefreshSchedule(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
+	slug, _ := argStr(a, "slug")
+	return versions.SetRefreshSchedule(ctx, c.d, versions.RefreshScheduleInput{
+		Slug: slug, Schedule: argAny(a, "schedule"), Owner: argAny(a, "owner"),
+	}, c.actor)
+}
+
+func listRefreshHealth(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
+	report, err := versions.ListRefreshHealth(ctx, c.d, argBoolOr(a, "needs_attention", true))
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]any, len(report.Pages))
+	for i, r := range report.Pages {
+		o, err := spread(r, jsonv.ObjectOf("urls", pageurls.For(r.Slug)))
+		if err != nil {
+			return nil, err
+		}
+		rows[i] = o
+	}
+	return jsonv.ObjectOf("generated_at", report.GeneratedAt, "counts", report.Counts, "pages", rows), nil
+}
+
 func getVersion(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
 	slug, _ := argStr(a, "slug")
 	id, _ := argID(a, "version_id")

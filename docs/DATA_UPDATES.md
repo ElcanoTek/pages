@@ -583,6 +583,28 @@ and once bound it never re-binds. If a granted page is deleted and the slug is
 later reused by a *new* page, the old grant stays inert (`slug_not_allowed`)
 until an operator re-grants; a delete→restore of the *same* page keeps working.
 
+## Refresh health
+
+Pages does not schedule refreshes, but it can say when one is not keeping up —
+once it knows the cadence. After installing (or replacing) the recurring task
+for a page, call `set_page_refresh_schedule` with the slug, the task's cadence
+as a five-field cron in **UTC** (`30 14 * * *` daily at 14:30, `0 15 * * 1-5`
+weekdays at 15:00, `0 9 * * 1` Mondays at 09:00) and the requester's email as
+`owner`. When the task is removed, pass `schedule: null`. A recurring
+`prepare_dashboard_update` reminds you in its `next_step`.
+
+From then on `refresh_health` (on `list_pages` rows and the `get_page_data`
+summary) reports `ok`, or one of three states that need a human — `blocked`
+(the latest run recorded `blocked`, `source_unreachable` or `failed`; the reason
+is that run's `detail`), `overdue` (nothing landed within three hours of a
+scheduled time) and `source_stale` (runs record `source_not_updated` while the
+data's `source_as_of` falls further behind than the schedule allows). That is
+why a run that publishes nothing must still record its outcome with
+`record_refresh_check`: a run that leaves no trace is indistinguishable from one
+that never ran, and the page is reported overdue. `list_refresh_health` returns
+every page that needs attention, worst first, with its owner. The full rules are
+in [API.md](API.md), "Refresh health".
+
 ## Legacy schedule retirement
 
 Migration `010_retire_moc_refresh_dispatch.sql` pauses all old Pages-owned
