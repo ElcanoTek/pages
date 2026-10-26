@@ -51,6 +51,47 @@
       .map(({ page }) => page);
   }
 
+  // ── no refresh set ─────────────────────────────────────────────────────────
+  // Not a health. A page with no schedule is never judged, and a finished
+  // campaign legitimately sits there for good. But a live page whose data is
+  // more than a week old and that nobody gave a refresh schedule may also be a
+  // campaign still delivering whose refresh task was never installed, so the
+  // server raises a hint beside the verdict (refresh_health.unscheduled_stale,
+  // internal/versions/refreshhealth.go). Grey, never counted as needing
+  // attention, and worded so that "it has ended" is a fine answer. The pill
+  // says "No refresh" because a pill does not wrap and the index's Last update
+  // column has 104px for it ("No refresh set" measures 123); the filter that
+  // lists these pages says the whole phrase.
+  const NO_REFRESH = { kind: "neutral", label: "No refresh", filter: "No refresh set" };
+
+  function unscheduledStale(pageOrHealth) {
+    const health = healthOf(pageOrHealth);
+    return Boolean(health && health.unscheduled_stale === true);
+  }
+
+  // The sentence the row and its hover carry; "" when there is no hint. The
+  // CLI says the same words (versions.UnscheduledStaleHint).
+  function unscheduledStaleHint(pageOrHealth) {
+    if (!unscheduledStale(pageOrHealth)) return "";
+    const days = healthOf(pageOrHealth).days_since_source;
+    const age = Number.isInteger(days) ? `data ${days} ${days === 1 ? "day" : "days"} old` : "data over a week old";
+    return `No refresh schedule · ${age} — set a schedule or ignore if the campaign has ended`;
+  }
+
+  // The hinted rows, the oldest data first, keeping the list's own order on a
+  // tie.
+  function unscheduledStaleRows(pages) {
+    const age = (page) => {
+      const days = healthOf(page).days_since_source;
+      return Number.isInteger(days) ? days : 0;
+    };
+    return (Array.isArray(pages) ? pages : [])
+      .map((page, index) => ({ page, index }))
+      .filter(({ page }) => unscheduledStale(page))
+      .sort((a, b) => age(b.page) - age(a.page) || a.index - b.index)
+      .map(({ page }) => page);
+  }
+
   // ── schedule presets ───────────────────────────────────────────────────────
   // Every time is UTC, as the server reads the cron. The presets cover what
   // refreshes are actually scheduled at; anything else is a custom cron, which
@@ -107,5 +148,9 @@
     }
   }
 
-  return { HEALTH, DAYS, describeHealth, needsAttention, attentionRows, presetFromCron, cronFromPreset, describeSchedule };
+  return {
+    HEALTH, NO_REFRESH, DAYS, describeHealth, needsAttention, attentionRows,
+    unscheduledStale, unscheduledStaleHint, unscheduledStaleRows,
+    presetFromCron, cronFromPreset, describeSchedule,
+  };
 });

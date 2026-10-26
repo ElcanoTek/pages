@@ -70,6 +70,75 @@ func TestHealthUnscheduledIsNoJudgement(t *testing.T) {
 		"The stored refresh schedule is not a valid cron expression, so Pages does not judge this page; set it again.", "null")
 }
 
+// A live page nobody gave a schedule, whose data stopped more than a week
+// ago, carries the unscheduled_stale hint — and nothing else about it changes:
+// still unscheduled, same reason, never needing attention.
+func TestHealthUnscheduledStaleHint(t *testing.T) {
+	now := ts("2026-10-22T18:30:00.000Z")
+	live := func(sourceAge time.Duration) HealthInput {
+		in := daily()
+		in.Schedule, in.IsLive = "", true
+		in.SourceAsOf = now.Add(-sourceAge)
+		return in
+	}
+	const day = 24 * time.Hour
+
+	h := HealthOf(live(8*day), now)
+	wantHealth(t, h, HealthUnscheduled, "No refresh schedule is set, so Pages does not judge this page.", "null")
+	if !h.UnscheduledStale || h.DaysSinceSource == nil || *h.DaysSinceSource != 8 || h.NeedsAttention() {
+		t.Fatalf("live, unscheduled, 8 days: hinted, not needing attention: %+v", h)
+	}
+	b, err := json.Marshal(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(b), `"unscheduled_stale":true,"days_since_source":8}`) {
+		t.Fatalf("wire shape: %s", b)
+	}
+
+	// Six days old is inside the week. The week itself is not over it; a
+	// minute past is.
+	if h := HealthOf(live(6*day), now); h.UnscheduledStale || *h.DaysSinceSource != 6 {
+		t.Fatalf("6 days: %+v", h)
+	}
+	if h := HealthOf(live(UnscheduledStaleAfter), now); h.UnscheduledStale {
+		t.Fatalf("exactly 7 days: %+v", h)
+	}
+	if h := HealthOf(live(UnscheduledStaleAfter+time.Minute), now); !h.UnscheduledStale || *h.DaysSinceSource != 7 {
+		t.Fatalf("7 days and a minute: %+v", h)
+	}
+
+	// A schedule means the verdict speaks instead: the same data is
+	// source_stale, and the hint stays off.
+	scheduled := live(8 * day)
+	scheduled.Schedule = "0 15 * * *"
+	scheduled.LastCheckAt, scheduled.LastCheckOutcome = ts("2026-10-22T15:04:00.000Z"), "source_not_updated"
+	if h := HealthOf(scheduled, now); h.Health != HealthSourceStale || h.UnscheduledStale || *h.DaysSinceSource != 8 {
+		t.Fatalf("scheduled: %+v", h)
+	}
+
+	// Not live (unpublished or disabled): nobody is looking at it.
+	notLive := live(30 * day)
+	notLive.IsLive = false
+	if h := HealthOf(notLive, now); h.UnscheduledStale || *h.DaysSinceSource != 30 {
+		t.Fatalf("not live: %+v", h)
+	}
+
+	// No managed data, so no source_as_of: nothing to be old.
+	plain := live(0)
+	plain.SourceAsOf = time.Time{}
+	if h := HealthOf(plain, now); h.UnscheduledStale || h.DaysSinceSource != nil {
+		t.Fatalf("no source_as_of: %+v", h)
+	}
+
+	if got := UnscheduledStaleHint(11); got != "No refresh schedule · data 11 days old — set a schedule or ignore if the campaign has ended" {
+		t.Fatal(got)
+	}
+	if got := UnscheduledStaleHint(1); !strings.Contains(got, "data 1 day old") {
+		t.Fatal(got)
+	}
+}
+
 func TestHealthOK(t *testing.T) {
 	now := ts("2026-10-22T18:30:00.000Z")
 	h := HealthOf(daily(), now)
@@ -83,7 +152,8 @@ func TestHealthOK(t *testing.T) {
 	}
 	want := `{"refresh_schedule":"0 15 * * *","refresh_owner":"trader@example.com","health":"ok",` +
 		`"health_reason":"Refreshing on schedule; last activity Oct 22 15:12 UTC.","health_since":null,` +
-		`"last_due_at":"2026-10-22T15:00:00.000Z","next_due_at":"2026-10-23T15:00:00.000Z","last_activity_at":"2026-10-22T15:12:00.000Z"}`
+		`"last_due_at":"2026-10-22T15:00:00.000Z","next_due_at":"2026-10-23T15:00:00.000Z","last_activity_at":"2026-10-22T15:12:00.000Z",` +
+		`"unscheduled_stale":false,"days_since_source":1}`
 	if string(b) != want {
 		t.Fatalf("wire shape:\n%s\n%s", b, want)
 	}

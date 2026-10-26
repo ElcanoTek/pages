@@ -292,7 +292,7 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 			set(version, "reviewed_by", "qa-admin@elcanotek.com")
 			set(version, "reviewed_at", NOW)
 			set(page, "published_version_id", get(version, "id"))
-			set(page, "is_live", !truthy(get(page, "disabled")))
+			setLive(page, !truthy(get(page, "disabled")))
 			if !truthy(get(version, "html")) {
 				set(version, "html", replaceFirst(versionHTML, "Published", "Approved "+str(get(version, "id"))))
 			}
@@ -314,7 +314,7 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 			set(version, "html", replaceFirst(versionHTML, "Published", "Version "+str(get(version, "id"))))
 		}
 		set(page, "published_version_id", get(version, "id"))
-		set(page, "is_live", !truthy(get(page, "disabled")))
+		setLive(page, !truthy(get(page, "disabled")))
 		return send(http.StatusOK, o("version", version))
 	case "/workspace":
 		workspace := st.workspaces.find(func(ws obj) bool { return sameString(get(ws, "id"), get(body, "workspace_id")) })
@@ -347,11 +347,11 @@ func (a *App) adminAPI(w http.ResponseWriter, r *req) bool {
 		return send(http.StatusOK, page)
 	case "/disable":
 		set(page, "disabled", true)
-		set(page, "is_live", false)
+		setLive(page, false)
 		return send(http.StatusOK, page)
 	case "/enable":
 		set(page, "disabled", false)
-		set(page, "is_live", truthy(get(page, "published_version_id")))
+		setLive(page, truthy(get(page, "published_version_id")))
 		return send(http.StatusOK, page)
 	case "/password":
 		set(page, "has_password", truthy(get(body, "password")))

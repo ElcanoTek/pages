@@ -71,9 +71,11 @@ test("the operations list says how old each dashboard's DATA is", async ({ page 
 
   // No verdict for a page with no refresh schedule: Pages does not know its
   // expected cadence, so it reports the number and leaves the judgement to the
-  // reader (refresh-health.spec.js covers the pages that have one).
+  // reader (refresh-health.spec.js covers the pages that have one). Being live
+  // with data this old, it carries only the grey "No refresh" hint.
   await expect(frozen).not.toContainText(/overdue|stale|stuck|blocked/i);
-  await expect(frozen.locator(".refresh-health")).toHaveCount(0);
+  await expect(frozen.locator(".refresh-health .badge")).toHaveText("No refresh");
+  await expect(frozen.locator(".badge--warning, .badge--error, .refresh-health__reason")).toHaveCount(0);
 
   // A page with no managed data renders no freshness line rather than zeroes.
   const unpublished = page.locator(".operation-table tbody tr", { hasText: "Client 04" }).first();

@@ -605,6 +605,15 @@ that never ran, and the page is reported overdue. `list_refresh_health` returns
 every page that needs attention, worst first, with its owner. The full rules are
 in [API.md](API.md), "Refresh health".
 
+A page with no schedule is never judged, but a **live** one whose
+`source_as_of` is more than 7 days old carries `unscheduled_stale: true` (with
+`days_since_source`) and is counted in `list_refresh_health`'s
+`counts.unscheduled_stale`; `needs_attention:false` lists it. It may be a
+campaign still delivering whose recurring task was never installed — if you
+install one, call `set_page_refresh_schedule` and the hint becomes a verdict —
+or a campaign that has ended, which needs nothing. It is never reported as
+needing attention.
+
 ## Legacy schedule retirement
 
 Migration `010_retire_moc_refresh_dispatch.sql` pauses all old Pages-owned

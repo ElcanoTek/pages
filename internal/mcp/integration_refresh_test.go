@@ -22,6 +22,9 @@ func TestRefreshScheduleAndHealthTools(t *testing.T) {
 	summary := h.data(h.call("get_page_data", o("slug", "mcp-health", "detail", "summary")))
 	eq(t, dig(summary, "refresh_health", "health"), "unscheduled")
 	eq(t, dig(summary, "refresh_health", "refresh_schedule"), nil)
+	// Live and unscheduled, but its data is hours old: no hint.
+	eq(t, dig(summary, "refresh_health", "unscheduled_stale"), false)
+	eq(t, dig(summary, "refresh_health", "days_since_source"), float64(0))
 	keys := ordered(t, h.call("get_page_data", o("slug", "mcp-health", "detail", "summary"))).Keys()
 	for i, k := range keys {
 		if k == "refresh_health" && (i == 0 || keys[i-1] != "freshness") {
@@ -73,6 +76,37 @@ func TestRefreshScheduleAndHealthTools(t *testing.T) {
 		t.Fatalf("%v", rows[0])
 	}
 	eq(t, dig(report, "counts", "overdue"), float64(1))
+	eq(t, dig(report, "counts", "unscheduled_stale"), float64(0))
+
+	// A live page with no schedule whose data stopped nine days ago carries
+	// the hint everywhere refresh_health goes, is counted on its own, and is
+	// still not something that needs attention.
+	h.data(h.call("deploy_page", o("slug", "mcp-stale", "title", "Stale", "html", managedPage(isoAgo(9*24*time.Hour+time.Hour), nil))))
+	stale := h.data(h.call("get_page_data", o("slug", "mcp-stale", "detail", "summary")))
+	eq(t, dig(stale, "refresh_health", "health"), "unscheduled")
+	eq(t, dig(stale, "refresh_health", "unscheduled_stale"), true)
+	eq(t, dig(stale, "refresh_health", "days_since_source"), float64(9))
+	var staleListed any
+	for _, p := range toAnySlice(h.data(h.call("list_pages", o("limit", num(100))))["pages"]) {
+		if strAt(p, "slug") == "mcp-stale" {
+			staleListed = p
+		}
+	}
+	eq(t, dig(staleListed, "refresh_health", "unscheduled_stale"), true)
+	withStale := h.data(h.call("list_refresh_health", nil))
+	eq(t, len(toAnySlice(withStale["pages"])), 1)
+	eq(t, dig(withStale, "counts", "unscheduled_stale"), float64(1))
+	eq(t, dig(withStale, "counts", "unscheduled"), float64(1))
+	var staleRow any
+	for _, r := range toAnySlice(h.data(h.call("list_refresh_health", o("needs_attention", false)))["pages"]) {
+		if strAt(r, "slug") == "mcp-stale" {
+			staleRow = r
+		}
+	}
+	eq(t, dig(staleRow, "health"), "unscheduled")
+	eq(t, dig(staleRow, "unscheduled_stale"), true)
+	eq(t, dig(staleRow, "days_since_source"), float64(9))
+	mustMatch(t, `/admin/mcp-stale$`, strAt(staleRow, "urls", "admin"))
 
 	// A blocked run outranks a late one and quotes its own detail.
 	h.data(h.call("record_refresh_check", o("slug", "mcp-health", "outcome", "blocked", "detail", "ssp report missing for 2026-10-21")))

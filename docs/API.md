@@ -87,7 +87,7 @@ a machine consumer reads its `structuredContent` instead.
 | `get_page_refresh` | `slug` | read-only compatibility guidance for older static Chat/Cutlass allowlists; returns `scheduling:user_owned` and never reads or creates a Pages schedule |
 | `record_refresh_check` | `slug, outcome, detail?, source_as_of_seen?` | record that a refresh looked at this page and what it concluded, **without creating a version**. Moves `freshness.checked_at` only — the published pointer, the data, and every hash are untouched. Call it when a run ends without publishing (`source_not_updated`, `source_unreachable`, `blocked`, `failed`); that outcome otherwise writes nothing anywhere, so a page whose upstream has frozen reads exactly like one nobody runs any more. In `data_update` scope, slug-gated like the other two data tools |
 | `set_page_refresh_schedule` | `slug, schedule?, owner?` | record the cadence the page's recurring refresh was scheduled at (five-field cron, **UTC**) and the email of the person who answers for it, so Pages can judge the page's `refresh_health`. Call it after installing or changing the recurring task. Pages runs nothing on it. `null` clears a field, an omitted one is unchanged; an unchanged value writes no audit row. Staff-only metadata — the page's content, versions and `updated_at` are untouched |
-| `list_refresh_health` | `needs_attention?` | the pages whose scheduled refresh needs a human, worst first (blocked, overdue, source_stale), each with workspace, `refresh_owner`, `health_reason`, `health_since`, `source_as_of` and `last_activity_at`, plus `counts` for every state. `needs_attention:false` lists every page. Read-only; the input for a daily digest |
+| `list_refresh_health` | `needs_attention?` | the pages whose scheduled refresh needs a human, worst first (blocked, overdue, source_stale), each with workspace, `refresh_owner`, `health_reason`, `health_since`, `source_as_of` and `last_activity_at`, plus `counts` for every state. `needs_attention:false` lists every page. Rows also carry `unscheduled_stale` and `days_since_source`, and `counts.unscheduled_stale` counts the live unscheduled pages whose data is more than 7 days old — a hint, never a page that needs attention (see *Refresh health*). Read-only; the input for a daily digest |
 | `prepare_dashboard_update` | `slug, instructions, recurring?, update_type?, publish?, sources?` | prepare a pinned exact-slug one-time workflow or the task prompt of a recurring job; never changes a page or schedules work. `sources` declares which MCP server/tool serves each input, optionally its `path` and date `partition`, so the prompt forbids substitutions and requires enumerating a partitioned folder rather than taking its newest file. **`sources` is required when `recurring` is true** (`update_sources_required`): an unattended run cannot safely re-derive bindings from prose. The response carries `execution_requirements` — the MCP servers, tools, network and model a run needs — so a scheduler can validate the task before accepting it |
 | `get_version` | `slug, version_id` | one version's full row **including HTML** (read back a draft, inspect a rollback target). Prefer `preflight_page` when you only want to know whether the page *works* — it costs a few hundred tokens instead of the whole document |
 | `find_in_version` | `slug, query, version_id?, max_matches?, ignore_case?` | literal search inside a stored version — bounded line numbers and short excerpts, not the document. Locates anchors for `patch_page` |
@@ -457,7 +457,7 @@ automatically.
 |---------------|------|---------|
 | `GET /api/v1/admin/pages` | — | page index with `workspace_id`, `workspace_name`, each row's `freshness` and `refresh_health`, plus `workspaces[]` and response-consistent `page_count` values |
 | `GET /api/v1/admin/pages/:slug` | — | page detail, versions, themes, `freshness` and `refresh_health` |
-| `GET /api/v1/admin/refresh-health` | `?needs_attention=false` optional | the estate's refresh health, worst first: `{generated_at, counts, pages[]}`, each row `slug, title, workspace_id, workspace_name, is_live, refresh_owner, refresh_schedule, health, health_reason, health_since, last_due_at, source_as_of, last_activity_at`. Default: only blocked, overdue and source_stale pages; `counts` always cover every page. The staff-authenticated twin of MCP `list_refresh_health` (see *Refresh health*) |
+| `GET /api/v1/admin/refresh-health` | `?needs_attention=false` optional | the estate's refresh health, worst first: `{generated_at, counts, pages[]}`, each row `slug, title, workspace_id, workspace_name, is_live, refresh_owner, refresh_schedule, health, health_reason, health_since, last_due_at, source_as_of, last_activity_at, unscheduled_stale, days_since_source`. Default: only blocked, overdue and source_stale pages; `counts` always cover every page, and `counts.unscheduled_stale` is how many unscheduled pages carry the hint. The staff-authenticated twin of MCP `list_refresh_health` (see *Refresh health*) |
 | `POST /api/v1/admin/pages/:slug/refresh-schedule` | `{schedule?, owner?}` | set the page's refresh schedule (five-field cron, UTC) and owner email; `null` or `""` clears one, an omitted key is unchanged. Returns `{slug, changed, refresh_health}`; a change writes a `set_refresh_schedule` audit row naming the person |
 | `GET /api/v1/admin/pages/:slug/versions/:id` | — | one version's full row **including `html`** — the detail read above deliberately strips `html` from every entry in `versions` (the whole history would be megabytes), so the admin source editor reads the one version it is opening. `404` if that version belongs to another page |
 | `GET /api/v1/admin/workspaces` | — | list workspaces and active-page counts |
@@ -754,17 +754,31 @@ refresh is scheduled elsewhere. Fields: `refresh_schedule`, `refresh_owner`,
 `health`, `health_reason` (one sentence), `health_since` (when the problem
 started, where known), `last_due_at` (the latest fire at or before now),
 `next_due_at`, `last_activity_at` (the latest refresh on any version, published
-or not, or recorded check).
+or not, or recorded check), `unscheduled_stale` (the hint below) and
+`days_since_source` (whole days since the published `source_as_of`; `null`
+without managed data).
 
 The rules, first match wins:
 
 | `health` | When | `health_reason` / `health_since` |
 |---|---|---|
-| `unscheduled` | no schedule. No judgement — clearing a schedule is how staff stop Pages judging a page | — |
+| `unscheduled` | no schedule. No judgement — clearing a schedule is how staff stop Pages judging a page. If the page is **live** (published, not disabled) and its `source_as_of` is more than **7 days** old (`UnscheduledStaleAfter`), it also carries `unscheduled_stale: true`: a hint, not a health | — |
 | `blocked` | the latest activity is a recorded check whose outcome is `blocked`, `source_unreachable` or `failed` (freshness's `latest_outcome`, with a pending refresh counting as later activity) | the check's own detail / the check |
 | `overdue` | the latest scheduled fire that is more than **3 hours** old has no refresh or recorded check since it. A run up to an hour early counts for its fire (never more than half the gap to the previous fire). A page never refreshed is judged from its creation | "Expected a refresh at Oct 22 15:00 UTC; last activity Oct 20." / the first fire nothing answered |
 | `source_stale` | runs are happening, but the published data's `source_as_of` is older than the schedule's longest gap between fires over a week **plus 2 days** — 3 days for a daily schedule, 5 for weekdays only, 9 for weekly | "Source data hasn't advanced since Sep 28; …" / `source_as_of` |
 | `ok` | none of the above | — |
+
+`unscheduled_stale` is for the page whose campaign is still delivering but whose
+refresh task was never installed, which otherwise looks exactly like a finished
+campaign. It never changes `health`, never counts as needing attention (a
+finished campaign legitimately stays unscheduled), and is never set for a page
+that is not live, has no managed data or has a schedule (whose verdict speaks
+instead). The staff home shows it as a grey **No refresh** chip, with a **No
+refresh set (N)** filter beside Needs attention (linkable as `?unscheduled=1`,
+oldest data first); `list_refresh_health` and its REST twin count it in
+`counts.unscheduled_stale` and list it, first among the unscheduled, only with
+`needs_attention:false`. Answer it by setting a schedule, or leave it if the
+campaign has ended.
 
 Day-of-month and day-of-week combine as in Vixie cron (either matches when both
 are restricted). Names (`MON`), macros (`@daily`), `L`/`W`/`#`/`?` and a step on

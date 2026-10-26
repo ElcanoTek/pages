@@ -100,6 +100,22 @@ func TestRefreshScheduleAndHealth(t *testing.T) {
 		t.Fatalf("%+v", h)
 	}
 	must(CreatePage(ctx, d, CreatePageInput{Slug: "rh/fabrikam", Title: "Fabrikam"}, agent))(t)
+	// A live page nobody gave a schedule, whose data stopped nine days ago:
+	// still unscheduled, but hinted.
+	must(CreateAndDeploy(ctx, d, CreateAndDeployInput{
+		DeployInput: DeployInput{Slug: "rh/tailspin", HTML: managedHTML(hoursAgo(9*24+1), `{"count":1,"label":"a"}`), Source: SourceMCP, Publish: true},
+		Title:       "Tailspin",
+	}, agent))(t)
+	if h := health("rh/tailspin"); h.Health != HealthUnscheduled || !h.UnscheduledStale || *h.DaysSinceSource != 9 || h.NeedsAttention() {
+		t.Fatalf("live, unscheduled, nine days: %+v", h)
+	}
+	// Neither a scheduled page nor a page with no data carries the hint.
+	if h := health("rh/northwind"); h.UnscheduledStale || *h.DaysSinceSource != 0 {
+		t.Fatalf("%+v", h)
+	}
+	if h := health("rh/fabrikam"); h.UnscheduledStale || h.DaysSinceSource != nil {
+		t.Fatalf("%+v", h)
+	}
 
 	// Every list row carries the block; the report keeps only what needs a
 	// human, worst first, and counts everything.
@@ -111,21 +127,39 @@ func TestRefreshScheduleAndHealth(t *testing.T) {
 		}
 		seen[r.Slug] = r.RefreshHealth.Health
 	}
-	if seen["rh/northwind"] != HealthOK || seen["rh/contoso"] != HealthOverdue || seen["rh/fabrikam"] != HealthUnscheduled {
+	if seen["rh/northwind"] != HealthOK || seen["rh/contoso"] != HealthOverdue || seen["rh/fabrikam"] != HealthUnscheduled || seen["rh/tailspin"] != HealthUnscheduled {
 		t.Fatal(seen)
 	}
+	// The hinted page is counted on its own, and is not something that needs
+	// attention.
 	report := must(ListRefreshHealth(ctx, d, true))(t)
 	if len(report.Pages) != 1 || report.Pages[0].Slug != "rh/contoso" || report.Pages[0].Health != HealthOverdue ||
-		report.Counts != (HealthCounts{Overdue: 1, OK: 1, Unscheduled: 1}) || report.GeneratedAt.IsZero() {
+		report.Counts != (HealthCounts{Overdue: 1, OK: 1, Unscheduled: 2, UnscheduledStale: 1}) || report.GeneratedAt.IsZero() {
 		t.Fatalf("%+v", report)
 	}
 	all := must(ListRefreshHealth(ctx, d, false))(t)
-	if len(all.Pages) != 3 || all.Pages[0].Slug != "rh/contoso" || all.Pages[1].Slug != "rh/northwind" || all.Pages[2].Health != HealthUnscheduled {
-		t.Fatalf("%+v", all.Pages)
+	if len(all.Pages) != 4 || all.Pages[0].Slug != "rh/contoso" || all.Pages[1].Slug != "rh/northwind" ||
+		all.Pages[2].Slug != "rh/tailspin" || all.Pages[3].Slug != "rh/fabrikam" {
+		t.Fatalf("the hinted page leads the unscheduled: %+v", all.Pages)
 	}
-	if all.Pages[1].SourceAsOf.IsZero() || *all.Pages[1].RefreshOwner != "trader@example.com" {
+	if all.Pages[1].SourceAsOf.IsZero() || *all.Pages[1].RefreshOwner != "trader@example.com" || all.Pages[1].UnscheduledStale {
 		t.Fatalf("%+v", all.Pages[1])
 	}
+	if r := all.Pages[2]; r.Health != HealthUnscheduled || !r.UnscheduledStale || *r.DaysSinceSource != 9 || !r.IsLive {
+		t.Fatalf("%+v", r)
+	}
+	if r := all.Pages[3]; r.UnscheduledStale || r.DaysSinceSource != nil {
+		t.Fatalf("%+v", r)
+	}
+	// Taking the page down takes the hint with it: nobody is looking at it.
+	must(SetDisabled(ctx, d, "rh/tailspin", true, admin))(t)
+	if h := health("rh/tailspin"); h.UnscheduledStale || *h.DaysSinceSource != 9 {
+		t.Fatalf("a disabled page is not hinted: %+v", h)
+	}
+	if c := must(ListRefreshHealth(ctx, d, false))(t).Counts; c.UnscheduledStale != 0 || c.Unscheduled != 2 {
+		t.Fatalf("%+v", c)
+	}
+	must(SetDisabled(ctx, d, "rh/tailspin", false, admin))(t)
 
 	// Clearing the schedule stops the judgement and keeps the owner.
 	cleared := must(SetRefreshSchedule(ctx, d, RefreshScheduleInput{Slug: "rh/northwind", Schedule: Null}, admin))(t)
