@@ -7,7 +7,7 @@ toolchain go1.27.3
 require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
-	github.com/tdewolff/parse/v2 v2.8.19
+	github.com/tdewolff/parse/v2 v2.8.20
 	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.61.0
 	golang.org/x/text v0.43.0
