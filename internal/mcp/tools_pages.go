@@ -479,6 +479,7 @@ func createdOnlyInput(a *jsonv.Object, in versions.DeployInput) versions.CreateA
 		DeployInput:     in,
 		Title:           title,
 		ClientID:        clientID,
+		WorkspaceID:     argAny(a, "workspace_id"),
 		RequireApproval: argBoolOr(a, "require_approval", false),
 	}
 }

@@ -98,7 +98,7 @@ func pageUploadCommitKey(a *jsonv.Object) string {
 		renderMode = "themed"
 	}
 	title, _ := argStr(a, "title")
-	return sha256Hex(jsonv.Stringify(jsonv.ObjectOf(
+	o := jsonv.ObjectOf(
 		"render_mode", renderMode,
 		"note", orNull(a, "note"),
 		"publish", argBoolOr(a, "publish", true),
@@ -106,7 +106,11 @@ func pageUploadCommitKey(a *jsonv.Object) string {
 		"title", title,
 		"require_approval", argBoolOr(a, "require_approval", false),
 		"client_id", orNull(a, "client_id"),
-	)))
+	)
+	if v := orNull(a, "workspace_id"); v != nil {
+		o.Set("workspace_id", v)
+	}
+	return sha256Hex(jsonv.Stringify(o))
 }
 
 func templateUploadCommitKey(a *jsonv.Object) string {

@@ -175,6 +175,7 @@ func buildCatalog(l limits) *catalog {
 		f("title", zString().Max(200).Optional().Describe(titleIfCreated)),
 		f("require_approval", zBool().Optional().Describe("Used only if the page is created.")),
 		f("client_id", zString().Max(200).Optional().Describe("Used only if the page is created.")),
+		f("workspace_id", nullableIDArg.Optional().Describe("Used only if the page is created: workspace to place the new page in, or null for Ungrouped.")),
 	}
 	uploadDeployInputShape := append([]field{
 		f("upload_id", uploadID),
@@ -942,6 +943,7 @@ func buildCatalog(l limits) *catalog {
 				f("title", zString().Max(200).Optional()),
 				f("require_approval", zBool().Optional()),
 				f("client_id", zString().Max(200).Optional()),
+				f("workspace_id", nullableIDArg.Optional().Describe("Workspace to place the new page in, or null for Ungrouped.")),
 				f("publish", zBool().Optional().Describe("Defaults to true on open pages.")),
 				f("note", zString().Max(500).Optional()),
 			).Strict(),

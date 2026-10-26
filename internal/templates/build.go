@@ -29,6 +29,7 @@ type CreatePageInput struct {
 	SourceAsOf      any
 	Title           any
 	ClientID        any
+	WorkspaceID     any
 	RequireApproval any
 	RenderMode      any
 	Publish         any
@@ -168,7 +169,7 @@ func CreatePage(ctx context.Context, d *db.DB, in CreatePageInput, a versions.Ac
 					RefreshedAt: jsonv.ToString(m.Envelope.Value("refreshed_at"))},
 				TemplateBinding: binding,
 			},
-			Title: in.Title, ClientID: in.ClientID, RequireApproval: in.RequireApproval,
+			Title: in.Title, ClientID: in.ClientID, WorkspaceID: in.WorkspaceID, RequireApproval: in.RequireApproval,
 		}, a, versions.CreateAndDeployOptions{AssertExistingPage: assertExistingPage})
 		if err != nil {
 			return nil, err

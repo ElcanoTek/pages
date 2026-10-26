@@ -676,3 +676,33 @@ func TestClientLifecycleInterop(t *testing.T) {
 	eq(t, read.get("result", "structuredContent", "page", "slug"), "mcpdemo")
 	h.data(read)
 }
+
+func TestCreatePageAssignsWorkspaceInOneCall(t *testing.T) {
+	h := newHarness(t)
+	ws := h.data(h.call("create_workspace", o("name", "Acme Q3")))
+	wsID := strAt(ws, "workspace", "id")
+
+	tpl := h.stage("template", "ws-create-tpl", []byte(templateHTML(1)))
+	h.data(h.call("register_template_upload", o("upload_id", strAt(tpl, "upload_id"), "title", "WS Create")))
+
+	cfg := o("campaign", "Acme Q3", "channel", "display")
+	eq(t, h.fails(h.call("create_page_from_template", o(
+		"template", "ws-create-tpl", "slug", "ws-tpl-missing", "config", cfg, "workspace_id", "999999",
+	))).code(), "workspace_not_found")
+
+	built := h.data(h.call("create_page_from_template", o(
+		"template", "ws-create-tpl", "slug", "ws-tpl-page", "title", "Acme Q3", "config", cfg, "workspace_id", wsID,
+	)))
+	eq(t, built["created"], true)
+	got := h.data(h.call("get_page", o("slug", "ws-tpl-page")))
+	eq(t, strAt(got, "page", "workspace_id"), wsID)
+	eq(t, strAt(got, "page", "workspace_name"), "Acme Q3")
+
+	deployed := h.data(h.call("deploy_page", o(
+		"slug", "ws-inline-page", "title", "Inline WS", "html", pageHTML(1), "workspace_id", wsID,
+	)))
+	eq(t, deployed["created"], true)
+	gotInline := h.data(h.call("get_page", o("slug", "ws-inline-page")))
+	eq(t, strAt(gotInline, "page", "workspace_id"), wsID)
+	eq(t, strAt(gotInline, "page", "workspace_name"), "Acme Q3")
+}

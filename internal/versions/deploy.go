@@ -662,11 +662,12 @@ func bigOver(s string) bool {
 // ── create-or-deploy ────────────────────────────────────────────────────────
 
 // CreateAndDeployInput is MCP's create-or-update fast path: a deploy that
-// creates the page (with Title/ClientID/RequireApproval) when it is missing.
+// creates the page (with Title/ClientID/WorkspaceID/RequireApproval) when it is missing.
 type CreateAndDeployInput struct {
 	DeployInput
 	Title           any // nil ⇒ ""
 	ClientID        any // nil/Null ⇒ NULL
+	WorkspaceID     any // nil/Null ⇒ NULL
 	RequireApproval any // bool; nil ⇒ false
 }
 
@@ -696,6 +697,15 @@ func CreateAndDeployWithTx(ctx context.Context, q db.Querier, in CreateAndDeploy
 	if err != nil {
 		return nil, err
 	}
+	var workspaceID WorkspaceRef
+	if !isNullish(in.WorkspaceID) {
+		if err := assertWorkspaceOrganizer(a); err != nil {
+			return nil, err
+		}
+		if workspaceID, err = NormalizeWorkspaceID(in.WorkspaceID); err != nil {
+			return nil, err
+		}
+	}
 	p, err := PrepareDeploy(in.DeployInput, a)
 	if err != nil {
 		return nil, err
@@ -719,6 +729,18 @@ func CreateAndDeployWithTx(ctx context.Context, q db.Querier, in CreateAndDeploy
 		if err := routens.AssertSlugNotReserved(p.Slug); err != nil {
 			return nil, err
 		}
+		var wsArg any
+		if workspaceID != 0 {
+			var name string
+			err := q.QueryRow(ctx, `SELECT name FROM workspaces WHERE id = $1 FOR KEY SHARE`, int64(workspaceID)).Scan(&name)
+			if db.IsNoRows(err) {
+				return nil, apierror.NotFound("workspace not found", "workspace_not_found", nil)
+			}
+			if err != nil {
+				return nil, err
+			}
+			wsArg = int64(workspaceID)
+		}
 		title := in.Title
 		if title == nil {
 			title = ""
@@ -726,11 +748,11 @@ func CreateAndDeployWithTx(ctx context.Context, q db.Querier, in CreateAndDeploy
 		titleText, titleOK := pgText(title)
 		clientText, clientOK := pgText(in.ClientID)
 		page, err = scanPage(q.QueryRow(ctx,
-			`INSERT INTO pages (slug, title, client_id, require_approval)
-			 VALUES ($1, $2, $3, $4)
+			`INSERT INTO pages (slug, title, client_id, workspace_id, require_approval)
+			 VALUES ($1, $2, $3, $4, $5)
 			 ON CONFLICT (slug) WHERE deleted_at IS NULL DO NOTHING
 			 RETURNING id, slug, require_approval, disabled, published_version_id`,
-			p.Slug, nullableText(titleText, titleOK), nullableText(clientText, clientOK), requireApproval))
+			p.Slug, nullableText(titleText, titleOK), nullableText(clientText, clientOK), wsArg, requireApproval))
 		if err != nil {
 			return nil, err
 		}
@@ -739,7 +761,11 @@ func CreateAndDeployWithTx(ctx context.Context, q db.Querier, in CreateAndDeploy
 				return nil, apierror.Conflict("expected_version cannot be used when creating a missing page", "stale_version", nil)
 			}
 			created = true
-			if err := audit.Write(ctx, q, a.entry("create_page", page.ID, 0, nil)); err != nil {
+			var meta any
+			if workspaceID != 0 {
+				meta = map[string]any{"workspace_id": workspaceID}
+			}
+			if err := audit.Write(ctx, q, a.entry("create_page", page.ID, 0, meta)); err != nil {
 				return nil, err
 			}
 		} else {
