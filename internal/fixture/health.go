@@ -20,7 +20,10 @@ import (
 // seededSchedules gives four seeded rows a schedule, one per state the staff
 // screens render. Everything else stays unscheduled, like a page nobody has
 // set one on — including the detail page, whose frozen data must carry no
-// verdict precisely because it has no schedule.
+// verdict precisely because it has no schedule. The live ones among them whose
+// data is more than a week old (the detail page, and most clients from 08 on,
+// since a generated row's data is as many days old as its number) carry the
+// unscheduled_stale hint instead, exactly as the server would mark them.
 var seededSchedules = map[string][2]string{
 	"client-01": {"0 9 * * *", "desk@northwind.example"},  // ok: refreshed after yesterday's fire
 	"client-02": {"0 9 * * *", "analyst@contoso.example"}, // overdue: nothing since the day before
@@ -36,7 +39,8 @@ func stamp(f any, key string) string {
 // healthFor is the refresh_health block the server would compute for page
 // with this schedule and owner, at NOW.
 func healthFor(page obj, schedule, owner string) obj {
-	in := versions.HealthInput{Schedule: schedule, Owner: owner, CreatedAt: versions.ParseTime(stamp(page, "created_at"))}
+	live, _ := get(page, "is_live").(bool)
+	in := versions.HealthInput{Schedule: schedule, Owner: owner, IsLive: live, CreatedAt: versions.ParseTime(stamp(page, "created_at"))}
 	if f := asObj(get(page, "freshness")); f != nil {
 		in.SourceAsOf = versions.ParseTime(stamp(f, "source_as_of"))
 		in.RefreshedAt = versions.ParseTime(stamp(f, "refreshed_at"))
@@ -53,6 +57,14 @@ func healthFor(page obj, schedule, owner string) obj {
 		panic(err)
 	}
 	return asObj(v)
+}
+
+// setLive sets a row's serving state and judges its refresh health again,
+// since the block reads it: only a live page can be unscheduled_stale.
+func setLive(page obj, live bool) {
+	set(page, "is_live", live)
+	schedule, owner := scheduleOf(page)
+	set(page, "refresh_health", healthFor(page, schedule, owner))
 }
 
 // scheduleOf reads a row's current schedule and owner back off its block.

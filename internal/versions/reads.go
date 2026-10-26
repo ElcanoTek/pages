@@ -282,7 +282,7 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 			return nil, err
 		}
 		out[i].Freshness = FreshnessOf(lastCheckInput(e.lastCheck, c), now)
-		out[i].RefreshHealth = HealthOf(healthInput(e.schedule, e.owner, out[i].CreatedAt, c, e.newest, e.lastCheck), now)
+		out[i].RefreshHealth = HealthOf(healthInput(e.schedule, e.owner, out[i].IsLive, out[i].CreatedAt, c, e.newest, e.lastCheck), now)
 	}
 	return out, nil
 }

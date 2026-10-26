@@ -10,8 +10,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ElcanoTek/pages/internal/db"
+	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/testdb"
 	"github.com/ElcanoTek/pages/internal/versions"
 )
@@ -59,6 +61,18 @@ func TestRefreshScheduleVerb(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// A live page with no schedule whose data stopped ten days ago: the kind a
+	// backfill is for.
+	source := jsx.FormatTime(time.Now().Add(-10*24*time.Hour - time.Hour))
+	html := `<!doctype html><html><head><title>Tailspin</title></head><body><main><h1>Tailspin</h1></main>` +
+		`<script id="pages-data-schema" type="application/schema+json">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}</script>` +
+		`<script id="pages-data" type="application/json">{"contract_version":1,"refreshed_at":"` + source + `","source_as_of":"` + source + `","data":{}}</script></body></html>`
+	if _, err := versions.CreateAndDeploy(ctx, d, versions.CreateAndDeployInput{
+		DeployInput: versions.DeployInput{Slug: "cli/tailspin", HTML: html, Source: versions.SourceMCP, Publish: true},
+		Title:       "Tailspin",
+	}, seed); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("SUDO_USER", "ops-person")
 
 	set := runRefreshScheduleCLI(t, "set", "cli/northwind", "--cron", "30 14 * * 1-5", "--owner", "Trader@Example.com")
@@ -84,11 +98,23 @@ func TestRefreshScheduleVerb(t *testing.T) {
 	list := runRefreshScheduleCLI(t, "list")
 	if list.code != 0 || !regexp.MustCompile(`(?m)^SLUG\s+HEALTH\s+SCHEDULE \(UTC\)\s+OWNER\s+REASON$`).MatchString(list.stdout) ||
 		!regexp.MustCompile(`(?m)^cli/northwind\s+\w+\s+30 14 \* \* 1-5\s+desk@example\.com\s+`).MatchString(list.stdout) ||
-		strings.Contains(list.stdout, "cli/contoso") || !strings.Contains(list.stdout, "1 shown") {
+		strings.Contains(list.stdout, "cli/contoso") || strings.Contains(list.stdout, "cli/tailspin") || !strings.Contains(list.stdout, "1 shown") {
+		t.Fatalf("%s", list.stdout)
+	}
+	// The counts always say how many live pages run without a schedule on old
+	// data, and where to see them.
+	if !strings.Contains(list.stdout, "· unscheduled 2 · unscheduled stale 1\n") ||
+		!strings.Contains(list.stdout, "unscheduled stale: live, no refresh schedule, data over 7 days old (--all lists them) — set a schedule, or ignore if the campaign has ended") {
 		t.Fatalf("%s", list.stdout)
 	}
 	all := runRefreshScheduleCLI(t, "list", "--all")
-	if all.code != 0 || !regexp.MustCompile(`(?m)^cli/contoso\s+unscheduled\s+-\s+-\s+No refresh schedule`).MatchString(all.stdout) || !strings.Contains(all.stdout, "2 shown") {
+	if all.code != 0 || !regexp.MustCompile(`(?m)^cli/contoso\s+unscheduled\s+-\s+-\s+No refresh schedule is set`).MatchString(all.stdout) || !strings.Contains(all.stdout, "3 shown") {
+		t.Fatalf("%s", all.stdout)
+	}
+	// The hinted page leads the unscheduled ones, with the hint as its reason.
+	stale := regexp.MustCompile(`(?m)^cli/tailspin\s+unscheduled\s+-\s+-\s+No refresh schedule · data 10 days old — set a schedule or ignore if the campaign has ended$`)
+	if loc := stale.FindStringIndex(all.stdout); loc == nil || loc[0] > strings.Index(all.stdout, "cli/contoso") ||
+		strings.Contains(all.stdout, "(--all lists them)") {
 		t.Fatalf("%s", all.stdout)
 	}
 

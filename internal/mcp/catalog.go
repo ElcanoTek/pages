@@ -408,7 +408,8 @@ func buildCatalog(l limits) *catalog {
 			name:  "list_refresh_health",
 			title: "List Refresh Health",
 			description: "The pages whose scheduled refresh needs a human, worst first: blocked (the latest run recorded a failure; health_reason is its own detail), overdue (a scheduled refresh did not happen within three hours of its time), then source_stale (runs are happening but the source data has not advanced for longer than the schedule's longest gap plus two days). " +
-				"Each row names the page, its workspace, refresh_owner, health, health_reason, health_since, source_as_of and last_activity_at; counts cover every page. Only pages with a refresh schedule are judged (set_page_refresh_schedule). needs_attention:false lists every page. Read-only.",
+				"Each row names the page, its workspace, refresh_owner, health, health_reason, health_since, source_as_of and last_activity_at; counts cover every page. Only pages with a refresh schedule are judged (set_page_refresh_schedule). needs_attention:false lists every page. " +
+				"Separately, a live page with no schedule whose source_as_of is more than 7 days old carries unscheduled_stale:true (with days_since_source) and is counted in counts.unscheduled_stale: its campaign may still be delivering with no refresh task, or may have ended. It stays unscheduled and never needs attention, so only needs_attention:false lists it (first among the unscheduled, oldest data first). Read-only.",
 			input: zObject(
 				f("needs_attention", zBool().Optional().Describe("Default true: only blocked, overdue and source_stale pages. False lists every page, ok and unscheduled included.")),
 			).Strict(),

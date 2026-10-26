@@ -371,6 +371,35 @@ test("refresh health: only blocked, overdue and stuck sources need a human, wors
   assert.deepEqual(RefreshHealth.attentionRows(undefined), []);
 });
 
+test("refresh health: a live page with old data and no schedule is hinted, never counted as needing attention", () => {
+  const row = (slug, health) => ({ slug, refresh_health: health });
+  const hinted = (slug, days) => row(slug, { health: "unscheduled", unscheduled_stale: true, days_since_source: days });
+  const pages = [
+    hinted("old-a", 11), row("plain", { health: "unscheduled", unscheduled_stale: false, days_since_source: 3 }),
+    hinted("older", 46), row("late", { health: "overdue", unscheduled_stale: false, days_since_source: 9 }),
+    hinted("old-b", 11), row("legacy", undefined), row("nodata", { health: "unscheduled", unscheduled_stale: false, days_since_source: null }),
+  ];
+  // Oldest data first; the list's own order on a tie.
+  assert.deepEqual(RefreshHealth.unscheduledStaleRows(pages).map((p) => p.slug), ["older", "old-a", "old-b"]);
+  // The hint is beside the verdict, not in it: still "Not scheduled", and the
+  // attention list is only the page with a schedule.
+  assert.deepEqual(RefreshHealth.attentionRows(pages).map((p) => p.slug), ["late"]);
+  assert.equal(RefreshHealth.needsAttention(hinted("x", 30)), false);
+  assert.equal(RefreshHealth.describeHealth(hinted("x", 30)).label, "Not scheduled");
+  assert.equal(RefreshHealth.unscheduledStale(hinted("x", 30)), true);
+  assert.equal(RefreshHealth.unscheduledStale(pages[1]), false);
+  assert.equal(RefreshHealth.unscheduledStale(pages[5]), false);
+  // Grey, and the words the row's hover and the CLI both say.
+  assert.deepEqual(RefreshHealth.NO_REFRESH, { kind: "neutral", label: "No refresh", filter: "No refresh set" });
+  assert.equal(RefreshHealth.unscheduledStaleHint(hinted("x", 11)),
+    "No refresh schedule · data 11 days old — set a schedule or ignore if the campaign has ended");
+  assert.match(RefreshHealth.unscheduledStaleHint({ health: "unscheduled", unscheduled_stale: true, days_since_source: 1 }), /data 1 day old/);
+  assert.match(RefreshHealth.unscheduledStaleHint(row("x", { health: "unscheduled", unscheduled_stale: true })), /data over a week old/);
+  assert.equal(RefreshHealth.unscheduledStaleHint(pages[1]), "");
+  assert.equal(RefreshHealth.unscheduledStaleHint(null), "");
+  assert.deepEqual(RefreshHealth.unscheduledStaleRows(undefined), []);
+});
+
 test("refresh health: schedule presets round-trip through the cron the server stores", () => {
   const cases = [
     [{ preset: "none" }, null, "Not scheduled"],
@@ -903,7 +932,7 @@ test("shell.css: every class the refresh-health views render is defined", () => 
   // Read from welcome.js (the index chip and filter) and admin.js (the banner
   // and the Refresh schedule section).
   const used = [
-    "index-toolbar__tools", "attention-filter", "refresh-health", "refresh-health__reason",
+    "index-toolbar__tools", "attention-filter", "unscheduled-filter", "refresh-health", "refresh-health__reason", "sr-only",
     "refresh-banner", "refresh-banner--error", "refresh-banner--warning", "refresh-banner__reason", "refresh-banner__link",
     "refresh-health__summary", "refresh-facts", "template-kv", "access-grid", "subpanel", "subpanel__head",
     "form-stack", "form-grid", "field", "field-error", "form-status", "cluster",

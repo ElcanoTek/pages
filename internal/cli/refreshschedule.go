@@ -28,9 +28,12 @@ import (
 //
 // The cron is five fields in UTC ('30 14 * * *', '0 15 * * 1-5'); Pages runs
 // nothing on it. `list` shows the scheduled pages and how each stands;
-// `--all` adds the unscheduled ones. `clear` removes both the schedule and
-// the owner. Every change is audited under the operator's name, exactly as
-// the admin screen and the set_page_refresh_schedule MCP tool are.
+// `--all` adds the unscheduled ones, the unscheduled_stale ones first (live,
+// no schedule, data over a week old: the pages a backfill is for), and the
+// closing counts always say how many of those there are. `clear` removes
+// both the schedule and the owner. Every change is audited under the
+// operator's name, exactly as the admin screen and the
+// set_page_refresh_schedule MCP tool are.
 //
 // Requires DATABASE_URL (or PG*); on an installed box it is read from the
 // service environment file (serviceenv.go).
@@ -138,14 +141,26 @@ func refreshScheduleVerb(ctx context.Context, d *db.DB, cmd string, all bool, fl
 				continue
 			}
 			shown++
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Health, orDash(p.RefreshSchedule), orDash(p.RefreshOwner), p.HealthReason)
+			reason := p.HealthReason
+			if p.UnscheduledStale && p.DaysSinceSource != nil {
+				reason = versions.UnscheduledStaleHint(*p.DaysSinceSource)
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.Slug, p.Health, orDash(p.RefreshSchedule), orDash(p.RefreshOwner), reason)
 		}
 		if err := w.Flush(); err != nil {
 			return err
 		}
 		c := report.Counts
-		fmt.Fprintf(out, "\n%d shown · blocked %d · overdue %d · source stale %d · ok %d · unscheduled %d\n",
-			shown, c.Blocked, c.Overdue, c.SourceStale, c.OK, c.Unscheduled)
+		fmt.Fprintf(out, "\n%d shown · blocked %d · overdue %d · source stale %d · ok %d · unscheduled %d · unscheduled stale %d\n",
+			shown, c.Blocked, c.Overdue, c.SourceStale, c.OK, c.Unscheduled, c.UnscheduledStale)
+		if c.UnscheduledStale > 0 {
+			where := ""
+			if !all {
+				where = " (--all lists them)"
+			}
+			fmt.Fprintf(out, "unscheduled stale: live, no refresh schedule, data over %d days old%s — set a schedule, or ignore if the campaign has ended\n",
+				int(versions.UnscheduledStaleAfter/(24*time.Hour)), where)
+		}
 		return nil
 	case "set", "clear":
 		in := versions.RefreshScheduleInput{Slug: positional[0]}

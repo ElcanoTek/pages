@@ -668,7 +668,7 @@ re-invokes itself through `sudo`, keeping the installation settings.
 | `pages token revoke <id>` | Revoke; the server 401s it immediately |
 | `pages template list` \| `show` \| `register` \| `sync` | Page templates. See [TEMPLATES.md](TEMPLATES.md) |
 | `pages access grant` \| `revoke` \| `list <email>` | Central mode's access list (§2) |
-| `pages refresh-schedule list [--all]` | Each scheduled page's refresh health, schedule and owner (`--all` adds unscheduled pages) |
+| `pages refresh-schedule list [--all]` | Each scheduled page's refresh health, schedule and owner (`--all` adds unscheduled pages, the `unscheduled_stale` ones first). The closing counts include `unscheduled stale`: live pages with no schedule and data more than 7 days old, the ones a backfill is for |
 | `pages refresh-schedule set <slug> --cron '<cron>' [--owner <email>]` | Set the UTC cron a page's refresh health is judged against, e.g. `--cron '0 15 * * 1-5'`; `--owner` alone changes only the owner. Audited as `pages-cli:<you>` |
 | `pages refresh-schedule clear <slug>` | Remove the schedule and owner: the page is no longer judged |
 | `pages backup [dest]` | Capture recovery inputs and rehearse a restore before completion |

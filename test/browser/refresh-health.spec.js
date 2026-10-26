@@ -6,12 +6,16 @@
 // each judged by the server's own rules (internal/fixture/health.go):
 // client-03 blocked, client-02 overdue, client-05 source stuck, client-01 on
 // schedule, and everything else — the detail page included — unscheduled.
+// Nineteen of the unscheduled ones are live with data more than a week old (the
+// detail page at 46 days, and clients 09 to 35 that are live, at as many days
+// as their number), so they carry the grey "No refresh" hint instead.
 
 const { test, expect } = require("@playwright/test");
 const { resetFixture, expectNoHorizontalOverflow, expectNoSeriousAxeViolations } = require("./helpers");
 
 test.beforeEach(async ({ request }) => resetFixture(request));
 
+const longTitle = "North America Programmatic Revenue and Performance Review — Quarter Two Executive Detail";
 const row = (page, title) => page.locator(".operation-table tbody tr", { hasText: title }).first();
 const updated = (page, title) => row(page, title).locator('td[data-label="Last update"]');
 
@@ -37,9 +41,10 @@ test("the index marks the dashboards whose refresh needs a human, with the reaso
 
   // The existing data-age line is still there, above the chip.
   await expect(stuck).toContainText("Data 5d old");
-  // A page on schedule and a page with no schedule carry no chip at all.
+  // A page on schedule carries no chip at all; a page with no schedule carries
+  // no verdict (the first row's grey hint is covered below).
   await expect(updated(page, "Client 01 operations dashboard").locator(".refresh-health")).toHaveCount(0);
-  await expect(page.locator(".operation-table tbody tr").first().locator(".refresh-health")).toHaveCount(0);
+  await expect(page.locator(".operation-table tbody tr").first().locator(".badge--warning, .badge--error, .refresh-health__reason")).toHaveCount(0);
 
   // The summary says how many, before anyone filters.
   await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("3");
@@ -103,7 +108,140 @@ test("with nothing late the filter says so and offers the way back", async ({ pa
   await expect(filter).toHaveAttribute("aria-pressed", "false");
   await expect(filter).toBeFocused();
   await expect(page.locator(".workspace-index__count")).toHaveText("Showing 25 of 37 pages");
-  await expect(page.locator(".operation-table .refresh-health")).toHaveCount(0);
+  await expect(page.locator(".operation-table .refresh-health").filter({ has: page.locator(".badge--warning, .badge--error") })).toHaveCount(0);
+});
+
+// ── No refresh set: a hint, not a verdict ─────────────────────────────────────
+
+const HINT_46 = "No refresh schedule · data 46 days old — set a schedule or ignore if the campaign has ended";
+
+test("a live page with week-old data and no refresh schedule gets a grey hint, not a verdict", async ({ page }) => {
+  await page.goto("/admin");
+  // The detail page: live, unscheduled, data 46 days old, checked today.
+  const frozen = page.locator(".operation-table tbody tr").first().locator('td[data-label="Last update"]');
+  const chip = frozen.locator(".refresh-health .badge");
+  await expect(chip).toHaveText("No refresh");
+  // Grey — the tone "Not scheduled" uses — never the amber or red of a verdict.
+  await expect(chip).toHaveClass(/badge--draft/);
+  await expect(chip).not.toHaveClass(/badge--(warning|error)/);
+  // The sentence is the hover and the screen-reader text, not a clipped line:
+  // the data age is already on the row.
+  await expect(chip).toHaveAttribute("title", HINT_46);
+  await expect(frozen.locator(".refresh-health .sr-only")).toHaveText(HINT_46);
+  await expect(frozen.locator(".refresh-health__reason")).toHaveCount(0);
+  await expect(frozen).toContainText("Data 46d old");
+  await expect(updated(page, "Client 09 operations dashboard").locator(".badge")).toHaveText("No refresh");
+  await expect(updated(page, "Client 09 operations dashboard").locator(".badge")).toHaveAttribute("title", /data 9 days old/);
+
+  // No hint for: a week exactly (client-07), a disabled page (client-11), a
+  // page with no managed data (client-12), and a page with a schedule, whose
+  // verdict speaks instead (client-05).
+  for (const title of ["Client 07", "Client 11", "Client 12"]) {
+    await expect(updated(page, `${title} operations dashboard`).locator(".refresh-health")).toHaveCount(0);
+  }
+  await expect(updated(page, "Client 05 operations dashboard").locator(".badge")).toHaveText("Source stuck");
+
+  // Not counted as needing attention: the tile and that filter are unchanged.
+  await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("3");
+  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "No refresh set (19)" })).toHaveAttribute("aria-pressed", "false");
+  await expectNoSeriousAxeViolations(page, "index with no-refresh hints");
+});
+
+test("No refresh set filters to those pages, oldest data first, beside Needs attention", async ({ page, request }) => {
+  await page.goto("/admin");
+  const unscheduled = page.getByRole("button", { name: /^No refresh set/ });
+  const attention = page.getByRole("button", { name: /^Needs attention/ });
+  await unscheduled.click();
+  await expect(unscheduled).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/[?&]unscheduled=1/);
+  const titles = page.locator(".operation-table tbody .page-cell__title");
+  await expect(titles).toHaveCount(19);
+  await expect(titles.nth(0)).toHaveText(longTitle);
+  await expect(titles.nth(1)).toHaveText("Client 35 operations dashboard");
+  await expect(titles.nth(18)).toHaveText("Client 09 operations dashboard");
+  await expect(page.locator(".workspace-index__count")).toHaveText("19 of 37 pages");
+  await expect(page.locator(".operation-table .badge--warning, .operation-table .badge--error")).toHaveCount(0);
+  await expectNoSeriousAxeViolations(page, "index filtered to no refresh set");
+
+  // Linkable, like ?attention=1.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "No refresh set (19)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(titles).toHaveCount(19);
+
+  // One filter at a time: the two lists never share a page.
+  await attention.click();
+  await expect(attention).toHaveAttribute("aria-pressed", "true");
+  await expect(unscheduled).toHaveAttribute("aria-pressed", "false");
+  await expect(page).toHaveURL(/[?&]attention=1/);
+  await expect(page).not.toHaveURL(/unscheduled=/);
+  await expect(titles).toHaveCount(3);
+  await unscheduled.click();
+  await expect(page).not.toHaveURL(/attention=/);
+  await expect(titles).toHaveCount(19);
+
+  // Its count follows the workspace.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator(".workspace-nav").getByRole("button", { name: /Executive reporting/ }).click();
+  await expect(page.getByRole("button", { name: "No refresh set (4)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(titles).toHaveText([
+    "Client 34 operations dashboard",
+    "Client 26 operations dashboard",
+    "Client 14 operations dashboard",
+    "Client 10 operations dashboard",
+  ]);
+  await page.locator(".workspace-nav").getByRole("button", { name: /All pages/ }).click();
+
+  // Setting a schedule moves a page from the hint to the verdict (client-09's
+  // last refresh was nine days ago, so a daily schedule finds it overdue);
+  // taking a page down removes its hint.
+  expect((await request.post("/api/v1/admin/pages/client-09/refresh-schedule", { data: { schedule: "0 9 * * *" } })).ok()).toBeTruthy();
+  expect((await request.post("/api/v1/admin/pages/client-10/disable", { data: {} })).ok()).toBeTruthy();
+  await page.goto("/admin?unscheduled=1");
+  await expect(page.getByRole("button", { name: "No refresh set (17)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toBeVisible();
+  await expect(titles.filter({ hasText: /^Client (09|10) operations dashboard$/ })).toHaveCount(0);
+
+  // And off again: every page is back.
+  await page.getByRole("button", { name: "No refresh set (17)" }).click();
+  await expect(page).not.toHaveURL(/unscheduled=/);
+  await expect(page.locator(".workspace-index__count")).toHaveText("Showing 25 of 37 pages");
+});
+
+test("with no page left to hint, the filter is not offered, and a stale link says so", async ({ page }) => {
+  // Every live page has a schedule or recent data.
+  await page.route("**/api/v1/admin/pages", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ json: { ...body, pages: body.pages.map((entry) => ({ ...entry, refresh_health: { ...entry.refresh_health, unscheduled_stale: false } })) } });
+  });
+  await page.goto("/admin");
+  await expect(page.getByRole("button", { name: /^Needs attention/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^No refresh set/ })).toHaveCount(0);
+  await expect(page.locator(".operation-table .refresh-health .badge--draft")).toHaveCount(0);
+
+  await page.goto("/admin?unscheduled=1");
+  await expect(page.getByRole("heading", { name: "Every live page has a refresh" })).toBeVisible();
+  const filter = page.getByRole("button", { name: "No refresh set (0)" });
+  await expect(filter).toHaveAttribute("aria-pressed", "true");
+  await expectNoSeriousAxeViolations(page, "no refresh set, empty");
+  await page.getByRole("button", { name: "Show all pages" }).click();
+  await expect(filter).toHaveAttribute("aria-pressed", "false");
+  await expect(filter).toBeFocused();
+  await expect(page).not.toHaveURL(/unscheduled=/);
+  await expect(page.locator(".workspace-index__count")).toHaveText("Showing 25 of 37 pages");
+});
+
+test("the no-refresh hint and its filter fit a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/admin?unscheduled=1");
+  const cell = page.locator(".operation-table tbody tr").first().locator('td[data-label="Last update"]');
+  await expect(cell.locator(".badge")).toHaveText("No refresh");
+  await expect(cell.locator(".badge")).toBeVisible();
+  await expect(page.getByRole("button", { name: "No refresh set (19)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await expectNoSeriousAxeViolations(page, "no refresh set at phone width");
 });
 
 test("the index keeps the chip and drops the sentence where a card has no room for it", async ({ page }) => {

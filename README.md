@@ -35,7 +35,10 @@ not trust the generated HTML.
 - **Refresh health.** Give a page the cron its refresh runs on and an owner,
   and the staff index flags it when a refresh fails (Blocked), does not run
   (Overdue) or keeps finding no new data (Source stuck), with the reason on the
-  row and a "Needs attention" filter. Staff-only: clients never see it.
+  row and a "Needs attention" filter. A live page with no schedule whose data
+  is over a week old gets a grey "No refresh" hint and a "No refresh set"
+  filter instead — a question, not an alarm, since its campaign may have ended.
+  Staff-only: clients never see it.
 - **Large-document paths that don't burn context.** Durable staged uploads,
   out-of-band upload tickets, and anchored server-side patching, so a one-line
   fix costs anchors rather than two copies of a dashboard.

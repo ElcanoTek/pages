@@ -120,7 +120,16 @@ var refreshHealthSchema = zObject(
 	f("last_due_at", nullableDateTime.Describe("The schedule's most recent fire at or before now.")),
 	f("next_due_at", nullableDateTime),
 	f("last_activity_at", nullableDateTime.Describe("Latest refresh (on any version, published or not) or recorded check.")),
+	f("unscheduled_stale", unscheduledStaleSchema),
+	f("days_since_source", zInt().NonNegative().Nullable().Describe("Whole days since the published data's source_as_of; null without managed data.")),
 ).Strict()
+
+// unscheduledStaleSchema is the hint refresh_health carries beside its
+// verdict (versions.UnscheduledStaleAfter): it never changes health and is
+// never counted as needing attention.
+var unscheduledStaleSchema = zBool().Describe(
+	"A hint, not a health: true for a live page with no refresh schedule whose source_as_of is more than 7 days old — a campaign still " +
+		"delivering with no refresh task installed, or one that has ended. health stays unscheduled and the page does not need attention.")
 
 var pageSummarySchema = pageSchema.Extend(
 	f("is_live", zBool()),
@@ -135,6 +144,7 @@ var healthCountsSchema = zObject(
 	f("source_stale", zInt().NonNegative()),
 	f("ok", zInt().NonNegative()),
 	f("unscheduled", zInt().NonNegative()),
+	f("unscheduled_stale", zInt().NonNegative().Describe("How many of the unscheduled pages carry unscheduled_stale (a subset of unscheduled).")),
 ).Strict()
 
 var refreshHealthRowSchema = zObject(
@@ -151,6 +161,8 @@ var refreshHealthRowSchema = zObject(
 	f("last_due_at", nullableDateTime),
 	f("source_as_of", nullableDateTime),
 	f("last_activity_at", nullableDateTime),
+	f("unscheduled_stale", unscheduledStaleSchema),
+	f("days_since_source", zInt().NonNegative().Nullable()),
 	f("urls", urlsSchema),
 ).Strict()
 

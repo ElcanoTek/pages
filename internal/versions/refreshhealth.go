@@ -60,6 +60,17 @@ import (
 // health_since is when the problem started, where Pages knows it: the
 // recorded failing check (blocked), the first fire nothing answered
 // (overdue), the stale source_as_of (source_stale).
+//
+// Beside the verdict, and never instead of it, sits one hint: unscheduled_stale.
+// A page with no schedule is not judged, and that stays true — a finished
+// campaign legitimately sits there for good. But "no schedule" also describes
+// a page whose campaign is still delivering and whose refresh task was never
+// installed, and that one looked exactly like the finished ones: a neutral
+// "Data 11d old" line and nothing else. So a page that is live (published and
+// not disabled), has no schedule, and whose published source_as_of is more
+// than UnscheduledStaleAfter old carries unscheduled_stale:true, which the
+// staff home shows as a grey "No refresh" chip with a "No refresh set" filter.
+// Its health is still unscheduled and it never counts as needing attention.
 
 // The health values.
 const (
@@ -89,6 +100,12 @@ const (
 	// longest gap before source_stale: a source normally reports through
 	// yesterday or the day before.
 	RefreshStaleSlack = 48 * time.Hour
+	// UnscheduledStaleAfter is how old a live, unscheduled page's source data
+	// may get before Pages hints that nobody has set a refresh for it
+	// (RefreshHealth.UnscheduledStale). A week: longer than any refresh
+	// cadence in use leaves a page between runs, short enough to catch a
+	// running campaign whose task was never installed within its first week.
+	UnscheduledStaleAfter = 7 * 24 * time.Hour
 	// maxReasonDetail clips a recorded check detail quoted as a reason.
 	maxReasonDetail = 300
 )
@@ -103,6 +120,24 @@ type RefreshHealth struct {
 	LastDueAt       jsx.Time `json:"last_due_at"`
 	NextDueAt       jsx.Time `json:"next_due_at"`
 	LastActivityAt  jsx.Time `json:"last_activity_at"`
+	// UnscheduledStale is the hint beside the verdict (see the rules above):
+	// live, no schedule, and source data more than UnscheduledStaleAfter old.
+	// It never changes Health and never makes NeedsAttention true.
+	UnscheduledStale bool `json:"unscheduled_stale"`
+	// DaysSinceSource is freshness's days_since_source for the published
+	// data: whole days since source_as_of, null without one.
+	DaysSinceSource *int64 `json:"days_since_source"`
+}
+
+// UnscheduledStaleHint is what a staff surface says about an
+// unscheduled_stale page, given its days_since_source. The staff home says
+// the same words (public/shell-assets/refresh-health.js).
+func UnscheduledStaleHint(daysSinceSource int64) string {
+	unit := "days"
+	if daysSinceSource == 1 {
+		unit = "day"
+	}
+	return fmt.Sprintf("No refresh schedule · data %d %s old — set a schedule or ignore if the campaign has ended", daysSinceSource, unit)
 }
 
 // NeedsAttention reports whether a human should look: blocked, overdue or
@@ -116,6 +151,9 @@ func (h *RefreshHealth) NeedsAttention() bool {
 type HealthInput struct {
 	Schedule string
 	Owner    string
+	// IsLive is whether the page is serving: published and not disabled. Only
+	// a live page can be unscheduled_stale.
+	IsLive bool
 	// CreatedAt anchors a page that has never been refreshed.
 	CreatedAt time.Time
 	// SourceAsOf and RefreshedAt are the published version's coverage stamps.
@@ -210,10 +248,13 @@ func HealthOf(in HealthInput, now time.Time) *RefreshHealth {
 	lastCheck := msTime(in.LastCheckAt)
 	activity := latest(lastRefresh, lastCheck)
 	h.LastActivityAt = jsx.NewTime(activity)
+	source := msTime(in.SourceAsOf)
+	h.DaysSinceSource = daysSince(source, now)
 
 	if in.Schedule == "" {
 		h.Health = HealthUnscheduled
 		h.HealthReason = "No refresh schedule is set, so Pages does not judge this page."
+		h.UnscheduledStale = in.IsLive && !source.IsZero() && now.Sub(source) > UnscheduledStaleAfter
 		return h
 	}
 	s, err := cron.Parse(in.Schedule)
@@ -261,7 +302,6 @@ func HealthOf(in HealthInput, now time.Time) *RefreshHealth {
 	}
 
 	// Source stale: runs are happening, the data is not moving.
-	source := msTime(in.SourceAsOf)
 	if gap := s.MaxGap(now); !source.IsZero() && gap > 0 && now.Sub(source) > gap+RefreshStaleSlack {
 		h.Health = HealthSourceStale
 		h.HealthSince = jsx.NewTime(source)
@@ -299,9 +339,9 @@ const newestRefreshSQL = `(SELECT nv.refreshed_at FROM page_versions nv
              ORDER BY nv.created_at DESC, nv.id DESC LIMIT 1)`
 
 // healthInput assembles HealthInput from a row's columns.
-func healthInput(schedule, owner *string, created jsx.Time, c coverage, newest jsx.Time, lc LastCheck) HealthInput {
+func healthInput(schedule, owner *string, isLive bool, created jsx.Time, c coverage, newest jsx.Time, lc LastCheck) HealthInput {
 	return HealthInput{
-		Schedule: deref(schedule), Owner: deref(owner), CreatedAt: created.Time,
+		Schedule: deref(schedule), Owner: deref(owner), IsLive: isLive, CreatedAt: created.Time,
 		SourceAsOf: c.sourceAsOf, RefreshedAt: c.refreshedAt, NewestRefreshAt: newest.Time,
 		LastCheckAt: lc.LastCheckAt.Time, LastCheckOutcome: deref(lc.LastCheckOutcome), LastCheckDetail: deref(lc.LastCheckDetail),
 	}
@@ -325,6 +365,7 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 	var (
 		out               PageRefreshHealth
 		schedule, owner   *string
+		isLive            bool
 		created           jsx.Time
 		source, refreshed jsx.Time
 		legacy            *string
@@ -332,7 +373,8 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 		lc                LastCheck
 	)
 	err = q.QueryRow(ctx,
-		`SELECT p.slug, p.refresh_schedule, p.refresh_owner, p.created_at,
+		`SELECT p.slug, p.refresh_schedule, p.refresh_owner,
+		        (p.published_version_id IS NOT NULL AND NOT p.disabled) AS is_live, p.created_at,
 		        pv.source_as_of, pv.refreshed_at,
 		        CASE WHEN pv.data_sha256 IS NULL AND position('pages-data' IN pv.html) > 0
 		             THEN pv.html END AS legacy_managed_html,
@@ -340,7 +382,7 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 		        p.last_check_at, p.last_check_outcome, p.last_check_detail, p.last_check_source_as_of
 		   FROM pages p LEFT JOIN page_versions pv ON pv.id = p.published_version_id
 		  WHERE p.slug = $1 AND p.deleted_at IS NULL`, s).Scan(
-		&out.Slug, &schedule, &owner, &created, &source, &refreshed, &legacy, &newest,
+		&out.Slug, &schedule, &owner, &isLive, &created, &source, &refreshed, &legacy, &newest,
 		&lc.LastCheckAt, &lc.LastCheckOutcome, &lc.LastCheckDetail, &lc.LastCheckSourceAsOf)
 	if db.IsNoRows(err) {
 		return nil, pageNotFound(s)
@@ -356,21 +398,27 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 		now = time.Now()
 	}
 	out.Freshness = FreshnessOf(lastCheckInput(lc, c), now)
-	out.RefreshHealth = HealthOf(healthInput(schedule, owner, created, c, newest, lc), now)
+	out.RefreshHealth = HealthOf(healthInput(schedule, owner, isLive, created, c, newest, lc), now)
 	return &out, nil
 }
 
-// HealthCounts is how many pages are in each health state.
+// HealthCounts is how many pages are in each health state, plus how many of
+// the unscheduled ones carry the unscheduled_stale hint (a subset of
+// Unscheduled, not a sixth state).
 type HealthCounts struct {
-	Blocked     int `json:"blocked"`
-	Overdue     int `json:"overdue"`
-	SourceStale int `json:"source_stale"`
-	OK          int `json:"ok"`
-	Unscheduled int `json:"unscheduled"`
+	Blocked          int `json:"blocked"`
+	Overdue          int `json:"overdue"`
+	SourceStale      int `json:"source_stale"`
+	OK               int `json:"ok"`
+	Unscheduled      int `json:"unscheduled"`
+	UnscheduledStale int `json:"unscheduled_stale"`
 }
 
-func (c *HealthCounts) add(health string) {
-	switch health {
+func (c *HealthCounts) add(h *RefreshHealth) {
+	if h.UnscheduledStale {
+		c.UnscheduledStale++
+	}
+	switch h.Health {
 	case HealthBlocked:
 		c.Blocked++
 	case HealthOverdue:
@@ -400,10 +448,14 @@ type RefreshHealthRow struct {
 	LastDueAt       jsx.Time `json:"last_due_at"`
 	SourceAsOf      jsx.Time `json:"source_as_of"`
 	LastActivityAt  jsx.Time `json:"last_activity_at"`
+	// UnscheduledStale and DaysSinceSource are the page's RefreshHealth
+	// fields of the same names.
+	UnscheduledStale bool   `json:"unscheduled_stale"`
+	DaysSinceSource  *int64 `json:"days_since_source"`
 }
 
-// RefreshHealthReport is ListRefreshHealth's result. Counts cover every live
-// page, whichever rows Pages carries.
+// RefreshHealthReport is ListRefreshHealth's result. Counts cover every
+// (non-deleted) page, whichever rows Pages carries.
 type RefreshHealthReport struct {
 	GeneratedAt jsx.Time           `json:"generated_at"`
 	Counts      HealthCounts       `json:"counts"`
@@ -414,7 +466,9 @@ var healthRank = map[string]int{HealthBlocked: 0, HealthOverdue: 1, HealthSource
 
 // ListRefreshHealth is the estate's refresh health, worst first: blocked,
 // overdue, source_stale (each oldest problem first), then ok and
-// unscheduled. onlyAttention keeps the first three — the daily-digest read.
+// unscheduled, the unscheduled_stale ones first among those (oldest data
+// first). onlyAttention keeps the first three — the daily-digest read — and
+// so never the unscheduled_stale rows, which Counts still counts.
 func ListRefreshHealth(ctx context.Context, q db.Querier, onlyAttention bool) (*RefreshHealthReport, error) {
 	pages, err := ListPages(ctx, q, ListPagesOptions{})
 	if err != nil {
@@ -423,7 +477,7 @@ func ListRefreshHealth(ctx context.Context, q db.Querier, onlyAttention bool) (*
 	report := &RefreshHealthReport{GeneratedAt: jsx.NewTime(msTime(time.Now())), Pages: []RefreshHealthRow{}}
 	for _, p := range pages {
 		h := p.RefreshHealth
-		report.Counts.add(h.Health)
+		report.Counts.add(h)
 		if onlyAttention && !h.NeedsAttention() {
 			continue
 		}
@@ -431,7 +485,7 @@ func ListRefreshHealth(ctx context.Context, q db.Querier, onlyAttention bool) (*
 			Slug: p.Slug, Title: p.Title, WorkspaceID: p.WorkspaceID, WorkspaceName: p.WorkspaceName, IsLive: p.IsLive,
 			RefreshOwner: h.RefreshOwner, RefreshSchedule: h.RefreshSchedule,
 			Health: h.Health, HealthReason: h.HealthReason, HealthSince: h.HealthSince, LastDueAt: h.LastDueAt,
-			LastActivityAt: h.LastActivityAt,
+			LastActivityAt: h.LastActivityAt, UnscheduledStale: h.UnscheduledStale, DaysSinceSource: h.DaysSinceSource,
 		}
 		if p.Freshness != nil {
 			row.SourceAsOf = p.Freshness.SourceAsOf
@@ -442,6 +496,13 @@ func ListRefreshHealth(ctx context.Context, q db.Querier, onlyAttention bool) (*
 		a, b := report.Pages[i], report.Pages[j]
 		if healthRank[a.Health] != healthRank[b.Health] {
 			return healthRank[a.Health] < healthRank[b.Health]
+		}
+		// Among the unscheduled, the hinted ones lead, the oldest data first.
+		if a.UnscheduledStale != b.UnscheduledStale {
+			return a.UnscheduledStale
+		}
+		if a.UnscheduledStale && !a.SourceAsOf.Equal(b.SourceAsOf.Time) {
+			return a.SourceAsOf.Before(b.SourceAsOf.Time)
 		}
 		if !a.HealthSince.Equal(b.HealthSince.Time) {
 			// Oldest problem first; a row with no start date last.

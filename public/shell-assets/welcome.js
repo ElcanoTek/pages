@@ -46,16 +46,22 @@ if (typeof document !== "undefined") (function () {
   let currentView = viewFromURL();
   // "Which dashboards did not refresh?" used to mean opening every one of them.
   // ?attention=1 is the list of the ones that need a human, so a digest or a
-  // colleague can link straight to it.
-  const attentionFromURL = () => new URL(window.location.href).searchParams.get("attention") === "1";
-  let attentionOnly = attentionFromURL();
+  // colleague can link straight to it. ?unscheduled=1 is the gentler list beside
+  // it: live pages with week-old data that nobody gave a refresh schedule. One
+  // filter at a time — the two lists never share a page.
+  const INDEX_FILTERS = ["attention", "unscheduled"];
+  const filterFromURL = () => {
+    const params = new URL(window.location.href).searchParams;
+    return INDEX_FILTERS.find((name) => params.get(name) === "1") || null;
+  };
+  let indexFilter = filterFromURL();
 
-  function setAttention(on) {
-    attentionOnly = on;
+  function setFilter(name) {
+    indexFilter = name;
     shown = PAGE_WINDOW;
     const url = new URL(window.location.href);
-    if (on) url.searchParams.set("attention", "1");
-    else url.searchParams.delete("attention");
+    for (const other of INDEX_FILTERS) url.searchParams.delete(other);
+    if (name) url.searchParams.set(name, "1");
     window.history.replaceState({}, "", url);
   }
 
@@ -148,13 +154,27 @@ if (typeof document !== "undefined") (function () {
     // new data — and nothing at all for a page that is fine or has no schedule,
     // so the chips that do appear are the list of things to fix. The reason is
     // on the row, not only in a tooltip: it is what the reader acts on.
+    //
+    // The one exception is grey: a live page with week-old data and no refresh
+    // schedule says "No refresh". It is a question, not a fault — the campaign
+    // may simply have ended — so it takes the neutral tone, stays out of Needs
+    // attention, and keeps its sentence to the hover and to assistive tech: the
+    // data age is already the line above it, and on an estate where half the
+    // rows carry it, a clipped sentence on each would be the noise this chip is
+    // meant not to be.
     const refreshHealthNode = (row) => {
-      if (!Health.needsAttention(row)) return null;
-      const { kind, label } = Health.describeHealth(row);
-      const reason = row.refresh_health.health_reason || "";
+      if (Health.needsAttention(row)) {
+        const { kind, label } = Health.describeHealth(row);
+        const reason = row.refresh_health.health_reason || "";
+        return el("div", { class: "refresh-health" },
+          statusChip(kind, label, { title: reason }),
+          el("span", { class: "refresh-health__reason", title: reason }, reason));
+      }
+      const hint = Health.unscheduledStaleHint(row);
+      if (!hint) return null;
       return el("div", { class: "refresh-health" },
-        statusChip(kind, label, { title: reason }),
-        el("span", { class: "refresh-health__reason", title: reason }, reason));
+        statusChip(Health.NO_REFRESH.kind, Health.NO_REFRESH.label, { title: hint }),
+        el("span", { class: "sr-only" }, hint));
     };
 
     // The title is the link to the review screen, so the row does not need a button
@@ -331,23 +351,43 @@ if (typeof document !== "undefined") (function () {
 
   function pageIndex(pages, workspaces) {
     const label = activeWorkspaceLabel(workspaces);
-    const baseCount = filterWorkspacePages(pages, currentView).length;
-    const attentionCount = Health.attentionRows(filterWorkspacePages(pages, currentView)).length;
+    const scoped = filterWorkspacePages(pages, currentView);
+    const baseCount = scoped.length;
+    const attentionCount = Health.attentionRows(scoped).length;
+    const unscheduledCount = Health.unscheduledStaleRows(scoped).length;
     const count = el("span", { class: "workspace-index__count", role: "status", "aria-live": "polite", "aria-atomic": "true", tabindex: "-1" });
-    // A filter, so it says whether it is on (aria-pressed) and how many it
+    // Filters, so each says whether it is on (aria-pressed) and how many it
     // would show, in the scope the reader is already looking at.
-    const attention = el("button", {
-      id: "attention-filter",
-      class: "btn btn-sm attention-filter",
-      type: "button",
-      "aria-pressed": attentionOnly ? "true" : "false",
-      title: "Pages whose scheduled refresh is blocked, overdue, or finding no new source data",
-      onclick: () => {
-        setAttention(!attentionOnly);
-        attention.setAttribute("aria-pressed", attentionOnly ? "true" : "false");
-        draw();
-      },
-    }, `Needs attention (${attentionCount})`);
+    const filters = {};
+    const syncFilters = () => {
+      for (const [name, button] of Object.entries(filters)) button.setAttribute("aria-pressed", indexFilter === name ? "true" : "false");
+    };
+    const filterButton = (name, className, title, text) => {
+      filters[name] = el("button", {
+        id: `${name}-filter`,
+        class: `btn btn-sm ${className}`,
+        type: "button",
+        "aria-pressed": indexFilter === name ? "true" : "false",
+        title,
+        onclick: () => {
+          setFilter(indexFilter === name ? null : name);
+          syncFilters();
+          draw();
+        },
+      }, text);
+      return filters[name];
+    };
+    const attention = filterButton("attention", "attention-filter",
+      "Pages whose scheduled refresh is blocked, overdue, or finding no new source data",
+      `Needs attention (${attentionCount})`);
+    // Only offered when there is something to show (or it is already on, so it
+    // can be turned off): on an estate where every live page has a schedule it
+    // would be a permanent "(0)" beside the one filter that matters.
+    const unscheduled = unscheduledCount || indexFilter === "unscheduled"
+      ? filterButton("unscheduled", "unscheduled-filter",
+          "Live pages with no refresh schedule whose data is more than 7 days old: set a schedule, or ignore the ones whose campaign has ended",
+          `${Health.NO_REFRESH.filter} (${unscheduledCount})`)
+      : null;
     const search = el("input", {
       type: "search",
       value: currentQuery,
@@ -359,13 +399,15 @@ if (typeof document !== "undefined") (function () {
     function draw() {
       currentQuery = search.value;
       let visible = filterWorkspacePages(pages, currentView, currentQuery);
-      // Worst first: a blocked run before a late one before a stuck source.
-      if (attentionOnly) visible = Health.attentionRows(visible);
+      // Worst first: a blocked run before a late one before a stuck source. And
+      // without a schedule, the oldest data first.
+      if (indexFilter === "attention") visible = Health.attentionRows(visible);
+      else if (indexFilter === "unscheduled") visible = Health.unscheduledStaleRows(visible);
       const windowed = visible.slice(0, shown);
       const remaining = visible.length - windowed.length;
       // The count is the only thing that says the list is not all of it, so it
       // has to say so rather than reporting a total the table does not show.
-      const total = currentQuery.trim() || attentionOnly
+      const total = currentQuery.trim() || indexFilter
         ? `${visible.length} of ${baseCount} ${baseCount === 1 ? "page" : "pages"}`
         : `${baseCount} ${baseCount === 1 ? "page" : "pages"}`;
       count.textContent = remaining > 0 ? `Showing ${windowed.length} of ${total}` : total;
@@ -415,18 +457,20 @@ if (typeof document !== "undefined") (function () {
         return;
       }
       const searching = Boolean(currentQuery.trim());
-      if (attentionOnly && !searching) {
-        results.replaceChildren(emptyState(
-          "Nothing needs attention",
-          "Every page with a refresh schedule here is on time and finding new data.",
+      if (indexFilter && !searching) {
+        const active = filters[indexFilter];
+        const [title, text] = indexFilter === "attention"
+          ? ["Nothing needs attention", "Every page with a refresh schedule here is on time and finding new data."]
+          : ["Every live page has a refresh", "No live page here has gone more than 7 days without new data and without a refresh schedule."];
+        results.replaceChildren(emptyState(title, text,
           el("button", {
             class: "btn",
             type: "button",
             onclick: () => {
-              setAttention(false);
-              attention.setAttribute("aria-pressed", "false");
+              setFilter(null);
+              syncFilters();
               draw();
-              attention.focus();
+              active.focus();
             },
           }, "Show all pages")));
         return;
@@ -468,6 +512,7 @@ if (typeof document !== "undefined") (function () {
           count),
         el("div", { class: "index-toolbar__tools" },
           attention,
+          unscheduled,
           el("label", { class: "search-field" },
             el("span", { class: "sr-only" }, `Search ${label}`),
             icon("search"), search))),
@@ -758,7 +803,7 @@ if (typeof document !== "undefined") (function () {
 
   window.addEventListener("popstate", () => {
     currentView = viewFromURL();
-    attentionOnly = attentionFromURL();
+    indexFilter = filterFromURL();
     render(currentData);
   });
   load();

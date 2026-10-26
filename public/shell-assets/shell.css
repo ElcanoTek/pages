@@ -723,9 +723,14 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
    section. Red and amber are the status tokens the badges already use. */
 .index-toolbar__tools { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .attention-filter[aria-pressed="true"] { color: var(--color-status-warning-fg); border-color: var(--color-status-warning-border); background: var(--color-status-warning-bg); }
+/* Its grey twin, for live pages with old data and no refresh schedule: a
+   question (is the campaign still running?), not a fault, so no status colour. */
+.unscheduled-filter[aria-pressed="true"] { color: var(--color-text-primary); border-color: var(--color-text-muted); background: var(--color-overlay-soft); }
 .refresh-health { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
 /* LAST UPDATE cannot grow (see the column widths above), so its longest chip,
-   "Source stuck", gives up some tracking to fit the 104px it has. */
+   "Source stuck", gives up some tracking to fit the 104px it has. The grey "No
+   refresh" hint is short by design and has no reason line: its sentence is the
+   chip's title and screen-reader text. */
 .refresh-health .badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
 /* Two lines at most in a table row; the whole reason is on hover and on the
    page's own screen. */
