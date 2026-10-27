@@ -115,6 +115,13 @@ func undoRefreshHealth(tool *jsonv.Object) {
 			}
 		}
 	}
+	if name, _ := tool.Value("name").(string); name == "create_page_from_template" || name == "deploy_page" || name == "deploy_page_upload" {
+		if in, ok := tool.Value("inputSchema").(*jsonv.Object); ok {
+			if props, ok := in.Value("properties").(*jsonv.Object); ok {
+				props.Delete("workspace_id")
+			}
+		}
+	}
 }
 
 // legacyDefinition is a Go tools/list entry with the deliberate additions
@@ -305,6 +312,16 @@ func TestDataUpdateTokensSeeOnlyTheirTools(t *testing.T) {
 	}
 	if broad := len(visibleTools(currentCatalog(), &tokens.Agent{Scope: tokens.ScopeDeploy})); broad != len(currentCatalog().tools) {
 		t.Fatalf("a deploy token sees %d tools", broad)
+	}
+}
+
+func TestCreateToolsAdvertiseWorkspaceID(t *testing.T) {
+	cat := currentCatalog()
+	for _, name := range []string{"create_page_from_template", "deploy_page", "deploy_page_upload"} {
+		props := cat.byName[name].input.JSONSchema(ioInput).Value("properties").(*jsonv.Object)
+		if !props.Has("workspace_id") {
+			t.Errorf("%s does not advertise workspace_id", name)
+		}
 	}
 }
 
