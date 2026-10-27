@@ -20,6 +20,9 @@ const MaxInstructions = 20000
 // MaxSources bounds the declared source bindings.
 const MaxSources = 20
 
+// MaxScopeValues bounds the values one source scope may list.
+const MaxScopeValues = 100
+
 // UpdateTypes are the accepted update_type values.
 var UpdateTypes = []string{"auto", "data", "layout"}
 
@@ -171,7 +174,19 @@ type Partition struct {
 	Until  string `json:"until,omitempty"`
 }
 
-// Source is one normalized source binding, in the JavaScript key order.
+// Scope says which rows of a source belong to the page: those whose Field holds
+// one of Values. A dashboard spanning two campaigns of one advertiser reads
+// both from the same source file; written as prose ("filter strictly to the
+// first campaign") the second campaign's rows were excluded on every run while
+// its records sat in CONFIG with frozen numbers. A list makes "both" the
+// literal scope instead of something a run has to infer.
+type Scope struct {
+	Field  string   `json:"field"`
+	Values []string `json:"values"`
+}
+
+// Source is one normalized source binding, in the JavaScript key order (scope,
+// added after the port, last).
 type Source struct {
 	SourceID              string     `json:"source_id"`
 	MCPServer             string     `json:"mcp_server"`
@@ -180,6 +195,7 @@ type Source struct {
 	Path                  string     `json:"path,omitempty"`
 	Partition             *Partition `json:"partition,omitempty"`
 	RetrievalInstructions string     `json:"retrieval_instructions,omitempty"`
+	Scope                 *Scope     `json:"scope,omitempty"`
 }
 
 // isNullish is JavaScript `v === undefined || v === null` for a decoded
@@ -326,9 +342,49 @@ func NormalizeSources(value any) ([]Source, error) {
 				return nil, err
 			}
 		}
+		if v, ok := lookup(entry, "scope"); ok {
+			if n.Scope, err = normalizeScope(v, index); err != nil {
+				return nil, err
+			}
+		}
 		out = append(out, n)
 	}
 	return out, nil
+}
+
+// normalizeScope validates sources[index].scope: one field name and 1 to
+// MaxScopeValues distinct values, each a single line.
+func normalizeScope(value any, index int) (*Scope, error) {
+	field := func(name string) string { return fmt.Sprintf("sources[%d].scope.%s", index, name) }
+	obj := asObject(value)
+	if obj == nil {
+		return nil, sourcesInvalid(fmt.Sprintf("sources[%d].scope must be an object", index))
+	}
+	name, err := boundedString(obj.Value("field"), field("field"), 120)
+	if err != nil {
+		return nil, err
+	}
+	raw, isArr := asArray(obj.Value("values"))
+	if !isArr || len(raw) == 0 {
+		return nil, sourcesInvalid(fmt.Sprintf("sources[%d].scope.values must be a non-empty array", index))
+	}
+	if len(raw) > MaxScopeValues {
+		return nil, sourcesInvalid(fmt.Sprintf("sources[%d].scope.values must contain at most %d entries", index, MaxScopeValues))
+	}
+	sc := &Scope{Field: name, Values: make([]string, 0, len(raw))}
+	seen := map[string]bool{}
+	for vi, v := range raw {
+		value, err := boundedString(v, fmt.Sprintf("sources[%d].scope.values[%d]", index, vi), 200)
+		if err != nil {
+			return nil, err
+		}
+		if seen[value] {
+			return nil, sourcesInvalid(fmt.Sprintf("sources[%d].scope.values[%d] is duplicated", index, vi))
+		}
+		seen[value] = true
+		sc.Values = append(sc.Values, value)
+	}
+	return sc, nil
 }
 
 func sourcesToJSON(sources []Source) []any {
@@ -363,6 +419,13 @@ func sourcesToJSON(sources []Source) []any {
 		}
 		if s.RetrievalInstructions != "" {
 			o.Set("retrieval_instructions", s.RetrievalInstructions)
+		}
+		if s.Scope != nil {
+			values := make([]any, len(s.Scope.Values))
+			for j, v := range s.Scope.Values {
+				values[j] = v
+			}
+			o.Set("scope", jsonv.ObjectOf("field", s.Scope.Field, "values", values))
 		}
 		out[i] = o
 	}

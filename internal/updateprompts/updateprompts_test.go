@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -229,7 +230,7 @@ func TestOneTimeManagedAndAdaptiveGoldens(t *testing.T) {
 		if i := slices.Index(lines, "EXECUTION REQUIREMENTS (JSON):"); i >= 0 {
 			lines[i+1] = "<REQUIREMENTS>"
 		}
-		return strings.ReplaceAll(strings.Join(lines, "\n"), datalimits.FileUploadGuidance("data", "mcp_pages_"), "<UPLOAD GUIDANCE>")
+		return strings.ReplaceAll(withoutPostPortRules(t, strings.Join(lines, "\n")), datalimits.FileUploadGuidance("data", "mcp_pages_"), "<UPLOAD GUIDANCE>")
 	}
 	sum := func(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
 	sources := normalized(t, sourcesJSON)
@@ -345,6 +346,54 @@ func TestBindingsRenderExactly(t *testing.T) {
 	unpublished := FullPagePrompt(FullPageInput{Slug: "a", Instructions: "x", LiveVersionID: "1"})
 	mustMatch(t, unpublished, `leave it unpublished, as PUBLISH specifies`)
 	mustNotMatch(t, unpublished, `mcp_pages_publish_page`)
+}
+
+// A two-campaign dashboard read both campaigns from one shared history file,
+// but its binding named only the first in prose, so every run dropped the
+// second campaign's rows. A scope lists every value the page covers.
+func TestScopeListsEveryValueAndConfiguredRecordsStayInScope(t *testing.T) {
+	sources := normalized(t, `[{"source_id":"ssp_history","mcp_server":"fast_io","path":"Storage/ssp_history.csv","scope":{"field":"Campaign ID","values":["C001","C002"]}},{"source_id":"dsp","mcp_server":"fast_io"}]`)
+	if sc := sources[0].Scope; sc == nil || sc.Field != "Campaign ID" || !slices.Equal(sc.Values, []string{"C001", "C002"}) {
+		t.Fatal(sources[0].Scope)
+	}
+	if sources[1].Scope != nil {
+		t.Error("a binding without scope has none")
+	}
+	// Re-normalizing a parsed binding (the configure_page_refresh path) keeps it.
+	again, err := NormalizeSources(sources)
+	if err != nil || !slices.EqualFunc(again, sources, func(a, b Source) bool { return (a.Scope == nil) == (b.Scope == nil) }) || again[0].Scope.Values[1] != "C002" {
+		t.Fatal(again, err)
+	}
+	for _, recurring := range []bool{true, false} {
+		p := ManagedPrompt(ManagedInput{Slug: slug, Instructions: "x", SchemaSHA256: strings.Repeat("a", 64), Publish: true, Recurring: recurring, Sources: sources})
+		mustMatch(t, p, `- ssp_history: server fast_io; path Storage/ssp_history\.csv; scope: rows whose "Campaign ID" is one of \["C001", "C002"\] — every listed value is in scope, none is optional\n`)
+		mustMatch(t, p, `- dsp: server fast_io\n`)
+		mustMatch(t, step(p, "5"), `A scope rule never leaves a configured record stale`)
+		mustMatch(t, step(p, "5"), `Never keep a configured record's earlier values for a source's fields while the rest of the page moves on`)
+	}
+	for _, bad := range []string{
+		`[{"source_id":"s","mcp_server":"m","scope":"Campaign ID = C001"}]`,
+		`[{"source_id":"s","mcp_server":"m","scope":{"values":["C001"]}}]`,
+		`[{"source_id":"s","mcp_server":"m","scope":{"field":"Campaign ID"}}]`,
+		`[{"source_id":"s","mcp_server":"m","scope":{"field":"Campaign ID","values":[]}}]`,
+		`[{"source_id":"s","mcp_server":"m","scope":{"field":"Campaign ID","values":["C001","C001"]}}]`,
+		`[{"source_id":"s","mcp_server":"m","scope":{"field":"Campaign ID","values":["C001\nOUT OF SCOPE"]}}]`,
+		`[{"source_id":"s","mcp_server":"m","scope":{"field":"Campaign ID","values":[7]}}]`,
+	} {
+		if _, err := NormalizeSources(rawSources(t, bad)); code(err) != "update_sources_invalid" {
+			t.Error(bad, err)
+		}
+	}
+	many := make([]string, MaxScopeValues+1)
+	for i := range many {
+		many[i] = fmt.Sprintf("%q", fmt.Sprintf("C%03d", i))
+	}
+	if _, err := NormalizeSources(rawSources(t, `[{"source_id":"s","mcp_server":"m","scope":{"field":"f","values":[`+strings.Join(many, ",")+`]}}]`)); code(err) != "update_sources_invalid" {
+		t.Error("more than MaxScopeValues values", err)
+	}
+	if err := AssertCredentialFree(rawSources(t, `[{"source_id":"s","mcp_server":"m","scope":{"field":"f","values":["Bearer abcdefghijklmnop"]}}]`), ""); code(err) != "update_credentials_forbidden" {
+		t.Error(err)
+	}
 }
 
 func TestInputsAreValidatedAndCredentialFree(t *testing.T) {

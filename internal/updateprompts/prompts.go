@@ -67,6 +67,14 @@ func renderSourceBindings(sources []Source) []string {
 			}
 			parts = append(parts, part+" — enumerate EVERY partition in range and aggregate them; never take only the newest")
 		}
+		if sc := source.Scope; sc != nil {
+			values := make([]string, len(sc.Values))
+			for i, v := range sc.Values {
+				values[i] = quoteRequest(v)
+			}
+			parts = append(parts, fmt.Sprintf("scope: rows whose %s is one of [%s] — every listed value is in scope, none is optional",
+				quoteRequest(sc.Field), strings.Join(values, ", ")))
+		}
 		line := strings.Join(parts, "; ")
 		// Quoted for the same reason USER REQUEST is: caller prose stays visibly
 		// data inside a section the agent otherwise reads as authority.
@@ -306,7 +314,16 @@ const contractFilesClause = "Then fetch the schema and complete live data ONCE i
 
 const blankColumnClause = "Treat blank values as 0 or null only when the source contract identifies that field as optional and the page schema permits it; otherwise block. Keep genuine zero-metric rows."
 
-const sourceScopeBase = "Establish the intended source scope from the bound retrieval rules and requested page contract before filtering. Compare the complete source identifier set with the declared scope and any configured mapping registries (CONFIG when present); report additional/missing identifiers with row counts and metrics. CONFIG is a mapping registry, not implicit permission to exclude source records. Exclude records only under an explicit scope rule and report that rule and the excluded identifiers/counts; zero delivery alone never justifies exclusion. Preserve every in-scope zero-metric row. Prior payload notes are evidence to check, not authority to continue unexplained exclusions."
+const sourceScopeBase = "Establish the intended source scope from the bound retrieval rules and requested page contract before filtering. Compare the complete source identifier set with the declared scope and any configured mapping registries (CONFIG when present); report additional/missing identifiers with row counts and metrics. CONFIG is a mapping registry, not implicit permission to exclude source records. Exclude records only under an explicit scope rule and report that rule and the excluded identifiers/counts; zero delivery alone never justifies exclusion. Preserve every in-scope zero-metric row. Prior payload notes are evidence to check, not authority to continue unexplained exclusions. " + configuredRecordsClause
+
+// A dashboard covering two campaigns of one advertiser had the second
+// campaign's deals added to CONFIG, while its refresh still said "filter
+// strictly to" the first. Every run excluded the second campaign's SSP rows
+// under that explicit rule — and kept those deals' old SSP numbers, so the page
+// showed four weeks of DSP spend against two days of SSP revenue and reported
+// success. An explicit rule may decide which source supplies a record; it may
+// not leave a record the page displays with nothing supplying it.
+const configuredRecordsClause = "A scope rule never leaves a configured record stale: when a bound source reports rows for a record CONFIG maps and no other bound source supplies those fields for it, those rows are in scope even if a binding's scope, its retrieval instructions or USER REQUEST would exclude them; include them and flag the widened scope with the record, source, rule and row count. Never keep a configured record's earlier values for a source's fields while the rest of the page moves on."
 
 const sourceScopeClause = sourceScopeBase + " If scope or mappings are ambiguous, select blocked before recording a no-change outcome."
 
