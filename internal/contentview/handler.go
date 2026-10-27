@@ -106,6 +106,9 @@ type handler struct {
 	turnWait time.Duration
 	// recordTimeout bounds the detached failure write (0: the default).
 	recordTimeout time.Duration
+	// realHolds keeps failure holds on real time even when sleepHook fakes
+	// the delays (tests of the hold itself).
+	realHolds bool
 }
 
 func identity(h http.Handler) http.Handler { return h }

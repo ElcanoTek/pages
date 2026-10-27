@@ -279,7 +279,9 @@
   backoff step apart rather than all at once; an attempt that cannot get its
   turn within `passwordgate.TurnWait` is a 429 for the credentials it could
   not test. A member page's own password is checked under the page's turn
-  alone, so a portal's turn never blocks direct-password viewers.
+  alone, so a portal's turn never blocks direct-password viewers, and a set
+  of turns is taken all at once or not at all, so an attempt never holds one
+  credential while it waits for another.
 - **Bounded request bodies before authentication.** The dashboard decides a
   request's body limits before reading any of it: only `/api/v1` requests with
   a verified agent token or an admin session get `MAX_REQUEST_BYTES`; every

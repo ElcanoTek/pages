@@ -106,3 +106,29 @@ func TestTurnsSerialiseAndTimeOut(t *testing.T) {
 	}
 	hold()
 }
+
+// An attempt waiting for a set of turns holds none of them while it waits,
+// so a busy credential cannot starve the others it is requested with.
+func TestTurnsAreTakenAllOrNothing(t *testing.T) {
+	var turns Turns
+	ctx := context.Background()
+	holdB, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	got := make(chan bool, 1)
+	go func() {
+		r, ok := turns.Acquire(ctx, 2*time.Second, PortalKey(1), PortalKey(2), PageKey(9))
+		got <- ok
+		r()
+	}()
+	time.Sleep(30 * time.Millisecond) // the waiter is now waiting on B
+	for _, k := range []string{PortalKey(1), PageKey(9)} {
+		r, ok := turns.Acquire(ctx, 20*time.Millisecond, k)
+		if !ok {
+			t.Fatalf("%s is held by an attempt still waiting for another turn", k)
+		}
+		r()
+	}
+	holdB()
+	if !<-got {
+		t.Fatal("the waiter gets the whole set once it is free")
+	}
+}

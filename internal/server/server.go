@@ -318,7 +318,9 @@ func (s *Server) bodyLimits(r *http.Request) (*http.Request, reqbody.Options) {
 	}
 	sess, err := s.auth.Resolve(r)
 	if err != nil {
-		return r, reqbody.UnauthenticatedOptions()
+		// Carried down too, so the admin gate answers with this error rather
+		// than waiting on the session store a second time.
+		return auth.WithResolveError(r, err), reqbody.UnauthenticatedOptions()
 	}
 	// The resolved session (or its absence) rides on the request too, so the
 	// admin gate does not resolve it again.

@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -290,5 +291,22 @@ func TestDevLogin(t *testing.T) {
 		if got := get(dl.Login, target).Header().Get("Location"); got != want {
 			t.Errorf("%s → %q, want %q", target, got, want)
 		}
+	}
+}
+
+// A failed session lookup carried on the request (the dashboard resolves
+// before choosing body limits) is what Resolve answers afterwards: the admin
+// gate does not query the session store a second time during an outage.
+func TestResolveReusesACarriedLookupError(t *testing.T) {
+	a := &auth.Authenticator{}
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/admin/pages", nil)
+	storeDown := errors.New("northwind session store unavailable")
+	s, err := a.Resolve(auth.WithResolveError(r, storeDown))
+	if s != nil || !errors.Is(err, storeDown) {
+		t.Fatalf("Resolve = %v, %v; want the carried error", s, err)
+	}
+	want := &auth.Session{Email: "staff@example.com"}
+	if s, err := a.Resolve(auth.WithSession(r, want)); s != want || err != nil {
+		t.Fatalf("a carried session: %v, %v", s, err)
 	}
 }

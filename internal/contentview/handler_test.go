@@ -519,6 +519,7 @@ func TestParallelPasswordGuessesWaitTheirTurn(t *testing.T) {
 	pid, _ := f.live("turnpage")
 	f.setPassword("turnpage", "turn-secret")
 	f.h.turnWait = 50 * time.Millisecond
+	f.h.realHolds = true // the turn is held for the real 500ms delay
 	inDelay, finish := make(chan struct{}), make(chan struct{})
 	f.h.sleepHook = func(time.Duration) {
 		close(inDelay)
@@ -541,6 +542,7 @@ func TestParallelPasswordGuessesWaitTheirTurn(t *testing.T) {
 	close(finish)
 	expect(t, (<-first).status == http.StatusUnauthorized, "the first guess still gets its 401")
 	f.h.sleepHook = func(time.Duration) {}
+	f.h.turnWait = 3 * time.Second
 	expect(t, f.post("/turnpage", "turn-secret").status == http.StatusSeeOther, "once the turn is free the right password works")
 }
 
@@ -628,53 +630,98 @@ func TestPortalTurnDoesNotBlockAMemberPagesOwnPassword(t *testing.T) {
 	expect(t, f.count(`SELECT count(*) FROM portal_password_failures WHERE portal_id = $1`, portalID) == 0, "the untested portal is not charged")
 }
 
-// stalledClears is a database whose post-success writes (clearing the
-// failure counter) never answer until their context ends.
-type stalledClears struct {
+// slowClears is a database whose post-success clearing write first waits:
+// for delay when stall is false (then runs), or until its context ends when
+// stall is true (a stalled database).
+type slowClears struct {
 	db.Querier
 	entered chan struct{}
+	delay   time.Duration
+	stall   bool
 }
 
-func (s stalledClears) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+func (s slowClears) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	if strings.Contains(sql, "DELETE FROM page_password_failures") {
 		select {
 		case s.entered <- struct{}{}:
 		default:
 		}
-		<-ctx.Done()
-		return pgconn.CommandTag{}, ctx.Err()
+		if s.stall {
+			<-ctx.Done()
+			return pgconn.CommandTag{}, ctx.Err()
+		}
+		time.Sleep(s.delay)
 	}
 	return s.Querier.Exec(ctx, sql, args...)
 }
 
-// A verified attempt releases its turn before its best-effort writes, and
-// those writes are bounded: a stalled database neither keeps the next
-// attempt waiting nor hangs the successful one.
-func TestSuccessReleasesTheTurnBeforeItsWrites(t *testing.T) {
+// A success clears its failure counter while it still holds the page's
+// turn, so a failure the next attempt records cannot be erased by that
+// clearing write (which would reset the backoff).
+func TestSuccessDoesNotEraseALaterFailure(t *testing.T) {
 	f := newFixture(t)
-	f.live("clearpage")
+	pid, _ := f.live("clearpage")
 	f.setPassword("clearpage", "clear-secret")
-	stub := stalledClears{Querier: f.h.db, entered: make(chan struct{}, 1)}
+	stub := slowClears{Querier: f.h.db, entered: make(chan struct{}, 1), delay: 300 * time.Millisecond}
 	f.h.db = stub
-	f.h.recordTimeout = 2 * time.Second
-	f.h.turnWait = 50 * time.Millisecond
+	f.h.turnWait = 5 * time.Second
 
 	first := make(chan resp, 1)
 	go func() { first <- f.post("/clearpage", "clear-secret") }()
-	select {
-	case <-stub.entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the successful attempt never reached its clearing write")
-	}
-	// The first attempt is stuck in its write; the turn must be free.
-	next := f.post("/clearpage", "wrong")
-	expect(t, next.status == http.StatusUnauthorized, "the next attempt is verified, not refused: %d", next.status)
+	<-stub.entered // the success is in its clearing write
+	expect(t, f.post("/clearpage", "wrong").status == http.StatusUnauthorized, "the next guess is verified once the turn is free")
+	expect(t, (<-first).status == http.StatusSeeOther, "the sign-in succeeded")
+	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the later failure survives the earlier success's clear")
+}
+
+// The clearing write is bounded: a stalled database holds the turn only for
+// recordTimeout, then the next attempt is verified and the sign-in completes.
+func TestStalledClearIsBounded(t *testing.T) {
+	f := newFixture(t)
+	f.live("stallclear")
+	f.setPassword("stallclear", "clear-secret")
+	stub := slowClears{Querier: f.h.db, entered: make(chan struct{}, 1), stall: true}
+	f.h.db = stub
+	f.h.recordTimeout = 200 * time.Millisecond
+	f.h.turnWait = 5 * time.Second
+
+	first := make(chan resp, 1)
+	go func() { first <- f.post("/stallclear", "clear-secret") }()
+	<-stub.entered
+	expect(t, f.post("/stallclear", "wrong").status == http.StatusUnauthorized, "the next attempt is verified after the bounded write")
 	select {
 	case r := <-first:
 		expect(t, r.status == http.StatusSeeOther, "the stalled write does not fail the sign-in: %d", r.status)
-	case <-time.After(10 * time.Second):
-		t.Fatal("a stalled best-effort write hung the sign-in")
+	case <-time.After(5 * time.Second):
+		t.Fatal("a stalled clearing write hung the sign-in")
 	}
+}
+
+// A page shared by portals A and B: while one request waits for B (held by
+// someone else), it holds neither the page's turn nor A's, so the page's
+// own password and portal A keep working.
+func TestWaitingForOnePortalHoldsNoOtherTurn(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("sharedpage")
+	f.setPassword("sharedpage", "shared-page-secret")
+	a := f.portal("shared-a", "Contoso A", "portal-a-secret")
+	b := f.portal("shared-b", "Contoso B", "portal-b-secret")
+	f.member(a, pid, 0)
+	f.member(b, pid, 0)
+	f.h.turnWait = 2 * time.Second
+
+	holdB, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(b))
+	expect(t, ok, "hold B")
+	waiting := make(chan resp, 1)
+	go func() { waiting <- f.post("/sharedpage", "wrong") }() // waits for {A, B}
+	time.Sleep(100 * time.Millisecond)
+
+	start := time.Now()
+	expect(t, f.post("/sharedpage", "shared-page-secret").status == http.StatusSeeOther, "the page's own password still opens it")
+	expect(t, f.post("/portal/shared-a", "portal-a-secret").status == http.StatusSeeOther, "portal A still opens")
+	expect(t, time.Since(start) < time.Second, "neither waited on the blocked request")
+	holdB()
+	expect(t, (<-waiting).status == http.StatusUnauthorized, "the waiting request is answered once B is free")
 }
 
 func TestPortalIndex(t *testing.T) {

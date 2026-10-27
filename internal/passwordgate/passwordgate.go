@@ -138,60 +138,75 @@ func ClearPortalFailures(ctx context.Context, q db.Querier, portalID int64) {
 const TurnWait = MaxDelay + 2*time.Second
 
 // Turns hands out per-credential turns. The zero value is ready to use.
+//
+// A set of turns is taken all at once or not at all: an attempt never holds
+// some of its credentials while it waits for the others, so one busy
+// credential cannot starve attempts on the credentials it shares a request
+// with.
 type Turns struct {
-	mu    sync.Mutex
-	slots map[string]chan struct{}
-}
-
-func (t *Turns) slot(key string) chan struct{} {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.slots == nil {
-		t.slots = map[string]chan struct{}{}
-	}
-	c, ok := t.slots[key]
-	if !ok {
-		c = make(chan struct{}, 1)
-		t.slots[key] = c
-	}
-	return c
+	mu      sync.Mutex
+	held    map[string]bool
+	changed chan struct{} // closed and replaced whenever a turn is released
 }
 
 // PageKey and PortalKey name the credentials Acquire serialises.
 func PageKey(pageID int64) string     { return "page:" + strconv.FormatInt(pageID, 10) }
 func PortalKey(portalID int64) string { return "portal:" + strconv.FormatInt(portalID, 10) }
 
-// Acquire takes the turn of every key (in a fixed order, so two attempts
-// naming overlapping keys cannot deadlock), waiting at most wait in total.
-// ok is false when a turn did not come in time or ctx ended; nothing is
-// held then. release returns every turn and is safe to call more than once.
+// tryTake takes every key if all are free, else none; when it takes none it
+// returns the channel that is closed at the next release.
+func (t *Turns) tryTake(keys []string) (bool, <-chan struct{}) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.held == nil {
+		t.held = map[string]bool{}
+	}
+	if t.changed == nil {
+		t.changed = make(chan struct{})
+	}
+	for _, k := range keys {
+		if t.held[k] {
+			return false, t.changed
+		}
+	}
+	for _, k := range keys {
+		t.held[k] = true
+	}
+	return true, nil
+}
+
+func (t *Turns) give(keys []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, k := range keys {
+		delete(t.held, k)
+	}
+	if t.changed != nil {
+		close(t.changed)
+	}
+	t.changed = make(chan struct{})
+}
+
+// Acquire takes the turns of every key together, waiting at most wait for
+// all of them to be free at once. ok is false when they were not free in
+// time or ctx ended; nothing is held then. release returns every turn and is
+// safe to call more than once.
 func (t *Turns) Acquire(ctx context.Context, wait time.Duration, keys ...string) (release func(), ok bool) {
-	sorted := append([]string(nil), keys...)
-	slices.Sort(sorted)
-	sorted = slices.Compact(sorted)
+	set := slices.Compact(slices.Sorted(slices.Values(keys)))
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
-	var held []chan struct{}
-	var once sync.Once
-	release = func() {
-		once.Do(func() {
-			for _, c := range held {
-				<-c
-			}
-		})
-	}
-	for _, k := range sorted {
-		c := t.slot(k)
+	for {
+		took, changed := t.tryTake(set)
+		if took {
+			var once sync.Once
+			return func() { once.Do(func() { t.give(set) }) }, true
+		}
 		select {
-		case c <- struct{}{}:
-			held = append(held, c)
+		case <-changed:
 		case <-timer.C:
-			release()
 			return func() {}, false
 		case <-ctx.Done():
-			release()
 			return func() {}, false
 		}
 	}
-	return release, true
 }
