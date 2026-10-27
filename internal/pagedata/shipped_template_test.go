@@ -64,6 +64,7 @@ func legacyCampaignDashboard(t *testing.T) string {
 		{`if(CONFIG.lastRefreshed){$("#stampRefresh").textContent=String(CONFIG.lastRefreshed);}else{$("#stampRefresh").innerHTML='<span class="pending">never</span>';}`,
 			`$("#stampRefresh").innerHTML=CONFIG.lastRefreshed?CONFIG.lastRefreshed:'<span class="pending">never</span>';`},
 		{`,"pattern":"^[^<>&]*$"}`, `}`},
+		{`CONFIG.channels.map(c=>esc(c.name)+" \u2014 "+esc(c.kpiLabel)+" at "`, `CONFIG.channels.map(c=>c.name+" \u2014 "+c.kpiLabel+" at "`},
 	} {
 		if !strings.Contains(s, r[0]) {
 			t.Fatalf("template no longer contains %q", r[0])
@@ -105,6 +106,50 @@ func TestLegacyCampaignDashboardRefusesMarkupStamps(t *testing.T) {
 		}
 		if !ok && (code(err) != "data_validation_failed" || code(perr) != "data_validation_failed") {
 			t.Fatalf("%q accepted on a legacy page: %v / %v", stamp, err, perr)
+		}
+	}
+}
+
+// The same revisions concatenated channel names and KPI labels into the
+// header's KPI note with innerHTML, so config writes to such a page refuse
+// labels that could form markup. The current revision escapes them and
+// takes any label.
+func TestLegacyCampaignDashboardRefusesMarkupChannelLabels(t *testing.T) {
+	legacy, err := ParseManaged(legacyCampaignDashboard(t), TemplateSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "nwm-campaign-dashboard", "template.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := ParseManaged(string(raw), TemplateSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withLabel := func(m *Managed, field, label string) *jsonv.Object {
+		c := mustParse(t, jsonv.Stringify(m.Config)).(*jsonv.Object)
+		c.Value("channels").([]any)[0].(*jsonv.Object).Set(field, label)
+		return c
+	}
+	for _, field := range []string{"name", "kpiLabel"} {
+		for label, ok := range map[string]bool{
+			"Display (O&O)":                true,
+			"a<b":                          false,
+			"Display (open web)":           true,
+			"CPM 'net'":                    true,
+			"<img src=x onerror=alert(1)>": false,
+		} {
+			_, err := MaterializeBlocks(legacy, BlockUpdate{Config: withLabel(legacy, field, label), SetConfig: true}, MaterializeOptions{})
+			if ok && err != nil {
+				t.Fatalf("legacy %s %q refused: %v", field, label, err)
+			}
+			if !ok && code(err) != "config_validation_failed" {
+				t.Fatalf("legacy %s %q accepted: %v", field, label, err)
+			}
+			if _, err := MaterializeBlocks(current, BlockUpdate{Config: withLabel(current, field, label), SetConfig: true}, MaterializeOptions{}); err != nil {
+				t.Fatalf("current %s %q refused: %v", field, label, err)
+			}
 		}
 	}
 }

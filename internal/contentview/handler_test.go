@@ -29,6 +29,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/testdb"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -625,6 +626,55 @@ func TestPortalTurnDoesNotBlockAMemberPagesOwnPassword(t *testing.T) {
 	expect(t, busy.status == http.StatusTooManyRequests, "the portal passwords could not be tried now → 429, got %d", busy.status)
 	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the page password was tested and charged")
 	expect(t, f.count(`SELECT count(*) FROM portal_password_failures WHERE portal_id = $1`, portalID) == 0, "the untested portal is not charged")
+}
+
+// stalledClears is a database whose post-success writes (clearing the
+// failure counter) never answer until their context ends.
+type stalledClears struct {
+	db.Querier
+	entered chan struct{}
+}
+
+func (s stalledClears) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if strings.Contains(sql, "DELETE FROM page_password_failures") {
+		select {
+		case s.entered <- struct{}{}:
+		default:
+		}
+		<-ctx.Done()
+		return pgconn.CommandTag{}, ctx.Err()
+	}
+	return s.Querier.Exec(ctx, sql, args...)
+}
+
+// A verified attempt releases its turn before its best-effort writes, and
+// those writes are bounded: a stalled database neither keeps the next
+// attempt waiting nor hangs the successful one.
+func TestSuccessReleasesTheTurnBeforeItsWrites(t *testing.T) {
+	f := newFixture(t)
+	f.live("clearpage")
+	f.setPassword("clearpage", "clear-secret")
+	stub := stalledClears{Querier: f.h.db, entered: make(chan struct{}, 1)}
+	f.h.db = stub
+	f.h.recordTimeout = 2 * time.Second
+	f.h.turnWait = 50 * time.Millisecond
+
+	first := make(chan resp, 1)
+	go func() { first <- f.post("/clearpage", "clear-secret") }()
+	select {
+	case <-stub.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the successful attempt never reached its clearing write")
+	}
+	// The first attempt is stuck in its write; the turn must be free.
+	next := f.post("/clearpage", "wrong")
+	expect(t, next.status == http.StatusUnauthorized, "the next attempt is verified, not refused: %d", next.status)
+	select {
+	case r := <-first:
+		expect(t, r.status == http.StatusSeeOther, "the stalled write does not fail the sign-in: %d", r.status)
+	case <-time.After(10 * time.Second):
+		t.Fatal("a stalled best-effort write hung the sign-in")
+	}
 }
 
 func TestPortalIndex(t *testing.T) {

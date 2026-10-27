@@ -1119,6 +1119,9 @@ func MaterializeBlocks(m *Managed, u BlockUpdate, opts MaterializeOptions) (*Mat
 		if err := validateConfig(m.ValidateConfig, u.Config, "config_validation_failed"); err != nil {
 			return nil, err
 		}
+		if err := assertLegacyChannelLabelsSafe(m, u.Config); err != nil {
+			return nil, err
+		}
 		encoded := datalimits.EscapedJSON(u.Config)
 		if limit := MaxConfigBytes(); len(encoded) > limit {
 			return nil, apierror.BadRequest(fmt.Sprintf("materialized config exceeds the %d-byte limit", limit), "config_validation_failed", nil)

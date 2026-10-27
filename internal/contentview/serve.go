@@ -68,7 +68,8 @@ func attemptBusy(w http.ResponseWriter, r *http.Request, slug string) {
 	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(AttemptBusyPage(slug)))
 }
 
-// defaultRecordTimeout bounds recording a failed attempt. The write is
+// defaultRecordTimeout bounds the attempt's database writes (recording a
+// failure, clearing the counter after a success). The write is
 // detached from the request (a client that disconnects must not make a guess
 // free) but never unbounded: a stalled database must not keep the attempt,
 // and so its credential's turn, held forever.
@@ -104,6 +105,15 @@ func (h *handler) takeTurn(ctx context.Context, keys ...string) (*attemptTurn, b
 // thereby skip the delay).
 func (t *attemptTurn) holdFor(d time.Duration) { t.hold, t.since = d, time.Now() }
 
+// releaseTurns releases turns at once: a verified attempt has no delay to
+// serve, and its best-effort writes must not hold the credential.
+func releaseTurns(turns []*attemptTurn) {
+	for _, t := range turns {
+		t.done()
+	}
+}
+
+// done releases the turn (after any hold); calling it again is harmless.
 func (t *attemptTurn) done() {
 	if t.now || t.hold <= 0 {
 		t.release()
@@ -364,10 +374,16 @@ func (h *handler) unlockPortal(w http.ResponseWriter, r *http.Request, portalSlu
 		}))
 		return nil
 	}
-	passwordgate.ClearPortalFailures(ctx, h.db, portal.ID)
+	// Verified: the turn is not needed for the best-effort writes below, and
+	// they get a bounded context, so a stalled database cannot keep the
+	// credential's next attempts waiting.
+	turn.done()
+	wctx, cancel := h.recordCtx(ctx)
+	defer cancel()
+	passwordgate.ClearPortalFailures(wctx, h.db, portal.ID)
 	// A portal password set before staff-readable copies existed gets one now,
 	// from the submission that just verified. Best effort.
-	passwordvault.RememberOnSignIn(ctx, h.db, passwordvault.Portal, portal.ID, portal.PasswordHash, password)
+	passwordvault.RememberOnSignIn(wctx, h.db, passwordvault.Portal, portal.ID, portal.PasswordHash, password)
 	w.Header().Set("Set-Cookie", pagecookie.PortalSessionCookieHeader(portal.ID, pagecookie.CookieOptions{
 		Insecure: !isSecure(r), PasswordHash: portal.PasswordHash,
 	}))
@@ -469,8 +485,11 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		}
 		turns = append(turns, turn)
 		if pagecookie.VerifyPassword(password, page.PasswordHash) {
-			passwordgate.ClearFailures(ctx, h.db, page.ID)
-			passwordvault.RememberOnSignIn(ctx, h.db, passwordvault.Page, page.ID, page.PasswordHash, password)
+			releaseTurns(turns)
+			wctx, cancel := h.recordCtx(ctx)
+			defer cancel()
+			passwordgate.ClearFailures(wctx, h.db, page.ID)
+			passwordvault.RememberOnSignIn(wctx, h.db, passwordvault.Page, page.ID, page.PasswordHash, password)
 			// Carries a 30-day page credential; see the note on the broker exchange.
 			w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
 				Insecure: !secure, PasswordHash: page.PasswordHash,
@@ -506,8 +525,11 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 			break
 		}
 		if pagecookie.VerifyPassword(password, portal.PasswordHash) {
-			passwordgate.ClearPortalFailures(ctx, h.db, portal.ID)
-			passwordvault.RememberOnSignIn(ctx, h.db, passwordvault.Portal, portal.ID, portal.PasswordHash, password)
+			releaseTurns(turns)
+			wctx, cancel := h.recordCtx(ctx)
+			defer cancel()
+			passwordgate.ClearPortalFailures(wctx, h.db, portal.ID)
+			passwordvault.RememberOnSignIn(wctx, h.db, passwordvault.Portal, portal.ID, portal.PasswordHash, password)
 			w.Header().Set("Set-Cookie", pagecookie.PortalSessionCookieHeader(portal.ID, pagecookie.CookieOptions{
 				Insecure: !secure, PasswordHash: portal.PasswordHash,
 			}))

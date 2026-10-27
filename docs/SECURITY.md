@@ -293,7 +293,9 @@
   `lastRefreshed` with `innerHTML`. Stored versions are never rewritten, so
   any data write to a page whose layout still has that sink refuses a
   `lastRefreshed` containing `<`, `>` or `&` (`data_validation_failed`) until
-  the page is rebuilt from the current revision. Client attribution is configured identically on the dispatcher and
+  the page is rebuilt from the current revision. The same revisions put
+  `channels[].name` and `kpiLabel` into the header with `innerHTML`, so config
+  writes to such a page refuse a label containing `<`. Client attribution is configured identically on the dispatcher and
   both serving apps: exactly one loopback proxy hop by default, explicit proxy
   addresses/CIDRs with `PAGES_TRUST_PROXY`, or `false` for direct access. Earlier
   forwarded hops are never trusted; host dispatch reads `Host` itself. This same
