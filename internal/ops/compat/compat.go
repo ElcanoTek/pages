@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -124,4 +125,113 @@ func Ready(ctx context.Context, pool *pgxpool.Pool, available []string) error {
 		return ErrNotReady
 	}
 	return nil
+}
+
+// DefaultActiveUploadWindow is how recently an uncommitted staged upload must
+// have been created or touched to count as an active write in progress.
+const DefaultActiveUploadWindow = 5 * time.Minute
+
+// ActiveWrites lists multi-request staged uploads and in-flight database write
+// transactions that would be interrupted by stopping pages.service.
+func ActiveWrites(ctx context.Context, pool *pgxpool.Pool, uploadWindow time.Duration) ([]string, error) {
+	if uploadWindow <= 0 {
+		uploadWindow = DefaultActiveUploadWindow
+	}
+	windowSeconds := max(int64(uploadWindow/time.Second), 1)
+
+	var active []string
+	var hasUploads bool
+	if err := pool.QueryRow(ctx, "SELECT to_regclass('public.page_content_uploads') IS NOT NULL").Scan(&hasUploads); err != nil {
+		return nil, err
+	}
+	if hasUploads {
+		rows, err := pool.Query(ctx, `
+			SELECT id::text,
+			       slug,
+			       bytes_received,
+			       total_bytes,
+			       GREATEST(0, EXTRACT(EPOCH FROM (now() - GREATEST(created_at, updated_at, COALESCE(ticket_used_at, created_at))))::bigint)
+			  FROM page_content_uploads
+			 WHERE committed_at IS NULL
+			   AND expires_at > now()
+			   AND GREATEST(created_at, updated_at, COALESCE(ticket_used_at, created_at)) > now() - ($1::bigint * interval '1 second')
+			 ORDER BY GREATEST(created_at, updated_at, COALESCE(ticket_used_at, created_at)) DESC
+			 LIMIT 5`, windowSeconds)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var id, slug string
+			var received, total int
+			var ageSec int64
+			if err := rows.Scan(&id, &slug, &received, &total, &ageSec); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			active = append(active, fmt.Sprintf("staged upload %s for %s (%d/%d bytes, touched %ds ago)", id, slug, received, total, ageSec))
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+	}
+
+	txRows, err := pool.Query(ctx, `
+		SELECT pid,
+		       state,
+		       GREATEST(0, EXTRACT(EPOCH FROM (now() - COALESCE(xact_start, query_start)))::bigint)
+		  FROM pg_stat_activity
+		 WHERE datname = current_database()
+		   AND pid <> pg_backend_pid()
+		   AND xact_start IS NOT NULL
+		   AND state IN ('active', 'idle in transaction', 'fastpath function call')
+		   AND (backend_xid IS NOT NULL OR query ~* '^\s*(INSERT|UPDATE|DELETE|WITH|COPY|LOCK)(\s|$)')
+		 ORDER BY COALESCE(xact_start, query_start) ASC
+		 LIMIT 5`)
+	if err != nil {
+		return nil, err
+	}
+	defer txRows.Close()
+	for txRows.Next() {
+		var pid int
+		var state string
+		var ageSec int64
+		if err := txRows.Scan(&pid, &state, &ageSec); err != nil {
+			return nil, err
+		}
+		active = append(active, fmt.Sprintf("database write transaction pid=%d (%s, %ds)", pid, state, ageSec))
+	}
+	if err := txRows.Err(); err != nil {
+		return nil, err
+	}
+	return active, nil
+}
+
+// WaitIdle polls ActiveWrites until no staged uploads or write transactions
+// remain in flight, or until maxWait elapses.
+func WaitIdle(ctx context.Context, pool *pgxpool.Pool, uploadWindow, maxWait, pollInterval time.Duration) error {
+	if pollInterval <= 0 {
+		pollInterval = 500 * time.Millisecond
+	}
+	deadline := time.Now().Add(max(maxWait, 0))
+	for {
+		active, err := ActiveWrites(ctx, pool, uploadWindow)
+		if err != nil {
+			return err
+		}
+		if len(active) == 0 {
+			return nil
+		}
+		if maxWait <= 0 || !time.Now().Before(deadline) {
+			return fmt.Errorf("active write in progress: %s", strings.Join(active, "; "))
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }

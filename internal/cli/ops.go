@@ -40,7 +40,7 @@ func settings() install.Settings { return install.Load(os.Getenv) }
 // passthroughEnv are the variables a re-executed verb must keep (sudo
 // filters the environment).
 var passthroughEnv = []string{
-	"PAGES_UPDATE_YES", "PAGES_UPDATE_NO_PULL", "PAGES_SKIP_TEMPLATE_SYNC", "PAGES_SERVICE_FILE", "PAGES_MOTD_FILE",
+	"PAGES_UPDATE_YES", "PAGES_UPDATE_NO_PULL", "PAGES_UPDATE_FORCE", "PAGES_UPDATE_WAIT", "PAGES_SKIP_TEMPLATE_SYNC", "PAGES_SERVICE_FILE", "PAGES_MOTD_FILE",
 	"PAGES_OS_RELEASE", "PAGES_BOOTSTRAP_NON_INTERACTIVE", "TERM",
 }
 

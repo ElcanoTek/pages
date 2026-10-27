@@ -54,6 +54,11 @@ type Options struct {
 	NoPull bool
 	// Yes skips the confirmation prompt (PAGES_UPDATE_YES=1).
 	Yes bool
+	// Wait waits up to 5 minutes for active staged uploads or write
+	// transactions to finish before activating (PAGES_UPDATE_WAIT=1).
+	Wait bool
+	// Force skips the active-write blocker (PAGES_UPDATE_FORCE=1).
+	Force bool
 	// SkipTemplateSync skips `pages template sync` after activation.
 	SkipTemplateSync bool
 	// ServiceFile is the installed unit (PAGES_SERVICE_FILE).
@@ -567,6 +572,15 @@ func (a *activation) run(ctx context.Context) error {
 	}
 	if err := o.appCommand(ctx, a.candidate, bin, "check-migrations"); err != nil {
 		return fail("migration compatibility check failed — installed service untouched")
+	}
+	if !o.Force {
+		idleArgs := []string{bin, "check-idle"}
+		if o.Wait {
+			idleArgs = append(idleArgs, "--wait")
+		}
+		if err := o.appCommand(ctx, a.candidate, idleArgs...); err != nil {
+			return fail("active write in progress — installed service untouched (retry once the write finishes, pass --wait, or pass --force)")
+		}
 	}
 	if err := o.appCommand(ctx, a.candidate, bin, "migrate"); err != nil {
 		return fail("migrations failed — installed service untouched")
