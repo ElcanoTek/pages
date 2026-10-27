@@ -158,6 +158,12 @@ declared scope and any configured mapping registries. Bindings must state the in
 CONFIG supplies mappings, not permission to discard unconfigured source rows.
 Report excluded identifiers, row counts and the scope rule. Keep every in-scope
 zero-delivery row; block ambiguous scope instead of copying prior exclusions.
+A scope rule may decide *which* source supplies a configured record, never that
+nothing does: when a bound source reports rows for a record CONFIG maps and no
+other bound source supplies those fields, the rows are in scope even if the
+binding's `scope`, its retrieval instructions or the request would exclude
+them, and the run flags the widened scope. A run never keeps a configured
+record's old values for one source's fields while the rest of the page moves on.
 
 A recurring prompt blocks only on a **hard stop**: a required source that cannot
 be retrieved or authenticated, fails its hash or identity check, or cannot be
@@ -274,6 +280,24 @@ Arguments:
   only the newest". That distinction is not cosmetic: a partitioned source holds
   many files matching the same name, one per day, and picking only the newest
   publishes a single day of a multi-week dataset.
+
+  `scope` says which rows of a source belong to the page — one field and every
+  value of it the page covers. Set it whenever a source holds more than the page
+  shows (a shared SSP history, an advertiser-wide export), and list every
+  campaign: a dashboard that spans two campaigns names both.
+
+  ```json
+  {
+    "source_id": "ssp_history",
+    "mcp_server": "fast_io",
+    "path": "northwind/ssp_history.csv",
+    "scope": { "field": "Campaign ID", "values": ["C001", "C002"] }
+  }
+  ```
+
+  Written as prose ("filter strictly to C001"), the second campaign of such a
+  page was excluded on every run while its deals sat in CONFIG with frozen
+  numbers. A `scope` renders as the literal list, every value required.
 
   Names only — the same credential screen as `instructions` applies, so a secret
   value can never arrive this way. The vocabulary matches the `workflow.sources`

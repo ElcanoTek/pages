@@ -126,7 +126,8 @@ func undoRefreshHealth(tool *jsonv.Object) {
 
 // legacyDefinition is a Go tools/list entry with the deliberate additions
 // the JavaScript never had removed: issue #109's data_usage output field and
-// the sentence describing it, and refresh health (undoRefreshHealth).
+// the sentence describing it, refresh health (undoRefreshHealth) and the
+// source binding scope (undoSourceScope).
 func legacyDefinition(t *testing.T, def *toolDef) *jsonv.Object {
 	t.Helper()
 	tool := def.protoTool(nil)
@@ -152,7 +153,29 @@ func legacyDefinition(t *testing.T, def *toolDef) *jsonv.Object {
 	}
 	o.Set("outputSchema", schema)
 	undoRefreshHealth(o)
+	undoSourceScope(o)
 	return o
+}
+
+// undoSourceScope takes the source binding's scope property (added after the
+// port) back out of every schema that carries a binding: an object schema
+// whose properties include source_id and mcp_server.
+func undoSourceScope(v any) {
+	switch x := v.(type) {
+	case *jsonv.Object:
+		if props, ok := x.Value("properties").(*jsonv.Object); ok {
+			if _, hasID := props.Get("source_id"); hasID {
+				if _, hasServer := props.Get("mcp_server"); hasServer {
+					props.Delete("scope")
+				}
+			}
+		}
+		x.Range(func(_ string, e any) bool { undoSourceScope(e); return true })
+	case []any:
+		for _, e := range x {
+			undoSourceScope(e)
+		}
+	}
 }
 
 func TestCatalogMatchesJavaScriptAtNodeDefaults(t *testing.T) {

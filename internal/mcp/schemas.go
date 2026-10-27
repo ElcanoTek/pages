@@ -13,6 +13,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/agentguide"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/templates"
+	"github.com/ElcanoTek/pages/internal/updateprompts"
 	"github.com/ElcanoTek/pages/internal/versions"
 )
 
@@ -523,6 +524,11 @@ var sourceBindingSchema = zObject(
 	).Strict().Optional().Describe(
 		"Set when this source is a date-partitioned folder (one file per day). The prompt then requires enumerating EVERY partition in range — the default newest-wins pick silently publishes a single day of a multi-week dataset.")),
 	f("retrieval_instructions", zString().Min(1).Max(2000).Optional().Describe("Deterministic, bounded retrieval detail for this source (window, filters, expected artifacts).")),
+	f("scope", zObject(
+		f("field", zString().Min(1).Max(120).Describe("The source column or dimension that decides which rows belong to the page, e.g. Campaign ID.")),
+		f("values", zArray(zString().Min(1).Max(200)).Min(1).Max(updateprompts.MaxScopeValues).Describe("Every value of field the page covers, e.g. both campaign codes of a two-campaign dashboard.")),
+	).Strict().Optional().Describe(
+		"Which rows of this source belong to the page. Set it whenever a source holds more than the page shows (a shared history file, an advertiser-wide export), and list EVERY campaign, advertiser or account the page covers: a page spanning two campaigns needs both values here, not one in prose.")),
 ).Strict()
 
 var guideTopic = zEnum(agentguide.TopicNames...)

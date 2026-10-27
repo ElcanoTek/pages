@@ -139,6 +139,17 @@ func sourcesArg(t *testing.T, o *jsonv.Object) []Source {
 	return s
 }
 
+// withoutPostPortRules takes the reviewed additions the JavaScript never had
+// back out of a managed (or adaptive, which embeds one) prompt: the
+// configured-records scope rule, exactly once, in step 5.
+func withoutPostPortRules(t *testing.T, prompt string) string {
+	t.Helper()
+	if strings.Count(prompt, " "+configuredRecordsClause) != 1 {
+		t.Errorf("managed prompt carries the configured-records rule %d times, want 1", strings.Count(prompt, " "+configuredRecordsClause))
+	}
+	return strings.Replace(prompt, " "+configuredRecordsClause, "", 1)
+}
+
 func TestGoldenPrompts(t *testing.T) {
 	// Recorded from the JavaScript at its size defaults, which the prompts quote.
 	nodedefaults.Setenv(t)
@@ -147,7 +158,7 @@ func TestGoldenPrompts(t *testing.T) {
 		a := c.Value("args").(*jsonv.Object)
 		got := ManagedPrompt(ManagedInput{Slug: str(a, "slug"), Instructions: str(a, "instructions"), SchemaSHA256: str(a, "schemaSha256"),
 			Publish: boolean(a, "publish"), Recurring: boolean(a, "recurring"), Sources: sourcesArg(t, a), KeepFullRoster: !boolean(a, "narrowRoster")})
-		same(t, fmt.Sprintf("managed[%d]", i), c.Value("out"), pin(got))
+		same(t, fmt.Sprintf("managed[%d]", i), c.Value("out"), pin(withoutPostPortRules(t, got)))
 	}
 	for i, c := range cases(t, g, "full_page") {
 		a := c.Value("args").(*jsonv.Object)
@@ -165,7 +176,7 @@ func TestGoldenPrompts(t *testing.T) {
 		a := c.Value("args").(*jsonv.Object)
 		got := AdaptivePrompt(AdaptiveInput{Slug: str(a, "slug"), Instructions: str(a, "instructions"), SchemaSHA256: str(a, "schemaSha256"),
 			LiveVersionID: str(a, "liveVersionId"), Publish: boolean(a, "publish"), Sources: sourcesArg(t, a)})
-		same(t, fmt.Sprintf("adaptive[%d]", i), c.Value("out"), pin(got))
+		same(t, fmt.Sprintf("adaptive[%d]", i), c.Value("out"), pin(withoutPostPortRules(t, got)))
 	}
 	for i, c := range cases(t, g, "template") {
 		a := c.Value("args").(*jsonv.Object)
@@ -301,6 +312,12 @@ func TestGoldenPrepare(t *testing.T) {
 				t.Errorf("%s: a recurring next_step ends with the schedule handoff", label)
 			}
 			got.Set("next_step", trimmed)
+		}
+		if res.Mode == "managed_data" || res.Mode == "adaptive" {
+			prompt := withoutPostPortRules(t, res.Prompt)
+			sum := sha256.Sum256([]byte(prompt))
+			got.Set("prompt", pin(prompt))
+			got.Set("prompt_sha256", hex.EncodeToString(sum[:]))
 		}
 		same(t, label, wantOK, got)
 	}
