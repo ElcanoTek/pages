@@ -5,6 +5,7 @@ package passwordgate
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,5 +64,119 @@ func TestRecordAndClear(t *testing.T) {
 	ClearPortalFailures(ctx, d, portalID)
 	if got, _ := RecordPortalFailure(ctx, d, portalID); got != BaseDelay {
 		t.Fatalf("portal after clear: %v", got)
+	}
+}
+
+func TestTurnsSerialiseAndTimeOut(t *testing.T) {
+	var turns Turns
+	ctx := context.Background()
+	release, ok := turns.Acquire(ctx, time.Second, PageKey(1), PortalKey(2))
+	if !ok {
+		t.Fatal("a free turn is granted")
+	}
+	if _, ok := turns.Acquire(ctx, 20*time.Millisecond, PortalKey(2)); ok {
+		t.Fatal("a held turn is not granted twice")
+	}
+	if r, ok := turns.Acquire(ctx, 20*time.Millisecond, PageKey(3)); !ok {
+		t.Fatal("other credentials are independent")
+	} else {
+		r()
+	}
+	// A waiter gets the turn as soon as it is released.
+	got := make(chan bool, 1)
+	go func() {
+		r, ok := turns.Acquire(ctx, 5*time.Second, PortalKey(2), PageKey(1))
+		got <- ok
+		r()
+	}()
+	time.Sleep(20 * time.Millisecond)
+	release()
+	release() // idempotent
+	if !<-got {
+		t.Fatal("the waiter gets the released turn")
+	}
+	// A failed acquisition holds nothing.
+	hold, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	if _, ok := turns.Acquire(ctx, 20*time.Millisecond, PageKey(1), PortalKey(2)); ok {
+		t.Fatal("partial turns are not granted")
+	}
+	if r, ok := turns.Acquire(ctx, 20*time.Millisecond, PageKey(1)); !ok {
+		t.Fatal("a failed acquisition released what it had taken")
+	} else {
+		r()
+	}
+	hold()
+}
+
+// An attempt waiting for a set of turns holds none of them while it waits,
+// so a busy credential cannot starve the others it is requested with.
+func TestTurnsAreTakenAllOrNothing(t *testing.T) {
+	var turns Turns
+	ctx := context.Background()
+	holdB, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	waiting := make(chan struct{}, 1)
+	turns.OnWait = func([]string) {
+		select {
+		case waiting <- struct{}{}:
+		default:
+		}
+	}
+	got := make(chan bool, 1)
+	go func() {
+		r, ok := turns.Acquire(ctx, 30*time.Second, PortalKey(1), PortalKey(2), PageKey(9))
+		got <- ok
+		r()
+	}()
+	<-waiting // the waiter found B held and is waiting
+	for _, k := range []string{PortalKey(1), PageKey(9)} {
+		r, ok := turns.Acquire(ctx, 20*time.Millisecond, k)
+		if !ok {
+			t.Fatalf("%s is held by an attempt still waiting for another turn", k)
+		}
+		r()
+	}
+	holdB()
+	if !<-got {
+		t.Fatal("the waiter gets the whole set once it is free")
+	}
+}
+
+// A waiter wakes only when a turn it found held is released, not on every
+// release: unrelated traffic does not make blocked attempts spin.
+func TestWaitersWakeOnlyForTheirTurns(t *testing.T) {
+	var turns Turns
+	ctx := context.Background()
+	var mu sync.Mutex
+	waits := 0
+	waiting := make(chan struct{}, 8)
+	turns.OnWait = func([]string) {
+		mu.Lock()
+		waits++
+		mu.Unlock()
+		waiting <- struct{}{}
+	}
+	holdB, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	got := make(chan bool, 1)
+	go func() {
+		r, ok := turns.Acquire(ctx, 30*time.Second, PortalKey(1), PortalKey(2))
+		got <- ok
+		r()
+	}()
+	<-waiting
+	for i := range 50 {
+		r, ok := turns.Acquire(ctx, time.Second, PageKey(int64(100+i)))
+		if !ok {
+			t.Fatal("an unrelated turn")
+		}
+		r()
+	}
+	mu.Lock()
+	if waits != 1 {
+		t.Fatalf("unrelated releases woke the waiter: %d waits", waits)
+	}
+	mu.Unlock()
+	holdB()
+	if !<-got {
+		t.Fatal("the waiter gets its turns once B is released")
 	}
 }

@@ -270,6 +270,14 @@ type ctxKey struct{}
 
 type slot struct {
 	session *Session
+	err     error
+}
+
+// WithResolveError returns r carrying a failed session lookup (a session
+// store error in central mode), so a later Resolve answers with the same
+// error instead of querying the store again.
+func WithResolveError(r *http.Request, err error) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), ctxKey{}, &slot{err: err}))
 }
 
 // WithSession returns r carrying s as its resolved session (what the
@@ -295,7 +303,7 @@ func User(r *http.Request) *Session { return FromContext(r.Context()) }
 // WithSession) is returned without another lookup.
 func (a *Authenticator) Resolve(r *http.Request) (*Session, error) {
 	if sl, ok := r.Context().Value(ctxKey{}).(*slot); ok {
-		return sl.session, nil
+		return sl.session, sl.err
 	}
 	if a.central == nil {
 		return a.CurrentSession(r), nil

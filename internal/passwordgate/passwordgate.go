@@ -19,6 +19,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/db"
@@ -112,5 +115,103 @@ func RecordPortalFailure(ctx context.Context, q db.Querier, portalID int64) (tim
 func ClearPortalFailures(ctx context.Context, q db.Querier, portalID int64) {
 	if _, err := q.Exec(ctx, `DELETE FROM portal_password_failures WHERE portal_id = $1`, portalID); err != nil {
 		slog.Error("passwordgate: failed to clear portal failures", "err", err)
+	}
+}
+
+// ── serialising attempts ────────────────────────────────────────────────────
+// The backoff above delays the 401 AFTER the password was checked, which on
+// its own does not slow an attacker who sends many guesses at once: every
+// one of them is verified straight away and only its answer waits. Attempts
+// on a credential are therefore serialised: an attempt holds its
+// credential's turn from before verification until its failure delay has
+// elapsed, so the next guess against the same page or portal is verified
+// only after the previous one's delay — the per-page rate the backoff curve
+// promises, however many connections or addresses are used. An attempt that
+// cannot get its turn within TurnWait is refused without verifying anything
+// (the caller answers 429), which bounds how many requests can queue.
+//
+// Pages is one process (internal/server), so in-process turns cover every
+// attempt; they hold no database connection while waiting.
+
+// TurnWait is how long an attempt waits for its credential's turn before it
+// is refused: one maximum delay plus the time a verification takes.
+const TurnWait = MaxDelay + 2*time.Second
+
+// Turns hands out per-credential turns. The zero value is ready to use.
+//
+// A set of turns is taken all at once or not at all: an attempt never holds
+// some of its credentials while it waits for the others, so one busy
+// credential cannot starve attempts on the credentials it shares a request
+// with.
+type Turns struct {
+	mu sync.Mutex
+	// held maps each held key to a channel closed when that key is
+	// released, so a waiter wakes only for a turn it is waiting on.
+	held map[string]chan struct{}
+
+	// OnWait, when set (tests), is called each time Acquire finds one of
+	// keys held and starts waiting, holding none of them.
+	OnWait func(keys []string)
+}
+
+// PageKey and PortalKey name the credentials Acquire serialises.
+func PageKey(pageID int64) string     { return "page:" + strconv.FormatInt(pageID, 10) }
+func PortalKey(portalID int64) string { return "portal:" + strconv.FormatInt(portalID, 10) }
+
+// tryTake takes every key if all are free, else none; when it takes none it
+// returns the release channel of a key it found held.
+func (t *Turns) tryTake(keys []string) (bool, <-chan struct{}) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.held == nil {
+		t.held = map[string]chan struct{}{}
+	}
+	for _, k := range keys {
+		if c, busy := t.held[k]; busy {
+			return false, c
+		}
+	}
+	for _, k := range keys {
+		t.held[k] = make(chan struct{})
+	}
+	return true, nil
+}
+
+func (t *Turns) give(keys []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, k := range keys {
+		if c, ok := t.held[k]; ok {
+			close(c)
+			delete(t.held, k)
+		}
+	}
+}
+
+// Acquire takes the turns of every key together, waiting at most wait for
+// all of them to be free at once. ok is false when they were not free in
+// time or ctx ended; nothing is held then. release returns every turn and is
+// safe to call more than once.
+func (t *Turns) Acquire(ctx context.Context, wait time.Duration, keys ...string) (release func(), ok bool) {
+	set := slices.Compact(slices.Sorted(slices.Values(keys)))
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	for {
+		took, changed := t.tryTake(set)
+		if took {
+			var once sync.Once
+			return func() { once.Do(func() { t.give(set) }) }, true
+		}
+		if t.OnWait != nil {
+			t.OnWait(set)
+		}
+		// Wait for that key's release only, then retry the whole set.
+		select {
+		case <-changed:
+		case <-timer.C:
+			return func() {}, false
+		case <-ctx.Done():
+			return func() {}, false
+		}
 	}
 }

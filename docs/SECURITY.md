@@ -273,7 +273,31 @@
   strict brute-force guard on the password form, backed by a **progressive
   per-page backoff** (one shared failure counter per page across all source
   IPs, delaying only the 401 — never a lockout attackers could turn on real
-  viewers). Client attribution is configured identically on the dispatcher and
+  viewers). Attempts are serialised per page and per portal: each one holds
+  its credential's turn from **before** the password is verified until its
+  failure delay has passed, so guesses sent in parallel are verified one
+  backoff step apart rather than all at once; an attempt that cannot get its
+  turn within `passwordgate.TurnWait` is a 429 for the credentials it could
+  not test. A member page's own password is checked under the page's turn
+  alone, so a portal's turn never blocks direct-password viewers, and a set
+  of turns is taken all at once or not at all, so an attempt never holds one
+  credential while it waits for another.
+- **Bounded request bodies before authentication.** The dashboard decides a
+  request's body limits before reading any of it: only `/api/v1` requests with
+  a verified agent token or an admin session get `MAX_REQUEST_BYTES`; every
+  other request is capped at 64 KiB **after** decompression, so a small gzip
+  body cannot be inflated and parsed at full size for an anonymous client.
+  Managed-data schemas whose `$ref`s lead back to a schema already applied to
+  the same data are refused when accepted (validating one would recurse
+  without end), and validation has a nesting backstop on top.
+- **Pages built from an old campaign-dashboard revision.** Revisions of the
+  shipped `nwm-campaign-dashboard` template before the fix wrote
+  `lastRefreshed` with `innerHTML`. Stored versions are never rewritten, so
+  any data write to a page whose layout still has that sink refuses a
+  `lastRefreshed` containing `<`, `>` or `&` (`data_validation_failed`) until
+  the page is rebuilt from the current revision. The same revisions put
+  `channels[].name` and `kpiLabel` into the header with `innerHTML`, so config
+  writes to such a page refuse a label containing `<`. Client attribution is configured identically on the dispatcher and
   both serving apps: exactly one loopback proxy hop by default, explicit proxy
   addresses/CIDRs with `PAGES_TRUST_PROXY`, or `false` for direct access. Earlier
   forwarded hops are never trusted; host dispatch reads `Host` itself. This same

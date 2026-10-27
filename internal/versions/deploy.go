@@ -827,7 +827,22 @@ type DataUpdateInput struct {
 	Note            any
 	Expect          any
 	Now             time.Time // zero ⇒ time.Now()
+
+	// snapshot is the published template UpdatePageData already read and
+	// validated against before the transaction; the locked path reuses it
+	// when the published pointer has not moved (a version's content never
+	// changes), instead of reading and parsing the document again.
+	snapshot *dataSnapshot
 }
+
+// dataSnapshot is a published version read without a lock.
+type dataSnapshot struct {
+	versionID jsx.ID
+	managed   *pagedata.Managed
+}
+
+// parsePublishedTemplate is the locked path's parse (a seam for tests).
+var parsePublishedTemplate = pagedata.ParseManagedHTML
 
 // DataUpdateResult is updatePageData's result.
 type DataUpdateResult struct {
@@ -858,9 +873,68 @@ func UpdatePageData(ctx context.Context, d *db.DB, in DataUpdateInput, a Actor) 
 	if isNullish(in.ExpectedVersion) {
 		return nil, apierror.BadRequest("expected_version is required for data updates", "expected_version_required", nil)
 	}
+	snap, err := precheckPageData(ctx, d, in)
+	if err != nil {
+		return nil, err
+	}
+	in.snapshot = snap
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (*DataUpdateResult, error) {
 		return UpdatePageDataWithTx(ctx, tx, in, a)
 	})
+}
+
+// precheckPageData validates the proposed data against the published schema
+// read WITHOUT a transaction or page lock, so a payload that cannot pass
+// never holds a pooled connection and the page's row lock while it is
+// validated. It returns only a data validation refusal, and only when the
+// transaction would reach validation with the same snapshot (the page
+// exists, expected_version matches, the expect profile holds); anything else
+// falls through to UpdatePageDataWithTx, which decides under the lock and
+// validates again, so a concurrent publish cannot let invalid data through.
+func precheckPageData(ctx context.Context, q db.Querier, in DataUpdateInput) (*dataSnapshot, error) {
+	snap, data, ok := precheckSnapshot(ctx, q, in)
+	if !ok {
+		return nil, nil
+	}
+	err := pagedata.ValidateProposedData(snap.managed, data)
+	if err == nil {
+		return snap, nil
+	}
+	if e, isAPI := apierror.As(err); isAPI && e.Code == "data_validation_failed" {
+		return nil, err
+	}
+	// Anything else: no snapshot, and the locked path decides and reports.
+	return nil, nil
+}
+
+// precheckSnapshot reads the published managed template without a lock and
+// reports whether the transaction, given the same snapshot, would reach data
+// validation (ok false: let the locked path decide and report).
+func precheckSnapshot(ctx context.Context, q db.Querier, in DataUpdateInput) (*dataSnapshot, any, bool) {
+	slug, err := NormalizeSlug(in.Slug)
+	if err != nil {
+		return nil, nil, false
+	}
+	var publishedID jsx.ID
+	var html string
+	if err := q.QueryRow(ctx,
+		`SELECT p.published_version_id, v.html
+		   FROM pages p JOIN page_versions v ON v.id = p.published_version_id AND v.page_id = p.id
+		  WHERE p.slug = $1 AND p.deleted_at IS NULL`, slug).Scan(&publishedID, &html); err != nil {
+		return nil, nil, false
+	}
+	if !sameDBID(in.ExpectedVersion, publishedID) {
+		return nil, nil, false
+	}
+	managed, err := pagedata.ParseManagedHTML(html)
+	if err != nil {
+		return nil, nil, false
+	}
+	data := nullToNil(in.Data)
+	if pagedata.AssertExpectedProfile(pagedata.ProfileData(data), nullToNil(in.Expect), "") != nil {
+		return nil, nil, false
+	}
+	return &dataSnapshot{versionID: publishedID, managed: managed}, data, true
 }
 
 // UpdatePageDataWithTx serializes writers on the page, uses the currently
@@ -899,18 +973,34 @@ func UpdatePageDataWithTx(ctx context.Context, q db.Querier, in DataUpdateInput,
 	var tplHTML, tplMode string
 	var tplBinding jsx.ID
 	var tplConfigSHA *string
-	err = q.QueryRow(ctx,
-		`SELECT html, render_mode, template_version_id, config_sha256
-		   FROM page_versions WHERE id = $1 AND page_id = $2`, page.PublishedVersionID, page.ID).
-		Scan(&tplHTML, &tplMode, &tplBinding, &tplConfigSHA)
+	// The snapshot validated before the transaction is the same document
+	// when the published pointer has not moved since: reuse it rather than
+	// reading and parsing a template of up to MAX_HTML_BYTES again.
+	snap := in.snapshot
+	if snap != nil && snap.versionID != page.PublishedVersionID {
+		snap = nil
+	}
+	if snap != nil {
+		err = q.QueryRow(ctx,
+			`SELECT render_mode, template_version_id, config_sha256
+			   FROM page_versions WHERE id = $1 AND page_id = $2`, page.PublishedVersionID, page.ID).
+			Scan(&tplMode, &tplBinding, &tplConfigSHA)
+	} else {
+		err = q.QueryRow(ctx,
+			`SELECT html, render_mode, template_version_id, config_sha256
+			   FROM page_versions WHERE id = $1 AND page_id = $2`, page.PublishedVersionID, page.ID).
+			Scan(&tplHTML, &tplMode, &tplBinding, &tplConfigSHA)
+	}
 	if db.IsNoRows(err) {
 		return nil, apierror.Conflict("published template is unavailable", "page_not_data_managed", nil)
 	}
 	if err != nil {
 		return nil, err
 	}
-	managed, err := pagedata.ParseManagedHTML(tplHTML)
-	if err != nil {
+	var managed *pagedata.Managed
+	if snap != nil {
+		managed = snap.managed
+	} else if managed, err = parsePublishedTemplate(tplHTML); err != nil {
 		return nil, err
 	}
 	data, expect := nullToNil(in.Data), nullToNil(in.Expect)

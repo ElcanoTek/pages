@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ import (
 	"github.com/ElcanoTek/pages/internal/passwordvault"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/testdb"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -505,6 +508,261 @@ func TestPasswordBackoffChargesEveryDoor(t *testing.T) {
 	f.post("/brakepage", "bad")
 	expect(t, f.delays[len(f.delays)-1] == passwordgate.BaseDelay, "counter reset after success")
 	_ = pid
+}
+
+// The per-page backoff used to delay only the ANSWER to a wrong guess: the
+// password had already been checked, so guesses sent in parallel were all
+// verified at once. An attempt now holds the page's turn from before
+// verification through its failure delay, and one that cannot get the turn
+// is refused with a 429 without its password being checked or charged.
+func TestParallelPasswordGuessesWaitTheirTurn(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("turnpage")
+	f.setPassword("turnpage", "turn-secret")
+	f.h.turnWait = 50 * time.Millisecond
+	f.h.realHolds = true // the turn is held for the real 500ms delay
+	inDelay, finish := make(chan struct{}), make(chan struct{})
+	f.h.sleepHook = func(time.Duration) {
+		close(inDelay)
+		<-finish
+	}
+	first := make(chan resp, 1)
+	go func() { first <- f.post("/turnpage", "wrong-1") }()
+	<-inDelay // the first guess failed and is serving its delay, turn held
+
+	busy := f.post("/turnpage", "turn-secret")
+	expect(t, busy.status == http.StatusTooManyRequests, "a guess during another's delay → 429, got %d", busy.status)
+	expect(t, busy.header.Get("Retry-After") != "", "Retry-After")
+	expect(t, busy.header.Get("ETag") == "", "no ETag: never a hash of a password-path answer")
+	expect(t, busy.header.Get("Cache-Control") == "no-store", "no-store")
+	expect(t, strings.Contains(busy.csp, "form-action 'self'"), "gate headers")
+	expect(t, len(busy.cookies()) == 0, "nothing is verified, nothing minted")
+	expect(t, strings.Contains(busy.body, "being checked"), "says why")
+	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the refused attempt is not charged")
+
+	close(finish)
+	expect(t, (<-first).status == http.StatusUnauthorized, "the first guess still gets its 401")
+	f.h.sleepHook = func(time.Duration) {}
+	f.h.turnWait = 3 * time.Second
+	expect(t, f.post("/turnpage", "turn-secret").status == http.StatusSeeOther, "once the turn is free the right password works")
+}
+
+// A guesser that disconnects during its failure delay ends the request (and
+// its sleep) early; the turn must still be held for the whole delay, or
+// disconnecting would skip the backoff.
+func TestAbandonedAttemptKeepsItsDelay(t *testing.T) {
+	f := newFixture(t)
+	f.live("holdpage")
+	f.setPassword("holdpage", "hold-secret")
+	f.h.sleepHook = nil // real delays: 500ms after the first failure
+	f.h.turnWait = 50 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	req := httptest.NewRequest(http.MethodPost, "/holdpage", strings.NewReader(url.Values{"password": {"wrong"}}.Encode())).WithContext(ctx)
+	req.Host = contentHost
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	f.h.ServeHTTP(httptest.NewRecorder(), req)
+	expect(t, ctx.Err() != nil, "the request was abandoned before its delay ended")
+
+	expect(t, f.post("/holdpage", "hold-secret").status == http.StatusTooManyRequests, "the next guess still waits out the delay")
+	time.Sleep(passwordgate.BaseDelay)
+	expect(t, f.post("/holdpage", "hold-secret").status == http.StatusSeeOther, "and is verified once it has passed")
+}
+
+// stalledFailures is a database whose failure-counter writes never answer
+// until their context ends, as under an exhausted pool or a stalled network.
+type stalledFailures struct{ db.Querier }
+
+type ctxRow struct{ ctx context.Context }
+
+func (r ctxRow) Scan(...any) error { <-r.ctx.Done(); return r.ctx.Err() }
+
+func (s stalledFailures) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, "password_failures") {
+		return ctxRow{ctx}
+	}
+	return s.Querier.QueryRow(ctx, sql, args...)
+}
+
+// The failure write is detached from the request but bounded: a stalled
+// write ends at recordTimeout and the credential's turn is released, rather
+// than holding every later attempt off with 429s.
+func TestStalledFailureWriteReleasesTheTurn(t *testing.T) {
+	f := newFixture(t)
+	f.live("stallpage")
+	f.setPassword("stallpage", "stall-secret")
+	f.h.db = stalledFailures{f.h.db}
+	f.h.recordTimeout = 50 * time.Millisecond
+	f.h.turnWait = 50 * time.Millisecond
+
+	done := make(chan resp, 1)
+	go func() { done <- f.post("/stallpage", "wrong") }()
+	select {
+	case r := <-done:
+		expect(t, r.status == http.StatusInternalServerError, "the stalled write fails the attempt, got %d", r.status)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a stalled failure write hung the attempt")
+	}
+	expect(t, f.post("/stallpage", "stall-secret").status == http.StatusSeeOther, "the turn was released")
+}
+
+// A member page's own password is checked under the page's turn alone: a
+// guesser holding a portal's turn must not lock out the page's
+// direct-password viewers. Portal turns are taken only to test portal
+// passwords.
+func TestPortalTurnDoesNotBlockAMemberPagesOwnPassword(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("memberpage")
+	f.setPassword("memberpage", "member-secret")
+	portalID := f.portal("member-portal", "Fabrikam portal", "portal-secret")
+	f.member(portalID, pid, 0)
+	f.h.turnWait = 50 * time.Millisecond
+
+	held, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(portalID))
+	expect(t, ok, "hold the portal's turn")
+	defer held()
+
+	expect(t, f.post("/memberpage", "member-secret").status == http.StatusSeeOther, "the page's own password still opens it")
+	f.exec(`DELETE FROM page_password_failures`)
+	busy := f.post("/memberpage", "wrong")
+	expect(t, busy.status == http.StatusTooManyRequests, "the portal passwords could not be tried now → 429, got %d", busy.status)
+	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the page password was tested and charged")
+	expect(t, f.count(`SELECT count(*) FROM portal_password_failures WHERE portal_id = $1`, portalID) == 0, "the untested portal is not charged")
+}
+
+// slowClears is a database whose post-success clearing write first waits:
+// for delay when stall is false (then runs), or until its context ends when
+// stall is true (a stalled database).
+type slowClears struct {
+	db.Querier
+	entered chan struct{}
+	delay   time.Duration
+	stall   bool
+}
+
+func (s slowClears) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if strings.Contains(sql, "DELETE FROM page_password_failures") {
+		select {
+		case s.entered <- struct{}{}:
+		default:
+		}
+		if s.stall {
+			<-ctx.Done()
+			return pgconn.CommandTag{}, ctx.Err()
+		}
+		time.Sleep(s.delay)
+	}
+	return s.Querier.Exec(ctx, sql, args...)
+}
+
+// A success clears its failure counter while it still holds the page's
+// turn, so a failure the next attempt records cannot be erased by that
+// clearing write (which would reset the backoff).
+func TestSuccessDoesNotEraseALaterFailure(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("clearpage")
+	f.setPassword("clearpage", "clear-secret")
+	stub := slowClears{Querier: f.h.db, entered: make(chan struct{}, 1), delay: 300 * time.Millisecond}
+	f.h.db = stub
+	f.h.turnWait = 5 * time.Second
+
+	first := make(chan resp, 1)
+	go func() { first <- f.post("/clearpage", "clear-secret") }()
+	<-stub.entered // the success is in its clearing write
+	expect(t, f.post("/clearpage", "wrong").status == http.StatusUnauthorized, "the next guess is verified once the turn is free")
+	expect(t, (<-first).status == http.StatusSeeOther, "the sign-in succeeded")
+	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the later failure survives the earlier success's clear")
+}
+
+// The clearing write is bounded: a stalled database holds the turn only for
+// recordTimeout, then the next attempt is verified and the sign-in completes.
+func TestStalledClearIsBounded(t *testing.T) {
+	f := newFixture(t)
+	f.live("stallclear")
+	f.setPassword("stallclear", "clear-secret")
+	stub := slowClears{Querier: f.h.db, entered: make(chan struct{}, 1), stall: true}
+	f.h.db = stub
+	f.h.recordTimeout = 200 * time.Millisecond
+	f.h.turnWait = 5 * time.Second
+
+	first := make(chan resp, 1)
+	go func() { first <- f.post("/stallclear", "clear-secret") }()
+	<-stub.entered
+	expect(t, f.post("/stallclear", "wrong").status == http.StatusUnauthorized, "the next attempt is verified after the bounded write")
+	select {
+	case r := <-first:
+		expect(t, r.status == http.StatusSeeOther, "the stalled write does not fail the sign-in: %d", r.status)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a stalled clearing write hung the sign-in")
+	}
+}
+
+// A page shared by portals A and B: while one request waits for B (held by
+// someone else), it holds neither the page's turn nor A's, so the page's
+// own password and portal A keep working.
+func TestWaitingForOnePortalHoldsNoOtherTurn(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("sharedpage")
+	f.setPassword("sharedpage", "shared-page-secret")
+	a := f.portal("shared-a", "Contoso A", "portal-a-secret")
+	b := f.portal("shared-b", "Contoso B", "portal-b-secret")
+	f.member(a, pid, 0)
+	f.member(b, pid, 0)
+	// Long enough that the blocked request below cannot time out during the
+	// test: anything that waited for it to give a turn back would still be
+	// waiting.
+	f.h.turnWait = 30 * time.Second
+
+	holdB, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(b))
+	expect(t, ok, "hold B")
+	blocked := make(chan struct{}, 1)
+	f.h.turns.OnWait = func(keys []string) {
+		if slices.Contains(keys, passwordgate.PortalKey(b)) {
+			select {
+			case blocked <- struct{}{}:
+			default:
+			}
+		}
+	}
+	waiting := make(chan resp, 1)
+	go func() { waiting <- f.post("/sharedpage", "wrong") }()
+	select {
+	case <-blocked: // its page password failed and it now waits for {A, B}
+	case <-time.After(20 * time.Second):
+		t.Fatal("the request never reached the portal turns")
+	}
+
+	expect(t, f.post("/sharedpage", "shared-page-secret").status == http.StatusSeeOther, "the page's own password still opens it")
+	expect(t, f.post("/portal/shared-a", "portal-a-secret").status == http.StatusSeeOther, "portal A still opens")
+	select {
+	case r := <-waiting:
+		t.Fatalf("the blocked request returned (%d) before B was free: the others waited on it", r.status)
+	default: // still waiting for B, so neither success needed its turns back
+	}
+	holdB()
+	expect(t, (<-waiting).status == http.StatusUnauthorized, "the waiting request is answered once B is free")
+}
+
+// When a member page's password fails and the portal turns stay busy, the
+// wait for them counts towards the page failure's delay: the 429 is not
+// held back by the whole delay again.
+func TestBusyPortalTurnsDoNotDoubleTheDelay(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("busymember")
+	f.setPassword("busymember", "busy-secret")
+	portalID := f.portal("busy-portal", "Fabrikam busy", "busy-portal-secret")
+	f.member(portalID, pid, 0)
+	f.h.turnWait = passwordgate.BaseDelay + 100*time.Millisecond // longer than the first delay
+	var slept []time.Duration
+	f.h.sleepHook = func(d time.Duration) { slept = append(slept, d) }
+
+	held, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(portalID))
+	expect(t, ok, "hold the portal's turn")
+	defer held()
+	r := f.post("/busymember", "wrong")
+	expect(t, r.status == http.StatusTooManyRequests, "portal passwords untested → 429, got %d", r.status)
+	expect(t, len(slept) == 0, "the turn wait already covered the %v delay; slept again: %v", passwordgate.BaseDelay, slept)
 }
 
 func TestPortalIndex(t *testing.T) {

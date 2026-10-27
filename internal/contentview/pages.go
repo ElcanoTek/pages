@@ -347,6 +347,19 @@ func RateLimitPage(slug string, minutes int) string {
 			`<p class="guidance">If access is urgent, ask the person who shared this page to confirm the password.</p>`+back)
 }
 
+// AttemptBusyPage is the 429 body for a password attempt refused because
+// other attempts on the same page or portal are still being checked (the
+// per-credential turn, passwordgate.Turns). slug "" omits the return link.
+func AttemptBusyPage(slug string) string {
+	back := ""
+	if slug != "" {
+		back = `<p class="guidance"><a href="/` + esc(slug) + `">Return to the page</a> and try again.</p>`
+	}
+	return chrome("Too many attempts · Elcano Pages", "Access paused", "Too many password attempts",
+		`<p class="sub">Other password attempts for this page are being checked. Wait a few seconds, then try again.</p>`+
+			`<p class="guidance">If access is urgent, ask the person who shared this page to confirm the password.</p>`+back)
+}
+
 // BusyPage is the READ limiter's 429 body — a different event from the
 // password guard: nothing is wrong with the viewer's credentials, the host is
 // shedding load. slug "" omits the reload link.

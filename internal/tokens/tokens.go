@@ -375,6 +375,40 @@ type ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
 
 var bearerRe = regexp.MustCompile(`(?i)^Bearer\s+(.+)$`)
 
+// BearerToken is the raw token of the request's `Authorization: Bearer`
+// header, as RequireBearer reads it.
+func BearerToken(r *http.Request) (string, bool) {
+	m := bearerRe.FindStringSubmatch(r.Header.Get("Authorization"))
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+type verifiedKey struct{}
+
+type verified struct {
+	raw   string
+	token *Token
+	err   error
+}
+
+// WithVerified records the outcome of Verify(raw) for this request — a token,
+// nil for an unknown or revoked one, or the lookup's error — so RequireBearer
+// reuses it instead of a second lookup (the dashboard verifies before
+// choosing body limits). It applies only to that exact raw token.
+func WithVerified(ctx context.Context, raw string, t *Token, err error) context.Context {
+	return context.WithValue(ctx, verifiedKey{}, verified{raw: raw, token: t, err: err})
+}
+
+func verifiedFor(ctx context.Context, raw string) (*Token, error, bool) {
+	v, ok := ctx.Value(verifiedKey{}).(verified)
+	if !ok || v.raw != raw {
+		return nil, nil, false
+	}
+	return v.token, v.err, true
+}
+
 // RequireBearer validates `Authorization: Bearer <token>` and puts the Agent
 // on the request context (AgentFrom). It answers 401 no_token / bad_token
 // through onError otherwise. Bearer auth carries no ambient cookies, so it is
@@ -383,12 +417,15 @@ var bearerRe = regexp.MustCompile(`(?i)^Bearer\s+(.+)$`)
 func RequireBearer(d *db.DB, onError ErrorHandler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			m := bearerRe.FindStringSubmatch(r.Header.Get("Authorization"))
-			if m == nil {
+			raw, ok := BearerToken(r)
+			if !ok {
 				onError(w, r, apierror.Unauthorized("missing bearer token", "no_token", nil))
 				return
 			}
-			t, err := Verify(r.Context(), d, m[1])
+			t, err, ok := verifiedFor(r.Context(), raw)
+			if !ok {
+				t, err = Verify(r.Context(), d, raw)
+			}
 			if err != nil {
 				onError(w, r, err)
 				return

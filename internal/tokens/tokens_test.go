@@ -348,3 +348,51 @@ func TestMiddleware(t *testing.T) {
 		t.Fatal("no agent → denied")
 	}
 }
+
+// The dashboard verifies a bearer token before choosing body limits and
+// passes the result down (WithVerified); RequireBearer must reuse it rather
+// than look the token up — and touch last_used_at — a second time, and must
+// reuse it only for that exact token.
+func TestRequireBearerReusesAnEarlierVerification(t *testing.T) {
+	var got *Agent
+	var failed error
+	h := RequireBearer(nil, func(_ http.ResponseWriter, _ *http.Request, err error) { failed = err })(
+		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got, _ = AgentFrom(r.Context()) }))
+	tok := &Token{ID: 7, Label: "northwind-agent", Scope: ScopeDeploy}
+
+	// A nil database: any lookup would panic, so passing proves reuse.
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/pages", nil)
+	r.Header.Set("Authorization", "Bearer pgs_verified")
+	h.ServeHTTP(httptest.NewRecorder(), r.WithContext(WithVerified(r.Context(), "pgs_verified", tok, nil)))
+	if failed != nil || got == nil || got.Actor != "northwind-agent" {
+		t.Fatalf("verified token not reused: agent=%+v err=%v", got, failed)
+	}
+
+	// A different token in the header is verified on its own (here: refused
+	// without a lookup, as it lacks the pgs_ prefix).
+	got, failed = nil, nil
+	r = httptest.NewRequest(http.MethodPost, "/api/v1/pages", nil)
+	r.Header.Set("Authorization", "Bearer someone-else")
+	h.ServeHTTP(httptest.NewRecorder(), r.WithContext(WithVerified(r.Context(), "pgs_verified", tok, nil)))
+	if got != nil {
+		t.Fatal("an earlier verification authorised a different token")
+	}
+	if e, ok := apierror.As(failed); !ok || e.Code != "bad_token" {
+		t.Fatalf("want bad_token, got %v", failed)
+	}
+
+	// A refusal is reused too: an unknown or revoked pgs_ token is not
+	// looked up again (the nil database would panic), nor is a lookup error.
+	for _, c := range []struct {
+		err  error
+		code string
+	}{{nil, "bad_token"}, {apierror.Unauthorized("lookup failed", "northwind_lookup", nil), "northwind_lookup"}} {
+		got, failed = nil, nil
+		r = httptest.NewRequest(http.MethodPost, "/api/v1/pages", nil)
+		r.Header.Set("Authorization", "Bearer pgs_revoked")
+		h.ServeHTTP(httptest.NewRecorder(), r.WithContext(WithVerified(r.Context(), "pgs_revoked", nil, c.err)))
+		if e, ok := apierror.As(failed); got != nil || !ok || e.Code != c.code {
+			t.Fatalf("cached refusal: agent=%v err=%v, want %s", got, failed, c.code)
+		}
+	}
+}

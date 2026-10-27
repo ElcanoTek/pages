@@ -1089,6 +1089,9 @@ func MaterializeBlocks(m *Managed, u BlockUpdate, opts MaterializeOptions) (*Mat
 		if err != nil {
 			return nil, err
 		}
+		if err := assertLegacyStampSafe(m, data); err != nil {
+			return nil, err
+		}
 		if u.SetEnvelope {
 			envelope = u.Envelope.(*jsonv.Object)
 		} else {
@@ -1114,6 +1117,9 @@ func MaterializeBlocks(m *Managed, u BlockUpdate, opts MaterializeOptions) (*Mat
 			return nil, err
 		}
 		if err := validateConfig(m.ValidateConfig, u.Config, "config_validation_failed"); err != nil {
+			return nil, err
+		}
+		if err := assertLegacyChannelLabelsSafe(m, u.Config); err != nil {
 			return nil, err
 		}
 		encoded := datalimits.EscapedJSON(u.Config)
@@ -1154,6 +1160,23 @@ func MaterializeBlocks(m *Managed, u BlockUpdate, opts MaterializeOptions) (*Mat
 		ConfigSchemaSHA256: m.ConfigSchemaSHA256,
 		TemplateSHA256:     sha256Hex(identity),
 	}, nil
+}
+
+// ValidateProposedData runs the checks MaterializeBlocks makes on proposed
+// data (representable numbers, then the schema) without materializing
+// anything. Callers use it to refuse an invalid payload before they open a
+// transaction or take a page lock; MaterializeBlocks still checks again.
+func ValidateProposedData(m *Managed, data any) error {
+	if m == nil || m.Validate == nil {
+		return nil
+	}
+	if err := assertRepresentableNumbers(data, "data_validation_failed", "data", ""); err != nil {
+		return err
+	}
+	if _, err := validateData(m.Validate, data, "data_validation_failed"); err != nil {
+		return err
+	}
+	return assertLegacyStampSafe(m, data)
 }
 
 // Materialize writes new data with a source timestamp.
