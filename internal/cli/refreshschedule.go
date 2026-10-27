@@ -151,8 +151,8 @@ func refreshScheduleVerb(ctx context.Context, d *db.DB, cmd string, all bool, fl
 			return err
 		}
 		c := report.Counts
-		fmt.Fprintf(out, "\n%d shown · blocked %d · overdue %d · source stale %d · ok %d · unscheduled %d · unscheduled stale %d\n",
-			shown, c.Blocked, c.Overdue, c.SourceStale, c.OK, c.Unscheduled, c.UnscheduledStale)
+		fmt.Fprintf(out, "\n%d shown · blocked %d · overdue %d · source stale %d · coverage gap %d · ok %d · unscheduled %d · unscheduled stale %d\n",
+			shown, c.Blocked, c.Overdue, c.SourceStale, c.CoverageGap, c.OK, c.Unscheduled, c.UnscheduledStale)
 		if c.UnscheduledStale > 0 {
 			where := ""
 			if !all {

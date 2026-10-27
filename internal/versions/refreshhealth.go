@@ -19,6 +19,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
+	"github.com/ElcanoTek/pages/internal/pagedata"
 )
 
 // ── refresh health ─────────────────────────────────────────────────────────
@@ -55,11 +56,21 @@ import (
 //     source_as_of is older than the schedule's longest gap between fires
 //     (over a week; see cron.MaxGap) plus RefreshStaleSlack. Daily: 3 days.
 //     Weekdays: 5 (the weekend gap is 3). Weekly: 9.
-//  5. ok.
+//  5. coverage_gap — refreshes run and the data advances, but inside the
+//     published payload some number fields stopped for some entities while
+//     those entities' rows, and the same fields for other entities, carried
+//     on (pagedata.DetectCoverageGaps: at least CoverageGapDays behind both).
+//     That is a refresh reading one source for only part of what the page
+//     shows: every run succeeds and source_as_of advances, because the other
+//     source does. Pages reads it from the published data itself, not from
+//     what the refresh reported. The reason is the first finding, and how
+//     many more there are.
+//  6. ok.
 //
 // health_since is when the problem started, where Pages knows it: the
 // recorded failing check (blocked), the first fire nothing answered
-// (overdue), the stale source_as_of (source_stale).
+// (overdue), the stale source_as_of (source_stale), the day after the
+// earliest day a gap's fields were last present (coverage_gap).
 //
 // Beside the verdict, and never instead of it, sits one hint: unscheduled_stale.
 // A page with no schedule is not judged, and that stays true — a finished
@@ -78,11 +89,12 @@ const (
 	HealthOverdue     = "overdue"
 	HealthBlocked     = "blocked"
 	HealthSourceStale = "source_stale"
+	HealthCoverageGap = "coverage_gap"
 	HealthUnscheduled = "unscheduled"
 )
 
 // Healths lists every health value (the MCP enum).
-var Healths = []string{HealthOK, HealthOverdue, HealthBlocked, HealthSourceStale, HealthUnscheduled}
+var Healths = []string{HealthOK, HealthOverdue, HealthBlocked, HealthSourceStale, HealthCoverageGap, HealthUnscheduled}
 
 // FailedCheckOutcomes are the recorded check outcomes that mean a run could
 // not do its job. "updated" and "source_not_updated" are a run doing it.
@@ -127,6 +139,9 @@ type RefreshHealth struct {
 	// DaysSinceSource is freshness's days_since_source for the published
 	// data: whole days since source_as_of, null without one.
 	DaysSinceSource *int64 `json:"days_since_source"`
+	// CoverageGaps are the published data's findings, present only when they
+	// are the verdict (health coverage_gap).
+	CoverageGaps []pagedata.CoverageGap `json:"coverage_gaps,omitempty"`
 }
 
 // UnscheduledStaleHint is what a staff surface says about an
@@ -140,10 +155,11 @@ func UnscheduledStaleHint(daysSinceSource int64) string {
 	return fmt.Sprintf("No refresh schedule · data %d %s old — set a schedule or ignore if the campaign has ended", daysSinceSource, unit)
 }
 
-// NeedsAttention reports whether a human should look: blocked, overdue or
-// source_stale.
+// NeedsAttention reports whether a human should look: blocked, overdue,
+// source_stale or coverage_gap.
 func (h *RefreshHealth) NeedsAttention() bool {
-	return h != nil && (h.Health == HealthBlocked || h.Health == HealthOverdue || h.Health == HealthSourceStale)
+	return h != nil && (h.Health == HealthBlocked || h.Health == HealthOverdue || h.Health == HealthSourceStale ||
+		h.Health == HealthCoverageGap)
 }
 
 // HealthInput is what HealthOf reads. Zero times and empty strings are
@@ -165,6 +181,9 @@ type HealthInput struct {
 	LastCheckAt      time.Time
 	LastCheckOutcome string
 	LastCheckDetail  string
+	// CoverageGaps are the published version's coverage gaps
+	// (page_versions.coverage_gaps).
+	CoverageGaps []pagedata.CoverageGap
 }
 
 func latest(ts ...time.Time) time.Time {
@@ -312,6 +331,15 @@ func HealthOf(in HealthInput, now time.Time) *RefreshHealth {
 		return h
 	}
 
+	// Coverage gap: the data advances, but part of it stopped.
+	if len(in.CoverageGaps) > 0 {
+		h.Health = HealthCoverageGap
+		h.HealthReason = clipReason(pagedata.CoverageGapsSummary(in.CoverageGaps))
+		h.HealthSince = jsx.NewTime(coverageGapSince(in.CoverageGaps))
+		h.CoverageGaps = in.CoverageGaps
+		return h
+	}
+
 	h.Health = HealthOK
 	if activity.IsZero() {
 		h.HealthReason = fmt.Sprintf("Scheduled; the first refresh is due %s.", shortWhen(s.Next(now), now))
@@ -319,6 +347,22 @@ func HealthOf(in HealthInput, now time.Time) *RefreshHealth {
 		h.HealthReason = fmt.Sprintf("Refreshing on schedule; last activity %s.", shortWhen(activity, now))
 	}
 	return h
+}
+
+// coverageGapSince is the day after the earliest day a finding's fields were
+// last present: the first day the page showed less than it should.
+func coverageGapSince(gaps []pagedata.CoverageGap) time.Time {
+	var since time.Time
+	for _, g := range gaps {
+		day, err := time.Parse("2006-01-02", g.StoppedOn)
+		if err != nil {
+			continue
+		}
+		if day = day.AddDate(0, 0, 1); since.IsZero() || day.Before(since) {
+			since = day
+		}
+	}
+	return since
 }
 
 func clipReason(s string) string {
@@ -339,11 +383,12 @@ const newestRefreshSQL = `(SELECT nv.refreshed_at FROM page_versions nv
              ORDER BY nv.created_at DESC, nv.id DESC LIMIT 1)`
 
 // healthInput assembles HealthInput from a row's columns.
-func healthInput(schedule, owner *string, isLive bool, created jsx.Time, c coverage, newest jsx.Time, lc LastCheck) HealthInput {
+func healthInput(schedule, owner *string, isLive bool, created jsx.Time, c coverage, newest jsx.Time, lc LastCheck, gaps []pagedata.CoverageGap) HealthInput {
 	return HealthInput{
 		Schedule: deref(schedule), Owner: deref(owner), IsLive: isLive, CreatedAt: created.Time,
 		SourceAsOf: c.sourceAsOf, RefreshedAt: c.refreshedAt, NewestRefreshAt: newest.Time,
 		LastCheckAt: lc.LastCheckAt.Time, LastCheckOutcome: deref(lc.LastCheckOutcome), LastCheckDetail: deref(lc.LastCheckDetail),
+		CoverageGaps: gaps,
 	}
 }
 
@@ -371,10 +416,12 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 		legacy            *string
 		newest            jsx.Time
 		lc                LastCheck
+		gaps              storedGaps
 	)
 	err = q.QueryRow(ctx,
 		`SELECT p.slug, p.refresh_schedule, p.refresh_owner,
 		        (p.published_version_id IS NOT NULL AND NOT p.disabled) AS is_live, p.created_at,
+		        COALESCE(pv.id, 0), pv.coverage_gaps,
 		        pv.source_as_of, pv.refreshed_at,
 		        CASE WHEN pv.data_sha256 IS NULL AND position('pages-data' IN pv.html) > 0
 		             THEN pv.html END AS legacy_managed_html,
@@ -382,7 +429,7 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 		        p.last_check_at, p.last_check_outcome, p.last_check_detail, p.last_check_source_as_of
 		   FROM pages p LEFT JOIN page_versions pv ON pv.id = p.published_version_id
 		  WHERE p.slug = $1 AND p.deleted_at IS NULL`, s).Scan(
-		&out.Slug, &schedule, &owner, &isLive, &created, &source, &refreshed, &legacy, &newest,
+		&out.Slug, &schedule, &owner, &isLive, &created, &gaps.versionID, &gaps.raw, &source, &refreshed, &legacy, &newest,
 		&lc.LastCheckAt, &lc.LastCheckOutcome, &lc.LastCheckDetail, &lc.LastCheckSourceAsOf)
 	if db.IsNoRows(err) {
 		return nil, pageNotFound(s)
@@ -394,21 +441,29 @@ func RefreshHealthFor(ctx context.Context, q db.Querier, slug string, now time.T
 	if err != nil {
 		return nil, err
 	}
+	if schedule == nil {
+		gaps.versionID = 0 // not judged, so not needed
+	}
+	found, err := resolveCoverageGaps(ctx, q, []storedGaps{gaps})
+	if err != nil {
+		return nil, err
+	}
 	if now.IsZero() {
 		now = time.Now()
 	}
 	out.Freshness = FreshnessOf(lastCheckInput(lc, c), now)
-	out.RefreshHealth = HealthOf(healthInput(schedule, owner, isLive, created, c, newest, lc), now)
+	out.RefreshHealth = HealthOf(healthInput(schedule, owner, isLive, created, c, newest, lc, found[gaps.versionID]), now)
 	return &out, nil
 }
 
 // HealthCounts is how many pages are in each health state, plus how many of
 // the unscheduled ones carry the unscheduled_stale hint (a subset of
-// Unscheduled, not a sixth state).
+// Unscheduled, not a seventh state).
 type HealthCounts struct {
 	Blocked          int `json:"blocked"`
 	Overdue          int `json:"overdue"`
 	SourceStale      int `json:"source_stale"`
+	CoverageGap      int `json:"coverage_gap"`
 	OK               int `json:"ok"`
 	Unscheduled      int `json:"unscheduled"`
 	UnscheduledStale int `json:"unscheduled_stale"`
@@ -425,6 +480,8 @@ func (c *HealthCounts) add(h *RefreshHealth) {
 		c.Overdue++
 	case HealthSourceStale:
 		c.SourceStale++
+	case HealthCoverageGap:
+		c.CoverageGap++
 	case HealthOK:
 		c.OK++
 	default:
@@ -448,10 +505,11 @@ type RefreshHealthRow struct {
 	LastDueAt       jsx.Time `json:"last_due_at"`
 	SourceAsOf      jsx.Time `json:"source_as_of"`
 	LastActivityAt  jsx.Time `json:"last_activity_at"`
-	// UnscheduledStale and DaysSinceSource are the page's RefreshHealth
-	// fields of the same names.
-	UnscheduledStale bool   `json:"unscheduled_stale"`
-	DaysSinceSource  *int64 `json:"days_since_source"`
+	// UnscheduledStale, DaysSinceSource and CoverageGaps are the page's
+	// RefreshHealth fields of the same names.
+	UnscheduledStale bool                   `json:"unscheduled_stale"`
+	DaysSinceSource  *int64                 `json:"days_since_source"`
+	CoverageGaps     []pagedata.CoverageGap `json:"coverage_gaps,omitempty"`
 }
 
 // RefreshHealthReport is ListRefreshHealth's result. Counts cover every
@@ -462,12 +520,12 @@ type RefreshHealthReport struct {
 	Pages       []RefreshHealthRow `json:"pages"`
 }
 
-var healthRank = map[string]int{HealthBlocked: 0, HealthOverdue: 1, HealthSourceStale: 2, HealthOK: 3, HealthUnscheduled: 4}
+var healthRank = map[string]int{HealthBlocked: 0, HealthOverdue: 1, HealthSourceStale: 2, HealthCoverageGap: 3, HealthOK: 4, HealthUnscheduled: 5}
 
 // ListRefreshHealth is the estate's refresh health, worst first: blocked,
-// overdue, source_stale (each oldest problem first), then ok and
-// unscheduled, the unscheduled_stale ones first among those (oldest data
-// first). onlyAttention keeps the first three — the daily-digest read — and
+// overdue, source_stale, coverage_gap (each oldest problem first), then ok
+// and unscheduled, the unscheduled_stale ones first among those (oldest data
+// first). onlyAttention keeps the first four — the daily-digest read — and
 // so never the unscheduled_stale rows, which Counts still counts.
 func ListRefreshHealth(ctx context.Context, q db.Querier, onlyAttention bool) (*RefreshHealthReport, error) {
 	pages, err := ListPages(ctx, q, ListPagesOptions{})
@@ -486,6 +544,7 @@ func ListRefreshHealth(ctx context.Context, q db.Querier, onlyAttention bool) (*
 			RefreshOwner: h.RefreshOwner, RefreshSchedule: h.RefreshSchedule,
 			Health: h.Health, HealthReason: h.HealthReason, HealthSince: h.HealthSince, LastDueAt: h.LastDueAt,
 			LastActivityAt: h.LastActivityAt, UnscheduledStale: h.UnscheduledStale, DaysSinceSource: h.DaysSinceSource,
+			CoverageGaps: h.CoverageGaps,
 		}
 		if p.Freshness != nil {
 			row.SourceAsOf = p.Freshness.SourceAsOf

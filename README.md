@@ -34,8 +34,10 @@ not trust the generated HTML.
   Schema without re-transmitting or re-storing its HTML.
 - **Refresh health.** Give a page the cron its refresh runs on and an owner,
   and the staff index flags it when a refresh fails (Blocked), does not run
-  (Overdue) or keeps finding no new data (Source stuck), with the reason on the
-  row and a "Needs attention" filter. A live page with no schedule whose data
+  (Overdue), keeps finding no new data (Source stuck) or publishes rows in
+  which one source's fields stopped for some entities while the rest kept
+  arriving (Partial data), with the reason on the row and a "Needs attention"
+  filter. A live page with no schedule whose data
   is over a week old gets a grey "No refresh" hint and a "No refresh set"
   filter instead — a question, not an alarm, since its campaign may have ended.
   Staff-only: clients never see it.

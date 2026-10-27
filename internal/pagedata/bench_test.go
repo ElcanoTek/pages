@@ -55,3 +55,36 @@ func BenchmarkMaterializeAndProfileNearLimit(b *testing.B) {
 		_ = jsonv.Stringify(ProfileData(data))
 	}
 }
+
+// Coverage-gap detection runs on every managed write beside ProfileData, so it
+// should cost the same order: a few linear passes over the rows.
+func BenchmarkCoverageGapsNearLimit(b *testing.B) {
+	m, err := ParseManagedHTML(nearLimitPage(b))
+	if err != nil {
+		b.Fatal(err)
+	}
+	data := m.Data()
+	for i := 0; i < b.N; i++ {
+		_ = DetectCoverageGaps(data)
+	}
+}
+
+func BenchmarkProfileNearLimit(b *testing.B) {
+	m, err := ParseManagedHTML(nearLimitPage(b))
+	if err != nil {
+		b.Fatal(err)
+	}
+	data := m.Data()
+	for i := 0; i < b.N; i++ {
+		_ = ProfileData(data)
+	}
+}
+
+// A version stored before coverage gaps existed is read once, lazily.
+func BenchmarkCoverageGapsOfHTMLNearLimit(b *testing.B) {
+	html := nearLimitPage(b)
+	b.SetBytes(int64(len(html)))
+	for i := 0; i < b.N; i++ {
+		_ = CoverageGapsOfHTML(html)
+	}
+}

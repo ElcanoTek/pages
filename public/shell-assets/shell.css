@@ -763,6 +763,8 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 .refresh-banner__reason { min-width: 0; flex: 1 1 16rem; overflow-wrap: anywhere; }
 .refresh-banner__link { color: var(--color-text-primary); font-size: var(--font-size-caption); font-weight: var(--font-weight-bold); }
 .refresh-health__summary { margin: 0; overflow-wrap: anywhere; }
+/* Partial data: one line per finding, each naming its fields, entities and dates. */
+.refresh-gaps { margin: 0; padding-inline-start: var(--space-4); display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
 .refresh-facts code { color: var(--color-text-muted); font-size: var(--font-size-caption); }
 
 .operation-table-wrap { min-width: 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--gradient-surface-panel); box-shadow: var(--shadow-section); }

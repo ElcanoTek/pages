@@ -387,6 +387,12 @@ type pagesIndex struct {
 func (h *handler) listPages(w http.ResponseWriter, r *http.Request, _ route.Params) error {
 	ctx := r.Context()
 	var out pagesIndex
+	// The read-only snapshot below cannot save the coverage gaps it computes
+	// for versions written before Pages stored them, so fill those first.
+	// Best effort: the index reads correctly without them.
+	if err := versions.FillCoverageGaps(ctx, h.DB); err != nil {
+		slog.Warn("adminapi: could not fill coverage gaps before the index", "err", err)
+	}
 	// One repeatable-read snapshot keeps workspace entities, page
 	// memberships, and names coherent during concurrent assign/delete/rename
 	// transactions.
@@ -423,7 +429,7 @@ func (h *handler) listPages(w http.ResponseWriter, r *http.Request, _ route.Para
 // (versions.ListRefreshHealth): what the daily digest and anything else
 // staff-authenticated reads instead of opening every dashboard.
 // ?needs_attention=false lists every page; the default is only blocked,
-// overdue and source_stale.
+// overdue, source_stale and coverage_gap.
 func (h *handler) refreshHealth(w http.ResponseWriter, r *http.Request, _ route.Params) error {
 	only := true
 	if q := httpx.QueryParam(r, "needs_attention"); q.Present {

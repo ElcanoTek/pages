@@ -181,7 +181,9 @@ the conversation to have in the issue first.
    `published` status. Publish, approve and rollback are one `UPDATE` under
    `SELECT … FOR UPDATE`.
 4. **`page_versions` content is append-only**, enforced by a database trigger.
-   Every edit is a new row; only `status` and the review columns mutate.
+   Every edit is a new row; only `status` and the review columns mutate, plus
+   `coverage_gaps`, a cache derived from the row's immutable data (migration
+   029) that a read may fill once.
 5. **`/raw` is authorised only by the signed token** (`internal/rawtoken`), bound
    to page, version, purpose, render mode and expiry, and verified in constant
    time. No cookies on that host. The sandbox CSP headers go on *every* `/raw`

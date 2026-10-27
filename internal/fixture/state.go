@@ -128,6 +128,23 @@ func initialState() *state {
 				"days_since_refresh", 3,
 				"days_since_check", 0,
 			)
+		// Refreshed this morning with data through yesterday, on schedule —
+		// but part of its rows stopped weeks ago (seededCoverageGaps).
+		case index == 6:
+			freshness = o(
+				"source_as_of", iso(1440),
+				"refreshed_at", iso(25),
+				"checked_at", iso(25),
+				"last_check_at", nil,
+				"latest_outcome", "updated",
+				"latest_detail", nil,
+				"last_check_outcome", nil,
+				"last_check_detail", nil,
+				"last_check_source_as_of", nil,
+				"days_since_source", 1,
+				"days_since_refresh", 0,
+				"days_since_check", 0,
+			)
 		case index == 5:
 			freshness = o(
 				"source_as_of", iso(5*1440),

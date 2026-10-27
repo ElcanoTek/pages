@@ -252,6 +252,11 @@ type Prepared struct {
 	DedupeByData          bool
 	DataMetadata          *DataMetadata
 	TemplateBinding       *TemplateBinding
+	// CoverageGaps is the stored form of the document's coverage gaps
+	// (coveragegaps.go), computed here, outside any transaction, so the
+	// version row is written with them. "" leaves the column NULL, for a read
+	// to fill.
+	CoverageGaps string
 }
 
 // The write and read paths used to disagree about what a managed page is. A
@@ -361,6 +366,10 @@ func PrepareDeploy(in DeployInput, a Actor) (*Prepared, error) {
 	if dm == nil {
 		dedupeByData = false
 	}
+	gaps := pagedata.NoCoverageGaps()
+	if managed != nil {
+		gaps = pagedata.DetectCoverageGaps(managed.Data())
+	}
 	slug, err := NormalizeSlug(in.Slug)
 	if err != nil {
 		return nil, err
@@ -373,6 +382,7 @@ func PrepareDeploy(in DeployInput, a Actor) (*Prepared, error) {
 		Slug: slug, HTML: html, ConfigSchemaGenerated: normalized.Generated, RenderMode: mode, Note: note,
 		VersionAuthor: author, Source: source, Publish: publish, ExpectedVersion: in.ExpectedVersion,
 		ContentSHA: SHA256(html), DedupeByData: dedupeByData, DataMetadata: dm, TemplateBinding: in.TemplateBinding,
+		CoverageGaps: coverageGapsJSON(gaps),
 	}, nil
 }
 
@@ -483,15 +493,19 @@ func DeployLocked(ctx context.Context, q db.Querier, page *LockedPage, p *Prepar
 		if tb != nil {
 			configSHA = tb.ConfigSHA
 		}
+		var gaps any
+		if p.CoverageGaps != "" {
+			gaps = p.CoverageGaps
+		}
 		err := q.QueryRow(ctx,
 			`INSERT INTO page_versions
 			   (page_id, html, content_sha256, status, render_mode, author, source, note,
 			    data_sha256, data_template_sha256, source_as_of, refreshed_at,
-			    template_version_id, config_sha256)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz, $12::timestamptz, $13, $14)
+			    template_version_id, config_sha256, coverage_gaps)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::timestamptz, $12::timestamptz, $13, $14, $15::text::jsonb)
 			 RETURNING `+versionColumns,
 			page.ID, p.HTML, p.ContentSHA, status, p.RenderMode, p.VersionAuthor, p.Source, p.Note,
-			dataSHA, templateSHA, sourceAsOf, refreshedAt, bindingID, configSHA).Scan(version.scanArgs()...)
+			dataSHA, templateSHA, sourceAsOf, refreshedAt, bindingID, configSHA, gaps).Scan(version.scanArgs()...)
 		if err != nil {
 			return nil, err
 		}

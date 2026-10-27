@@ -6,6 +6,7 @@
     "025_central_auth.sql": "backward-compatible",
     "026_password_reveal.sql": "backward-compatible",
     "027_raise_upload_limits.sql": "backward-compatible",
-    "028_page_refresh_schedule.sql": "backward-compatible"
+    "028_page_refresh_schedule.sql": "backward-compatible",
+    "029_page_version_coverage_gaps.sql": "backward-compatible"
   }
 }

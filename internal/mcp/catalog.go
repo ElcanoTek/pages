@@ -149,7 +149,7 @@ const usageDescription = " The response also reports data_usage: payload_bytes, 
 // row carries. It replaced a sentence saying Pages had no opinion on
 // overdue, which stopped being true when pages could carry a schedule.
 const listPagesHealthDescription = "Each row carries freshness (source_as_of, refreshed_at, checked_at, and days_since_* for each) and refresh_health. " +
-	"freshness states facts; refresh_health states a verdict only for a page with a refresh schedule (set_page_refresh_schedule): ok, overdue, blocked or source_stale, with a one-line health_reason. " +
+	"freshness states facts; refresh_health states a verdict only for a page with a refresh schedule (set_page_refresh_schedule): ok, overdue, blocked, source_stale or coverage_gap, with a one-line health_reason. " +
 	"list_refresh_health returns just the pages that need attention."
 
 // pageDataHealthDescription is the sentence get_page_data gained with
@@ -387,7 +387,7 @@ func buildCatalog(l limits) *catalog {
 		{
 			name:  "set_page_refresh_schedule",
 			title: "Set Page Refresh Schedule",
-			description: "Tell Pages when this page's recurring refresh is scheduled and who answers for it, so Pages can flag the page when a run is missed (overdue), fails (blocked) or keeps finding no new data (source_stale) — on the staff home, in list_pages and in list_refresh_health. " +
+			description: "Tell Pages when this page's recurring refresh is scheduled and who answers for it, so Pages can flag the page when a run is missed (overdue), fails (blocked), keeps finding no new data (source_stale) or publishes data in which part of the page stopped updating (coverage_gap) — on the staff home, in list_pages and in list_refresh_health. " +
 				"Call it right after you install or change the recurring task for this page, with that task's cadence as a five-field cron in UTC ('30 14 * * *' daily at 14:30, '0 15 * * 1-5' weekdays at 15:00, '0 9 * * 1' Mondays at 09:00) and the requester's email as owner. " +
 				"Pages does not run anything on this schedule. schedule:null stops Pages judging the page (the task was removed); an omitted field is left unchanged. Staff-only metadata: nothing a client sees changes.",
 			input: zObject(
@@ -408,11 +408,11 @@ func buildCatalog(l limits) *catalog {
 		{
 			name:  "list_refresh_health",
 			title: "List Refresh Health",
-			description: "The pages whose scheduled refresh needs a human, worst first: blocked (the latest run recorded a failure; health_reason is its own detail), overdue (a scheduled refresh did not happen within three hours of its time), then source_stale (runs are happening but the source data has not advanced for longer than the schedule's longest gap plus two days). " +
+			description: "The pages whose scheduled refresh needs a human, worst first: blocked (the latest run recorded a failure; health_reason is its own detail), overdue (a scheduled refresh did not happen within three hours of its time), source_stale (runs are happening but the source data has not advanced for longer than the schedule's longest gap plus two days), then coverage_gap (the data advances, but in the published rows some number fields stopped for some entities at least three days before those entities' other numbers and the same fields for other entities did — typically one source read for only part of the page; coverage_gaps names the fields, entities and dates). " +
 				"Each row names the page, its workspace, refresh_owner, health, health_reason, health_since, source_as_of and last_activity_at; counts cover every page. Only pages with a refresh schedule are judged (set_page_refresh_schedule). needs_attention:false lists every page. " +
 				"Separately, a live page with no schedule whose source_as_of is more than 7 days old carries unscheduled_stale:true (with days_since_source) and is counted in counts.unscheduled_stale: its campaign may still be delivering with no refresh task, or may have ended. It stays unscheduled and never needs attention, so only needs_attention:false lists it (first among the unscheduled, oldest data first). Read-only.",
 			input: zObject(
-				f("needs_attention", zBool().Optional().Describe("Default true: only blocked, overdue and source_stale pages. False lists every page, ok and unscheduled included.")),
+				f("needs_attention", zBool().Optional().Describe("Default true: only blocked, overdue, source_stale and coverage_gap pages. False lists every page, ok and unscheduled included.")),
 			).Strict(),
 			output: zObject(
 				f("generated_at", dateTime),

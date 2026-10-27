@@ -115,15 +115,40 @@ var refreshHealthSchema = zObject(
 	f("health", zEnum(versions.Healths...).Describe(
 		"unscheduled: no schedule, so no judgement. blocked: the latest outcome is a recorded failed check (blocked, source_unreachable, failed). "+
 			"overdue: a scheduled refresh passed three hours ago with no refresh or check since. source_stale: runs are happening but source_as_of "+
-			"is older than the schedule's longest gap plus two days. ok: none of those.")),
-	f("health_reason", zString().Describe("One sentence a human can act on; for blocked, the run's own detail.")),
-	f("health_since", nullableDateTime.Describe("When the problem started, where known: the failing check, the first missed refresh, or the stale source_as_of.")),
+			"is older than the schedule's longest gap plus two days. coverage_gap: the data advances, but in the published rows some number fields "+
+			"stopped for some entities at least three days before those entities' rows and the same fields for other entities did (coverage_gaps says which). "+
+			"ok: none of those.")),
+	f("health_reason", zString().Describe("One sentence a human can act on; for blocked, the run's own detail; for coverage_gap, the first gap.")),
+	f("health_since", nullableDateTime.Describe("When the problem started, where known: the failing check, the first missed refresh, the stale source_as_of, "+
+		"or the day after a coverage gap's fields were last present.")),
 	f("last_due_at", nullableDateTime.Describe("The schedule's most recent fire at or before now.")),
 	f("next_due_at", nullableDateTime),
 	f("last_activity_at", nullableDateTime.Describe("Latest refresh (on any version, published or not) or recorded check.")),
 	f("unscheduled_stale", unscheduledStaleSchema),
 	f("days_since_source", zInt().NonNegative().Nullable().Describe("Whole days since the published data's source_as_of; null without managed data.")),
+	f("coverage_gaps", coverageGapsSchema),
 ).Strict()
+
+// coverageGapSchema is one pagedata.CoverageGap: number fields that stopped
+// on one day for a set of entities whose rows carried on.
+var coverageGapSchema = zObject(
+	f("path", zString().Describe("The array, named as data_profile names it.")),
+	f("date_field", zString()),
+	f("key_field", zString().Describe("The field the rows' entities are identified by (the string field with the most distinct values that spans days).")),
+	f("fields", zArray(zString()).Describe("The number fields that stopped, at most 16.")),
+	f("fields_omitted", zInt().NonNegative()),
+	f("stopped_on", zString().Describe("YYYY-MM-DD: the last day these entities carried these fields.")),
+	f("rows_through", zString().Describe("YYYY-MM-DD: the latest day these entities still deliver (carry a non-zero value of another number field that changes).")),
+	f("fields_through", zString().Describe("YYYY-MM-DD: the latest day any row carries these fields.")),
+	f("entity_count", zInt().NonNegative()),
+	f("entities", zArray(zString()).Describe("At most 8 of the entities, sorted.")),
+	f("message", zString()),
+).Strict()
+
+// coverageGapsSchema is present only when the gaps are the verdict.
+var coverageGapsSchema = zArray(coverageGapSchema).Optional().Describe(
+	"Only with health coverage_gap: what is missing from the published data, oldest first, at most 10. Pages reads it from the rows " +
+		"themselves, so a refresh reading one source for only part of the page shows here even when every run succeeds.")
 
 // unscheduledStaleSchema is the hint refresh_health carries beside its
 // verdict (versions.UnscheduledStaleAfter): it never changes health and is
@@ -143,6 +168,7 @@ var healthCountsSchema = zObject(
 	f("blocked", zInt().NonNegative()),
 	f("overdue", zInt().NonNegative()),
 	f("source_stale", zInt().NonNegative()),
+	f("coverage_gap", zInt().NonNegative()),
 	f("ok", zInt().NonNegative()),
 	f("unscheduled", zInt().NonNegative()),
 	f("unscheduled_stale", zInt().NonNegative().Describe("How many of the unscheduled pages carry unscheduled_stale (a subset of unscheduled).")),
@@ -164,6 +190,7 @@ var refreshHealthRowSchema = zObject(
 	f("last_activity_at", nullableDateTime),
 	f("unscheduled_stale", unscheduledStaleSchema),
 	f("days_since_source", zInt().NonNegative().Nullable()),
+	f("coverage_gaps", coverageGapsSchema),
 	f("urls", urlsSchema),
 ).Strict()
 

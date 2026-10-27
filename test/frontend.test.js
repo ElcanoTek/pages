@@ -352,14 +352,17 @@ test("workspace index: renders All, selected, Ungrouped, and search views", () =
 
 const RefreshHealth = require("../public/shell-assets/refresh-health");
 
-test("refresh health: only blocked, overdue and stuck sources need a human, worst first", () => {
+test("refresh health: only blocked, overdue, stuck sources and partial data need a human, worst first", () => {
   const row = (slug, health) => ({ slug, refresh_health: health ? { health, health_reason: `${slug} reason` } : undefined });
   const pages = [
-    row("fine", "ok"), row("late-a", "overdue"), row("none", "unscheduled"), row("stuck", "source_stale"),
+    row("partial", "coverage_gap"), row("fine", "ok"), row("late-a", "overdue"), row("none", "unscheduled"), row("stuck", "source_stale"),
     row("legacy", null), row("failed", "blocked"), row("late-b", "overdue"),
   ];
-  assert.deepEqual(RefreshHealth.attentionRows(pages).map((p) => p.slug), ["failed", "late-a", "late-b", "stuck"]);
-  assert.deepEqual(pages.filter(RefreshHealth.needsAttention).map((p) => p.slug), ["late-a", "stuck", "failed", "late-b"]);
+  assert.deepEqual(RefreshHealth.attentionRows(pages).map((p) => p.slug), ["failed", "late-a", "late-b", "stuck", "partial"]);
+  assert.deepEqual(pages.filter(RefreshHealth.needsAttention).map((p) => p.slug), ["partial", "late-a", "stuck", "failed", "late-b"]);
+  // Partial data is amber like a late run: the data advances, but part of it
+  // stopped while the rest kept arriving.
+  assert.deepEqual(RefreshHealth.describeHealth(row("x", "coverage_gap")), { kind: "warning", label: "Partial data", rank: 3, attention: true });
   // The words the screens print, and the tones: red for a failed run, amber for
   // late or stuck, nothing alarming for the rest.
   assert.deepEqual(RefreshHealth.describeHealth(row("x", "blocked")), { kind: "error", label: "Blocked", rank: 0, attention: true });
@@ -934,7 +937,7 @@ test("shell.css: every class the refresh-health views render is defined", () => 
   const used = [
     "index-toolbar__tools", "attention-filter", "unscheduled-filter", "refresh-health", "refresh-health__reason", "sr-only",
     "refresh-banner", "refresh-banner--error", "refresh-banner--warning", "refresh-banner__reason", "refresh-banner__link",
-    "refresh-health__summary", "refresh-facts", "template-kv", "access-grid", "subpanel", "subpanel__head",
+    "refresh-health__summary", "refresh-gaps", "refresh-facts", "template-kv", "access-grid", "subpanel", "subpanel__head",
     "form-stack", "form-grid", "field", "field-error", "form-status", "cluster",
   ];
   const missing = used.filter((name) => !defined.has(name));
