@@ -5,9 +5,12 @@ package fixture
 
 import (
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/jsonv"
+	"github.com/ElcanoTek/pages/internal/pagedata"
 	"github.com/ElcanoTek/pages/internal/versions"
 )
 
@@ -17,7 +20,7 @@ import (
 // saves is validated by the same functions the admin API calls. So a spec
 // that sees "Overdue" is seeing what production would say about that row.
 
-// seededSchedules gives four seeded rows a schedule, one per state the staff
+// seededSchedules gives five seeded rows a schedule, one per state the staff
 // screens render. Everything else stays unscheduled, like a page nobody has
 // set one on — including the detail page, whose frozen data must carry no
 // verdict precisely because it has no schedule. The live ones among them whose
@@ -29,6 +32,36 @@ var seededSchedules = map[string][2]string{
 	"client-02": {"0 9 * * *", "analyst@contoso.example"}, // overdue: nothing since the day before
 	"client-03": {"30 8 * * 1-5", "ops@fabrikam.example"}, // blocked: today's run recorded a failure
 	"client-05": {"0 9 * * *", "desk@northwind.example"},  // source_stale: runs, but the data is five days old
+	"client-06": {"0 9 * * *", "desk@northwind.example"},  // coverage_gap: on time, but part of its rows stopped
+}
+
+// seededCoverageGaps are what the server would find in a row's published
+// data: pagedata.DetectCoverageGaps over a synthetic trader payload, not a
+// hand-written finding. client-06's SSP fields stop on Jun 30 for four of its
+// eight deals while their DSP fields carry on through yesterday.
+var seededCoverageGaps = map[string][]pagedata.CoverageGap{
+	"client-06": traderCoverageGaps(),
+}
+
+func traderCoverageGaps() []pagedata.CoverageGap {
+	first := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	stopped := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+	last := nowTime.UTC().Truncate(24*time.Hour).AddDate(0, 0, -1)
+	var rows []any
+	for day := first; !day.After(last); day = day.AddDate(0, 0, 1) {
+		for deal := 101; deal <= 108; deal++ {
+			n := float64(day.Day() % 7)
+			row := jsonv.ObjectOf("date", day.Format("2006-01-02"), "dealId", fmt.Sprintf("deal-%d", deal),
+				"dspSpend", 40+n, "dspImpressions", 9000+100*n)
+			if deal > 104 || !day.After(stopped) {
+				row.Set("revenue", 52+n)
+				row.Set("grossMargin", 11+n)
+				row.Set("sspImpressions", 8800+100*n)
+			}
+			rows = append(rows, row)
+		}
+	}
+	return pagedata.DetectCoverageGaps(jsonv.ObjectOf("rows", rows)).Gaps
 }
 
 func stamp(f any, key string) string {
@@ -40,7 +73,8 @@ func stamp(f any, key string) string {
 // with this schedule and owner, at NOW.
 func healthFor(page obj, schedule, owner string) obj {
 	live, _ := get(page, "is_live").(bool)
-	in := versions.HealthInput{Schedule: schedule, Owner: owner, IsLive: live, CreatedAt: versions.ParseTime(stamp(page, "created_at"))}
+	in := versions.HealthInput{Schedule: schedule, Owner: owner, IsLive: live, CreatedAt: versions.ParseTime(stamp(page, "created_at")),
+		CoverageGaps: seededCoverageGaps[str(get(page, "slug"))]}
 	if f := asObj(get(page, "freshness")); f != nil {
 		in.SourceAsOf = versions.ParseTime(stamp(f, "source_as_of"))
 		in.RefreshedAt = versions.ParseTime(stamp(f, "refreshed_at"))

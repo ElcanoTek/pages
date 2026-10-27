@@ -150,8 +150,9 @@ if (typeof document !== "undefined") (function () {
         ...parts.map((part) => el("span", { class: "table-meta__line" }, part)));
     };
 
-    // Red for a run that failed, amber for one that is late or keeps finding no
-    // new data — and nothing at all for a page that is fine or has no schedule,
+    // Red for a run that failed, amber for one that is late, keeps finding no
+    // new data, or publishes data part of which has stopped ("Partial data") —
+    // and nothing at all for a page that is fine or has no schedule,
     // so the chips that do appear are the list of things to fix. The reason is
     // on the row, not only in a tooltip: it is what the reader acts on.
     //
@@ -460,7 +461,7 @@ if (typeof document !== "undefined") (function () {
       if (indexFilter && !searching) {
         const active = filters[indexFilter];
         const [title, text] = indexFilter === "attention"
-          ? ["Nothing needs attention", "Every page with a refresh schedule here is on time and finding new data."]
+          ? ["Nothing needs attention", "Every page with a refresh schedule here is on time, finding new data and showing all of it."]
           : ["Every live page has a refresh", "No live page here has gone more than 7 days without new data and without a refresh schedule."];
         results.replaceChildren(emptyState(title, text,
           el("button", {

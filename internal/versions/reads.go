@@ -216,7 +216,8 @@ func buildListPagesQuery(o ListPagesOptions) (string, []any, error) {
             p.last_check_at, p.last_check_outcome, p.last_check_detail,
             p.last_check_source_as_of,
             p.refresh_schedule, p.refresh_owner,
-            ` + newestRefreshSQL + ` AS newest_refreshed_at` + versionNumberFields + `
+            ` + newestRefreshSQL + ` AS newest_refreshed_at,
+            pv.coverage_gaps` + versionNumberFields + `
        FROM pages p
        LEFT JOIN workspaces w ON w.id = p.workspace_id
        LEFT JOIN themes t ON t.id = p.theme_id
@@ -231,7 +232,9 @@ func buildListPagesQuery(o ListPagesOptions) (string, []any, error) {
 // actually serving on the content host), freshness and refresh health. q may
 // be a snapshot transaction (the admin index reads several things
 // consistently). The raw coverage stamps stay off the row: every caller wants
-// the derived answer.
+// the derived answer. The published versions' coverage gaps feed a scheduled
+// page's health; any not stored yet are computed here and saved through q,
+// best effort (coveragegaps.go).
 func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSummary, error) {
 	sql, params, err := buildListPagesQuery(o)
 	if err != nil {
@@ -249,6 +252,7 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 		lastCheck         LastCheck
 		schedule, owner   *string
 		newest            jsx.Time
+		gaps              []byte
 	}
 	var extras []extra
 	for rows.Next() {
@@ -259,7 +263,7 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 			&p.PublishedVersionID, &p.CreatedAt, &p.UpdatedAt, &p.HasPassword, &p.IsLive,
 			&e.source, &e.refreshed, &e.legacy,
 			&e.lastCheck.LastCheckAt, &e.lastCheck.LastCheckOutcome, &e.lastCheck.LastCheckDetail, &e.lastCheck.LastCheckSourceAsOf,
-			&e.schedule, &e.owner, &e.newest}
+			&e.schedule, &e.owner, &e.newest, &e.gaps}
 		if o.IncludeVersionNumbers {
 			p.VersionNumbers = &VersionNumbers{}
 			dest = append(dest, &p.VersionCount, &p.PublishedVersionNumber)
@@ -274,6 +278,17 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 		return nil, err
 	}
 	rows.Close()
+	// Only a scheduled page is judged, so only its gaps are needed.
+	stored := make([]storedGaps, 0, len(out))
+	for i := range out {
+		if extras[i].schedule != nil {
+			stored = append(stored, storedGaps{versionID: out[i].PublishedVersionID, raw: extras[i].gaps})
+		}
+	}
+	gaps, err := resolveCoverageGaps(ctx, q, stored)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	for i := range out {
 		e := extras[i]
@@ -282,7 +297,8 @@ func ListPages(ctx context.Context, q db.Querier, o ListPagesOptions) ([]PageSum
 			return nil, err
 		}
 		out[i].Freshness = FreshnessOf(lastCheckInput(e.lastCheck, c), now)
-		out[i].RefreshHealth = HealthOf(healthInput(e.schedule, e.owner, out[i].IsLive, out[i].CreatedAt, c, e.newest, e.lastCheck), now)
+		out[i].RefreshHealth = HealthOf(healthInput(e.schedule, e.owner, out[i].IsLive, out[i].CreatedAt, c, e.newest, e.lastCheck,
+			gaps[out[i].PublishedVersionID]), now)
 	}
 	return out, nil
 }

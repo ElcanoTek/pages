@@ -62,6 +62,8 @@ func TestPayloads(t *testing.T) {
 			`"days_since_check":0},"refresh_health":{"refresh_schedule":null,"refresh_owner":null,"health":"unscheduled"`},
 		{"a seeded row is judged by the server's rules", "GET", "/api/v1/admin/pages", "", "", 200,
 			`"refresh_health":{"refresh_schedule":"0 9 * * *","refresh_owner":"analyst@contoso.example","health":"overdue","health_reason":"Expected a refresh at Jul 21 09:00 UTC; last activity Jul 20.","health_since":"2026-07-21T09:00:00.000Z"`},
+		{"a seeded coverage gap is the server's finding", "GET", "/api/v1/admin/pages", "", "", 200,
+			`"health":"coverage_gap","health_reason":"In rows, revenue, grossMargin and sspImpressions end on 2026-06-30 for 4 dealIds (\"deal-101\", \"deal-102\", \"deal-103\" and 1 more), whose rows continue to 2026-07-21.","health_since":"2026-07-01T00:00:00.000Z"`},
 		{"schedule validation is the server's", "POST", "/api/v1/admin/pages/client-01/refresh-schedule", "application/json", `{"schedule":"0 9 * * MON"}`, 400, `"code":"refresh_schedule_invalid"`},
 		{"a saved schedule is judged at once", "POST", "/api/v1/admin/pages/client-04/refresh-schedule", "application/json", `{"schedule":"0 9 * * *","owner":"Desk@Northwind.example"}`, 200,
 			`{"slug":"client-04","changed":true,"refresh_health":{"refresh_schedule":"0 9 * * *","refresh_owner":"desk@northwind.example","health":"overdue"`},

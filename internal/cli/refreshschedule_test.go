@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -127,5 +128,44 @@ func TestRefreshScheduleVerb(t *testing.T) {
 	cleared := runRefreshScheduleCLI(t, "clear", "cli/northwind")
 	if cleared.code != 0 || !strings.Contains(cleared.stdout, "updated cli/northwind: schedule -, owner -") || !strings.Contains(cleared.stdout, "health unscheduled") {
 		t.Fatalf("%+v", cleared)
+	}
+}
+
+// A scheduled page whose rows stopped carrying one source for some deals is
+// listed as coverage_gap, with the finding as its reason, and counted.
+func TestRefreshScheduleListsCoverageGaps(t *testing.T) {
+	d := testdb.New(t)
+	ctx := context.Background()
+	seed := versions.Actor{Actor: "seed", ActorType: "agent"}
+	last := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -1)
+	var rows []string
+	for day := last.AddDate(0, 0, -19); !day.After(last); day = day.AddDate(0, 0, 1) {
+		for i := 1; i <= 4; i++ {
+			row := fmt.Sprintf(`{"date":"%s","dealId":"D-%d","spend":%d`, day.Format("2006-01-02"), i, 10+i+day.Day()%5)
+			if i > 2 || day.Before(last.AddDate(0, 0, -9)) {
+				row += fmt.Sprintf(`,"revenue":%d,"clicks":%d`, 100+i+day.Day()%7, i+day.Day()%3)
+			}
+			rows = append(rows, row+"}")
+		}
+	}
+	stamp := jsx.FormatTime(time.Now().Add(-time.Minute))
+	html := `<!doctype html><html><body><h1>Northwind</h1>` +
+		`<script id="pages-data-schema" type="application/schema+json">{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}</script>` +
+		`<script id="pages-data" type="application/json">{"contract_version":1,"refreshed_at":"` + stamp + `","source_as_of":"` + stamp +
+		`","data":{"rows":[` + strings.Join(rows, ",") + `]}}</script></body></html>`
+	if _, err := versions.CreateAndDeploy(ctx, d, versions.CreateAndDeployInput{
+		DeployInput: versions.DeployInput{Slug: "cli/gap", HTML: html, Source: versions.SourceMCP, Publish: true},
+		Title:       "Gap",
+	}, seed); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SUDO_USER", "ops-person")
+	if set := runRefreshScheduleCLI(t, "set", "cli/gap", "--cron", "* * * * *"); set.code != 0 || !strings.Contains(set.stdout, "health coverage_gap — In rows, revenue and clicks end on ") {
+		t.Fatalf("%+v", set)
+	}
+	list := runRefreshScheduleCLI(t, "list")
+	if list.code != 0 || !regexp.MustCompile(`(?m)^cli/gap\s+coverage_gap\s+\* \* \* \* \*\s+-\s+In rows, revenue and clicks end on \d{4}-\d{2}-\d{2} for 2 dealIds \("D-1" and "D-2"\)`).MatchString(list.stdout) ||
+		!strings.Contains(list.stdout, "· source stale 0 · coverage gap 1 · ok 0 ·") {
+		t.Fatalf("%s", list.stdout)
 	}
 }

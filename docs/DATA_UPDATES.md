@@ -621,8 +621,14 @@ From then on `refresh_health` (on `list_pages` rows and the `get_page_data`
 summary) reports `ok`, or one of three states that need a human — `blocked`
 (the latest run recorded `blocked`, `source_unreachable` or `failed`; the reason
 is that run's `detail`), `overdue` (nothing landed within three hours of a
-scheduled time) and `source_stale` (runs record `source_not_updated` while the
-data's `source_as_of` falls further behind than the schedule allows). That is
+scheduled time), `source_stale` (runs record `source_not_updated` while the
+data's `source_as_of` falls further behind than the schedule allows) and
+`coverage_gap` (the data advances, but in the published rows some number
+fields stopped for some entities at least three days before those entities'
+other numbers did — typically one source read for only part of the page; the
+`coverage_gaps` findings name the fields, entities and dates). Pages reads that
+last one from the rows you publish, not from what the run reports, so check
+every source covers every entity the page shows before you publish. That is
 why a run that publishes nothing must still record its outcome with
 `record_refresh_check`: a run that leaves no trace is indistinguishable from one
 that never ran, and the page is reported overdue. `list_refresh_health` returns

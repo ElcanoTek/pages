@@ -4,8 +4,10 @@
 
 // Refresh health on the staff screens. The fixture seeds one page per state,
 // each judged by the server's own rules (internal/fixture/health.go):
-// client-03 blocked, client-02 overdue, client-05 source stuck, client-01 on
-// schedule, and everything else — the detail page included — unscheduled.
+// client-03 blocked, client-02 overdue, client-05 source stuck, client-06
+// partial data (part of its rows stopped weeks ago while the rest kept
+// arriving), client-01 on schedule, and everything else — the detail page
+// included — unscheduled.
 // Nineteen of the unscheduled ones are live with data more than a week old (the
 // detail page at 46 days, and clients 09 to 35 that are live, at as many days
 // as their number), so they carry the grey "No refresh" hint instead.
@@ -47,31 +49,67 @@ test("the index marks the dashboards whose refresh needs a human, with the reaso
   await expect(page.locator(".operation-table tbody tr").first().locator(".badge--warning, .badge--error, .refresh-health__reason")).toHaveCount(0);
 
   // The summary says how many, before anyone filters.
-  await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("3");
-  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("4");
+  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toHaveAttribute("aria-pressed", "false");
   await expectNoSeriousAxeViolations(page, "index with health chips");
+});
+
+const PARTIAL = 'In rows, revenue, grossMargin and sspImpressions end on 2026-06-30 for 4 dealIds ("deal-101", "deal-102", "deal-103" and 1 more), whose rows continue to 2026-07-21.';
+
+test("a page whose data stopped in part reads Partial data, amber, with the finding on the row and the banner", async ({ page }) => {
+  await page.goto("/admin");
+  // On time and with fresh data, so nothing else about the row is alarming.
+  const partial = updated(page, "Client 06 operations dashboard");
+  await expect(partial).toContainText("Data 1d old");
+  await expect(partial.locator(".badge")).toHaveText("Partial data");
+  await expect(partial.locator(".badge")).toHaveClass(/badge--warning/);
+  await expect(partial.locator(".badge")).toHaveAttribute("title", PARTIAL);
+  await expect(partial.locator(".refresh-health__reason")).toHaveText(PARTIAL);
+  await expectNoSeriousAxeViolations(page, "index with a partial-data chip");
+
+  // Needs attention reaches it, after the stuck source.
+  await page.goto("/admin?attention=1");
+  await expect(page.locator(".operation-table tbody .page-cell__title").last()).toHaveText("Client 06 operations dashboard");
+
+  // The review screen leads with the same finding.
+  await page.goto("/admin/client-06");
+  const banner = page.locator("#refresh-banner");
+  await expect(banner.locator(".badge")).toHaveText("Partial data");
+  await expect(banner).toHaveClass(/refresh-banner--warning/);
+  await expect(banner).toContainText(PARTIAL);
+  await expect(page.locator("#refresh-status .badge")).toHaveText("Partial data");
+  // The Refresh schedule section lists every finding.
+  await expect(page.locator("#refresh-status .refresh-gaps li")).toHaveText([PARTIAL]);
+  await expectNoSeriousAxeViolations(page, "detail with a partial-data banner");
+
+  // It fits a phone like the other chips.
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/admin?attention=1");
+  await expect(updated(page, "Client 06 operations dashboard").locator(".badge")).toHaveText("Partial data");
+  await expectNoHorizontalOverflow(page);
 });
 
 test("Needs attention filters to those dashboards, worst first, and survives a reload", async ({ page }) => {
   await page.goto("/admin");
-  const filter = page.getByRole("button", { name: "Needs attention (3)" });
+  const filter = page.getByRole("button", { name: "Needs attention (4)" });
   await filter.click();
   await expect(filter).toHaveAttribute("aria-pressed", "true");
   await expect(page).toHaveURL(/[?&]attention=1/);
   const titles = page.locator(".operation-table tbody .page-cell__title");
-  // Blocked, then overdue, then a stuck source.
+  // Blocked, then overdue, then a stuck source, then partial data.
   await expect(titles).toHaveText([
     "Client 03 operations dashboard",
     "Client 02 operations dashboard",
     "Client 05 operations dashboard",
+    "Client 06 operations dashboard",
   ]);
-  await expect(page.locator(".workspace-index__count")).toHaveText("3 of 37 pages");
+  await expect(page.locator(".workspace-index__count")).toHaveText("4 of 37 pages");
   await expectNoSeriousAxeViolations(page, "index filtered to attention");
 
   // Linkable: a digest can send someone straight here.
   await page.reload();
-  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toHaveAttribute("aria-pressed", "true");
-  await expect(titles).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(titles).toHaveCount(4);
 
   // It narrows within a workspace, and its count follows the workspace.
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -81,7 +119,7 @@ test("Needs attention filters to those dashboards, worst first, and survives a r
 
   // And off again: every page is back.
   await page.locator(".workspace-nav").getByRole("button", { name: /All pages/ }).click();
-  await page.getByRole("button", { name: "Needs attention (3)" }).click();
+  await page.getByRole("button", { name: "Needs attention (4)" }).click();
   await expect(page).not.toHaveURL(/attention=/);
   await expect(page.locator(".workspace-index__count")).toHaveText("Showing 25 of 37 pages");
 });
@@ -93,10 +131,10 @@ test("with nothing late the filter says so and offers the way back", async ({ pa
   await expect(page.locator(".operation-table")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "No matching pages" })).toBeVisible();
   await page.getByRole("searchbox").fill("");
-  await expect(page.locator(".operation-table tbody tr")).toHaveCount(3);
+  await expect(page.locator(".operation-table tbody tr")).toHaveCount(4);
 
-  // Clearing a schedule stops the judgement, so these three stop needing anyone.
-  for (const slug of ["client-02", "client-03", "client-05"]) {
+  // Clearing a schedule stops the judgement, so these four stop needing anyone.
+  for (const slug of ["client-02", "client-03", "client-05", "client-06"]) {
     const cleared = await request.post(`/api/v1/admin/pages/${slug}/refresh-schedule`, { data: { schedule: null } });
     expect(cleared.ok()).toBeTruthy();
   }
@@ -142,8 +180,8 @@ test("a live page with week-old data and no refresh schedule gets a grey hint, n
   await expect(updated(page, "Client 05 operations dashboard").locator(".badge")).toHaveText("Source stuck");
 
   // Not counted as needing attention: the tile and that filter are unchanged.
-  await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("3");
-  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("4");
+  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("button", { name: "No refresh set (19)" })).toHaveAttribute("aria-pressed", "false");
   await expectNoSeriousAxeViolations(page, "index with no-refresh hints");
 });
@@ -175,7 +213,7 @@ test("No refresh set filters to those pages, oldest data first, beside Needs att
   await expect(unscheduled).toHaveAttribute("aria-pressed", "false");
   await expect(page).toHaveURL(/[?&]attention=1/);
   await expect(page).not.toHaveURL(/unscheduled=/);
-  await expect(titles).toHaveCount(3);
+  await expect(titles).toHaveCount(4);
   await unscheduled.click();
   await expect(page).not.toHaveURL(/attention=/);
   await expect(titles).toHaveCount(19);
@@ -199,7 +237,7 @@ test("No refresh set filters to those pages, oldest data first, beside Needs att
   expect((await request.post("/api/v1/admin/pages/client-10/disable", { data: {} })).ok()).toBeTruthy();
   await page.goto("/admin?unscheduled=1");
   await expect(page.getByRole("button", { name: "No refresh set (17)" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Needs attention (5)" })).toBeVisible();
   await expect(titles.filter({ hasText: /^Client (09|10) operations dashboard$/ })).toHaveCount(0);
 
   // And off again: every page is back.
@@ -239,7 +277,7 @@ test("the no-refresh hint and its filter fit a phone", async ({ page }) => {
   await expect(cell.locator(".badge")).toHaveText("No refresh");
   await expect(cell.locator(".badge")).toBeVisible();
   await expect(page.getByRole("button", { name: "No refresh set (19)" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectNoSeriousAxeViolations(page, "no refresh set at phone width");
 });
@@ -250,7 +288,7 @@ test("the index keeps the chip and drops the sentence where a card has no room f
   const cell = updated(page, "Client 03 operations dashboard");
   await expect(cell.locator(".badge")).toHaveText("Blocked");
   await expect(cell.locator(".refresh-health__reason")).toBeHidden();
-  await expect(page.getByRole("button", { name: "Needs attention (3)" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Needs attention (4)" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 

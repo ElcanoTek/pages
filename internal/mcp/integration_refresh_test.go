@@ -5,9 +5,11 @@ package mcp
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/jsonv"
 	"github.com/ElcanoTek/pages/internal/tokens"
 )
 
@@ -140,4 +142,64 @@ func TestRefreshScheduleAndHealthTools(t *testing.T) {
 	h.fails(h.call("list_refresh_health", nil, as(scoped.Token)))
 	eq(t, h.scalar(`SELECT refresh_schedule FROM pages WHERE slug = 'mcp-health'`), nil)
 	eq(t, dig(h.data(h.call("get_page_data", o("slug", "mcp-health", "detail", "summary"), as(scoped.Token))), "refresh_health", "health"), "unscheduled")
+}
+
+// traderPage is a managed page with one row per (dealId, date) over the last
+// twenty days: revenue and clicks from one source, spend from another. D-1's
+// and D-2's revenue and clicks end ten days before their spend does.
+func traderPage() string {
+	last := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -1)
+	var rows []any
+	for day := last.AddDate(0, 0, -19); !day.After(last); day = day.AddDate(0, 0, 1) {
+		for i := 1; i <= 4; i++ {
+			row := o("date", day.Format("2006-01-02"), "dealId", fmt.Sprintf("D-%d", i), "spend", num(float64(10+i+day.Day()%5)))
+			if i > 2 || day.Before(last.AddDate(0, 0, -9)) {
+				row.Set("revenue", num(float64(100+i+day.Day()%7)))
+				row.Set("clicks", num(float64(i+day.Day()%3)))
+			}
+			rows = append(rows, row)
+		}
+	}
+	schema := o("$schema", "https://json-schema.org/draft/2020-12/schema", "type", "object")
+	return `<!doctype html><html><head><title>Trader</title></head><body><h1>Northwind trader</h1>` +
+		`<script id="pages-data-schema" type="application/schema+json">` + jsonv.Stringify(schema) + `</script>` +
+		`<script id="pages-data" type="application/json">` + jsonv.Stringify(o("contract_version", num(1), "refreshed_at", isoAgo(5*time.Hour),
+		"source_as_of", isoAgo(4*time.Hour), "data", o("rows", rows))) + `</script></body></html>`
+}
+
+// A page whose rows stopped carrying one source for some deals reads
+// coverage_gap on every agent surface, with the findings, and every output
+// still satisfies its declared schema.
+func TestCoverageGapOverTheWire(t *testing.T) {
+	h := newHarness(t)
+	h.data(h.call("deploy_page", o("slug", "mcp-gap", "title", "Gap", "html", traderPage())))
+	h.data(h.call("set_page_refresh_schedule", o("slug", "mcp-gap", "schedule", "* * * * *", "owner", "desk@example.com")))
+	h.data(h.call("record_refresh_check", o("slug", "mcp-gap", "outcome", "source_not_updated")))
+
+	summary := h.data(h.call("get_page_data", o("slug", "mcp-gap", "detail", "summary")))
+	eq(t, dig(summary, "refresh_health", "health"), "coverage_gap")
+	mustMatch(t, `^In rows, revenue and clicks end on \d{4}-\d{2}-\d{2} for 2 dealIds \("D-1" and "D-2"\), whose rows continue to \d{4}-\d{2}-\d{2}\.$`,
+		strAt(summary, "refresh_health", "health_reason"))
+	gaps := toAnySlice(dig(summary, "refresh_health", "coverage_gaps"))
+	eq(t, len(gaps), 1)
+	eq(t, dig(gaps[0], "key_field"), "dealId")
+	eq(t, dig(gaps[0], "entity_count"), float64(2))
+
+	var listed any
+	for _, p := range toAnySlice(h.data(h.call("list_pages", o("limit", num(100))))["pages"]) {
+		if strAt(p, "slug") == "mcp-gap" {
+			listed = p
+		}
+	}
+	eq(t, dig(listed, "refresh_health", "health"), "coverage_gap")
+
+	report := h.data(h.call("list_refresh_health", nil))
+	rows := toAnySlice(report["pages"])
+	eq(t, len(rows), 1)
+	eq(t, strAt(rows[0], "health"), "coverage_gap")
+	eq(t, len(toAnySlice(dig(rows[0], "coverage_gaps"))), 1)
+	eq(t, dig(report, "counts", "coverage_gap"), float64(1))
+	if !strings.HasPrefix(strAt(rows[0], "health_since"), "20") {
+		t.Fatalf("%v", rows[0])
+	}
 }

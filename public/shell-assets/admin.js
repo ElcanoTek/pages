@@ -1139,6 +1139,14 @@
     return [timeWhen(value, { style: "datetime", timeZone: "UTC" }), " UTC"];
   }
 
+  // The verdict in words. Partial data lists every finding, not just the
+  // first the reason quotes: each names its fields, entities and dates.
+  function refreshSummary(health) {
+    const gaps = Array.isArray(health.coverage_gaps) ? health.coverage_gaps : [];
+    if (!gaps.length) return el("p", { class: "refresh-health__summary" }, health.health_reason || "");
+    return el("ul", { class: "refresh-gaps" }, ...gaps.map((gap) => el("li", {}, gap.message || "")));
+  }
+
   function refreshSection(data) {
     const health = data.refresh_health || { health: "unscheduled", refresh_schedule: null, refresh_owner: null };
     const { kind, label } = Health.describeHealth(health);
@@ -1251,7 +1259,7 @@
       el("div", { class: "access-grid" },
         el("div", { class: "subpanel", id: "refresh-status" },
           el("div", { class: "subpanel__head" }, el("h3", {}, "Health"), statusChip(kind, label)),
-          el("p", { class: "refresh-health__summary" }, health.health_reason || ""),
+          refreshSummary(health),
           facts),
         el("div", { class: "subpanel" },
           el("div", { class: "subpanel__head" }, el("h3", {}, "Schedule")),

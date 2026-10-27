@@ -87,7 +87,7 @@ a machine consumer reads its `structuredContent` instead.
 | `get_page_refresh` | `slug` | read-only compatibility guidance for older static Chat/Cutlass allowlists; returns `scheduling:user_owned` and never reads or creates a Pages schedule |
 | `record_refresh_check` | `slug, outcome, detail?, source_as_of_seen?` | record that a refresh looked at this page and what it concluded, **without creating a version**. Moves `freshness.checked_at` only — the published pointer, the data, and every hash are untouched. Call it when a run ends without publishing (`source_not_updated`, `source_unreachable`, `blocked`, `failed`); that outcome otherwise writes nothing anywhere, so a page whose upstream has frozen reads exactly like one nobody runs any more. In `data_update` scope, slug-gated like the other two data tools |
 | `set_page_refresh_schedule` | `slug, schedule?, owner?` | record the cadence the page's recurring refresh was scheduled at (five-field cron, **UTC**) and the email of the person who answers for it, so Pages can judge the page's `refresh_health`. Call it after installing or changing the recurring task. Pages runs nothing on it. `null` clears a field, an omitted one is unchanged; an unchanged value writes no audit row. Staff-only metadata — the page's content, versions and `updated_at` are untouched |
-| `list_refresh_health` | `needs_attention?` | the pages whose scheduled refresh needs a human, worst first (blocked, overdue, source_stale), each with workspace, `refresh_owner`, `health_reason`, `health_since`, `source_as_of` and `last_activity_at`, plus `counts` for every state. `needs_attention:false` lists every page. Rows also carry `unscheduled_stale` and `days_since_source`, and `counts.unscheduled_stale` counts the live unscheduled pages whose data is more than 7 days old — a hint, never a page that needs attention (see *Refresh health*). Read-only; the input for a daily digest |
+| `list_refresh_health` | `needs_attention?` | the pages whose scheduled refresh needs a human, worst first (blocked, overdue, source_stale, coverage_gap), each with workspace, `refresh_owner`, `health_reason`, `health_since`, `source_as_of` and `last_activity_at` (and `coverage_gaps` for a coverage_gap row), plus `counts` for every state. `needs_attention:false` lists every page. Rows also carry `unscheduled_stale` and `days_since_source`, and `counts.unscheduled_stale` counts the live unscheduled pages whose data is more than 7 days old — a hint, never a page that needs attention (see *Refresh health*). Read-only; the input for a daily digest |
 | `prepare_dashboard_update` | `slug, instructions, recurring?, update_type?, publish?, sources?` | prepare a pinned exact-slug one-time workflow or the task prompt of a recurring job; never changes a page or schedules work. `sources` declares which MCP server/tool serves each input, optionally its `path` and date `partition`, so the prompt forbids substitutions and requires enumerating a partitioned folder rather than taking its newest file. **`sources` is required when `recurring` is true** (`update_sources_required`): an unattended run cannot safely re-derive bindings from prose. The response carries `execution_requirements` — the MCP servers, tools, network and model a run needs — so a scheduler can validate the task before accepting it |
 | `get_version` | `slug, version_id` | one version's full row **including HTML** (read back a draft, inspect a rollback target). Prefer `preflight_page` when you only want to know whether the page *works* — it costs a few hundred tokens instead of the whole document |
 | `find_in_version` | `slug, query, version_id?, max_matches?, ignore_case?` | literal search inside a stored version — bounded line numbers and short excerpts, not the document. Locates anchors for `patch_page` |
@@ -457,7 +457,7 @@ automatically.
 |---------------|------|---------|
 | `GET /api/v1/admin/pages` | — | page index with `workspace_id`, `workspace_name`, each row's `freshness` and `refresh_health`, plus `workspaces[]` and response-consistent `page_count` values |
 | `GET /api/v1/admin/pages/:slug` | — | page detail, versions, themes, `freshness` and `refresh_health` |
-| `GET /api/v1/admin/refresh-health` | `?needs_attention=false` optional | the estate's refresh health, worst first: `{generated_at, counts, pages[]}`, each row `slug, title, workspace_id, workspace_name, is_live, refresh_owner, refresh_schedule, health, health_reason, health_since, last_due_at, source_as_of, last_activity_at, unscheduled_stale, days_since_source`. Default: only blocked, overdue and source_stale pages; `counts` always cover every page, and `counts.unscheduled_stale` is how many unscheduled pages carry the hint. The staff-authenticated twin of MCP `list_refresh_health` (see *Refresh health*) |
+| `GET /api/v1/admin/refresh-health` | `?needs_attention=false` optional | the estate's refresh health, worst first: `{generated_at, counts, pages[]}`, each row `slug, title, workspace_id, workspace_name, is_live, refresh_owner, refresh_schedule, health, health_reason, health_since, last_due_at, source_as_of, last_activity_at, unscheduled_stale, days_since_source` (plus `coverage_gaps` on a coverage_gap row). Default: only blocked, overdue, source_stale and coverage_gap pages; `counts` always cover every page, and `counts.unscheduled_stale` is how many unscheduled pages carry the hint. The staff-authenticated twin of MCP `list_refresh_health` (see *Refresh health*) |
 | `POST /api/v1/admin/pages/:slug/refresh-schedule` | `{schedule?, owner?}` | set the page's refresh schedule (five-field cron, UTC) and owner email; `null` or `""` clears one, an omitted key is unchanged. Returns `{slug, changed, refresh_health}`; a change writes a `set_refresh_schedule` audit row naming the person |
 | `GET /api/v1/admin/pages/:slug/versions/:id` | — | one version's full row **including `html`** — the detail read above deliberately strips `html` from every entry in `versions` (the whole history would be megabytes), so the admin source editor reads the one version it is opening. `404` if that version belongs to another page |
 | `GET /api/v1/admin/workspaces` | — | list workspaces and active-page counts |
@@ -754,9 +754,10 @@ refresh is scheduled elsewhere. Fields: `refresh_schedule`, `refresh_owner`,
 `health`, `health_reason` (one sentence), `health_since` (when the problem
 started, where known), `last_due_at` (the latest fire at or before now),
 `next_due_at`, `last_activity_at` (the latest refresh on any version, published
-or not, or recorded check), `unscheduled_stale` (the hint below) and
+or not, or recorded check), `unscheduled_stale` (the hint below),
 `days_since_source` (whole days since the published `source_as_of`; `null`
-without managed data).
+without managed data) and, only when the health is `coverage_gap`,
+`coverage_gaps` (below).
 
 The rules, first match wins:
 
@@ -766,6 +767,7 @@ The rules, first match wins:
 | `blocked` | the latest activity is a recorded check whose outcome is `blocked`, `source_unreachable` or `failed` (freshness's `latest_outcome`, with a pending refresh counting as later activity) | the check's own detail / the check |
 | `overdue` | the latest scheduled fire that is more than **3 hours** old has no refresh or recorded check since it. A run up to an hour early counts for its fire (never more than half the gap to the previous fire). A page never refreshed is judged from its creation | "Expected a refresh at Oct 22 15:00 UTC; last activity Oct 20." / the first fire nothing answered |
 | `source_stale` | runs are happening, but the published data's `source_as_of` is older than the schedule's longest gap between fires over a week **plus 2 days** — 3 days for a daily schedule, 5 for weekdays only, 9 for weekly | "Source data hasn't advanced since Sep 28; …" / `source_as_of` |
+| `coverage_gap` | the data advances, but in the published rows some number fields stopped for some entities at least **3 days** before those entities' other numbers and the same fields for other entities did (see *Coverage gaps*) | the first finding, plus "(+N more gaps)" / the day after the earliest day those fields were last present |
 | `ok` | none of the above | — |
 
 `unscheduled_stale` is for the page whose campaign is still delivering but whose
@@ -779,6 +781,55 @@ oldest data first); `list_refresh_health` and its REST twin count it in
 `counts.unscheduled_stale` and list it, first among the unscheduled, only with
 `needs_attention:false`. Answer it by setting a schedule, or leave it if the
 campaign has ended.
+
+#### Coverage gaps
+
+A dashboard row often joins two sources for one entity and day — an SSP's
+revenue and a DSP's spend for a deal, say. When a refresh reads one source for
+only some of the entities, those entities' fields from that source stop while
+their other fields keep arriving. Every run succeeds and `source_as_of` keeps
+advancing, because the other source does. Pages looks for this in the published
+data itself (`pagedata.DetectCoverageGaps`), not in what the refresh reported.
+For each array of objects (top level or nested, within `data_profile`'s
+bounds):
+
+- the **day** is the date-like field (`YYYY-MM-DD…`); with several, the one
+  with the most distinct days;
+- the **number fields** are those holding only numbers or `null`; a row
+  carries a field when it is a number there;
+- the **entity** is the finest-grained identifier: of the string fields that
+  are never date-like, that have two or more values on some day (not a label
+  of the day) and some value spanning two or more days (not a row id), the
+  one with the most distinct values (at most 2,000; ties go to the first in
+  row order). No such field, or fewer than two number fields, and the array
+  is not checked;
+- an entity **delivers** on a day it carries a non-zero value of a number
+  field that changes across its rows: a row of nulls or zeros (one source
+  still listing a paused deal) or a constant repeated on every row (a budget)
+  is not delivery;
+- a field `f` is a gap for entity `v` when `v`'s last day of delivery is at
+  least 3 days after its last day with `f`, **and** the last day any entity
+  carries `f` is at least 3 days after it too. One source lagging another by
+  a day or two is normal, so it takes three (`CoverageGapDays`).
+
+An entity that stopped delivering altogether, a field an entity never had, a
+field that stopped for every entity (that is `source_stale`), and an array with
+a single number field are never gaps. A source that writes `0` instead of
+leaving a field out cannot be told apart from a real zero, so it is not
+detected either. Fields that stop on the same day for the same
+entities are one finding: `{path, date_field, key_field, fields,
+fields_omitted, stopped_on, rows_through, fields_through, entity_count,
+entities, message}`, with at most 16 fields and 8 entities named and at most 10
+findings, oldest first. For example: *In rows, revenue, grossMargin,
+platformFee, sspImpressions and clicks end on 2026-09-30 for 4 dealIds ("D-1",
+"D-2", "D-3" and 1 more), whose rows continue to 2026-10-26.*
+
+A version's data never changes, so its findings are computed once, when it is
+written, and kept in `page_versions.coverage_gaps` (migration 029). Versions
+written before that are filled the first time their page's health is read
+while it has a refresh schedule.
+The staff home shows the verdict as an amber **Partial data** chip with the
+finding as its reason, and Needs attention lists it after Source stuck.
 
 Day-of-month and day-of-week combine as in Vixie cron (either matches when both
 are restricted). Names (`MON`), macros (`@daily`), `L`/`W`/`#`/`?` and a step on

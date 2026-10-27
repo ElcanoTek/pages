@@ -15,13 +15,17 @@
   else root.PagesRefreshHealth = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   // `kind` is a primitives.js status kind. Red for a run that failed, amber for
-  // one that is late or finding nothing new; ok and unscheduled carry no alarm.
+  // one that is late, finding nothing new, or publishing data part of which
+  // stopped weeks ago while the rest kept arriving ("Partial data": the
+  // server's coverage_gap, read from the published rows themselves); ok and
+  // unscheduled carry no alarm.
   const HEALTH = {
     blocked: { kind: "error", label: "Blocked", rank: 0, attention: true },
     overdue: { kind: "warning", label: "Overdue", rank: 1, attention: true },
     source_stale: { kind: "warning", label: "Source stuck", rank: 2, attention: true },
-    ok: { kind: "live", label: "On schedule", rank: 3, attention: false },
-    unscheduled: { kind: "neutral", label: "Not scheduled", rank: 4, attention: false },
+    coverage_gap: { kind: "warning", label: "Partial data", rank: 3, attention: true },
+    ok: { kind: "live", label: "On schedule", rank: 4, attention: false },
+    unscheduled: { kind: "neutral", label: "Not scheduled", rank: 5, attention: false },
   };
 
   function healthOf(pageOrHealth) {
