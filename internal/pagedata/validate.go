@@ -73,6 +73,8 @@ type vstate struct {
 	// depth is the current schema-application nesting; see maxValidateDepth.
 	depth   int
 	tooDeep bool
+	// hasher memoizes container hashes for uniqueItems (equalHasher).
+	hasher *equalHasher
 }
 
 // maxValidateDepth bounds how deeply schema applications may nest during one
@@ -880,7 +882,7 @@ func (s *vstate) uniqueItems(o *jsonv.Object, arr []any) {
 	buckets := make(map[uint64][]int, len(arr))
 	bi, bj := -1, -1
 	for i, item := range arr {
-		h := equalHash(item)
+		h := s.equalHash(item)
 		for k := len(buckets[h]) - 1; k >= 0; k-- {
 			if j := buckets[h][k]; jsonv.Equal(item, arr[j]) {
 				bi, bj = i, j
@@ -896,24 +898,43 @@ func (s *vstate) uniqueItems(o *jsonv.Object, arr []any) {
 
 var equalSeed = maphash.MakeSeed()
 
-// equalHash hashes a parsed JSON value so that jsonv.Equal values hash alike:
-// numbers by value (0 and -0 alike), objects independently of key order.
-func equalHash(v any) uint64 {
+// equalHasher hashes parsed JSON values so that jsonv.Equal values hash
+// alike: numbers by value (0 and -0 alike), objects independently of key
+// order. A container's hash is built from its children's hashes and kept for
+// the rest of the validation, so uniqueItems at every level of a deeply
+// nested document hashes each container once, not once per enclosing level.
+type equalHasher struct {
+	memo map[any]uint64 // *jsonv.Object, or *any (an array's first element)
+}
+
+// countContainerHash, when set (tests), is called each time a container's
+// hash is computed rather than reused.
+var countContainerHash func()
+
+func (s *vstate) equalHash(v any) uint64 {
+	if s.hasher == nil {
+		s.hasher = &equalHasher{memo: map[any]uint64{}}
+	}
+	return s.hasher.hash(v)
+}
+
+func (e *equalHasher) hash(v any) uint64 {
+	var key any
+	switch x := v.(type) {
+	case []any:
+		if len(x) > 0 {
+			key = &x[0]
+		}
+	case *jsonv.Object:
+		key = x
+	}
+	if key != nil {
+		if h, ok := e.memo[key]; ok {
+			return h
+		}
+	}
 	var h maphash.Hash
 	h.SetSeed(equalSeed)
-	writeEqualHash(&h, v)
-	return h.Sum64()
-}
-
-// writeLen writes a length (decimal and terminated, so no two sequences of
-// lengths and contents run together).
-func writeLen(h *maphash.Hash, n int) {
-	var buf [24]byte
-	_, _ = h.Write(strconv.AppendInt(buf[:0], int64(n), 10))
-	_ = h.WriteByte(':')
-}
-
-func writeEqualHash(h *maphash.Hash, v any) {
 	var buf [8]byte
 	switch x := v.(type) {
 	case nil:
@@ -933,15 +954,22 @@ func writeEqualHash(h *maphash.Hash, v any) {
 		_, _ = h.Write(buf[:])
 	case string:
 		_ = h.WriteByte('s')
-		writeLen(h, len(x))
+		writeLen(&h, len(x))
 		_, _ = h.WriteString(x)
 	case []any:
+		if countContainerHash != nil {
+			countContainerHash()
+		}
 		_ = h.WriteByte('a')
-		writeLen(h, len(x))
-		for _, e := range x {
-			writeEqualHash(h, e)
+		writeLen(&h, len(x))
+		for _, c := range x {
+			binary.LittleEndian.PutUint64(buf[:], e.hash(c))
+			_, _ = h.Write(buf[:])
 		}
 	case *jsonv.Object:
+		if countContainerHash != nil {
+			countContainerHash()
+		}
 		// Sum the entries' own hashes: commutative, so key order is ignored.
 		var sum uint64
 		for _, k := range x.Keys() {
@@ -949,14 +977,28 @@ func writeEqualHash(h *maphash.Hash, v any) {
 			eh.SetSeed(equalSeed)
 			writeLen(&eh, len(k))
 			_, _ = eh.WriteString(k)
-			writeEqualHash(&eh, x.Value(k))
+			binary.LittleEndian.PutUint64(buf[:], e.hash(x.Value(k)))
+			_, _ = eh.Write(buf[:])
 			sum += eh.Sum64()
 		}
 		_ = h.WriteByte('o')
-		writeLen(h, x.Len())
+		writeLen(&h, x.Len())
 		binary.LittleEndian.PutUint64(buf[:], sum)
 		_, _ = h.Write(buf[:])
 	}
+	sum := h.Sum64()
+	if key != nil {
+		e.memo[key] = sum
+	}
+	return sum
+}
+
+// writeLen writes a length (decimal and terminated, so no two sequences of
+// lengths and contents run together).
+func writeLen(h *maphash.Hash, n int) {
+	var buf [24]byte
+	_, _ = h.Write(strconv.AppendInt(buf[:0], int64(n), 10))
+	_ = h.WriteByte(':')
 }
 
 // jsPropertyKey is String(value) for a scalar used as an object key.

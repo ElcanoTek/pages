@@ -144,9 +144,10 @@ const TurnWait = MaxDelay + 2*time.Second
 // credential cannot starve attempts on the credentials it shares a request
 // with.
 type Turns struct {
-	mu      sync.Mutex
-	held    map[string]bool
-	changed chan struct{} // closed and replaced whenever a turn is released
+	mu sync.Mutex
+	// held maps each held key to a channel closed when that key is
+	// released, so a waiter wakes only for a turn it is waiting on.
+	held map[string]chan struct{}
 
 	// OnWait, when set (tests), is called each time Acquire finds one of
 	// keys held and starts waiting, holding none of them.
@@ -158,23 +159,20 @@ func PageKey(pageID int64) string     { return "page:" + strconv.FormatInt(pageI
 func PortalKey(portalID int64) string { return "portal:" + strconv.FormatInt(portalID, 10) }
 
 // tryTake takes every key if all are free, else none; when it takes none it
-// returns the channel that is closed at the next release.
+// returns the release channel of a key it found held.
 func (t *Turns) tryTake(keys []string) (bool, <-chan struct{}) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.held == nil {
-		t.held = map[string]bool{}
-	}
-	if t.changed == nil {
-		t.changed = make(chan struct{})
+		t.held = map[string]chan struct{}{}
 	}
 	for _, k := range keys {
-		if t.held[k] {
-			return false, t.changed
+		if c, busy := t.held[k]; busy {
+			return false, c
 		}
 	}
 	for _, k := range keys {
-		t.held[k] = true
+		t.held[k] = make(chan struct{})
 	}
 	return true, nil
 }
@@ -183,12 +181,11 @@ func (t *Turns) give(keys []string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for _, k := range keys {
-		delete(t.held, k)
+		if c, ok := t.held[k]; ok {
+			close(c)
+			delete(t.held, k)
+		}
 	}
-	if t.changed != nil {
-		close(t.changed)
-	}
-	t.changed = make(chan struct{})
 }
 
 // Acquire takes the turns of every key together, waiting at most wait for
@@ -208,6 +205,7 @@ func (t *Turns) Acquire(ctx context.Context, wait time.Duration, keys ...string)
 		if t.OnWait != nil {
 			t.OnWait(set)
 		}
+		// Wait for that key's release only, then retry the whole set.
 		select {
 		case <-changed:
 		case <-timer.C:

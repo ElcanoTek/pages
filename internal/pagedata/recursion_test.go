@@ -154,3 +154,31 @@ func TestUniqueItemsIsLinearAndReportsAjvsPair(t *testing.T) {
 		t.Fatalf("large array: %v", errs)
 	}
 }
+
+// uniqueItems at every level of a recursive schema used to re-hash the whole
+// subtree once per enclosing level: quadratic in the nesting depth. Each
+// container is now hashed once per validation.
+func TestNestedUniqueItemsHashesEachContainerOnce(t *testing.T) {
+	v, err := CompileSchema(mustParse(t, `{`+draft2020+`,"type":"object","$defs":{"n":{"type":"array","uniqueItems":true,"items":{"anyOf":[{"type":"number"},{"$ref":"#/$defs/n"}]}}},"properties":{"a":{"$ref":"#/$defs/n"}}}`), "data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const depth = 3000
+	doc := strings.Repeat(`[0,`, depth) + `1` + strings.Repeat(`]`, depth)
+	data := mustParse(t, `{"a":`+doc+`}`)
+
+	computed := 0
+	countContainerHash = func() { computed++ }
+	t.Cleanup(func() { countContainerHash = nil })
+	if errs := v.Validate(data); len(errs) != 0 {
+		t.Fatalf("valid nested document refused: %v", errs[0])
+	}
+	if computed > depth {
+		t.Fatalf("%d container hashes for %d nested arrays: subtrees are re-hashed per level", computed, depth)
+	}
+	// Duplicates are still found at any depth.
+	dup := strings.Repeat(`[0,`, 50) + `[1,[2],[2]]` + strings.Repeat(`]`, 50)
+	if errs := v.Validate(mustParse(t, `{"a":`+dup+`}`)); len(errs) == 0 {
+		t.Fatal("a nested duplicate was missed")
+	}
+}

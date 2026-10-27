@@ -5,6 +5,7 @@ package passwordgate
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -137,5 +138,45 @@ func TestTurnsAreTakenAllOrNothing(t *testing.T) {
 	holdB()
 	if !<-got {
 		t.Fatal("the waiter gets the whole set once it is free")
+	}
+}
+
+// A waiter wakes only when a turn it found held is released, not on every
+// release: unrelated traffic does not make blocked attempts spin.
+func TestWaitersWakeOnlyForTheirTurns(t *testing.T) {
+	var turns Turns
+	ctx := context.Background()
+	var mu sync.Mutex
+	waits := 0
+	waiting := make(chan struct{}, 8)
+	turns.OnWait = func([]string) {
+		mu.Lock()
+		waits++
+		mu.Unlock()
+		waiting <- struct{}{}
+	}
+	holdB, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	got := make(chan bool, 1)
+	go func() {
+		r, ok := turns.Acquire(ctx, 30*time.Second, PortalKey(1), PortalKey(2))
+		got <- ok
+		r()
+	}()
+	<-waiting
+	for i := range 50 {
+		r, ok := turns.Acquire(ctx, time.Second, PageKey(int64(100+i)))
+		if !ok {
+			t.Fatal("an unrelated turn")
+		}
+		r()
+	}
+	mu.Lock()
+	if waits != 1 {
+		t.Fatalf("unrelated releases woke the waiter: %d waits", waits)
+	}
+	mu.Unlock()
+	holdB()
+	if !<-got {
+		t.Fatal("the waiter gets its turns once B is released")
 	}
 }
