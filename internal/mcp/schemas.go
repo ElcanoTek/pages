@@ -115,8 +115,9 @@ var refreshHealthSchema = zObject(
 	f("health", zEnum(versions.Healths...).Describe(
 		"unscheduled: no schedule, so no judgement. blocked: the latest outcome is a recorded failed check (blocked, source_unreachable, failed). "+
 			"overdue: a scheduled refresh passed three hours ago with no refresh or check since. source_stale: runs are happening but source_as_of "+
-			"is older than the schedule's longest gap plus two days. coverage_gap: the data advances, but in the published rows some number fields "+
-			"stopped for some entities at least three days before those entities' rows and the same fields for other entities did (coverage_gaps says which). "+
+			"is older than the schedule's longest gap plus two days (for a page with no source data yet, its creation is). coverage_gap: the data advances, "+
+			"but in the published rows some number fields stopped for entities still delivering, at least three days before those entities' other numbers "+
+			"and the same fields for other entities did (coverage_gaps says which). "+
 			"ok: none of those.")),
 	f("health_reason", zString().Describe("One sentence a human can act on; for blocked, the run's own detail; for coverage_gap, the first gap.")),
 	f("health_since", nullableDateTime.Describe("When the problem started, where known: the failing check, the first missed refresh, the stale source_as_of, "+

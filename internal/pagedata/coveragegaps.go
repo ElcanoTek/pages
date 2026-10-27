@@ -58,16 +58,23 @@ import (
 //     repeated on every row (a budget or a flight goal). Each of those would
 //     make a deal that stopped delivering look like one whose other fields
 //     carry on;
-//     global_last(f) is the latest day any row carries f.
-//     f is a gap for v when last_any(v) − last_f(v) ≥ CoverageGapDays AND
-//     global_last(f) − last_f(v) ≥ CoverageGapDays. v is still delivering,
-//     and f still arrives for other entities, but it stopped for v.
+//     global_last(f) is the latest day any row carries f;
+//     newest is the array's latest day of delivery (the greatest last_any).
+//     f is a gap for v when all three hold:
+//     newest − last_any(v) < CoverageGapDays (v is still delivering, not a
+//     deal that ended weeks ago with an old discrepancy between its sources,
+//     nor one whose last stray row is a single impression);
+//     last_any(v) − last_f(v) ≥ CoverageGapDays (v carried on without f);
+//     global_last(f) − last_f(v) ≥ CoverageGapDays (f still arrives for
+//     other entities).
 //   - Fields that stop on the same day for the same set of entities form one
 //     finding.
 //
 // It deliberately does not flag:
 //   - an entity that stopped delivering altogether (a deal that ended or
 //     paused, whatever rows of nulls, zeros or constants it still has);
+//   - an entity that is no longer delivering, whatever happened to its fields
+//     before it stopped: what a refresh misses today is what matters;
 //   - a field an entity never carried;
 //   - one source lagging another by a day or two;
 //   - a field that stopped for every entity (the source went stale, which
@@ -89,7 +96,9 @@ const CoverageGapDays = 3
 // CoverageGapsVersion names the rule above. Stored results carry it as "v".
 // When the rule or CoverageGapDays changes, bump it, and a result computed
 // under the old rule is recomputed instead of trusted.
-const CoverageGapsVersion = 1
+//
+// 1: the first rule. 2: only entities still delivering are judged.
+const CoverageGapsVersion = 2
 
 const (
 	gapMaxFields       = 48
@@ -458,12 +467,21 @@ func arrayCoverageGaps(path string, rows []any) ([]CoverageGap, bool) {
 		field int
 		day   int32
 	}
+	// newest is the array's last day of delivery. Only an entity still
+	// delivering near it is judged: one that stopped weeks ago is history.
+	newest := int32(noDay)
+	for _, e := range entities {
+		newest = max(newest, e.lastAny())
+	}
 	byStop := map[stop][]int{}
 	var stops []stop
 	for ei, e := range entities {
 		lastAny := e.lastAny()
+		if lastAny == noDay || newest-lastAny >= CoverageGapDays {
+			continue
+		}
 		for j, last := range e.lastF {
-			if last == noDay || lastAny == noDay {
+			if last == noDay {
 				continue
 			}
 			if lastAny-last >= CoverageGapDays && global[j]-last >= CoverageGapDays {

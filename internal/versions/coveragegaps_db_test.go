@@ -41,6 +41,11 @@ func gapRows(stopped bool) string {
 	return `{"rows":[` + strings.Join(rows, ",") + `]}`
 }
 
+// storedNone is how jsonb prints a stored result with no findings.
+var storedNone = fmt.Sprintf(`{"v": %d, "gaps": []}`, pagedata.CoverageGapsVersion)
+
+func storedPrefix() string { return fmt.Sprintf(`{"v": %d, `, pagedata.CoverageGapsVersion) }
+
 func gapPageHTML(sourceAsOf, data string) string {
 	return strings.Replace(managedHTML(sourceAsOf, data), dataSchema, openDataSchema, 1)
 }
@@ -66,7 +71,7 @@ func TestCoverageGapHealth(t *testing.T) {
 
 	// Written with the version: computed once, at write time.
 	raw := storedGapsOf(t, d, "cg/northwind")
-	if raw == nil || !strings.HasPrefix(*raw, `{"v": 1, "gaps": [{`) || !strings.Contains(*raw, `"stopped_on": "`+stoppedOn.Format("2006-01-02")+`"`) {
+	if raw == nil || !strings.HasPrefix(*raw, storedPrefix()+`"gaps": [{`) || !strings.Contains(*raw, `"stopped_on": "`+stoppedOn.Format("2006-01-02")+`"`) {
 		t.Fatalf("stored at write time: %v", raw)
 	}
 
@@ -104,7 +109,7 @@ func TestCoverageGapHealth(t *testing.T) {
 	// A refresh that reads both sources for every deal clears it.
 	must(UpdatePageData(ctx, d, DataUpdateInput{Slug: "cg/northwind", Data: jv(t, gapRows(false)), SourceAsOf: hoursAgo(1),
 		ExpectedVersion: base.Version.ID.String()}, agent))(t)
-	if raw := storedGapsOf(t, d, "cg/northwind"); raw == nil || *raw != `{"v": 1, "gaps": []}` {
+	if raw := storedGapsOf(t, d, "cg/northwind"); raw == nil || *raw != storedNone {
 		t.Fatalf("the data update stored its own (empty) result: %v", raw)
 	}
 	if h := health("cg/northwind"); h.Health != HealthOK || h.CoverageGaps != nil {
@@ -116,7 +121,7 @@ func TestCoverageGapHealth(t *testing.T) {
 		DeployInput: DeployInput{Slug: "cg/plain", HTML: "<!doctype html><title>Plain</title><p>Contoso</p>", Source: SourceMCP, Publish: true},
 		Title:       "Plain",
 	}, agent))(t)
-	if raw := storedGapsOf(t, d, "cg/plain"); raw == nil || *raw != `{"v": 1, "gaps": []}` {
+	if raw := storedGapsOf(t, d, "cg/plain"); raw == nil || *raw != storedNone {
 		t.Fatalf("plain page: %v", raw)
 	}
 }
@@ -147,14 +152,14 @@ func TestCoverageGapsFilledLazily(t *testing.T) {
 		t.Fatal("saved for the page that was read, and only that one")
 	}
 	// So does a list, and an older rule version counts as missing.
-	forget(`'{"v":0,"gaps":[]}'`)
+	forget(fmt.Sprintf(`'{"v":%d,"gaps":[]}'`, pagedata.CoverageGapsVersion-1))
 	for _, p := range must(ListPages(ctx, d, ListPagesOptions{}))(t) {
 		if p.RefreshHealth.Health != HealthCoverageGap {
 			t.Fatalf("%s: %+v", p.Slug, p.RefreshHealth)
 		}
 	}
 	for _, slug := range []string{"cg/fabrikam", "cg/tailspin"} {
-		if raw := storedGapsOf(t, d, slug); raw == nil || !strings.HasPrefix(*raw, `{"v": 1,`) {
+		if raw := storedGapsOf(t, d, slug); raw == nil || !strings.HasPrefix(*raw, storedPrefix()) {
 			t.Fatalf("%s recomputed under the current rule: %v", slug, raw)
 		}
 	}
@@ -259,5 +264,41 @@ func TestCoverageGapsWithAwkwardNamesStillWrite(t *testing.T) {
 	}, agent))(t)
 	if raw := storedGapsOf(t, d, "cg/awkward"); raw == nil || !strings.Contains(*raw, "D-1�") {
 		t.Fatalf("stored: %v", raw)
+	}
+}
+
+// A page created without data stores the epoch as its source_as_of. Read back,
+// that is "no source data yet": no 1970 anywhere, and staleness judged from
+// the page's creation.
+func TestNoSourceDataYet(t *testing.T) {
+	d, ctx := setup(t)
+	must(CreateAndDeploy(ctx, d, CreateAndDeployInput{
+		DeployInput: DeployInput{Slug: "ns/northwind", HTML: gapPageHTML("1970-01-01T00:00:00Z", `{"rows":[]}`), Source: SourceMCP, Publish: true},
+		Title:       "Awaiting data",
+	}, agent))(t)
+	must(d.Exec(ctx, `UPDATE pages SET created_at = now() - interval '10 days' WHERE slug = 'ns/northwind'`))(t)
+	must(SetRefreshSchedule(ctx, d, RefreshScheduleInput{Slug: "ns/northwind", Schedule: everyMinute}, agent))(t)
+	must(RecordRefreshCheck(ctx, d, RefreshCheckInput{Slug: "ns/northwind", Outcome: "source_not_updated"}, agent))(t)
+
+	read := must(RefreshHealthFor(ctx, d, "ns/northwind", time.Time{}))(t)
+	h, f := read.RefreshHealth, read.Freshness
+	if h.Health != HealthSourceStale || !strings.HasPrefix(h.HealthReason, "No source data yet since ") || h.DaysSinceSource != nil {
+		t.Fatalf("health: %+v", h)
+	}
+	if f == nil || !f.SourceAsOf.IsZero() || f.DaysSinceSource != nil || f.RefreshedAt.IsZero() {
+		t.Fatalf("freshness: %+v", f)
+	}
+	for _, p := range must(ListPages(ctx, d, ListPagesOptions{}))(t) {
+		if p.RefreshHealth.Health != HealthSourceStale || p.Freshness.DaysSinceSource != nil || !p.Freshness.SourceAsOf.IsZero() {
+			t.Fatalf("list row: %+v %+v", p.RefreshHealth, p.Freshness)
+		}
+	}
+	report := must(ListRefreshHealth(ctx, d, true))(t)
+	if len(report.Pages) != 1 || !report.Pages[0].SourceAsOf.IsZero() || report.Pages[0].DaysSinceSource != nil {
+		t.Fatalf("report: %+v", report.Pages)
+	}
+	view := must(GetPageData(ctx, d, "ns/northwind"))(t)
+	if !view.Freshness.SourceAsOf.IsZero() || view.Freshness.DaysSinceSource != nil {
+		t.Fatalf("get_page_data freshness: %+v", view.Freshness)
 	}
 }
