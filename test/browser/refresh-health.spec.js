@@ -246,6 +246,23 @@ test("No refresh set filters to those pages, oldest data first, beside Needs att
   await expect(page.locator(".workspace-index__count")).toHaveText("Showing 25 of 37 pages");
 });
 
+test("a page created without data says No data yet, never an age from 1970", async ({ page }) => {
+  // The server reports such a page's source_as_of as null beside its refresh.
+  await page.route("**/api/v1/admin/pages", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ json: { ...body, pages: body.pages.map((entry) => entry.slug !== "client-01" ? entry : {
+      ...entry,
+      freshness: { ...entry.freshness, source_as_of: null, latest_source_as_of: null, days_since_source: null },
+    }) } });
+  });
+  await page.goto("/admin");
+  const cell = updated(page, "Client 01 operations dashboard");
+  await expect(cell).toContainText("No data yet");
+  await expect(cell).not.toContainText(/Data \d+d old/);
+  await expect(cell.locator("span.table-meta")).toHaveAttribute("title", /Source coverage: none yet/);
+});
+
 test("with no page left to hint, the filter is not offered, and a stale link says so", async ({ page }) => {
   // Every live page has a schedule or recent data.
   await page.route("**/api/v1/admin/pages", async (route) => {

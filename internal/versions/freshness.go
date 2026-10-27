@@ -63,6 +63,23 @@ type FreshnessInput struct {
 	LastCheckSourceAsOf time.Time
 }
 
+// noSourceYet reports whether a stored source_as_of means "no source data
+// yet". A page created without data claims the epoch as its coverage
+// (templates.noSourceCoverage), so its first ingest can never be refused as a
+// regression however old the data. As a fact or an age it means nothing: read
+// literally it is "data 20,753 days old", which is how a brand-new page read
+// as stale since Jan 1, 1970.
+func noSourceYet(t time.Time) bool { return !t.IsZero() && t.Unix() <= 0 }
+
+// sourceStamp is a source_as_of as freshness and health report it: zero for
+// the epoch (noSourceYet), the stamp otherwise.
+func sourceStamp(t time.Time) time.Time {
+	if noSourceYet(t) {
+		return time.Time{}
+	}
+	return t
+}
+
 func msTime(t time.Time) time.Time {
 	if t.IsZero() {
 		return t
@@ -92,13 +109,14 @@ func daysSince(t time.Time, now time.Time) *int64 {
 
 // FreshnessOf builds the freshness block. It returns nil only when the page
 // has neither coverage stamps nor a recorded check — a page that has never
-// been managed and never been checked has nothing to be stale about. A zero
-// now means time.Now().
+// been managed and never been checked has nothing to be stale about. A
+// source_as_of at the epoch is "no source data yet" (noSourceYet): reported as
+// null, with no age. A zero now means time.Now().
 func FreshnessOf(in FreshnessInput, now time.Time) *Freshness {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	source, refreshed, lastCheck := msTime(in.SourceAsOf), msTime(in.RefreshedAt), msTime(in.LastCheckAt)
+	source, refreshed, lastCheck := msTime(sourceStamp(in.SourceAsOf)), msTime(in.RefreshedAt), msTime(in.LastCheckAt)
 	if source.IsZero() && refreshed.IsZero() && lastCheck.IsZero() {
 		return nil
 	}
@@ -124,7 +142,7 @@ func FreshnessOf(in FreshnessInput, now time.Time) *Freshness {
 		CheckedAt:           jsx.NewTime(checked),
 		LastCheckOutcome:    strPtr(in.LastCheckOutcome),
 		LastCheckDetail:     strPtr(in.LastCheckDetail),
-		LastCheckSourceAsOf: jsx.NewTime(msTime(in.LastCheckSourceAsOf)),
+		LastCheckSourceAsOf: jsx.NewTime(msTime(sourceStamp(in.LastCheckSourceAsOf))),
 		DaysSinceSource:     daysSince(source, now),
 		DaysSinceRefresh:    daysSince(refreshed, now),
 		DaysSinceCheck:      daysSince(checked, now),
@@ -136,7 +154,7 @@ func FreshnessOf(in FreshnessInput, now time.Time) *Freshness {
 	} else {
 		f.LatestOutcome = strPtr(in.LastCheckOutcome)
 		f.LatestDetail = strPtr(in.LastCheckDetail)
-		f.LatestSourceAsOf = jsx.NewTime(msTime(in.LastCheckSourceAsOf))
+		f.LatestSourceAsOf = jsx.NewTime(msTime(sourceStamp(in.LastCheckSourceAsOf)))
 	}
 	return f
 }

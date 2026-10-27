@@ -743,6 +743,13 @@ An explicit check at or after the refresh wins, so a subsequent failure remains
 visible. `freshness` does not infer a schedule, declare a page overdue, or erase
 history; that verdict is `refresh_health`'s, below.
 
+A page created without data stores the epoch (`1970-01-01T00:00:00Z`) as its
+`source_as_of`, so that its first ingest can never be refused as a regression.
+That means "no source data yet", not data from 1970: `freshness` reports
+`source_as_of` (and `latest_source_as_of`, `last_check_source_as_of`) as
+`null` with no `days_since_source`, and the staff index says "No data yet".
+The stored envelope keeps the epoch.
+
 ### Refresh health
 
 `freshness` reports facts. `refresh_health` (beside it on `list_pages` rows, the
@@ -766,7 +773,7 @@ The rules, first match wins:
 | `unscheduled` | no schedule. No judgement — clearing a schedule is how staff stop Pages judging a page. If the page is **live** (published, not disabled) and its `source_as_of` is more than **7 days** old (`UnscheduledStaleAfter`), it also carries `unscheduled_stale: true`: a hint, not a health | — |
 | `blocked` | the latest activity is a recorded check whose outcome is `blocked`, `source_unreachable` or `failed` (freshness's `latest_outcome`, with a pending refresh counting as later activity) | the check's own detail / the check |
 | `overdue` | the latest scheduled fire that is more than **3 hours** old has no refresh or recorded check since it. A run up to an hour early counts for its fire (never more than half the gap to the previous fire). A page never refreshed is judged from its creation | "Expected a refresh at Oct 22 15:00 UTC; last activity Oct 20." / the first fire nothing answered |
-| `source_stale` | runs are happening, but the published data's `source_as_of` is older than the schedule's longest gap between fires over a week **plus 2 days** — 3 days for a daily schedule, 5 for weekdays only, 9 for weekly | "Source data hasn't advanced since Sep 28; …" / `source_as_of` |
+| `source_stale` | runs are happening, but the published data's `source_as_of` is older than the schedule's longest gap between fires over a week **plus 2 days** — 3 days for a daily schedule, 5 for weekdays only, 9 for weekly. A page with no source data yet (created without data, so its `source_as_of` is the epoch) is judged the same way from its creation | "Source data hasn't advanced since Sep 28; …" / `source_as_of`; "No source data yet since Oct 20; …" / the page's creation |
 | `coverage_gap` | the data advances, but in the published rows some number fields stopped for some entities at least **3 days** before those entities' other numbers and the same fields for other entities did (see *Coverage gaps*) | the first finding, plus "(+N more gaps)" / the day after the earliest day those fields were last present |
 | `ok` | none of the above | — |
 
@@ -807,6 +814,10 @@ bounds):
   field that changes across its rows: a row of nulls or zeros (one source
   still listing a paused deal) or a constant repeated on every row (a budget)
   is not delivery;
+- only an entity **still delivering** is judged: its last day of delivery is
+  less than 3 days before the array's newest. A deal that ended weeks ago
+  with an old discrepancy between its sources, or whose last stray row is a
+  single impression, is history, not a refresh missing data today;
 - a field `f` is a gap for entity `v` when `v`'s last day of delivery is at
   least 3 days after its last day with `f`, **and** the last day any entity
   carries `f` is at least 3 days after it too. One source lagging another by

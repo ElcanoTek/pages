@@ -315,7 +315,8 @@ create_page_from_template  template="nwm-campaign-dashboard" slug="contoso-examp
 - **Omit `data`** to deploy the design's empty state and fill it later with
   `update_page_data`. A page created without data claims no source coverage
   (epoch), so the first ingest can never be rejected as a regression however old
-  the data it covers.
+  the data it covers. `freshness` reports that as `source_as_of: null` ("no
+  source data yet"), and refresh health judges such a page from its creation.
 - Supplying `data` requires `source_as_of`.
 - Creating onto an existing slug fails with `page_exists` and points at the tool
   that does what you actually meant. This also holds when two callers create

@@ -139,7 +139,7 @@ func TestCoverageGapsWireShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`{"v":1,"gaps":[{"path":"rows","date_field":"date","key_field":"dealId",`,
+		`{"v":2,"gaps":[{"path":"rows","date_field":"date","key_field":"dealId",`,
 		`"fields_omitted":0,"stopped_on":"2026-09-30","rows_through":"2026-10-26","fields_through":"2026-10-26","entity_count":4,`,
 	} {
 		if !strings.Contains(string(b), want) {
@@ -150,7 +150,7 @@ func TestCoverageGapsWireShape(t *testing.T) {
 		t.Fatalf("truncated is only written when set: %s", b)
 	}
 	none, _ := json.Marshal(NoCoverageGaps())
-	if string(none) != `{"v":1,"gaps":[]}` {
+	if string(none) != `{"v":2,"gaps":[]}` {
 		t.Fatalf("no gaps = %s", none)
 	}
 }
@@ -251,6 +251,63 @@ func TestCoverageGapsStoreSafely(t *testing.T) {
 	if len(got.Gaps) != 1 || strings.Contains(string(b), `\u0000`) || !strings.Contains(string(b), "D-\uFFFD-\uFFFD") {
 		t.Fatalf("%s", b)
 	}
+}
+
+// Only an entity still delivering near the array's newest day is judged. The
+// two shapes below were flagged in production and are history, not a refresh
+// missing data today; the incident's shape still flags.
+func TestCoverageGapsJudgeOnlyEntitiesStillDelivering(t *testing.T) {
+	t.Run("an old discrepancy on a deal that ended weeks ago", func(t *testing.T) {
+		// D-01's SSP fields end 2026-09-01 while its DSP rows run to 2026-09-30;
+		// the page runs through 2026-10-26.
+		deals := eightDeals(false)
+		deals[0].lastSSP, deals[0].lastDSP, deals[0].lastRow = 0, 29, 29
+		for i := range deals[1:4] {
+			deals[i+1].lastSSP = 55
+		}
+		if got := DetectCoverageGaps(traderPayload(deals, 56)); len(got.Gaps) != 0 {
+			t.Fatalf("flagged: %+v", got.Gaps)
+		}
+	})
+	t.Run("a deal whose last stray row is one impression", func(t *testing.T) {
+		// D-01's DSP fields end 2026-10-15 (day 44) and its only later row is a
+		// one-impression, $0 SSP row on 2026-10-22 (day 51).
+		deals := eightDeals(false)
+		deals[0].lastSSP, deals[0].lastDSP, deals[0].lastRow = 44, 44, 44
+		for i := range deals[1:4] {
+			deals[i+1].lastSSP = 55
+		}
+		data := traderPayload(deals, 56)
+		rows := data.Value("rows").([]any)
+		data.Set("rows", append(rows, jsonv.ObjectOf("rowId", "r-stray", "date", gapDay(51), "dateLabel", "Oct 22", "campaign", "Northwind",
+			"dealId", "D-01", "revenue", float64(0), "grossMargin", float64(0), "platformFee", float64(0), "sspImpressions", float64(1), "clicks", float64(0))))
+		if got := DetectCoverageGaps(data); len(got.Gaps) != 0 {
+			t.Fatalf("flagged: %+v", got.Gaps)
+		}
+	})
+	t.Run("the incident: SSP ends 2026-09-30, DSP runs daily to the page's last day", func(t *testing.T) {
+		got := DetectCoverageGaps(traderPayload(eightDeals(false), 56))
+		if len(got.Gaps) != 1 || got.Gaps[0].StoppedOn != "2026-09-30" || got.Gaps[0].RowsThrough != "2026-10-26" || got.Gaps[0].EntityCount != 4 {
+			t.Fatalf("%+v", got)
+		}
+	})
+	t.Run("two days behind the newest is still delivering", func(t *testing.T) {
+		deals := eightDeals(false)
+		for i := range deals[:4] {
+			deals[i].lastDSP, deals[i].lastRow = 53, 53
+		}
+		got := DetectCoverageGaps(traderPayload(deals, 56))
+		if len(got.Gaps) != 1 || got.Gaps[0].RowsThrough != "2026-10-24" {
+			t.Fatalf("%+v", got)
+		}
+		// Three days behind is not.
+		for i := range deals[:4] {
+			deals[i].lastDSP, deals[i].lastRow = 52, 52
+		}
+		if got := DetectCoverageGaps(traderPayload(deals, 56)); len(got.Gaps) != 0 {
+			t.Fatalf("flagged: %+v", got.Gaps)
+		}
+	})
 }
 
 func TestCoverageGapsThresholdIsThreeDays(t *testing.T) {

@@ -130,15 +130,20 @@ if (typeof document !== "undefined") (function () {
     // only when someone sets it). "checked" only appears when someone looked
     // MORE RECENTLY than the last write — that is the whole point of it, and
     // repeating the refresh date under a second name would just be noise.
+    //
+    // A page created without data has refreshed but holds no source data yet:
+    // the server reports its source_as_of as null (it stores the epoch, which
+    // read literally is "data 20,753 days old"), so the line says so instead.
     const dataAgeNode = (freshness) => {
       if (!freshness) return null;
       const { days_since_source: source, days_since_refresh: refresh, days_since_check: check } = freshness;
       const parts = [];
       if (source !== null) parts.push(`Data ${source === 0 ? "today" : `${source}d old`}`);
+      else if (freshness.refreshed_at) parts.push("No data yet");
       if (check !== null && (refresh === null || check < refresh)) parts.push(`checked ${days(check)}`);
       if (!parts.length) return null;
       const detail = [
-        `Source coverage: ${formatWhen(freshness.source_as_of)}`,
+        `Source coverage: ${freshness.source_as_of ? formatWhen(freshness.source_as_of) : "none yet"}`,
         `Refreshed: ${formatWhen(freshness.refreshed_at)}`,
         `Last checked: ${formatWhen(freshness.checked_at)}`,
         freshness.latest_outcome ? `Latest outcome: ${freshness.latest_outcome}` : null,

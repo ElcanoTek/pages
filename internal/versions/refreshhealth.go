@@ -55,7 +55,10 @@ import (
 //  4. source_stale — refreshes are running, but the published data's
 //     source_as_of is older than the schedule's longest gap between fires
 //     (over a week; see cron.MaxGap) plus RefreshStaleSlack. Daily: 3 days.
-//     Weekdays: 5 (the weekend gap is 3). Weekly: 9.
+//     Weekdays: 5 (the weekend gap is 3). Weekly: 9. A page created without
+//     data stores the epoch as its source_as_of, which means "no source data
+//     yet" (noSourceYet), not "data from 1970": it is judged from the page's
+//     creation instead, with the same allowance.
 //  5. coverage_gap — refreshes run and the data advances, but inside the
 //     published payload some number fields stopped for some entities while
 //     those entities' rows, and the same fields for other entities, carried
@@ -69,8 +72,9 @@ import (
 //
 // health_since is when the problem started, where Pages knows it: the
 // recorded failing check (blocked), the first fire nothing answered
-// (overdue), the stale source_as_of (source_stale), the day after the
-// earliest day a gap's fields were last present (coverage_gap).
+// (overdue), the stale source_as_of or, with no source data yet, the page's
+// creation (source_stale), the day after the earliest day a gap's fields were
+// last present (coverage_gap).
 //
 // Beside the verdict, and never instead of it, sits one hint: unscheduled_stale.
 // A page with no schedule is not judged, and that stays true — a finished
@@ -267,7 +271,10 @@ func HealthOf(in HealthInput, now time.Time) *RefreshHealth {
 	lastCheck := msTime(in.LastCheckAt)
 	activity := latest(lastRefresh, lastCheck)
 	h.LastActivityAt = jsx.NewTime(activity)
-	source := msTime(in.SourceAsOf)
+	// The epoch is "no source data yet": no age, no hint, and staleness
+	// counted from the page's creation (rule 4).
+	waiting := noSourceYet(in.SourceAsOf)
+	source := msTime(sourceStamp(in.SourceAsOf))
 	h.DaysSinceSource = daysSince(source, now)
 
 	if in.Schedule == "" {
@@ -320,13 +327,18 @@ func HealthOf(in HealthInput, now time.Time) *RefreshHealth {
 		}
 	}
 
-	// Source stale: runs are happening, the data is not moving.
-	if gap := s.MaxGap(now); !source.IsZero() && gap > 0 && now.Sub(source) > gap+RefreshStaleSlack {
+	// Source stale: runs are happening, the data is not moving — or, for a
+	// page created without data, has never arrived.
+	since, words := source, "Source data hasn't advanced since %s"
+	if waiting {
+		since, words = msTime(in.CreatedAt), "No source data yet since %s"
+	}
+	if gap := s.MaxGap(now); !since.IsZero() && gap > 0 && now.Sub(since) > gap+RefreshStaleSlack {
 		h.Health = HealthSourceStale
-		h.HealthSince = jsx.NewTime(source)
-		h.HealthReason = fmt.Sprintf("Source data hasn't advanced since %s.", shortDay(source, now))
+		h.HealthSince = jsx.NewTime(since)
+		h.HealthReason = fmt.Sprintf(words+".", shortDay(since, now))
 		if !activity.IsZero() {
-			h.HealthReason = fmt.Sprintf("Source data hasn't advanced since %s; refreshes are still running (last %s).", shortDay(source, now), shortDay(activity, now))
+			h.HealthReason = fmt.Sprintf(words+"; refreshes are still running (last %s).", shortDay(since, now), shortDay(activity, now))
 		}
 		return h
 	}

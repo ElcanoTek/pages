@@ -77,6 +77,13 @@ func healthFor(page obj, schedule, owner string) obj {
 		CoverageGaps: seededCoverageGaps[str(get(page, "slug"))]}
 	if f := asObj(get(page, "freshness")); f != nil {
 		in.SourceAsOf = versions.ParseTime(stamp(f, "source_as_of"))
+		// A page created without data stores the epoch, which freshness
+		// reports as a null source_as_of beside its refresh; the server's
+		// verdict reads the stored epoch ("no source data yet"), so read it
+		// back the same way.
+		if in.SourceAsOf.IsZero() && stamp(f, "refreshed_at") != "" {
+			in.SourceAsOf = time.Unix(0, 0).UTC()
+		}
 		in.RefreshedAt = versions.ParseTime(stamp(f, "refreshed_at"))
 		in.LastCheckAt = versions.ParseTime(stamp(f, "last_check_at"))
 		in.LastCheckOutcome = stamp(f, "last_check_outcome")
