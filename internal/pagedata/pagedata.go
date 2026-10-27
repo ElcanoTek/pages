@@ -1089,6 +1089,9 @@ func MaterializeBlocks(m *Managed, u BlockUpdate, opts MaterializeOptions) (*Mat
 		if err != nil {
 			return nil, err
 		}
+		if err := assertLegacyStampSafe(m, data); err != nil {
+			return nil, err
+		}
 		if u.SetEnvelope {
 			envelope = u.Envelope.(*jsonv.Object)
 		} else {
@@ -1167,8 +1170,10 @@ func ValidateProposedData(m *Managed, data any) error {
 	if err := assertRepresentableNumbers(data, "data_validation_failed", "data", ""); err != nil {
 		return err
 	}
-	_, err := validateData(m.Validate, data, "data_validation_failed")
-	return err
+	if _, err := validateData(m.Validate, data, "data_validation_failed"); err != nil {
+		return err
+	}
+	return assertLegacyStampSafe(m, data)
 }
 
 // Materialize writes new data with a source timestamp.

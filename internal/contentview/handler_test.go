@@ -28,6 +28,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/passwordvault"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/testdb"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -529,6 +530,9 @@ func TestParallelPasswordGuessesWaitTheirTurn(t *testing.T) {
 	busy := f.post("/turnpage", "turn-secret")
 	expect(t, busy.status == http.StatusTooManyRequests, "a guess during another's delay → 429, got %d", busy.status)
 	expect(t, busy.header.Get("Retry-After") != "", "Retry-After")
+	expect(t, busy.header.Get("ETag") == "", "no ETag: never a hash of a password-path answer")
+	expect(t, busy.header.Get("Cache-Control") == "no-store", "no-store")
+	expect(t, strings.Contains(busy.csp, "form-action 'self'"), "gate headers")
 	expect(t, len(busy.cookies()) == 0, "nothing is verified, nothing minted")
 	expect(t, strings.Contains(busy.body, "being checked"), "says why")
 	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the refused attempt is not charged")
@@ -560,6 +564,43 @@ func TestAbandonedAttemptKeepsItsDelay(t *testing.T) {
 	expect(t, f.post("/holdpage", "hold-secret").status == http.StatusTooManyRequests, "the next guess still waits out the delay")
 	time.Sleep(passwordgate.BaseDelay)
 	expect(t, f.post("/holdpage", "hold-secret").status == http.StatusSeeOther, "and is verified once it has passed")
+}
+
+// stalledFailures is a database whose failure-counter writes never answer
+// until their context ends, as under an exhausted pool or a stalled network.
+type stalledFailures struct{ db.Querier }
+
+type ctxRow struct{ ctx context.Context }
+
+func (r ctxRow) Scan(...any) error { <-r.ctx.Done(); return r.ctx.Err() }
+
+func (s stalledFailures) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, "password_failures") {
+		return ctxRow{ctx}
+	}
+	return s.Querier.QueryRow(ctx, sql, args...)
+}
+
+// The failure write is detached from the request but bounded: a stalled
+// write ends at recordTimeout and the credential's turn is released, rather
+// than holding every later attempt off with 429s.
+func TestStalledFailureWriteReleasesTheTurn(t *testing.T) {
+	f := newFixture(t)
+	f.live("stallpage")
+	f.setPassword("stallpage", "stall-secret")
+	f.h.db = stalledFailures{f.h.db}
+	f.h.recordTimeout = 50 * time.Millisecond
+	f.h.turnWait = 50 * time.Millisecond
+
+	done := make(chan resp, 1)
+	go func() { done <- f.post("/stallpage", "wrong") }()
+	select {
+	case r := <-done:
+		expect(t, r.status == http.StatusInternalServerError, "the stalled write fails the attempt, got %d", r.status)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a stalled failure write hung the attempt")
+	}
+	expect(t, f.post("/stallpage", "stall-secret").status == http.StatusSeeOther, "the turn was released")
 }
 
 func TestPortalIndex(t *testing.T) {

@@ -285,7 +285,13 @@
   body cannot be inflated and parsed at full size for an anonymous client.
   Managed-data schemas whose `$ref`s lead back to a schema already applied to
   the same data are refused when accepted (validating one would recurse
-  without end), and validation has a nesting backstop on top. Client attribution is configured identically on the dispatcher and
+  without end), and validation has a nesting backstop on top.
+- **Pages built from an old campaign-dashboard revision.** Revisions of the
+  shipped `nwm-campaign-dashboard` template before the fix wrote
+  `lastRefreshed` with `innerHTML`. Stored versions are never rewritten, so
+  any data write to a page whose layout still has that sink refuses a
+  `lastRefreshed` containing `<`, `>` or `&` (`data_validation_failed`) until
+  the page is rebuilt from the current revision. Client attribution is configured identically on the dispatcher and
   both serving apps: exactly one loopback proxy hop by default, explicit proxy
   addresses/CIDRs with `PAGES_TRUST_PROXY`, or `false` for direct access. Earlier
   forwarded hops are never trusted; host dispatch reads `Host` itself. This same

@@ -104,6 +104,8 @@ type handler struct {
 	// turn before it is refused with a 429.
 	turns    *passwordgate.Turns
 	turnWait time.Duration
+	// recordTimeout bounds the detached failure write (0: the default).
+	recordTimeout time.Duration
 }
 
 func identity(h http.Handler) http.Handler { return h }

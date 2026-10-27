@@ -375,6 +375,39 @@ type ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
 
 var bearerRe = regexp.MustCompile(`(?i)^Bearer\s+(.+)$`)
 
+// BearerToken is the raw token of the request's `Authorization: Bearer`
+// header, as RequireBearer reads it.
+func BearerToken(r *http.Request) (string, bool) {
+	m := bearerRe.FindStringSubmatch(r.Header.Get("Authorization"))
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+type verifiedKey struct{}
+
+type verified struct {
+	raw   string
+	token *Token
+}
+
+// WithVerified records that raw was just verified as t for this request (the
+// dashboard does so before choosing body limits), so RequireBearer reuses
+// the result instead of a second lookup. It applies only to that exact raw
+// token.
+func WithVerified(ctx context.Context, raw string, t *Token) context.Context {
+	return context.WithValue(ctx, verifiedKey{}, verified{raw: raw, token: t})
+}
+
+func verifiedFor(ctx context.Context, raw string) (*Token, bool) {
+	v, ok := ctx.Value(verifiedKey{}).(verified)
+	if !ok || v.token == nil || v.raw != raw {
+		return nil, false
+	}
+	return v.token, true
+}
+
 // RequireBearer validates `Authorization: Bearer <token>` and puts the Agent
 // on the request context (AgentFrom). It answers 401 no_token / bad_token
 // through onError otherwise. Bearer auth carries no ambient cookies, so it is
@@ -383,15 +416,18 @@ var bearerRe = regexp.MustCompile(`(?i)^Bearer\s+(.+)$`)
 func RequireBearer(d *db.DB, onError ErrorHandler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			m := bearerRe.FindStringSubmatch(r.Header.Get("Authorization"))
-			if m == nil {
+			raw, ok := BearerToken(r)
+			if !ok {
 				onError(w, r, apierror.Unauthorized("missing bearer token", "no_token", nil))
 				return
 			}
-			t, err := Verify(r.Context(), d, m[1])
-			if err != nil {
-				onError(w, r, err)
-				return
+			t, ok := verifiedFor(r.Context(), raw)
+			if !ok {
+				var err error
+				if t, err = Verify(r.Context(), d, raw); err != nil {
+					onError(w, r, err)
+					return
+				}
 			}
 			if t == nil {
 				onError(w, r, apierror.Unauthorized("invalid or revoked token", "bad_token", nil))

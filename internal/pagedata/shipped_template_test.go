@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/ElcanoTek/pages/internal/jsonv"
@@ -37,13 +38,73 @@ func TestCampaignDashboardRefreshStampIsText(t *testing.T) {
 		"2026-06-30 06:00":             true,
 		"<img src=x onerror=alert(1)>": false,
 		"Jun 30</span><b>":             false,
-		`Jun 30 "quoted"`:              false,
+		`Jun 30 (partial) 'q'`:         true,
+		"Jun 30 &amp;":                 false,
 	} {
 		d := jsonv.ObjectOf()
 		data.Range(func(k string, v any) bool { d.Set(k, v); return true })
 		d.Set("lastRefreshed", stamp)
 		if got := m.Validate.Valid(d); got != ok {
 			t.Errorf("lastRefreshed %q: valid=%v, want %v", stamp, got, ok)
+		}
+	}
+}
+
+// legacyCampaignDashboard rebuilds the campaign dashboard as revisions before
+// the fix shipped it: the innerHTML sink and a lastRefreshed schema with no
+// pattern. Pages built from those revisions keep that source.
+func legacyCampaignDashboard(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "nwm-campaign-dashboard", "template.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	for _, r := range [][2]string{
+		{`if(CONFIG.lastRefreshed){$("#stampRefresh").textContent=String(CONFIG.lastRefreshed);}else{$("#stampRefresh").innerHTML='<span class="pending">never</span>';}`,
+			`$("#stampRefresh").innerHTML=CONFIG.lastRefreshed?CONFIG.lastRefreshed:'<span class="pending">never</span>';`},
+		{`,"pattern":"^[^<>&]*$"}`, `}`},
+	} {
+		if !strings.Contains(s, r[0]) {
+			t.Fatalf("template no longer contains %q", r[0])
+		}
+		s = strings.Replace(s, r[0], r[1], 1)
+	}
+	return s
+}
+
+// A page built from a pre-fix revision still renders lastRefreshed with
+// innerHTML, so data writes to it refuse a stamp that could form markup,
+// while ordinary stamps keep refreshing.
+func TestLegacyCampaignDashboardRefusesMarkupStamps(t *testing.T) {
+	m, err := ParseManaged(legacyCampaignDashboard(t), TemplateSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withStamp := func(stamp string) *jsonv.Object {
+		d := jsonv.ObjectOf()
+		m.Example.Range(func(k string, v any) bool { d.Set(k, v); return true })
+		d.Set("lastRefreshed", stamp)
+		return d
+	}
+	for stamp, ok := range map[string]bool{
+		"Aug 2, 2026":                  true,
+		"2026-09-21T06:02:11.000Z":     true,
+		"Aug 2 (partial)":              true,
+		"<img src=x onerror=alert(1)>": false,
+		"Aug 2 &lt;b&gt;":              false,
+	} {
+		d := withStamp(stamp)
+		if !m.Validate.Valid(d) {
+			t.Fatalf("%q: the legacy schema itself should accept it", stamp)
+		}
+		_, err := MaterializeBlocks(m, BlockUpdate{Data: d, SetData: true}, MaterializeOptions{SourceAsOf: "2026-01-01T00:00:00Z"})
+		perr := ValidateProposedData(m, d)
+		if ok && (err != nil || perr != nil) {
+			t.Fatalf("%q refused: %v / %v", stamp, err, perr)
+		}
+		if !ok && (code(err) != "data_validation_failed" || code(perr) != "data_validation_failed") {
+			t.Fatalf("%q accepted on a legacy page: %v / %v", stamp, err, perr)
 		}
 	}
 }

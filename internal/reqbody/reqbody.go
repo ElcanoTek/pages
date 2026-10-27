@@ -147,13 +147,15 @@ func UnauthenticatedOptions() Options {
 // dashboard did (JSON for /api/v1 paths, the branded error page elsewhere).
 // A request already parsed upstream passes straight through.
 func Middleware(o Options, onError func(w http.ResponseWriter, r *http.Request, err *Error)) func(http.Handler) http.Handler {
-	return MiddlewareFor(func(*http.Request) Options { return o }, onError)
+	return MiddlewareFor(func(r *http.Request) (*http.Request, Options) { return r, o }, onError)
 }
 
 // MiddlewareFor is Middleware with limits chosen per request, before any of
 // the body is read: the server uses it to give requests without a verified
-// credential UnauthenticatedOptions.
-func MiddlewareFor(choose func(*http.Request) Options, onError func(w http.ResponseWriter, r *http.Request, err *Error)) func(http.Handler) http.Handler {
+// credential UnauthenticatedOptions. choose may return a derived request
+// (one carrying what it verified, so later layers need not repeat it); the
+// rest of the chain sees that request.
+func MiddlewareFor(choose func(*http.Request) (*http.Request, Options), onError func(w http.ResponseWriter, r *http.Request, err *Error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if Parsed(r) {
@@ -164,7 +166,8 @@ func MiddlewareFor(choose func(*http.Request) Options, onError func(w http.Respo
 				next.ServeHTTP(w, r.WithContext(WithBody(r.Context(), nil, false)))
 				return
 			}
-			v, present, err := Parse(r, choose(r))
+			r, o := choose(r)
+			v, present, err := Parse(r, o)
 			if err != nil {
 				onError(w, r, err)
 				return

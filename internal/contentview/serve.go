@@ -58,10 +58,28 @@ func gate(w http.ResponseWriter, r *http.Request, status int, html string) {
 
 // attemptBusy answers a password attempt that did not get its credential's
 // turn (passwordgate.Turns) in time: 429 with the gate headers, nothing
-// verified, nothing charged.
+// verified, nothing charged. Like the dashboard's password limiter page it
+// carries no ETag: a 429 is never fresh, and an answer on the password path
+// must not put a SHA-1 of its body in a header (httpx.SendNoValidator).
 func attemptBusy(w http.ResponseWriter, r *http.Request, slug string) {
+	csp.GateHeaders(csp.GateOptions{}).Apply(w.Header())
 	w.Header().Set("Retry-After", strconv.Itoa(int(passwordgate.TurnWait/time.Second)))
-	gate(w, r, http.StatusTooManyRequests, AttemptBusyPage(slug))
+	w.Header().Set("Cache-Control", "no-store")
+	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(AttemptBusyPage(slug)))
+}
+
+// defaultRecordTimeout bounds recording a failed attempt. The write is
+// detached from the request (a client that disconnects must not make a guess
+// free) but never unbounded: a stalled database must not keep the attempt,
+// and so its credential's turn, held forever.
+const defaultRecordTimeout = 5 * time.Second
+
+func (h *handler) recordCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	d := h.recordTimeout
+	if d <= 0 {
+		d = defaultRecordTimeout
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), d)
 }
 
 // attemptTurn is a password attempt's hold on its credentials' turns.
@@ -333,7 +351,9 @@ func (h *handler) unlockPortal(w http.ResponseWriter, r *http.Request, portalSlu
 		// Progressive backoff on the PORTAL's shared counter, which every door
 		// testing this password charges — see migrations/019. Recorded even
 		// if the client has gone: disconnecting must not make a guess free.
-		delay, err := passwordgate.RecordPortalFailure(context.WithoutCancel(ctx), h.db, portal.ID)
+		rctx, cancel := h.recordCtx(ctx)
+		delay, err := passwordgate.RecordPortalFailure(rctx, h.db, portal.ID)
+		cancel()
 		if err != nil {
 			return err
 		}
@@ -483,15 +503,17 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 	// The counters are charged even if the client has already disconnected,
 	// so abandoning a request cannot make a guess free.
 	var delay time.Duration
+	rctx, cancel := h.recordCtx(ctx)
+	defer cancel()
 	if page.PasswordHash != "" {
-		d, err := passwordgate.RecordFailure(context.WithoutCancel(ctx), h.db, page.ID)
+		d, err := passwordgate.RecordFailure(rctx, h.db, page.ID)
 		if err != nil {
 			return err
 		}
 		delay = max(delay, d)
 	}
 	for _, portal := range portals {
-		d, err := passwordgate.RecordPortalFailure(context.WithoutCancel(ctx), h.db, portal.ID)
+		d, err := passwordgate.RecordPortalFailure(rctx, h.db, portal.ID)
 		if err != nil {
 			return err
 		}
