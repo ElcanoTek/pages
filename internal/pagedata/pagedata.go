@@ -1156,6 +1156,21 @@ func MaterializeBlocks(m *Managed, u BlockUpdate, opts MaterializeOptions) (*Mat
 	}, nil
 }
 
+// ValidateProposedData runs the checks MaterializeBlocks makes on proposed
+// data (representable numbers, then the schema) without materializing
+// anything. Callers use it to refuse an invalid payload before they open a
+// transaction or take a page lock; MaterializeBlocks still checks again.
+func ValidateProposedData(m *Managed, data any) error {
+	if m == nil || m.Validate == nil {
+		return nil
+	}
+	if err := assertRepresentableNumbers(data, "data_validation_failed", "data", ""); err != nil {
+		return err
+	}
+	_, err := validateData(m.Validate, data, "data_validation_failed")
+	return err
+}
+
 // Materialize writes new data with a source timestamp.
 func Materialize(m *Managed, data any, sourceAsOf any, now time.Time) (*Materialized, error) {
 	return MaterializeBlocks(m, BlockUpdate{Data: data, SetData: true}, MaterializeOptions{SourceAsOf: sourceAsOf, Now: now})

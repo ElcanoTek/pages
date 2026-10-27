@@ -65,3 +65,44 @@ func TestRecordAndClear(t *testing.T) {
 		t.Fatalf("portal after clear: %v", got)
 	}
 }
+
+func TestTurnsSerialiseAndTimeOut(t *testing.T) {
+	var turns Turns
+	ctx := context.Background()
+	release, ok := turns.Acquire(ctx, time.Second, PageKey(1), PortalKey(2))
+	if !ok {
+		t.Fatal("a free turn is granted")
+	}
+	if _, ok := turns.Acquire(ctx, 20*time.Millisecond, PortalKey(2)); ok {
+		t.Fatal("a held turn is not granted twice")
+	}
+	if r, ok := turns.Acquire(ctx, 20*time.Millisecond, PageKey(3)); !ok {
+		t.Fatal("other credentials are independent")
+	} else {
+		r()
+	}
+	// A waiter gets the turn as soon as it is released.
+	got := make(chan bool, 1)
+	go func() {
+		r, ok := turns.Acquire(ctx, 5*time.Second, PortalKey(2), PageKey(1))
+		got <- ok
+		r()
+	}()
+	time.Sleep(20 * time.Millisecond)
+	release()
+	release() // idempotent
+	if !<-got {
+		t.Fatal("the waiter gets the released turn")
+	}
+	// A failed acquisition holds nothing.
+	hold, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	if _, ok := turns.Acquire(ctx, 20*time.Millisecond, PageKey(1), PortalKey(2)); ok {
+		t.Fatal("partial turns are not granted")
+	}
+	if r, ok := turns.Acquire(ctx, 20*time.Millisecond, PageKey(1)); !ok {
+		t.Fatal("a failed acquisition released what it had taken")
+	} else {
+		r()
+	}
+	hold()
+}

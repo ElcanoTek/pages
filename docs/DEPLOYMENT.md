@@ -469,7 +469,10 @@ widens a boundary that is checked before the body is parsed.
 | `RL_BACKCHANNEL_PER_MIN` | `600` | Central mode: `/auth/backchannel-logout` |
 
 These sit on top of a per-page progressive backoff that is not configurable and
-deliberately delays rather than locks out.
+deliberately delays rather than locks out. Attempts on one page (or portal) are
+also checked one at a time: an attempt waits for the previous one's delay before
+its password is verified, and one that cannot get its turn within about ten
+seconds gets a `429` without its password being checked.
 
 Both serving applications use the same client attribution for these limits and
 mutation audit records. By default, Pages trusts exactly one loopback proxy hop,
@@ -1192,7 +1195,10 @@ consumer is hitting 120/min, look at the consumer first.
 
 The per-page progressive backoff delays the `401` after repeated failures — one
 shared counter per page across all source IPs, deliberately, so an attacker
-cannot lock a real viewer out. It delays, never locks. Wait, then retry. A
+cannot lock a real viewer out. It delays, never locks. Wait, then retry. While
+someone else is guessing at the same page, an attempt can also be answered
+`429` ("Other password attempts for this page are being checked"); wait a few
+seconds and submit again. A
 correct password resets the counter. Also check whether the page's password was
 rotated (that voids existing sessions) or cleared (which makes it staff-only and
 403s real clients — an admin-only action, and audited).

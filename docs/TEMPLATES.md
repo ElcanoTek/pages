@@ -31,7 +31,9 @@ used.
 | `pages-data` | `application/json` | Pages, as the standard envelope | `create_page_from_template`, `update_page_data` |
 
 Both schemas must be **self-contained JSON Schema 2020-12** with an object root.
-Local `$ref`s work; external ones are rejected.
+Local `$ref`s work; external ones are rejected, and so is a reference cycle that
+does not descend into the data (`{"allOf":[{"$ref":"#"}]}`): recursion has to go
+through `properties`, `items` or another keyword that moves to a child value.
 
 A template is a **complete page**, not a fragment: it ships a real reference
 config and an empty-state data envelope, and each must satisfy its own schema.

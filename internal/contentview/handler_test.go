@@ -507,6 +507,61 @@ func TestPasswordBackoffChargesEveryDoor(t *testing.T) {
 	_ = pid
 }
 
+// The per-page backoff used to delay only the ANSWER to a wrong guess: the
+// password had already been checked, so guesses sent in parallel were all
+// verified at once. An attempt now holds the page's turn from before
+// verification through its failure delay, and one that cannot get the turn
+// is refused with a 429 without its password being checked or charged.
+func TestParallelPasswordGuessesWaitTheirTurn(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("turnpage")
+	f.setPassword("turnpage", "turn-secret")
+	f.h.turnWait = 50 * time.Millisecond
+	inDelay, finish := make(chan struct{}), make(chan struct{})
+	f.h.sleepHook = func(time.Duration) {
+		close(inDelay)
+		<-finish
+	}
+	first := make(chan resp, 1)
+	go func() { first <- f.post("/turnpage", "wrong-1") }()
+	<-inDelay // the first guess failed and is serving its delay, turn held
+
+	busy := f.post("/turnpage", "turn-secret")
+	expect(t, busy.status == http.StatusTooManyRequests, "a guess during another's delay → 429, got %d", busy.status)
+	expect(t, busy.header.Get("Retry-After") != "", "Retry-After")
+	expect(t, len(busy.cookies()) == 0, "nothing is verified, nothing minted")
+	expect(t, strings.Contains(busy.body, "being checked"), "says why")
+	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the refused attempt is not charged")
+
+	close(finish)
+	expect(t, (<-first).status == http.StatusUnauthorized, "the first guess still gets its 401")
+	f.h.sleepHook = func(time.Duration) {}
+	expect(t, f.post("/turnpage", "turn-secret").status == http.StatusSeeOther, "once the turn is free the right password works")
+}
+
+// A guesser that disconnects during its failure delay ends the request (and
+// its sleep) early; the turn must still be held for the whole delay, or
+// disconnecting would skip the backoff.
+func TestAbandonedAttemptKeepsItsDelay(t *testing.T) {
+	f := newFixture(t)
+	f.live("holdpage")
+	f.setPassword("holdpage", "hold-secret")
+	f.h.sleepHook = nil // real delays: 500ms after the first failure
+	f.h.turnWait = 50 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	req := httptest.NewRequest(http.MethodPost, "/holdpage", strings.NewReader(url.Values{"password": {"wrong"}}.Encode())).WithContext(ctx)
+	req.Host = contentHost
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	f.h.ServeHTTP(httptest.NewRecorder(), req)
+	expect(t, ctx.Err() != nil, "the request was abandoned before its delay ended")
+
+	expect(t, f.post("/holdpage", "hold-secret").status == http.StatusTooManyRequests, "the next guess still waits out the delay")
+	time.Sleep(passwordgate.BaseDelay)
+	expect(t, f.post("/holdpage", "hold-secret").status == http.StatusSeeOther, "and is verified once it has passed")
+}
+
 func TestPortalIndex(t *testing.T) {
 	f := newFixture(t)
 	portalID := f.portal("vw-nwm", "Weather Co (view suite)", "portal-pass-1")

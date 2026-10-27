@@ -86,12 +86,12 @@
     {
       "path": "application/package-lock.json",
       "bytes": 52572,
-      "sha256": "ff164bbe9d29a0fef7bfba57606bb5477a17f54abe51808fffb18f66efd4b9ec"
+      "sha256": "69c5ce3528b2f5aa707d3f2958dfdeef8d178aba6099185c04b7d5e220f126c3"
     },
     {
       "path": "application/package.json",
-      "bytes": 1287,
-      "sha256": "871b40eab8980dff3de29825c0057b5bbcbf2f84ac41247d30a3f2daa6cc1bf2"
+      "bytes": 1284,
+      "sha256": "79030aee1a7e353fa5bb48c121970ff2ccd489805c2f5b1a7d97e811a7f5ad61"
     },
     {
       "path": "application/server.js",

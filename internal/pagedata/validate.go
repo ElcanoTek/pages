@@ -4,7 +4,9 @@
 package pagedata
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/maphash"
 	"math"
 	"strconv"
 	"strings"
@@ -68,12 +70,30 @@ type vstate struct {
 	// track records whether unevaluated* keywords exist anywhere; without
 	// them, evaluated-property bookkeeping is skipped.
 	track bool
+	// depth is the current schema-application nesting; see maxValidateDepth.
+	depth   int
+	tooDeep bool
 }
+
+// maxValidateDepth bounds how deeply schema applications may nest during one
+// validation. Compilation already refuses reference cycles that do not
+// descend into the data (checkRefCycles), and data nesting is bounded by the
+// parser, so a legitimate validation stays far below this; it is the backstop
+// that turns any recursion the compile-time check missed into a refusal
+// instead of a fatal, unrecoverable goroutine stack overflow.
+const maxValidateDepth = 100000
 
 // Validate validates data and returns Ajv's error list (nil when valid).
 func (v *Validator) Validate(data any) []ValidationError {
 	s := &vstate{v: v, sp: []seg{{s: "#", kind: 't'}}, track: v.unevaluated}
 	s.node(v.root, data)
+	if s.tooDeep {
+		// Reported alone and after the walk: applicators such as "not" and
+		// "anyOf" discard their branches' errors, and must not turn an
+		// abandoned validation into a pass.
+		return []ValidationError{{InstancePath: "", SchemaPath: "#", Keyword: "$ref",
+			Params: jsonv.NewObject(), Message: "schema recursion is too deep"}}
+	}
 	return s.errs
 }
 
@@ -214,6 +234,15 @@ func (s *vstate) typeError(ni *nodeInfo) {
 
 func (s *vstate) node(sch any, data any) evaluated {
 	var ev evaluated
+	if s.tooDeep {
+		return ev
+	}
+	s.depth++
+	defer func() { s.depth-- }()
+	if s.depth > maxValidateDepth {
+		s.tooDeep = true
+		return ev
+	}
 	o, ok := sch.(*jsonv.Object)
 	if !ok {
 		if sch == false {
@@ -841,13 +870,92 @@ func (s *vstate) uniqueItems(o *jsonv.Object, arr []any) {
 		}
 		return
 	}
-	for i := len(arr) - 1; i > 0; i-- {
-		for j := i - 1; j >= 0; j-- {
-			if jsonv.Equal(arr[i], arr[j]) {
-				report(i, j)
-				return
+	// Ajv's general case compares every pair, from the end: the reported
+	// pair is the largest i with an equal earlier item, and the largest such
+	// j. That is quadratic in the array length (and the managed write that
+	// runs it holds a database connection), so find the same pair in one
+	// pass instead: hash each item by value (jsonv.Equal semantics, object
+	// key order ignored) and confirm candidates with jsonv.Equal. The hash is
+	// seeded per process, so collisions cannot be chosen by a client.
+	buckets := make(map[uint64][]int, len(arr))
+	bi, bj := -1, -1
+	for i, item := range arr {
+		h := equalHash(item)
+		for k := len(buckets[h]) - 1; k >= 0; k-- {
+			if j := buckets[h][k]; jsonv.Equal(item, arr[j]) {
+				bi, bj = i, j
+				break
 			}
 		}
+		buckets[h] = append(buckets[h], i)
+	}
+	if bi >= 0 {
+		report(bi, bj)
+	}
+}
+
+var equalSeed = maphash.MakeSeed()
+
+// equalHash hashes a parsed JSON value so that jsonv.Equal values hash alike:
+// numbers by value (0 and -0 alike), objects independently of key order.
+func equalHash(v any) uint64 {
+	var h maphash.Hash
+	h.SetSeed(equalSeed)
+	writeEqualHash(&h, v)
+	return h.Sum64()
+}
+
+// writeLen writes a length (decimal and terminated, so no two sequences of
+// lengths and contents run together).
+func writeLen(h *maphash.Hash, n int) {
+	var buf [24]byte
+	_, _ = h.Write(strconv.AppendInt(buf[:0], int64(n), 10))
+	_ = h.WriteByte(':')
+}
+
+func writeEqualHash(h *maphash.Hash, v any) {
+	var buf [8]byte
+	switch x := v.(type) {
+	case nil:
+		_ = h.WriteByte('n')
+	case bool:
+		if x {
+			_ = h.WriteByte('t')
+		} else {
+			_ = h.WriteByte('f')
+		}
+	case float64:
+		if x == 0 {
+			x = 0 // -0 == 0
+		}
+		_ = h.WriteByte('d')
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(x))
+		_, _ = h.Write(buf[:])
+	case string:
+		_ = h.WriteByte('s')
+		writeLen(h, len(x))
+		_, _ = h.WriteString(x)
+	case []any:
+		_ = h.WriteByte('a')
+		writeLen(h, len(x))
+		for _, e := range x {
+			writeEqualHash(h, e)
+		}
+	case *jsonv.Object:
+		// Sum the entries' own hashes: commutative, so key order is ignored.
+		var sum uint64
+		for _, k := range x.Keys() {
+			var eh maphash.Hash
+			eh.SetSeed(equalSeed)
+			writeLen(&eh, len(k))
+			_, _ = eh.WriteString(k)
+			writeEqualHash(&eh, x.Value(k))
+			sum += eh.Sum64()
+		}
+		_ = h.WriteByte('o')
+		writeLen(h, x.Len())
+		binary.LittleEndian.PutUint64(buf[:], sum)
+		_, _ = h.Write(buf[:])
 	}
 }
 

@@ -127,18 +127,44 @@ func Parsed(r *http.Request) bool {
 	return ok
 }
 
+// UnauthenticatedLimit bounds a body, after decompression, that the dashboard
+// parses for a request carrying no valid credential. Such a request is
+// refused by every route that reads a body, so it only needs room for a
+// malformed-body 400; it must not be able to make the server inflate and
+// parse a MAX_REQUEST_BYTES document (a small gzip body inflates to the full
+// limit, and parsing that allocates many times its size).
+const UnauthenticatedLimit = 64 * 1024
+
+// UnauthenticatedOptions are the limits for a request without a credential:
+// DashboardOptions, each capped at UnauthenticatedLimit.
+func UnauthenticatedOptions() Options {
+	o := DashboardOptions()
+	return Options{JSONLimit: min(o.JSONLimit, UnauthenticatedLimit), FormLimit: min(o.FormLimit, UnauthenticatedLimit)}
+}
+
 // Middleware parses the body once (Parse) and records it for From. A parser
 // failure goes to onError instead of next — the caller answers it as the
 // dashboard did (JSON for /api/v1 paths, the branded error page elsewhere).
 // A request already parsed upstream passes straight through.
 func Middleware(o Options, onError func(w http.ResponseWriter, r *http.Request, err *Error)) func(http.Handler) http.Handler {
+	return MiddlewareFor(func(*http.Request) Options { return o }, onError)
+}
+
+// MiddlewareFor is Middleware with limits chosen per request, before any of
+// the body is read: the server uses it to give requests without a verified
+// credential UnauthenticatedOptions.
+func MiddlewareFor(choose func(*http.Request) Options, onError func(w http.ResponseWriter, r *http.Request, err *Error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if Parsed(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
-			v, present, err := Parse(r, o)
+			if !hasBody(r) {
+				next.ServeHTTP(w, r.WithContext(WithBody(r.Context(), nil, false)))
+				return
+			}
+			v, present, err := Parse(r, choose(r))
 			if err != nil {
 				onError(w, r, err)
 				return

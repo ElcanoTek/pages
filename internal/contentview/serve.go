@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +54,48 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 
 func gate(w http.ResponseWriter, r *http.Request, status int, html string) {
 	sendWith(w, r, csp.GateHeaders(csp.GateOptions{}), status, html)
+}
+
+// attemptBusy answers a password attempt that did not get its credential's
+// turn (passwordgate.Turns) in time: 429 with the gate headers, nothing
+// verified, nothing charged.
+func attemptBusy(w http.ResponseWriter, r *http.Request, slug string) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(passwordgate.TurnWait/time.Second)))
+	gate(w, r, http.StatusTooManyRequests, AttemptBusyPage(slug))
+}
+
+// attemptTurn is a password attempt's hold on its credentials' turns.
+type attemptTurn struct {
+	release func()
+	hold    time.Duration
+	since   time.Time
+	now     bool // release as soon as the attempt returns (tests)
+}
+
+func (h *handler) takeTurn(ctx context.Context, keys ...string) (*attemptTurn, bool) {
+	release, ok := h.turns.Acquire(ctx, h.turnWait, keys...)
+	if !ok {
+		return nil, false
+	}
+	return &attemptTurn{release: release, now: h.sleepHook != nil}, true
+}
+
+// holdFor keeps the turn for d from now, the failure delay: the next attempt
+// on these credentials is verified only after it, even if this request ends
+// first (a client that disconnects cancels the request's sleep, and must not
+// thereby skip the delay).
+func (t *attemptTurn) holdFor(d time.Duration) { t.hold, t.since = d, time.Now() }
+
+func (t *attemptTurn) done() {
+	if t.now || t.hold <= 0 {
+		t.release()
+		return
+	}
+	if left := t.hold - time.Since(t.since); left > 0 {
+		time.AfterFunc(left, t.release)
+		return
+	}
+	t.release()
 }
 
 func (h *handler) sleep(ctx context.Context, d time.Duration) {
@@ -280,13 +323,21 @@ func (h *handler) unlockPortal(w http.ResponseWriter, r *http.Request, portalSlu
 		notFound(w, r)
 		return nil
 	}
+	turn, ok := h.takeTurn(ctx, passwordgate.PortalKey(portal.ID))
+	if !ok {
+		attemptBusy(w, r, "portal/"+portal.Slug)
+		return nil
+	}
+	defer turn.done()
 	if !pagecookie.VerifyPassword(password, portal.PasswordHash) {
 		// Progressive backoff on the PORTAL's shared counter, which every door
-		// testing this password charges — see migrations/019.
-		delay, err := passwordgate.RecordPortalFailure(ctx, h.db, portal.ID)
+		// testing this password charges — see migrations/019. Recorded even
+		// if the client has gone: disconnecting must not make a guess free.
+		delay, err := passwordgate.RecordPortalFailure(context.WithoutCancel(ctx), h.db, portal.ID)
 		if err != nil {
 			return err
 		}
+		turn.holdFor(delay)
 		h.sleep(ctx, delay)
 		gate(w, r, http.StatusUnauthorized, PortalIndexPage(PortalIndexOptions{
 			Portal: *portal, ShowForm: true, Message: "Incorrect password.",
@@ -376,6 +427,24 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		return nil
 	}
 
+	// Take the turn of every credential this submission will test BEFORE
+	// verifying any of them, and keep it through the failure delay below:
+	// guesses sent in parallel are then verified one backoff step apart,
+	// not all at once with only their answers delayed.
+	keys := make([]string, 0, 1+len(portals))
+	if page.PasswordHash != "" {
+		keys = append(keys, passwordgate.PageKey(page.ID))
+	}
+	for _, portal := range portals {
+		keys = append(keys, passwordgate.PortalKey(portal.ID))
+	}
+	turn, ok := h.takeTurn(ctx, keys...)
+	if !ok {
+		attemptBusy(w, r, slug)
+		return nil
+	}
+	defer turn.done()
+
 	secure := isSecure(r)
 	if page.PasswordHash != "" && pagecookie.VerifyPassword(password, page.PasswordHash) {
 		passwordgate.ClearFailures(ctx, h.db, page.ID)
@@ -411,21 +480,24 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 	// largest, so adding a door can never make guessing cheaper. The backoff is
 	// shared across all source IPs and is deliberately a delay rather than a
 	// lockout an attacker could weaponise against the page's real viewers.
+	// The counters are charged even if the client has already disconnected,
+	// so abandoning a request cannot make a guess free.
 	var delay time.Duration
 	if page.PasswordHash != "" {
-		d, err := passwordgate.RecordFailure(ctx, h.db, page.ID)
+		d, err := passwordgate.RecordFailure(context.WithoutCancel(ctx), h.db, page.ID)
 		if err != nil {
 			return err
 		}
 		delay = max(delay, d)
 	}
 	for _, portal := range portals {
-		d, err := passwordgate.RecordPortalFailure(ctx, h.db, portal.ID)
+		d, err := passwordgate.RecordPortalFailure(context.WithoutCancel(ctx), h.db, portal.ID)
 		if err != nil {
 			return err
 		}
 		delay = max(delay, d)
 	}
+	turn.holdFor(delay)
 	h.sleep(ctx, delay)
 	cred := "portal"
 	if page.PasswordHash != "" {

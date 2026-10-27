@@ -19,6 +19,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/db"
@@ -113,4 +116,82 @@ func ClearPortalFailures(ctx context.Context, q db.Querier, portalID int64) {
 	if _, err := q.Exec(ctx, `DELETE FROM portal_password_failures WHERE portal_id = $1`, portalID); err != nil {
 		slog.Error("passwordgate: failed to clear portal failures", "err", err)
 	}
+}
+
+// ── serialising attempts ────────────────────────────────────────────────────
+// The backoff above delays the 401 AFTER the password was checked, which on
+// its own does not slow an attacker who sends many guesses at once: every
+// one of them is verified straight away and only its answer waits. Attempts
+// on a credential are therefore serialised: an attempt holds its
+// credential's turn from before verification until its failure delay has
+// elapsed, so the next guess against the same page or portal is verified
+// only after the previous one's delay — the per-page rate the backoff curve
+// promises, however many connections or addresses are used. An attempt that
+// cannot get its turn within TurnWait is refused without verifying anything
+// (the caller answers 429), which bounds how many requests can queue.
+//
+// Pages is one process (internal/server), so in-process turns cover every
+// attempt; they hold no database connection while waiting.
+
+// TurnWait is how long an attempt waits for its credential's turn before it
+// is refused: one maximum delay plus the time a verification takes.
+const TurnWait = MaxDelay + 2*time.Second
+
+// Turns hands out per-credential turns. The zero value is ready to use.
+type Turns struct {
+	mu    sync.Mutex
+	slots map[string]chan struct{}
+}
+
+func (t *Turns) slot(key string) chan struct{} {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.slots == nil {
+		t.slots = map[string]chan struct{}{}
+	}
+	c, ok := t.slots[key]
+	if !ok {
+		c = make(chan struct{}, 1)
+		t.slots[key] = c
+	}
+	return c
+}
+
+// PageKey and PortalKey name the credentials Acquire serialises.
+func PageKey(pageID int64) string     { return "page:" + strconv.FormatInt(pageID, 10) }
+func PortalKey(portalID int64) string { return "portal:" + strconv.FormatInt(portalID, 10) }
+
+// Acquire takes the turn of every key (in a fixed order, so two attempts
+// naming overlapping keys cannot deadlock), waiting at most wait in total.
+// ok is false when a turn did not come in time or ctx ended; nothing is
+// held then. release returns every turn and is safe to call more than once.
+func (t *Turns) Acquire(ctx context.Context, wait time.Duration, keys ...string) (release func(), ok bool) {
+	sorted := append([]string(nil), keys...)
+	slices.Sort(sorted)
+	sorted = slices.Compact(sorted)
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	var held []chan struct{}
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			for _, c := range held {
+				<-c
+			}
+		})
+	}
+	for _, k := range sorted {
+		c := t.slot(k)
+		select {
+		case c <- struct{}{}:
+			held = append(held, c)
+		case <-timer.C:
+			release()
+			return func() {}, false
+		case <-ctx.Done():
+			release()
+			return func() {}, false
+		}
+	}
+	return release, true
 }

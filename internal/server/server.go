@@ -54,6 +54,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/route"
 	"github.com/ElcanoTek/pages/internal/shell"
 	"github.com/ElcanoTek/pages/internal/templates"
+	"github.com/ElcanoTek/pages/internal/tokens"
 	"github.com/ElcanoTek/pages/internal/uploads"
 	"github.com/ElcanoTek/pages/internal/versions"
 )
@@ -227,7 +228,7 @@ func (s *Server) buildDashboard(rl func(http.Handler) ratelimit.Config, keep fun
 		s.routes = s.devLogin.Intercept(s.routes)
 	}
 	s.routes = contentview.ShellAssets(s.routes)
-	s.parsed = reqbody.Middleware(reqbody.DashboardOptions(), func(w http.ResponseWriter, r *http.Request, err *reqbody.Error) {
+	s.parsed = reqbody.MiddlewareFor(s.bodyLimits, func(w http.ResponseWriter, r *http.Request, err *reqbody.Error) {
 		s.fail(w, r, err)
 	})(s.routes)
 
@@ -286,6 +287,34 @@ func (s *Server) buildDashboard(rl func(http.Handler) ratelimit.Config, keep fun
 	s.dashboard = shellHeaders(s.recoverer(top))
 	return nil
 }
+
+// bodyLimits chooses the dashboard body parser's limits for r BEFORE any of
+// its body is read. Only /api/v1 reads request bodies on the dashboard, and
+// there only with a credential: a valid agent bearer token (the REST API) or
+// an admin session (the admin JSON API). Every other request — a path that
+// reads no body, or an /api/v1 request without a valid credential, which the
+// routes refuse anyway — gets reqbody.UnauthenticatedOptions, so an
+// anonymous client cannot make the server inflate and parse a
+// MAX_REQUEST_BYTES document. The credential check runs only under /api/v1,
+// which is already behind the per-IP API limiter, so an unauthenticated
+// client cannot use it to drive token lookups without being rate limited.
+func (s *Server) bodyLimits(r *http.Request) reqbody.Options {
+	if !under(r.URL.EscapedPath(), "/api/v1") {
+		return reqbody.UnauthenticatedOptions()
+	}
+	if m := bearerRE.FindStringSubmatch(r.Header.Get("Authorization")); m != nil {
+		if t, err := tokens.Verify(r.Context(), s.cfg.DB, m[1]); err == nil && t != nil {
+			return reqbody.DashboardOptions()
+		}
+	}
+	if sess, err := s.auth.Resolve(r); err == nil && s.auth.IsAdmin(sess) {
+		return reqbody.DashboardOptions()
+	}
+	return reqbody.UnauthenticatedOptions()
+}
+
+// bearerRE is tokens.RequireBearer's Authorization pattern.
+var bearerRE = regexp.MustCompile(`(?i)^Bearer\s+(.+)$`)
 
 // serveAfterMounts is the central sign-in surface (mounted before the body
 // parsers because the back-channel receiver owns a smaller one), then the

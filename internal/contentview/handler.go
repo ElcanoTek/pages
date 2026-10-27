@@ -25,6 +25,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/jsstr"
+	"github.com/ElcanoTek/pages/internal/passwordgate"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/render"
 )
@@ -97,6 +98,12 @@ type handler struct {
 	// sleepHook replaces the backoff sleep in tests, which assert the delay
 	// chosen rather than wait it out.
 	sleepHook func(time.Duration)
+	// turns serialises password attempts per page and per portal, from
+	// before verification until the failure delay has passed
+	// (passwordgate.Turns); turnWait is how long an attempt waits for its
+	// turn before it is refused with a 429.
+	turns    *passwordgate.Turns
+	turnWait time.Duration
 }
 
 func identity(h http.Handler) http.Handler { return h }
@@ -113,7 +120,8 @@ func identity(h http.Handler) http.Handler { return h }
 // GET /favicon.ico, GET /<slug> (pages and /portal/<slug>), POST /<slug>
 // (password forms and /portal/<slug>/lock), then a branded 404.
 func ContentHandler(deps Deps) http.Handler {
-	h := &handler{Deps: deps, contentLim: deps.ContentLimit, passLim: deps.PasswordLimit}
+	h := &handler{Deps: deps, contentLim: deps.ContentLimit, passLim: deps.PasswordLimit,
+		turns: &passwordgate.Turns{}, turnWait: passwordgate.TurnWait}
 	if deps.DB != nil {
 		h.db = deps.DB
 	}

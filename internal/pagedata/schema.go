@@ -350,7 +350,107 @@ func compileValidator(root *jsonv.Object) (*Validator, error) {
 	if err := c.node(root, &cctx{defined: newStrSet(), base: v.rootBase}); err != nil {
 		return nil, err
 	}
+	if err := v.checkRefCycles(); err != nil {
+		return nil, err
+	}
 	return v, nil
+}
+
+// checkRefCycles refuses a schema in which a reference can lead back to a
+// schema already being applied to the same data, such as
+// {"$defs":{"a":{"allOf":[{"$ref":"#/$defs/a"}]}}} or a root "allOf"
+// containing {"$ref":"#"}. Validating one would recurse forever without
+// consuming data, and a goroutine stack overflow is fatal (recover cannot
+// catch it). Recursive schemas that descend into the data (a tree whose
+// "children" items refer back to the node) stay valid: "properties",
+// "items" and the other data-changing keywords are not edges here.
+//
+// The edges are exactly the in-place applicators the validator follows
+// (vstate.node and vstate.keyword), using the references compile resolved.
+func (v *Validator) checkRefCycles() error {
+	edges := func(o *jsonv.Object) []*jsonv.Object {
+		ni := v.info[o]
+		if ni == nil || !ni.hasRules {
+			return nil
+		}
+		var out []*jsonv.Object
+		add := func(s any) {
+			if so, ok := s.(*jsonv.Object); ok {
+				out = append(out, so)
+			}
+		}
+		addRef := func(key string) {
+			if t := v.refs[key]; t != nil {
+				add(t.node)
+			}
+		}
+		if ref, ok := o.Value("$ref").(string); ok {
+			addRef(refKey(ni.base, ref))
+		}
+		if ni.refOnly {
+			return out
+		}
+		for _, kw := range []string{"$dynamicRef", "$recursiveRef"} {
+			if ref, ok := o.Value(kw).(string); ok {
+				addRef(refKey(ni.base, "dyn:"+ref))
+			}
+		}
+		for _, kw := range []string{"allOf", "anyOf", "oneOf"} {
+			if arr, ok := o.Value(kw).([]any); ok {
+				for _, e := range arr {
+					add(e)
+				}
+			}
+		}
+		for _, kw := range []string{"not", "if", "then", "else"} {
+			add(o.Value(kw))
+		}
+		for _, kw := range []string{"dependentSchemas", "dependencies"} {
+			if m := asObject(o.Value(kw)); m != nil {
+				for _, k := range m.Keys() {
+					add(m.Value(k))
+				}
+			}
+		}
+		return out
+	}
+	// Iterative depth-first search with three colours, so a long chain of
+	// schemas cannot itself exhaust the stack.
+	const (
+		white = iota
+		grey
+		black
+	)
+	colour := map[*jsonv.Object]int{}
+	type frame struct {
+		node *jsonv.Object
+		next []*jsonv.Object
+	}
+	for start := range v.info {
+		if colour[start] != white {
+			continue
+		}
+		colour[start] = grey
+		stack := []frame{{start, edges(start)}}
+		for len(stack) > 0 {
+			top := &stack[len(stack)-1]
+			if len(top.next) == 0 {
+				colour[top.node] = black
+				stack = stack[:len(stack)-1]
+				continue
+			}
+			n := top.next[0]
+			top.next = top.next[1:]
+			switch colour[n] {
+			case grey:
+				return compileErr("reference cycle: a schema refers back to itself without descending into the data")
+			case white:
+				colour[n] = grey
+				stack = append(stack, frame{n, edges(n)})
+			}
+		}
+	}
+	return nil
 }
 
 // collectIDs registers $id resources and $anchor/$dynamicAnchor names, as
@@ -919,8 +1019,21 @@ func (v *Validator) dynamicRef(base, ref string) *refTarget {
 	return &refTarget{node: v.root, base: v.rootBase, root: true}
 }
 
+// maxRefHops bounds how many reference-only schemas resolveRef follows in a
+// chain, so a chain that loops ({"a":{"$ref":"#/$defs/b"}},
+// {"b":{"$ref":"#/$defs/a"}}) ends instead of recursing until the stack
+// overflows. checkRefCycles then refuses the schema.
+const maxRefHops = 64
+
 // resolveRef is Ajv's resolveRef for same-document references.
 func (v *Validator) resolveRef(base, ref string) (*refTarget, error) {
+	return v.resolveRefHops(base, ref, 0)
+}
+
+func (v *Validator) resolveRefHops(base, ref string, hops int) (*refTarget, error) {
+	if hops > maxRefHops {
+		return nil, compileErr("reference chain is too long or loops: %s", ref)
+	}
 	if (ref == "#" || ref == "#/" || ref == "") && base == v.rootBase {
 		return &refTarget{node: v.root, base: v.rootBase, root: true}, nil
 	}
@@ -970,7 +1083,7 @@ func (v *Validator) resolveRef(base, ref string) (*refTarget, error) {
 		target = cur
 		if o, ok := target.(*jsonv.Object); ok && o.Has("$ref") && !hasRulesButRef(o) {
 			inner, _ := o.Value("$ref").(string)
-			if t, err := v.resolveRef(targetBase, inner); err == nil && !t.root {
+			if t, err := v.resolveRefHops(targetBase, inner, hops+1); err == nil && !t.root {
 				target, targetBase = t.node, t.base
 			}
 		}
