@@ -70,6 +70,10 @@ func (s Settings) SharedEnv() string { return s.AppDir + ".env" }
 // LockFile serializes updates (exclusive) against backups (shared).
 func (s Settings) LockFile() string { return s.AppDir + ".update.lock" }
 
+// DrainFile marks the activation window ("draining" then "quiesced") so the
+// running service stops admitting new writes while in-flight work drains.
+func (s Settings) DrainFile() string { return s.AppDir + ".update.drain" }
+
 // Binary is the active release's executable.
 func (s Settings) Binary() string { return filepath.Join(s.AppDir, BinaryName) }
 

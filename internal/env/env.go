@@ -9,6 +9,7 @@ package env
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -72,3 +73,17 @@ func DashboardOrigin() string { return String("DASHBOARD_ORIGIN", "https://"+Das
 
 // ContentOrigin is the exact scheme+host of the content host.
 func ContentOrigin() string { return String("CONTENT_ORIGIN", "https://"+ContentHost()) }
+
+// DrainFile is the path of the update drain sentinel (<APP_DIR>.update.drain).
+func DrainFile() string {
+	if p := os.Getenv("PAGES_DRAIN_FILE"); p != "" {
+		return p
+	}
+	if app := String("APP_DIR", os.Getenv("PAGES_APP_DIR")); app != "" {
+		return app + ".update.drain"
+	}
+	if len(os.Args) > 0 && filepath.IsAbs(os.Args[0]) && filepath.Base(os.Args[0]) == "pages" {
+		return filepath.Dir(os.Args[0]) + ".update.drain"
+	}
+	return "/opt/pages.update.drain"
+}

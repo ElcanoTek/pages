@@ -15,12 +15,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/env"
 )
 
@@ -112,6 +114,66 @@ func Open(connString string, b Bounds) (*DB, error) {
 
 // OpenFromEnv is Open(ConnString(), BoundsFromEnv()).
 func OpenFromEnv() (*DB, error) { return Open(ConnString(), BoundsFromEnv()) }
+
+type drainBypassKey struct{}
+
+// WithDrainBypass marks ctx as completing an already-admitted staged upload
+// (or read-only inspection) so it may finish while an update is in the
+// "draining" phase, before the update transitions to "quiesced".
+func WithDrainBypass(ctx context.Context) context.Context {
+	return context.WithValue(ctx, drainBypassKey{}, true)
+}
+
+func drainMode() string {
+	p := env.DrainFile()
+	if p == "" {
+		return ""
+	}
+	info, err := os.Stat(p)
+	if err != nil || time.Since(info.ModTime()) > 15*time.Minute {
+		return ""
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// CheckWriteAdmission rejects write transactions when an update is draining or
+// quiesced. During "draining", contexts carrying WithDrainBypass are allowed
+// through so in-flight multi-step uploads can finish; during "quiesced", all
+// write transactions are rejected until the service restarts.
+func CheckWriteAdmission(ctx context.Context) error {
+	switch drainMode() {
+	case "quiesced":
+		return apierror.New(503, "Pages is updating — retry shortly", "update_in_progress", nil)
+	case "draining":
+		if ctx.Value(drainBypassKey{}) != nil {
+			return nil
+		}
+		return apierror.New(503, "Pages is updating — retry shortly", "update_in_progress", nil)
+	}
+	return nil
+}
+
+// Exec runs sql on the pool after checking write admission so direct
+// non-transactional writes (such as background token/session touches) are also
+// fenced when an update is draining or quiesced.
+func (d *DB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if err := CheckWriteAdmission(ctx); err != nil {
+		return pgconn.CommandTag{}, err
+	}
+	return d.Pool.Exec(ctx, sql, args...)
+}
+
+// Begin opens a transaction on the pool after checking write admission.
+func (d *DB) Begin(ctx context.Context) (pgx.Tx, error) {
+	if err := CheckWriteAdmission(ctx); err != nil {
+		return nil, err
+	}
+	return d.Pool.Begin(ctx)
+}
 
 // WithTx runs fn inside BEGIN/COMMIT, rolling back on any error or panic. The
 // version state machine runs every mutation and its audit_log row through

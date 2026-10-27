@@ -133,4 +133,7 @@ func TestUpdateRejectsUnknownArguments(t *testing.T) {
 	if code := runUpdate("update", []string{"--activate"}, false); code != 1 {
 		t.Fatal(code)
 	}
+	if code := runCheckIdle([]string{"--bogus"}); code != 1 {
+		t.Fatal(code)
+	}
 }

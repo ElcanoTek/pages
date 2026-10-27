@@ -159,6 +159,8 @@ func run(t *testing.T, failure string) *fixture {
 				return "", 1
 			case strings.Contains(args, " check-migrations") && failure == "compatibility":
 				return "", 1
+			case strings.Contains(args, " check-idle") && (failure == "active-write" || failure == "active-write-force"):
+				return "active write in progress: staged upload for northwind-report\n", 1
 			}
 			return "", 0
 		case "systemctl":
@@ -202,7 +204,7 @@ func run(t *testing.T, failure string) *fixture {
 	var opts Options
 	opts = Options{
 		Settings: settings, Runner: f.fake, Log: term.Buffer(&f.out),
-		NoPull: failure != "pull", Yes: true, SkipTemplateSync: true,
+		NoPull: failure != "pull", Yes: true, Force: failure == "active-write-force", SkipTemplateSync: true,
 		ServiceFile: filepath.Join(f.dir, "pages.service"), MotdFile: filepath.Join(f.dir, "motd"),
 		Build: func(_ context.Context, _, out string) error {
 			if failure == "build" {
@@ -270,10 +272,10 @@ func TestReleaseUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, failure := range []string{"build", "module", "compatibility", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path", "git-comment-continuation", "git-quoted-ext-url"} {
+	for _, failure := range []string{"build", "module", "compatibility", "active-write", "active-write-force", "activate", "start", "legacy-start", "readiness", "stop", "stale", "reload", "unmanaged-link", "pull", "none", "writable-build", "symlink-build", "unsafe-root", "linked-worktree", "commondir", "alternates", "git-include", "git-hooks-path", "git-comment-continuation", "git-quoted-ext-url"} {
 		t.Run(failure, func(t *testing.T) {
 			f := run(t, failure)
-			succeeds := failure == "none" || failure == "pull" || failure == "writable-build"
+			succeeds := failure == "none" || failure == "pull" || failure == "writable-build" || failure == "active-write-force"
 			if (f.err == nil) != succeeds {
 				t.Fatalf("err = %v, want success=%v\n%s", f.err, succeeds, f.out.String())
 			}
@@ -330,6 +332,14 @@ func TestReleaseUpdate(t *testing.T) {
 			}
 			if failure == "legacy-start" && !strings.Contains(f.fake.Log(), " ready-check") {
 				t.Fatalf("a /healthz-only predecessor must be confirmed by the new release's ready-check:\n%s", f.fake.Log())
+			}
+			if failure == "active-write" {
+				if !strings.Contains(f.out.String(), "active write in progress — installed service untouched") {
+					t.Fatalf("active-write blocker not reported:\n%s", f.out.String())
+				}
+				if f.stops != 0 {
+					t.Fatalf("active-write blocker must stop before systemctl stop: stops=%d", f.stops)
+				}
 			}
 			if succeeds {
 				if st, err := os.Lstat(f.app); err != nil || st.Mode()&os.ModeSymlink == 0 {
@@ -390,7 +400,11 @@ func TestReleaseUpdate(t *testing.T) {
 				}
 				// The service account still ran the root-owned binary (world
 				// readable and executable) for every preflight step.
-				for _, want := range []string{"preflight", "check-migrations", "migrate"} {
+				steps := []string{"preflight", "check-migrations", "migrate"}
+				if failure != "active-write-force" {
+					steps = append(steps, "check-idle")
+				}
+				for _, want := range steps {
 					found := false
 					for _, a := range f.asApp {
 						if strings.HasSuffix(a, " "+want) && strings.Contains(a, fmt.Sprintf(" 755 uid=%d ", euid)) {
@@ -402,9 +416,12 @@ func TestReleaseUpdate(t *testing.T) {
 					}
 				}
 			}
-			// No candidate directory survives, success or failure.
+			// No candidate directory or drain marker survives, success or failure.
 			if m, _ := filepath.Glob(filepath.Join(f.app+".releases", ".candidate.*")); len(m) != 0 {
 				t.Fatalf("candidate left behind: %v", m)
+			}
+			if _, err := os.Stat(f.app + ".update.drain"); err == nil {
+				t.Fatalf("drain file left behind: %s.update.drain", f.app)
 			}
 		})
 	}
