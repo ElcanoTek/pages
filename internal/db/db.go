@@ -157,13 +157,28 @@ func CheckWriteAdmission(ctx context.Context) error {
 	return nil
 }
 
+// Exec runs sql on the pool after checking write admission so direct
+// non-transactional writes (such as background token/session touches) are also
+// fenced when an update is draining or quiesced.
+func (d *DB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	if err := CheckWriteAdmission(ctx); err != nil {
+		return pgconn.CommandTag{}, err
+	}
+	return d.Pool.Exec(ctx, sql, args...)
+}
+
+// Begin opens a transaction on the pool after checking write admission.
+func (d *DB) Begin(ctx context.Context) (pgx.Tx, error) {
+	if err := CheckWriteAdmission(ctx); err != nil {
+		return nil, err
+	}
+	return d.Pool.Begin(ctx)
+}
+
 // WithTx runs fn inside BEGIN/COMMIT, rolling back on any error or panic. The
 // version state machine runs every mutation and its audit_log row through
 // here, so they commit or roll back together.
 func (d *DB) WithTx(ctx context.Context, fn func(tx pgx.Tx) error) (err error) {
-	if err := CheckWriteAdmission(ctx); err != nil {
-		return err
-	}
 	tx, err := d.Begin(ctx)
 	if err != nil {
 		return err

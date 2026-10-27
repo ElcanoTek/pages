@@ -144,15 +144,16 @@ func TestActiveWritesAndWaitIdle(t *testing.T) {
 		t.Fatalf("WaitIdle should succeed once upload commits: %v", err)
 	}
 
-	// A read-only CTE transaction (WITH ... SELECT ...) has backend_xid IS NULL
-	// and must NOT be classified as an active write.
+	// A read-only CTE transaction (even one containing DML keywords inside a
+	// string literal) has backend_xid IS NULL and holds only AccessShareLock,
+	// so it must NOT be classified as an active write.
 	roTx, err := d.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = roTx.Rollback(ctx) }()
-	var n int
-	if err := roTx.QueryRow(ctx, `WITH cte AS (SELECT 1 AS n) SELECT n FROM cte`).Scan(&n); err != nil {
+	var label string
+	if err := roTx.QueryRow(ctx, `WITH labels AS (SELECT 'DELETE ' AS label) SELECT label FROM labels`).Scan(&label); err != nil {
 		t.Fatal(err)
 	}
 	active, err = ActiveWrites(ctx, d.Pool, 5*time.Minute)
@@ -194,6 +195,9 @@ func TestActiveWritesAndWaitIdle(t *testing.T) {
 	}
 	if err := d.WithTx(ctx, func(_ pgx.Tx) error { return nil }); err == nil || !strings.Contains(err.Error(), "updating") {
 		t.Fatalf("expected new write tx to be rejected during draining, got %v", err)
+	}
+	if _, err := d.Exec(ctx, "SELECT 1"); err == nil || !strings.Contains(err.Error(), "updating") {
+		t.Fatalf("expected direct Exec to be rejected during draining, got %v", err)
 	}
 	if err := d.WithTx(db.WithDrainBypass(ctx), func(_ pgx.Tx) error { return nil }); err != nil {
 		t.Fatalf("expected drain-bypassed upload tx to be allowed during draining, got %v", err)

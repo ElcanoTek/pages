@@ -188,8 +188,14 @@ func ActiveWrites(ctx context.Context, pool *pgxpool.Pool, uploadWindow time.Dur
 		   AND state IN ('active', 'idle in transaction', 'fastpath function call')
 		   AND (
 		        backend_xid IS NOT NULL
-		        OR query ~* '^\s*(INSERT|UPDATE|DELETE|COPY|LOCK)(\s|$)'
-		        OR (query ~* '^\s*WITH(\s|$)' AND query ~* '(^|[^[:alnum:]_])(INSERT|UPDATE|DELETE)(\s|$)')
+		        OR EXISTS (
+		             SELECT 1
+		               FROM pg_locks l
+		              WHERE l.pid = pg_stat_activity.pid
+		                AND l.granted
+		                AND l.locktype = 'relation'
+		                AND l.mode <> 'AccessShareLock'
+		        )
 		   )
 		 ORDER BY COALESCE(xact_start, query_start) ASC
 		 LIMIT 5`)
