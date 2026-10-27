@@ -262,7 +262,7 @@ add a dependency only when it clearly earns its place. Dependabot proposes
 updates daily, after a cooldown of 7 days (3 for patch releases), with minor
 and patch grouped ([`.github/dependabot.yml`](.github/dependabot.yml)); a human
 merges one only when the bump earns it — a security fix whose code path we use,
-or a specific commit we need. The `go` directive in `go.mod` is moved by hand
+a security scanner update (such as CodeQL), or a specific commit we need. The `go` directive in `go.mod` is moved by hand
 (Dependabot does not), and CI runs `govulncheck`. On an advisory, check
 reachability first; if the affected code is unused, delete our use of it
 instead of upgrading; if it is used, take or adapt the fix. Code copied from
