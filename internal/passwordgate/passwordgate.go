@@ -147,6 +147,10 @@ type Turns struct {
 	mu      sync.Mutex
 	held    map[string]bool
 	changed chan struct{} // closed and replaced whenever a turn is released
+
+	// OnWait, when set (tests), is called each time Acquire finds one of
+	// keys held and starts waiting, holding none of them.
+	OnWait func(keys []string)
 }
 
 // PageKey and PortalKey name the credentials Acquire serialises.
@@ -200,6 +204,9 @@ func (t *Turns) Acquire(ctx context.Context, wait time.Duration, keys ...string)
 		if took {
 			var once sync.Once
 			return func() { once.Do(func() { t.give(set) }) }, true
+		}
+		if t.OnWait != nil {
+			t.OnWait(set)
 		}
 		select {
 		case <-changed:

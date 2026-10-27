@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -708,20 +709,60 @@ func TestWaitingForOnePortalHoldsNoOtherTurn(t *testing.T) {
 	b := f.portal("shared-b", "Contoso B", "portal-b-secret")
 	f.member(a, pid, 0)
 	f.member(b, pid, 0)
-	f.h.turnWait = 2 * time.Second
+	// Long enough that the blocked request below cannot time out during the
+	// test: anything that waited for it to give a turn back would still be
+	// waiting.
+	f.h.turnWait = 30 * time.Second
 
 	holdB, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(b))
 	expect(t, ok, "hold B")
+	blocked := make(chan struct{}, 1)
+	f.h.turns.OnWait = func(keys []string) {
+		if slices.Contains(keys, passwordgate.PortalKey(b)) {
+			select {
+			case blocked <- struct{}{}:
+			default:
+			}
+		}
+	}
 	waiting := make(chan resp, 1)
-	go func() { waiting <- f.post("/sharedpage", "wrong") }() // waits for {A, B}
-	time.Sleep(100 * time.Millisecond)
+	go func() { waiting <- f.post("/sharedpage", "wrong") }()
+	select {
+	case <-blocked: // its page password failed and it now waits for {A, B}
+	case <-time.After(20 * time.Second):
+		t.Fatal("the request never reached the portal turns")
+	}
 
-	start := time.Now()
 	expect(t, f.post("/sharedpage", "shared-page-secret").status == http.StatusSeeOther, "the page's own password still opens it")
 	expect(t, f.post("/portal/shared-a", "portal-a-secret").status == http.StatusSeeOther, "portal A still opens")
-	expect(t, time.Since(start) < time.Second, "neither waited on the blocked request")
+	select {
+	case r := <-waiting:
+		t.Fatalf("the blocked request returned (%d) before B was free: the others waited on it", r.status)
+	default: // still waiting for B, so neither success needed its turns back
+	}
 	holdB()
 	expect(t, (<-waiting).status == http.StatusUnauthorized, "the waiting request is answered once B is free")
+}
+
+// When a member page's password fails and the portal turns stay busy, the
+// wait for them counts towards the page failure's delay: the 429 is not
+// held back by the whole delay again.
+func TestBusyPortalTurnsDoNotDoubleTheDelay(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("busymember")
+	f.setPassword("busymember", "busy-secret")
+	portalID := f.portal("busy-portal", "Fabrikam busy", "busy-portal-secret")
+	f.member(portalID, pid, 0)
+	f.h.turnWait = passwordgate.BaseDelay + 100*time.Millisecond // longer than the first delay
+	var slept []time.Duration
+	f.h.sleepHook = func(d time.Duration) { slept = append(slept, d) }
+
+	held, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(portalID))
+	expect(t, ok, "hold the portal's turn")
+	defer held()
+	r := f.post("/busymember", "wrong")
+	expect(t, r.status == http.StatusTooManyRequests, "portal passwords untested → 429, got %d", r.status)
+	expect(t, len(slept) == 0, "the turn wait already covered the %v delay; slept again: %v", passwordgate.BaseDelay, slept)
 }
 
 func TestPortalIndex(t *testing.T) {

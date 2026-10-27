@@ -113,13 +113,20 @@ func TestTurnsAreTakenAllOrNothing(t *testing.T) {
 	var turns Turns
 	ctx := context.Background()
 	holdB, _ := turns.Acquire(ctx, time.Second, PortalKey(2))
+	waiting := make(chan struct{}, 1)
+	turns.OnWait = func([]string) {
+		select {
+		case waiting <- struct{}{}:
+		default:
+		}
+	}
 	got := make(chan bool, 1)
 	go func() {
-		r, ok := turns.Acquire(ctx, 2*time.Second, PortalKey(1), PortalKey(2), PageKey(9))
+		r, ok := turns.Acquire(ctx, 30*time.Second, PortalKey(1), PortalKey(2), PageKey(9))
 		got <- ok
 		r()
 	}()
-	time.Sleep(30 * time.Millisecond) // the waiter is now waiting on B
+	<-waiting // the waiter found B held and is waiting
 	for _, k := range []string{PortalKey(1), PageKey(9)} {
 		r, ok := turns.Acquire(ctx, 20*time.Millisecond, k)
 		if !ok {

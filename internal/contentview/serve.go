@@ -480,6 +480,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 	// already disconnected, so abandoning a request cannot make a guess free.
 	secure := isSecure(r)
 	var delay time.Duration
+	var delayFrom time.Time // when the page failure's delay started
 	if page.PasswordHash != "" {
 		turn, ok := h.takeTurn(ctx, passwordgate.PageKey(page.ID))
 		if !ok {
@@ -506,7 +507,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 			turn.done()
 			return err
 		}
-		delay = d
+		delay, delayFrom = d, time.Now()
 		turn.holdFor(d)
 		turn.done() // released when the delay has passed
 	}
@@ -519,8 +520,11 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		if !ok {
 			// The portal passwords could not be tested now (the page's, if
 			// any, was checked and charged above). Say so rather than
-			// "incorrect".
-			h.sleep(ctx, delay)
+			// "incorrect", after only what is left of the page failure's
+			// delay: the wait for the turns already counted towards it.
+			if left := delay - time.Since(delayFrom); delay > 0 && left > 0 {
+				h.sleep(ctx, left)
+			}
 			attemptBusy(w, r, slug)
 			return nil
 		}
