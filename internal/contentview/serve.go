@@ -447,33 +447,52 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		return nil
 	}
 
-	// Take the turn of every credential this submission will test BEFORE
-	// verifying any of them, and keep it through the failure delay below:
-	// guesses sent in parallel are then verified one backoff step apart,
-	// not all at once with only their answers delayed.
-	keys := make([]string, 0, 1+len(portals))
-	if page.PasswordHash != "" {
-		keys = append(keys, passwordgate.PageKey(page.ID))
-	}
-	for _, portal := range portals {
-		keys = append(keys, passwordgate.PortalKey(portal.ID))
-	}
-	turn, ok := h.takeTurn(ctx, keys...)
-	if !ok {
-		attemptBusy(w, r, slug)
-		return nil
-	}
-	defer turn.done()
-
+	// Each credential is verified only under its own turn (passwordgate.Turns),
+	// taken BEFORE it is checked and kept through the failure delay below, so
+	// guesses sent in parallel are verified one backoff step apart. The page's
+	// own password is checked under the page's turn alone: someone holding a
+	// portal's turn must not be able to keep a member page's direct-password
+	// viewers out. Portal turns are taken only when portal passwords are
+	// actually about to be tested.
+	var turns []*attemptTurn
+	defer func() {
+		for _, t := range turns {
+			t.done()
+		}
+	}()
 	secure := isSecure(r)
-	if page.PasswordHash != "" && pagecookie.VerifyPassword(password, page.PasswordHash) {
-		passwordgate.ClearFailures(ctx, h.db, page.ID)
-		passwordvault.RememberOnSignIn(ctx, h.db, passwordvault.Page, page.ID, page.PasswordHash, password)
-		// Carries a 30-day page credential; see the note on the broker exchange.
-		w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
-			Insecure: !secure, PasswordHash: page.PasswordHash,
-		}))
-		httpx.Redirect(w, r, http.StatusSeeOther, "/"+slug)
+	if page.PasswordHash != "" {
+		turn, ok := h.takeTurn(ctx, passwordgate.PageKey(page.ID))
+		if !ok {
+			attemptBusy(w, r, slug)
+			return nil
+		}
+		turns = append(turns, turn)
+		if pagecookie.VerifyPassword(password, page.PasswordHash) {
+			passwordgate.ClearFailures(ctx, h.db, page.ID)
+			passwordvault.RememberOnSignIn(ctx, h.db, passwordvault.Page, page.ID, page.PasswordHash, password)
+			// Carries a 30-day page credential; see the note on the broker exchange.
+			w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
+				Insecure: !secure, PasswordHash: page.PasswordHash,
+			}))
+			httpx.Redirect(w, r, http.StatusSeeOther, "/"+slug)
+			return nil
+		}
+	}
+	portalsTested := false
+	if len(portals) > 0 {
+		keys := make([]string, 0, len(portals))
+		for _, portal := range portals {
+			keys = append(keys, passwordgate.PortalKey(portal.ID))
+		}
+		if turn, ok := h.takeTurn(ctx, keys...); ok {
+			turns = append(turns, turn)
+			portalsTested = true
+		}
+	}
+	if !portalsTested && len(portals) > 0 && page.PasswordHash == "" {
+		// Nothing was verified.
+		attemptBusy(w, r, slug)
 		return nil
 	}
 	// A partner who bookmarked one dashboard holds their PORTAL password, not
@@ -483,6 +502,9 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 	// credential proven is the portal's, and a pgs<id> cookie would outlive the
 	// membership that justified it.
 	for _, portal := range portals {
+		if !portalsTested {
+			break
+		}
 		if pagecookie.VerifyPassword(password, portal.PasswordHash) {
 			passwordgate.ClearPortalFailures(ctx, h.db, portal.ID)
 			passwordvault.RememberOnSignIn(ctx, h.db, passwordvault.Portal, portal.ID, portal.PasswordHash, password)
@@ -495,7 +517,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 	}
 
 	// Failed. Charge EVERY counter this attempt tested — the page's and each
-	// portal's — because the alternative gives an attacker one budget per door
+	// portal's that was tried — because the alternative gives an attacker one budget per door
 	// against a secret worth the same at all of them. The applied delay is the
 	// largest, so adding a door can never make guessing cheaper. The backoff is
 	// shared across all source IPs and is deliberately a delay rather than a
@@ -513,13 +535,25 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		delay = max(delay, d)
 	}
 	for _, portal := range portals {
+		if !portalsTested {
+			break
+		}
 		d, err := passwordgate.RecordPortalFailure(rctx, h.db, portal.ID)
 		if err != nil {
 			return err
 		}
 		delay = max(delay, d)
 	}
-	turn.holdFor(delay)
+	for _, t := range turns {
+		t.holdFor(delay)
+	}
+	if !portalsTested && len(portals) > 0 {
+		// The page's password was checked and charged; the portal passwords
+		// could not be tested now. Say so rather than "incorrect".
+		h.sleep(ctx, delay)
+		attemptBusy(w, r, slug)
+		return nil
+	}
 	h.sleep(ctx, delay)
 	cred := "portal"
 	if page.PasswordHash != "" {

@@ -299,20 +299,31 @@ func (s *Server) buildDashboard(rl func(http.Handler) ratelimit.Config, keep fun
 // which is already behind the per-IP API limiter, so an unauthenticated
 // client cannot use it to drive token lookups without being rate limited.
 //
-// The token it verifies travels on the returned request (tokens.WithVerified),
-// so tokens.RequireBearer reuses it instead of looking it up (and touching
-// last_used_at) a second time.
+// What it verifies travels on the returned request — the bearer lookup's
+// outcome (tokens.WithVerified) and the resolved session (auth.WithSession)
+// — so tokens.RequireBearer and the admin gate reuse them instead of looking
+// them up (and touching last_used_at) a second time.
 func (s *Server) bodyLimits(r *http.Request) (*http.Request, reqbody.Options) {
 	if !under(r.URL.EscapedPath(), "/api/v1") {
 		return r, reqbody.UnauthenticatedOptions()
 	}
 	if raw, ok := tokens.BearerToken(r); ok {
 		t, err := tokens.Verify(r.Context(), s.cfg.DB, raw)
+		// Every outcome rides on the request, a refusal included, so the
+		// bearer layer never repeats the lookup for this token.
+		r = r.WithContext(tokens.WithVerified(r.Context(), raw, t, err))
 		if err == nil && t != nil {
-			return r.WithContext(tokens.WithVerified(r.Context(), raw, t)), reqbody.DashboardOptions()
+			return r, reqbody.DashboardOptions()
 		}
 	}
-	if sess, err := s.auth.Resolve(r); err == nil && s.auth.IsAdmin(sess) {
+	sess, err := s.auth.Resolve(r)
+	if err != nil {
+		return r, reqbody.UnauthenticatedOptions()
+	}
+	// The resolved session (or its absence) rides on the request too, so the
+	// admin gate does not resolve it again.
+	r = auth.WithSession(r, sess)
+	if s.auth.IsAdmin(sess) {
 		return r, reqbody.DashboardOptions()
 	}
 	return r, reqbody.UnauthenticatedOptions()

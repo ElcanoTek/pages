@@ -603,6 +603,30 @@ func TestStalledFailureWriteReleasesTheTurn(t *testing.T) {
 	expect(t, f.post("/stallpage", "stall-secret").status == http.StatusSeeOther, "the turn was released")
 }
 
+// A member page's own password is checked under the page's turn alone: a
+// guesser holding a portal's turn must not lock out the page's
+// direct-password viewers. Portal turns are taken only to test portal
+// passwords.
+func TestPortalTurnDoesNotBlockAMemberPagesOwnPassword(t *testing.T) {
+	f := newFixture(t)
+	pid, _ := f.live("memberpage")
+	f.setPassword("memberpage", "member-secret")
+	portalID := f.portal("member-portal", "Fabrikam portal", "portal-secret")
+	f.member(portalID, pid, 0)
+	f.h.turnWait = 50 * time.Millisecond
+
+	held, ok := f.h.turns.Acquire(context.Background(), time.Second, passwordgate.PortalKey(portalID))
+	expect(t, ok, "hold the portal's turn")
+	defer held()
+
+	expect(t, f.post("/memberpage", "member-secret").status == http.StatusSeeOther, "the page's own password still opens it")
+	f.exec(`DELETE FROM page_password_failures`)
+	busy := f.post("/memberpage", "wrong")
+	expect(t, busy.status == http.StatusTooManyRequests, "the portal passwords could not be tried now → 429, got %d", busy.status)
+	expect(t, f.count(`SELECT fail_count FROM page_password_failures WHERE page_id = $1`, pid) == 1, "the page password was tested and charged")
+	expect(t, f.count(`SELECT count(*) FROM portal_password_failures WHERE portal_id = $1`, portalID) == 0, "the untested portal is not charged")
+}
+
 func TestPortalIndex(t *testing.T) {
 	f := newFixture(t)
 	portalID := f.portal("vw-nwm", "Weather Co (view suite)", "portal-pass-1")

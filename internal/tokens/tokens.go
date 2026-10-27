@@ -390,22 +390,23 @@ type verifiedKey struct{}
 type verified struct {
 	raw   string
 	token *Token
+	err   error
 }
 
-// WithVerified records that raw was just verified as t for this request (the
-// dashboard does so before choosing body limits), so RequireBearer reuses
-// the result instead of a second lookup. It applies only to that exact raw
-// token.
-func WithVerified(ctx context.Context, raw string, t *Token) context.Context {
-	return context.WithValue(ctx, verifiedKey{}, verified{raw: raw, token: t})
+// WithVerified records the outcome of Verify(raw) for this request — a token,
+// nil for an unknown or revoked one, or the lookup's error — so RequireBearer
+// reuses it instead of a second lookup (the dashboard verifies before
+// choosing body limits). It applies only to that exact raw token.
+func WithVerified(ctx context.Context, raw string, t *Token, err error) context.Context {
+	return context.WithValue(ctx, verifiedKey{}, verified{raw: raw, token: t, err: err})
 }
 
-func verifiedFor(ctx context.Context, raw string) (*Token, bool) {
+func verifiedFor(ctx context.Context, raw string) (*Token, error, bool) {
 	v, ok := ctx.Value(verifiedKey{}).(verified)
-	if !ok || v.token == nil || v.raw != raw {
-		return nil, false
+	if !ok || v.raw != raw {
+		return nil, nil, false
 	}
-	return v.token, true
+	return v.token, v.err, true
 }
 
 // RequireBearer validates `Authorization: Bearer <token>` and puts the Agent
@@ -421,13 +422,13 @@ func RequireBearer(d *db.DB, onError ErrorHandler) func(http.Handler) http.Handl
 				onError(w, r, apierror.Unauthorized("missing bearer token", "no_token", nil))
 				return
 			}
-			t, ok := verifiedFor(r.Context(), raw)
+			t, err, ok := verifiedFor(r.Context(), raw)
 			if !ok {
-				var err error
-				if t, err = Verify(r.Context(), d, raw); err != nil {
-					onError(w, r, err)
-					return
-				}
+				t, err = Verify(r.Context(), d, raw)
+			}
+			if err != nil {
+				onError(w, r, err)
+				return
 			}
 			if t == nil {
 				onError(w, r, apierror.Unauthorized("invalid or revoked token", "bad_token", nil))

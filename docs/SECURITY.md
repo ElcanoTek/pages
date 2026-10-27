@@ -277,7 +277,9 @@
   its credential's turn from **before** the password is verified until its
   failure delay has passed, so guesses sent in parallel are verified one
   backoff step apart rather than all at once; an attempt that cannot get its
-  turn within `passwordgate.TurnWait` is a 429 with nothing verified.
+  turn within `passwordgate.TurnWait` is a 429 for the credentials it could
+  not test. A member page's own password is checked under the page's turn
+  alone, so a portal's turn never blocks direct-password viewers.
 - **Bounded request bodies before authentication.** The dashboard decides a
   request's body limits before reading any of it: only `/api/v1` requests with
   a verified agent token or an admin session get `MAX_REQUEST_BYTES`; every
