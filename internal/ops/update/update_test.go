@@ -416,9 +416,12 @@ func TestReleaseUpdate(t *testing.T) {
 					}
 				}
 			}
-			// No candidate directory survives, success or failure.
+			// No candidate directory or drain marker survives, success or failure.
 			if m, _ := filepath.Glob(filepath.Join(f.app+".releases", ".candidate.*")); len(m) != 0 {
 				t.Fatalf("candidate left behind: %v", m)
+			}
+			if _, err := os.Stat(f.app + ".update.drain"); err == nil {
+				t.Fatalf("drain file left behind: %s.update.drain", f.app)
 			}
 		})
 	}

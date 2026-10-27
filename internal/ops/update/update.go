@@ -573,30 +573,14 @@ func (a *activation) run(ctx context.Context) error {
 	if err := o.appCommand(ctx, a.candidate, bin, "check-migrations"); err != nil {
 		return fail("migration compatibility check failed — installed service untouched")
 	}
-	if !o.Force {
-		idleArgs := []string{bin, "check-idle"}
-		if o.Wait {
-			idleArgs = append(idleArgs, "--wait")
-		}
-		if err := o.appCommand(ctx, a.candidate, idleArgs...); err != nil {
-			return fail("active write in progress — installed service untouched (retry once the write finishes, pass --wait, or pass --force)")
-		}
-	}
-	if err := o.appCommand(ctx, a.candidate, bin, "migrate"); err != nil {
-		return fail("migrations failed — installed service untouched")
-	}
 	sha, err := o.git(ctx, "rev-parse", "--short", "HEAD")
 	if err != nil || sha == "" {
 		sha = "unknown"
 	}
 	stamp := o.Now().UTC().Format("20060102T150405Z")
-	a.release = filepath.Join(s.ReleaseRoot(), fmt.Sprintf("%s-%s-%d", sha, stamp, os.Getpid()))
-	if err := o.Rename(a.candidate, a.release); err != nil {
-		return err
-	}
-	a.candidate = ""
 
-	// Snapshot the small installed control files before stopping anything.
+	// Snapshot the small installed control files and inspect the active
+	// installation before fencing writes or running migrations.
 	// Release contents are retained; mutable paths live outside releases.
 	if a.recovery, err = os.MkdirTemp(s.ReleaseRoot(), ".recovery."); err != nil {
 		return err
@@ -621,6 +605,37 @@ func (a *activation) run(ctx context.Context) error {
 		return err
 	}
 
+	if !o.Force {
+		// Fence admission of new writes ("draining") while allowing already-
+		// started staged uploads to finish, wait for active work to drain,
+		// then lock out all remaining writes ("quiesced") across migrations
+		// and shutdown.
+		if err := install.WriteFileAtomic(s.DrainFile(), []byte("draining\n"), 0o644); err != nil {
+			return err
+		}
+		idleArgs := []string{bin, "check-idle"}
+		if o.Wait {
+			idleArgs = append(idleArgs, "--wait")
+		}
+		if err := o.appCommand(ctx, a.candidate, idleArgs...); err != nil {
+			return fail("active write in progress — installed service untouched (retry once the write finishes, pass --wait, or pass --force)")
+		}
+		if err := install.WriteFileAtomic(s.DrainFile(), []byte("quiesced\n"), 0o644); err != nil {
+			return err
+		}
+		if err := o.appCommand(ctx, a.candidate, bin, "check-idle"); err != nil {
+			return fail("active write in progress — installed service untouched (retry once the write finishes, pass --wait, or pass --force)")
+		}
+	}
+	if err := o.appCommand(ctx, a.candidate, bin, "migrate"); err != nil {
+		return fail("migrations failed — installed service untouched")
+	}
+	a.release = filepath.Join(s.ReleaseRoot(), fmt.Sprintf("%s-%s-%d", sha, stamp, os.Getpid()))
+	if err := o.Rename(a.candidate, a.release); err != nil {
+		return err
+	}
+	a.candidate = ""
+
 	o.Log.Plain("Activating " + a.release)
 	a.switching = true
 	// A failed stop can leave the old process serving: switching the link
@@ -629,6 +644,7 @@ func (a *activation) run(ctx context.Context) error {
 	if err := o.systemctl(ctx, "stop", install.Service); err != nil {
 		return fail("could not stop %s (%v) — active release not switched", install.Service, err)
 	}
+	_ = os.Remove(s.DrainFile())
 	if legacy {
 		if err := o.Rename(s.AppDir, a.previous); err != nil {
 			return err
@@ -817,6 +833,7 @@ func (a *activation) restoreFile(name, target string) error {
 func (a *activation) cleanup(result error) error {
 	o, s := a.o, a.o.Settings
 	ctx := context.Background()
+	_ = os.Remove(s.DrainFile())
 	if result != nil {
 		o.Log.PlainErr(result.Error())
 	}
@@ -868,6 +885,9 @@ func (a *activation) cleanup(result error) error {
 		} else {
 			o.Log.PlainErr(fmt.Sprintf("automatic recovery needs operator attention; predecessor=%s; configuration backup=%s", a.previous, a.recovery))
 		}
+	}
+	if !a.switching && a.recovery != "" {
+		_ = os.RemoveAll(a.recovery)
 	}
 	if a.candidate != "" {
 		_ = os.RemoveAll(a.candidate)

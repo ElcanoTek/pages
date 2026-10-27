@@ -550,6 +550,9 @@ func CheckTicket(ctx context.Context, q db.Querier, rawTicket, uploadID string) 
 	if rawTicket == "" {
 		return 0, ticketMissing()
 	}
+	if err := db.CheckWriteAdmission(db.WithDrainBypass(ctx)); err != nil {
+		return 0, err
+	}
 	var (
 		id            string
 		total         int
@@ -586,6 +589,7 @@ func PutTicketContent(ctx context.Context, d *db.DB, rawTicket, uploadID string,
 		return nil, apierror.BadRequest("request body must be the raw page bytes", "upload_body_empty", nil)
 	}
 	ticketHash := tokens.HashToken(rawTicket)
+	ctx = db.WithDrainBypass(ctx)
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (*State, error) {
 		if err := cleanupExpired(ctx, tx); err != nil {
 			return nil, err
@@ -688,6 +692,7 @@ func Append(ctx context.Context, d *db.DB, in AppendInput, a versions.Actor) (*S
 		return nil, err
 	}
 	chunkSHA := SHA256(chunk)
+	ctx = db.WithDrainBypass(ctx)
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (*State, error) {
 		up, err := lockUpload(ctx, tx, in.UploadID, a)
 		if err != nil {
@@ -816,6 +821,7 @@ func Cancel(ctx context.Context, d *db.DB, uploadID string, a versions.Actor) (*
 	if err != nil {
 		return nil, err
 	}
+	ctx = db.WithDrainBypass(ctx)
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (*CancelResult, error) {
 		if err := cleanupExpired(ctx, tx); err != nil {
 			return nil, err
@@ -927,6 +933,7 @@ func Peek(ctx context.Context, d *db.DB, uploadID string, a versions.Actor, opts
 	if expect == "" {
 		expect = KindPage
 	}
+	ctx = db.WithDrainBypass(ctx)
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (*Peeked, error) {
 		up, err := lockUpload(ctx, tx, uploadID, a)
 		if err != nil {
@@ -1008,6 +1015,7 @@ func Deploy(ctx context.Context, d *db.DB, uploadID string, a versions.Actor, co
 	if expect == "" {
 		expect = KindPage
 	}
+	ctx = db.WithDrainBypass(ctx)
 	return db.WithTxResult(ctx, d, func(tx pgx.Tx) (any, error) {
 		up, err := lockUpload(ctx, tx, uploadID, a)
 		if err != nil {

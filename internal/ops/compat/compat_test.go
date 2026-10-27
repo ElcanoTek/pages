@@ -5,12 +5,17 @@ package compat
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/ElcanoTek/pages"
+	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/testdb"
 )
 
@@ -139,6 +144,25 @@ func TestActiveWritesAndWaitIdle(t *testing.T) {
 		t.Fatalf("WaitIdle should succeed once upload commits: %v", err)
 	}
 
+	// A read-only CTE transaction (WITH ... SELECT ...) has backend_xid IS NULL
+	// and must NOT be classified as an active write.
+	roTx, err := d.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = roTx.Rollback(ctx) }()
+	var n int
+	if err := roTx.QueryRow(ctx, `WITH cte AS (SELECT 1 AS n) SELECT n FROM cte`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	active, err = ActiveWrites(ctx, d.Pool, 5*time.Minute)
+	if err != nil || len(active) != 0 {
+		t.Fatalf("read-only CTE transaction must not block: active=%v err=%v", active, err)
+	}
+	if err := roTx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+
 	// Open an explicit write transaction on a separate connection: ActiveWrites must detect it.
 	tx, err := d.Begin(ctx)
 	if err != nil {
@@ -158,5 +182,26 @@ func TestActiveWritesAndWaitIdle(t *testing.T) {
 	active, err = ActiveWrites(ctx, d.Pool, 5*time.Minute)
 	if err != nil || len(active) != 0 {
 		t.Fatalf("after rollback, expected no active writes, got active=%v err=%v", active, err)
+	}
+
+	// Verify the two-phase drain sentinel blocks new writes during "draining"
+	// while allowing WithDrainBypass (in-flight staged upload completion), and
+	// blocks all writes during "quiesced".
+	drainFile := filepath.Join(t.TempDir(), "app.update.drain")
+	t.Setenv("PAGES_DRAIN_FILE", drainFile)
+	if err := os.WriteFile(drainFile, []byte("draining\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.WithTx(ctx, func(_ pgx.Tx) error { return nil }); err == nil || !strings.Contains(err.Error(), "updating") {
+		t.Fatalf("expected new write tx to be rejected during draining, got %v", err)
+	}
+	if err := d.WithTx(db.WithDrainBypass(ctx), func(_ pgx.Tx) error { return nil }); err != nil {
+		t.Fatalf("expected drain-bypassed upload tx to be allowed during draining, got %v", err)
+	}
+	if err := os.WriteFile(drainFile, []byte("quiesced\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.WithTx(db.WithDrainBypass(ctx), func(_ pgx.Tx) error { return nil }); err == nil || !strings.Contains(err.Error(), "updating") {
+		t.Fatalf("expected all write txs to be rejected during quiesced, got %v", err)
 	}
 }
