@@ -115,11 +115,29 @@ func undoRefreshHealth(tool *jsonv.Object) {
 			}
 		}
 	}
-	if name, _ := tool.Value("name").(string); name == "create_page_from_template" || name == "deploy_page" || name == "deploy_page_upload" {
+	switch name, _ := tool.Value("name").(string); name {
+	case "create_page_from_template", "deploy_page", "deploy_page_upload":
 		if in, ok := tool.Value("inputSchema").(*jsonv.Object); ok {
 			if props, ok := in.Value("properties").(*jsonv.Object); ok {
 				props.Delete("workspace_id")
 			}
+		}
+	case "find_in_version":
+		if in, ok := tool.Value("inputSchema").(*jsonv.Object); ok {
+			if props, ok := in.Value("properties").(*jsonv.Object); ok {
+				props.Delete("limit")
+				props.Delete("context_lines")
+				props.Delete("context_chars")
+			}
+		}
+	case "get_version":
+		if in, ok := tool.Value("inputSchema").(*jsonv.Object); ok {
+			if props, ok := in.Value("properties").(*jsonv.Object); ok {
+				if vid, ok := props.Value("version_id").(*jsonv.Object); ok {
+					vid.Delete("description")
+				}
+			}
+			in.Set("required", []any{"slug", "version_id"})
 		}
 	}
 }
@@ -345,6 +363,21 @@ func TestCreateToolsAdvertiseWorkspaceID(t *testing.T) {
 		if !props.Has("workspace_id") {
 			t.Errorf("%s does not advertise workspace_id", name)
 		}
+	}
+}
+
+func TestFindInVersionAndGetVersionErgonomics(t *testing.T) {
+	cat := currentCatalog()
+	findProps := cat.byName["find_in_version"].input.JSONSchema(ioInput).Value("properties").(*jsonv.Object)
+	for _, field := range []string{"context_lines", "context_chars", "limit"} {
+		if !findProps.Has(field) {
+			t.Errorf("find_in_version does not advertise %s", field)
+		}
+	}
+	getVerSchema := cat.byName["get_version"].input.JSONSchema(ioInput)
+	required, _ := getVerSchema.Value("required").([]any)
+	if slices.Contains(required, any("version_id")) {
+		t.Errorf("get_version should make version_id optional, got required=%v", required)
 	}
 }
 

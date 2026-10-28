@@ -51,8 +51,10 @@ const (
 	MaxReplaceChars  = 1024 * 1024
 	MaxExpectedCount = 1000
 	// Search output is read by a model; keep it small and say what was left out.
-	MaxMatches      = 20
-	MaxContextChars = 240
+	MaxMatches            = 20
+	MaxContextChars       = 240
+	MaxContextLines       = 50
+	MaxCustomContextChars = 4000
 )
 
 // Edit is one literal replacement. Count is the number of occurrences the
@@ -246,8 +248,10 @@ type FindResult struct {
 // FindOptions tunes FindMatches. MaxMatches 0 means the default (20); a
 // caller-supplied value is clamped to 1–20, so pass -1 for a client's 0.
 type FindOptions struct {
-	MaxMatches int
-	IgnoreCase bool
+	MaxMatches   int
+	IgnoreCase   bool
+	ContextLines int
+	ContextChars int
 }
 
 // FindMatches is a bounded literal search, so an agent can locate an anchor
@@ -278,13 +282,25 @@ func FindMatches(source, query string, opts FindOptions) (*FindResult, error) {
 		res.TotalMatches++
 		if len(res.Matches) < limit {
 			srcByte, off16 := cur.advance(at)
-			if units == nil {
-				units = utf16.Encode([]rune(source))
+			var exc string
+			switch {
+			case opts.ContextLines > 0:
+				exc = multilineExcerpt(source, srcByte, needleUnits, opts.ContextLines, opts.ContextChars)
+			case opts.ContextChars > 0:
+				if units == nil {
+					units = utf16.Encode([]rune(source))
+				}
+				exc = excerptWithMax(units, off16, needleUnits, min(opts.ContextChars, MaxCustomContextChars))
+			default:
+				if units == nil {
+					units = utf16.Encode([]rune(source))
+				}
+				exc = excerpt(units, off16, needleUnits)
 			}
 			res.Matches = append(res.Matches, Match{
 				Offset:  off16,
 				Line:    lineOf(source, srcByte),
-				Excerpt: excerpt(units, off16, needleUnits),
+				Excerpt: exc,
 			})
 		}
 		next := strings.Index(haystack[at+len(needle):], needle)
@@ -333,7 +349,11 @@ func isJSSpace(u uint16) bool {
 // a human or a model to recognise the site without shipping the surrounding
 // document.
 func excerpt(text []uint16, offset, length int) string {
-	pad := max(0, (MaxContextChars-length)/2)
+	return excerptWithMax(text, offset, length, MaxContextChars)
+}
+
+func excerptWithMax(text []uint16, offset, length, maxChars int) string {
+	pad := max(0, (maxChars-length)/2)
 	start := max(0, offset-pad)
 	end := min(len(text), offset+length+pad)
 	// .replace(/\s+/g, " ").trim()
@@ -365,4 +385,85 @@ func excerpt(text []uint16, offset, length int) string {
 		b.WriteString("…")
 	}
 	return b.String()
+}
+
+// multilineExcerpt returns the surrounding lines around srcByte with exact
+// newlines and indentation preserved so a model can copy a unique multi-line
+// anchor directly into patch_page without whitespace mismatch. It walks
+// rune-by-rune up to the UTF-16 budget without materialising a full-window
+// slice and never inserts synthetic ellipsis characters, keeping the returned
+// excerpt an exact literal substring of source.
+func multilineExcerpt(source string, srcByte, needleUnits, contextLines, contextChars int) string {
+	lines := min(max(1, contextLines), MaxContextLines)
+	maxChars := MaxCustomContextChars
+	if contextChars > 0 {
+		maxChars = min(max(1, contextChars), MaxCustomContextChars)
+	}
+	if maxChars < needleUnits {
+		maxChars = needleUnits
+	}
+
+	// Advance from srcByte by needleUnits UTF-16 code units to find matchEndByte.
+	matchEndByte := srcByte
+	remUnits := needleUnits
+	for remUnits > 0 && matchEndByte < len(source) {
+		r, w := utf8.DecodeRuneInString(source[matchEndByte:])
+		matchEndByte += w
+		if r >= 0x10000 {
+			remUnits -= 2
+		} else {
+			remUnits--
+		}
+	}
+
+	pad := max(0, (maxChars-needleUnits)/2)
+
+	// Walk backward rune-by-rune up to `pad` UTF-16 units or `lines + 1` newlines.
+	startByte := srcByte
+	backUnits := 0
+	newlinesSeen := 0
+	for startByte > 0 && backUnits < pad {
+		r, w := utf8.DecodeLastRuneInString(source[:startByte])
+		u := 1
+		if r >= 0x10000 {
+			u = 2
+		}
+		if backUnits+u > pad {
+			break
+		}
+		if r == '\n' {
+			newlinesSeen++
+			if newlinesSeen > lines {
+				break
+			}
+		}
+		startByte -= w
+		backUnits += u
+	}
+
+	// Walk forward rune-by-rune up to the remaining UTF-16 budget or `lines + 1` newlines.
+	endByte := matchEndByte
+	fwdBudget := max(0, maxChars-needleUnits-backUnits)
+	fwdUnits := 0
+	newlinesSeen = 0
+	for endByte < len(source) && fwdUnits < fwdBudget {
+		r, w := utf8.DecodeRuneInString(source[endByte:])
+		u := 1
+		if r >= 0x10000 {
+			u = 2
+		}
+		if fwdUnits+u > fwdBudget {
+			break
+		}
+		if r == '\n' {
+			newlinesSeen++
+			if newlinesSeen > lines {
+				break
+			}
+		}
+		endByte += w
+		fwdUnits += u
+	}
+
+	return source[startByte:endByte]
 }

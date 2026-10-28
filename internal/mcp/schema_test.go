@@ -29,6 +29,13 @@ func TestParseInputMatchesZod(t *testing.T) {
 	for i, e := range v.([]any) {
 		c := e.(*jsonv.Object)
 		name := c.Value("tool").(string)
+		if name == "get_version" {
+			if ao, ok := c.Value("args").(*jsonv.Object); ok && !ao.Has("version_id") {
+				// Go makes version_id optional on get_version (defaulting to the
+				// published version, matching find_in_version and preflight_page).
+				continue
+			}
+		}
 		got, perr := cat.byName[name].input.Parse(c.Value("args"))
 		args := jsonv.Stringify(c.Value("args"))
 		if len(args) > 300 {

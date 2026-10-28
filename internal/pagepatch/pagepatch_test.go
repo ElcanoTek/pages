@@ -253,3 +253,44 @@ func TestPatchResultIsBounded(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestSearchWithContextLinesPreservesExactNewlinesAndIndentation(t *testing.T) {
+	src := strings.Join([]string{
+		"<div>",
+		"  <header>",
+		"    <h1 class=\"hero-title\">Q3 Executive Brief</h1>",
+		"    <p class=\"hero-sub\">Prepared for Leadership</p>",
+		"  </header>",
+		"</div>",
+	}, "\n")
+	res, err := FindMatches(src, "Q3 Executive Brief", FindOptions{ContextLines: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TotalMatches != 1 || res.Matches[0].Line != 3 {
+		t.Fatalf("unexpected matches: %+v", res)
+	}
+	want := "  <header>\n    <h1 class=\"hero-title\">Q3 Executive Brief</h1>\n    <p class=\"hero-sub\">Prepared for Leadership</p>"
+	if res.Matches[0].Excerpt != want {
+		t.Fatalf("excerpt = %q, want %q", res.Matches[0].Excerpt, want)
+	}
+	// The multi-line excerpt can be copied directly as a patch_page anchor.
+	patched, err := ApplyEdits(src, []Edit{{
+		Find:    res.Matches[0].Excerpt,
+		Replace: strings.Replace(res.Matches[0].Excerpt, "Q3 Executive Brief", "Q4 Executive Brief", 1),
+	}})
+	if err != nil || !strings.Contains(patched.HTML, "Q4 Executive Brief") {
+		t.Fatalf("patch from multiline excerpt failed: %v", err)
+	}
+
+	// Even when a single line exceeds context_chars, the excerpt remains an
+	// exact literal substring (no synthetic ellipsis) so patch_page succeeds.
+	minified := strings.Repeat("a", 5000) + "<span id=\"target\">old</span>" + strings.Repeat("b", 5000)
+	mres, err := FindMatches(minified, "id=\"target\">old", FindOptions{ContextLines: 2, ContextChars: 80})
+	if err != nil || mres.TotalMatches != 1 {
+		t.Fatalf("minified FindMatches failed: %+v %v", mres, err)
+	}
+	if !strings.Contains(minified, mres.Matches[0].Excerpt) || strings.Contains(mres.Matches[0].Excerpt, "…") {
+		t.Fatalf("truncated multiline excerpt must be literal substring without ellipsis: %q", mres.Matches[0].Excerpt)
+	}
+}
