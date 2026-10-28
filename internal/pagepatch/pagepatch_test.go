@@ -253,3 +253,33 @@ func TestPatchResultIsBounded(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestSearchWithContextLinesPreservesExactNewlinesAndIndentation(t *testing.T) {
+	src := strings.Join([]string{
+		"<div>",
+		"  <header>",
+		"    <h1 class=\"hero-title\">Q3 Executive Brief</h1>",
+		"    <p class=\"hero-sub\">Prepared for Leadership</p>",
+		"  </header>",
+		"</div>",
+	}, "\n")
+	res, err := FindMatches(src, "Q3 Executive Brief", FindOptions{ContextLines: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TotalMatches != 1 || res.Matches[0].Line != 3 {
+		t.Fatalf("unexpected matches: %+v", res)
+	}
+	want := "  <header>\n    <h1 class=\"hero-title\">Q3 Executive Brief</h1>\n    <p class=\"hero-sub\">Prepared for Leadership</p>"
+	if res.Matches[0].Excerpt != want {
+		t.Fatalf("excerpt = %q, want %q", res.Matches[0].Excerpt, want)
+	}
+	// The multi-line excerpt can be copied directly as a patch_page anchor.
+	patched, err := ApplyEdits(src, []Edit{{
+		Find:    res.Matches[0].Excerpt,
+		Replace: strings.Replace(res.Matches[0].Excerpt, "Q3 Executive Brief", "Q4 Executive Brief", 1),
+	}})
+	if err != nil || !strings.Contains(patched.HTML, "Q4 Executive Brief") {
+		t.Fatalf("patch from multiline excerpt failed: %v", err)
+	}
+}

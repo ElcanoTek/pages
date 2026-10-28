@@ -51,8 +51,10 @@ const (
 	MaxReplaceChars  = 1024 * 1024
 	MaxExpectedCount = 1000
 	// Search output is read by a model; keep it small and say what was left out.
-	MaxMatches      = 20
-	MaxContextChars = 240
+	MaxMatches            = 20
+	MaxContextChars       = 240
+	MaxContextLines       = 50
+	MaxCustomContextChars = 4000
 )
 
 // Edit is one literal replacement. Count is the number of occurrences the
@@ -246,8 +248,10 @@ type FindResult struct {
 // FindOptions tunes FindMatches. MaxMatches 0 means the default (20); a
 // caller-supplied value is clamped to 1–20, so pass -1 for a client's 0.
 type FindOptions struct {
-	MaxMatches int
-	IgnoreCase bool
+	MaxMatches   int
+	IgnoreCase   bool
+	ContextLines int
+	ContextChars int
 }
 
 // FindMatches is a bounded literal search, so an agent can locate an anchor
@@ -281,10 +285,19 @@ func FindMatches(source, query string, opts FindOptions) (*FindResult, error) {
 			if units == nil {
 				units = utf16.Encode([]rune(source))
 			}
+			var exc string
+			switch {
+			case opts.ContextLines > 0:
+				exc = multilineExcerpt(source, srcByte, needleUnits, opts.ContextLines, opts.ContextChars)
+			case opts.ContextChars > 0:
+				exc = excerptWithMax(units, off16, needleUnits, min(opts.ContextChars, MaxCustomContextChars))
+			default:
+				exc = excerpt(units, off16, needleUnits)
+			}
 			res.Matches = append(res.Matches, Match{
 				Offset:  off16,
 				Line:    lineOf(source, srcByte),
-				Excerpt: excerpt(units, off16, needleUnits),
+				Excerpt: exc,
 			})
 		}
 		next := strings.Index(haystack[at+len(needle):], needle)
@@ -333,7 +346,11 @@ func isJSSpace(u uint16) bool {
 // a human or a model to recognise the site without shipping the surrounding
 // document.
 func excerpt(text []uint16, offset, length int) string {
-	pad := max(0, (MaxContextChars-length)/2)
+	return excerptWithMax(text, offset, length, MaxContextChars)
+}
+
+func excerptWithMax(text []uint16, offset, length, maxChars int) string {
+	pad := max(0, (maxChars-length)/2)
 	start := max(0, offset-pad)
 	end := min(len(text), offset+length+pad)
 	// .replace(/\s+/g, " ").trim()
@@ -362,6 +379,81 @@ func excerpt(text []uint16, offset, length int) string {
 	}
 	b.WriteString(string(utf16.Decode(body)))
 	if end < len(text) {
+		b.WriteString("…")
+	}
+	return b.String()
+}
+
+// multilineExcerpt returns the surrounding lines around srcByte with exact
+// newlines and indentation preserved so a model can copy a unique multi-line
+// anchor directly into patch_page without whitespace mismatch.
+func multilineExcerpt(source string, srcByte, needleUnits, contextLines, contextChars int) string {
+	lines := min(max(1, contextLines), MaxContextLines)
+	maxChars := MaxCustomContextChars
+	if contextChars > 0 {
+		maxChars = min(max(1, contextChars), MaxCustomContextChars)
+	}
+
+	// Advance from srcByte by needleUnits UTF-16 code units to find matchEndByte.
+	matchEndByte := srcByte
+	remUnits := needleUnits
+	for remUnits > 0 && matchEndByte < len(source) {
+		r, w := utf8.DecodeRuneInString(source[matchEndByte:])
+		matchEndByte += w
+		if r >= 0x10000 {
+			remUnits -= 2
+		} else {
+			remUnits--
+		}
+	}
+
+	// Walk backward `lines` newlines from the start of the match's line.
+	startByte := srcByte
+	if nl := strings.LastIndexByte(source[:startByte], '\n'); nl >= 0 {
+		startByte = nl + 1
+	} else {
+		startByte = 0
+	}
+	for i := 0; i < lines && startByte > 0; i++ {
+		if nl := strings.LastIndexByte(source[:startByte-1], '\n'); nl >= 0 {
+			startByte = nl + 1
+		} else {
+			startByte = 0
+		}
+	}
+
+	// Walk forward `lines` newlines after the end of the match's line.
+	endByte := matchEndByte
+	if nl := strings.IndexByte(source[endByte:], '\n'); nl >= 0 {
+		endByte += nl
+	} else {
+		endByte = len(source)
+	}
+	for i := 0; i < lines && endByte < len(source); i++ {
+		if nl := strings.IndexByte(source[endByte+1:], '\n'); nl >= 0 {
+			endByte += 1 + nl
+		} else {
+			endByte = len(source)
+		}
+	}
+
+	window := source[startByte:endByte]
+	units := utf16.Encode([]rune(window))
+	if len(units) <= maxChars {
+		return window
+	}
+	// If the line window exceeds maxChars (e.g. a minified line), bound around
+	// the match offset inside window while keeping exact source characters.
+	matchOffsetInWindow := jsstr.UTF16Len(source[startByte:srcByte])
+	pad := max(0, (maxChars-needleUnits)/2)
+	uStart := max(0, matchOffsetInWindow-pad)
+	uEnd := min(len(units), matchOffsetInWindow+needleUnits+pad)
+	var b strings.Builder
+	if uStart > 0 {
+		b.WriteString("…")
+	}
+	b.WriteString(string(utf16.Decode(units[uStart:uEnd])))
+	if uEnd < len(units) {
 		b.WriteString("…")
 	}
 	return b.String()

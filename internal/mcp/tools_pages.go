@@ -252,7 +252,17 @@ func listRefreshHealth(ctx context.Context, c *call, a *jsonv.Object) (any, erro
 
 func getVersion(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
 	slug, _ := argStr(a, "slug")
-	id, _ := argID(a, "version_id")
+	id, ok := argID(a, "version_id")
+	if !ok {
+		normSlug, err := normalizedSlug(a)
+		if err != nil {
+			return nil, err
+		}
+		id, err = publishedOrGiven(ctx, c, a, normSlug, fmt.Sprintf("page %s has no published version; pass version_id", normSlug))
+		if err != nil {
+			return nil, err
+		}
+	}
 	v, err := versions.GetVersion(ctx, c.d, slug, id)
 	if err != nil {
 		return nil, err
@@ -325,6 +335,14 @@ func findInVersion(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
 	opts := pagepatch.FindOptions{IgnoreCase: argBoolOr(a, "ignore_case", false)}
 	if n, ok := argInt(a, "max_matches"); ok {
 		opts.MaxMatches = n
+	} else if n, ok := argInt(a, "limit"); ok {
+		opts.MaxMatches = n
+	}
+	if n, ok := argInt(a, "context_lines"); ok {
+		opts.ContextLines = n
+	}
+	if n, ok := argInt(a, "context_chars"); ok {
+		opts.ContextChars = n
 	}
 	found, err := pagepatch.FindMatches(v.HTML, query, opts)
 	if err != nil {
