@@ -282,4 +282,15 @@ func TestSearchWithContextLinesPreservesExactNewlinesAndIndentation(t *testing.T
 	if err != nil || !strings.Contains(patched.HTML, "Q4 Executive Brief") {
 		t.Fatalf("patch from multiline excerpt failed: %v", err)
 	}
+
+	// Even when a single line exceeds context_chars, the excerpt remains an
+	// exact literal substring (no synthetic ellipsis) so patch_page succeeds.
+	minified := strings.Repeat("a", 5000) + "<span id=\"target\">old</span>" + strings.Repeat("b", 5000)
+	mres, err := FindMatches(minified, "id=\"target\">old", FindOptions{ContextLines: 2, ContextChars: 80})
+	if err != nil || mres.TotalMatches != 1 {
+		t.Fatalf("minified FindMatches failed: %+v %v", mres, err)
+	}
+	if !strings.Contains(minified, mres.Matches[0].Excerpt) || strings.Contains(mres.Matches[0].Excerpt, "…") {
+		t.Fatalf("truncated multiline excerpt must be literal substring without ellipsis: %q", mres.Matches[0].Excerpt)
+	}
 }

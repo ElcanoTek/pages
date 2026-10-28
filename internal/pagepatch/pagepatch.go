@@ -282,16 +282,19 @@ func FindMatches(source, query string, opts FindOptions) (*FindResult, error) {
 		res.TotalMatches++
 		if len(res.Matches) < limit {
 			srcByte, off16 := cur.advance(at)
-			if units == nil {
-				units = utf16.Encode([]rune(source))
-			}
 			var exc string
 			switch {
 			case opts.ContextLines > 0:
 				exc = multilineExcerpt(source, srcByte, needleUnits, opts.ContextLines, opts.ContextChars)
 			case opts.ContextChars > 0:
+				if units == nil {
+					units = utf16.Encode([]rune(source))
+				}
 				exc = excerptWithMax(units, off16, needleUnits, min(opts.ContextChars, MaxCustomContextChars))
 			default:
+				if units == nil {
+					units = utf16.Encode([]rune(source))
+				}
 				exc = excerpt(units, off16, needleUnits)
 			}
 			res.Matches = append(res.Matches, Match{
@@ -386,12 +389,18 @@ func excerptWithMax(text []uint16, offset, length, maxChars int) string {
 
 // multilineExcerpt returns the surrounding lines around srcByte with exact
 // newlines and indentation preserved so a model can copy a unique multi-line
-// anchor directly into patch_page without whitespace mismatch.
+// anchor directly into patch_page without whitespace mismatch. It walks
+// rune-by-rune up to the UTF-16 budget without materialising a full-window
+// slice and never inserts synthetic ellipsis characters, keeping the returned
+// excerpt an exact literal substring of source.
 func multilineExcerpt(source string, srcByte, needleUnits, contextLines, contextChars int) string {
 	lines := min(max(1, contextLines), MaxContextLines)
 	maxChars := MaxCustomContextChars
 	if contextChars > 0 {
 		maxChars = min(max(1, contextChars), MaxCustomContextChars)
+	}
+	if maxChars < needleUnits {
+		maxChars = needleUnits
 	}
 
 	// Advance from srcByte by needleUnits UTF-16 code units to find matchEndByte.
@@ -407,54 +416,54 @@ func multilineExcerpt(source string, srcByte, needleUnits, contextLines, context
 		}
 	}
 
-	// Walk backward `lines` newlines from the start of the match's line.
-	startByte := srcByte
-	if nl := strings.LastIndexByte(source[:startByte], '\n'); nl >= 0 {
-		startByte = nl + 1
-	} else {
-		startByte = 0
-	}
-	for i := 0; i < lines && startByte > 0; i++ {
-		if nl := strings.LastIndexByte(source[:startByte-1], '\n'); nl >= 0 {
-			startByte = nl + 1
-		} else {
-			startByte = 0
-		}
-	}
-
-	// Walk forward `lines` newlines after the end of the match's line.
-	endByte := matchEndByte
-	if nl := strings.IndexByte(source[endByte:], '\n'); nl >= 0 {
-		endByte += nl
-	} else {
-		endByte = len(source)
-	}
-	for i := 0; i < lines && endByte < len(source); i++ {
-		if nl := strings.IndexByte(source[endByte+1:], '\n'); nl >= 0 {
-			endByte += 1 + nl
-		} else {
-			endByte = len(source)
-		}
-	}
-
-	window := source[startByte:endByte]
-	units := utf16.Encode([]rune(window))
-	if len(units) <= maxChars {
-		return window
-	}
-	// If the line window exceeds maxChars (e.g. a minified line), bound around
-	// the match offset inside window while keeping exact source characters.
-	matchOffsetInWindow := jsstr.UTF16Len(source[startByte:srcByte])
 	pad := max(0, (maxChars-needleUnits)/2)
-	uStart := max(0, matchOffsetInWindow-pad)
-	uEnd := min(len(units), matchOffsetInWindow+needleUnits+pad)
-	var b strings.Builder
-	if uStart > 0 {
-		b.WriteString("…")
+
+	// Walk backward rune-by-rune up to `pad` UTF-16 units or `lines + 1` newlines.
+	startByte := srcByte
+	backUnits := 0
+	newlinesSeen := 0
+	for startByte > 0 && backUnits < pad {
+		r, w := utf8.DecodeLastRuneInString(source[:startByte])
+		u := 1
+		if r >= 0x10000 {
+			u = 2
+		}
+		if backUnits+u > pad {
+			break
+		}
+		if r == '\n' {
+			newlinesSeen++
+			if newlinesSeen > lines {
+				break
+			}
+		}
+		startByte -= w
+		backUnits += u
 	}
-	b.WriteString(string(utf16.Decode(units[uStart:uEnd])))
-	if uEnd < len(units) {
-		b.WriteString("…")
+
+	// Walk forward rune-by-rune up to the remaining UTF-16 budget or `lines + 1` newlines.
+	endByte := matchEndByte
+	fwdBudget := max(0, maxChars-needleUnits-backUnits)
+	fwdUnits := 0
+	newlinesSeen = 0
+	for endByte < len(source) && fwdUnits < fwdBudget {
+		r, w := utf8.DecodeRuneInString(source[endByte:])
+		u := 1
+		if r >= 0x10000 {
+			u = 2
+		}
+		if fwdUnits+u > fwdBudget {
+			break
+		}
+		if r == '\n' {
+			newlinesSeen++
+			if newlinesSeen > lines {
+				break
+			}
+		}
+		endByte += w
+		fwdUnits += u
 	}
-	return b.String()
+
+	return source[startByte:endByte]
 }

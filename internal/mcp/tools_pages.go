@@ -252,22 +252,25 @@ func listRefreshHealth(ctx context.Context, c *call, a *jsonv.Object) (any, erro
 
 func getVersion(ctx context.Context, c *call, a *jsonv.Object) (any, error) {
 	slug, _ := argStr(a, "slug")
-	id, ok := argID(a, "version_id")
-	if !ok {
-		normSlug, err := normalizedSlug(a)
+	if id, ok := argID(a, "version_id"); ok {
+		v, err := versions.GetVersion(ctx, c.d, slug, id)
 		if err != nil {
 			return nil, err
 		}
-		id, err = publishedOrGiven(ctx, c, a, normSlug, fmt.Sprintf("page %s has no published version; pass version_id", normSlug))
-		if err != nil {
-			return nil, err
-		}
+		return jsonv.ObjectOf("version", v), nil
 	}
-	v, err := versions.GetVersion(ctx, c.d, slug, id)
+	normSlug, err := normalizedSlug(a)
 	if err != nil {
 		return nil, err
 	}
-	return jsonv.ObjectOf("version", v), nil
+	pv, err := versions.GetPage(ctx, c.d, normSlug)
+	if err != nil {
+		return nil, err
+	}
+	if pv.Published == nil {
+		return nil, apierror.BadRequest(fmt.Sprintf("page %s has no published version; pass version_id", normSlug), "no_published_version", nil)
+	}
+	return jsonv.ObjectOf("version", pv.Published), nil
 }
 
 func listThemes(ctx context.Context, c *call, _ *jsonv.Object) (any, error) {
