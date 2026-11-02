@@ -30,9 +30,9 @@
         <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
         <svg class="icon-inline theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#moon"></use></svg>
       </button>
-      <!-- The label is hidden on narrow viewports, so the accessible name has to
-           come from aria-label or the link becomes an unnamed icon. -->
-      <a class="btn btn-ghost header-signout" href="/logout" aria-label="Sign out"><svg class="icon-inline" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#logout"></use></svg><span>Sign out</span></a>
+      <form class="header-signout-form" method="get" action="/logout">
+        <button class="icon-action header-signout" type="submit" aria-label="Sign out" title="Sign out"><svg class="icon-inline" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#logout"></use></svg></button>
+      </form>
     </div>
   </div>
 </header>

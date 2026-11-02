@@ -17,7 +17,8 @@ import (
 // lib/standalone-chrome.js under node for the same inputs. The front end and
 // the browser suite key off exact ids, classes and data attributes, so the Go
 // output must match byte for byte. Edited by hand since only to load a new
-// browser module (refresh-health.js on the index and the page detail).
+// browser module (refresh-health.js on the index and the page detail) and to
+// make the header's sign-out an icon button in a GET form.
 const (
 	nasty = `a"<b>&'c</script>`
 	weird = "line\u2028sep\u2029x\b\f\n\r\t\u0001\u001f\\\"é😀"

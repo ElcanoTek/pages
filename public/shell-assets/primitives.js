@@ -549,6 +549,40 @@
     });
   }
 
+  // The header's Sign out (shell.Header) asks first. It ends the shared Elcano
+  // sign-in, not just Pages (central mode hands the browser to Auth's logout,
+  // which ends every central session; the cookie mode sends it to the auth
+  // service's /logout, which clears the shared cookie), so one stray click
+  // beside the theme toggle should not cost every app. It is a submit button
+  // in a GET form, so without this script it signs out at once as it always
+  // did; with it, only the dialog's Sign out submits the form. A confirmation
+  // must never cost the way out: where a modal dialog cannot open the button
+  // is left as it is, and if opening one fails it signs out directly.
+  const SIGN_OUT_CONFIRMATION = {
+    title: "Sign out?",
+    message: "You'll be signed out of all your apps, not just Pages.",
+    confirmLabel: "Sign out",
+  };
+
+  function confirmSignOut(button) {
+    const form = button.form;
+    if (!form || typeof HTMLDialogElement !== "function" || typeof HTMLDialogElement.prototype.showModal !== "function") return;
+    button.setAttribute("aria-haspopup", "dialog");
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      let confirmed = true;
+      try {
+        confirmed = await confirmDialog({ trigger: button, ...SIGN_OUT_CONFIRMATION });
+      } catch {
+        // The dialog did not open; sign out as the button did before it asked.
+      }
+      if (confirmed) form.submit();
+    });
+  }
+
+  // Deferred like every shell script, so the header is already parsed.
+  if (typeof document !== "undefined") document.querySelectorAll("button.header-signout").forEach(confirmSignOut);
+
   // What a button looked like before it went busy. A textContent snapshot lost
   // any icon inside the label, so "Delete page" and "Copy URL" came back as bare
   // text after a failed action. Keyed by node, so nothing is written to the DOM

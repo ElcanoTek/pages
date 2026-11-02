@@ -283,6 +283,82 @@ test("every admin screen's document title follows one pattern", async ({ page })
   }
 });
 
+// The fixture has no /logout; record each time the browser goes there instead.
+async function recordSignOuts(page) {
+  const signOuts = [];
+  await page.route("**/logout*", (route) => {
+    const url = new URL(route.request().url());
+    signOuts.push(`${route.request().method()} ${url.pathname}`);
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Signed out</title>" });
+  });
+  return signOuts;
+}
+
+test("Sign out asks first on every admin screen, and only its confirmation leaves", async ({ page }) => {
+  const signOuts = await recordSignOuts(page);
+  for (const path of ["/admin", "/admin/templates", "/admin/portals", "/admin/client-01"]) {
+    await page.goto(path);
+    const button = page.locator("button.header-signout");
+    // An icon button like the theme toggle beside it, named and titled.
+    await expect(button).toHaveAccessibleName("Sign out");
+    await expect(button).toHaveAttribute("title", "Sign out");
+    await expect(button).toHaveClass(/\bicon-action\b/);
+    // A GET form to /logout, so it signs out without script, the same request
+    // the old link made (a POST from this no-referrer page would carry
+    // Origin: null, which the central logout refuses).
+    const form = page.locator("form.header-signout-form");
+    await expect(form).toHaveAttribute("method", "get");
+    await expect(form).toHaveAttribute("action", "/logout");
+
+    await button.click();
+    const confirmation = page.getByRole("dialog", { name: "Sign out?" });
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation).toContainText("You'll be signed out of all your apps, not just Pages.");
+    await confirmation.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(button).toBeFocused();
+    await button.press("Enter");
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(confirmation).toHaveCount(0);
+    // No way around the question: a modified click asks too, and a middle
+    // click does nothing (a button has no open-in-new-tab).
+    await button.click({ modifiers: ["ControlOrMeta"] });
+    await expect(confirmation).toBeVisible();
+    await page.keyboard.press("Escape");
+    await button.click({ button: "middle" });
+    await expect(confirmation).toHaveCount(0);
+    // Still on the screen (portals adds its own ?portal= to the address).
+    expect(new URL(page.url()).pathname).toBe(path);
+  }
+  expect(page.context().pages()).toHaveLength(1);
+  expect(signOuts).toEqual([]);
+
+  await page.goto("/admin");
+  await page.locator("button.header-signout").click();
+  await page.getByRole("dialog", { name: "Sign out?" }).getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/logout\??$/);
+  expect(signOuts).toEqual(["GET /logout"]);
+});
+
+for (const [name, breakDialog, offersDialog] of [
+  // Not offered at all: nothing says a dialog is coming.
+  ["has no modal dialogs", () => { delete HTMLDialogElement.prototype.showModal; }, false],
+  ["fails to open the dialog", () => { HTMLDialogElement.prototype.showModal = () => { throw new Error("no dialog"); }; }, true],
+]) {
+  test(`Sign out still signs out in a browser that ${name}`, async ({ page }) => {
+    const signOuts = await recordSignOuts(page);
+    await page.addInitScript(breakDialog);
+    await page.goto("/admin");
+    const button = page.locator("button.header-signout");
+    if (offersDialog) await expect(button).toHaveAttribute("aria-haspopup", "dialog");
+    else await expect(button).not.toHaveAttribute("aria-haspopup");
+    await button.click();
+    await expect(page).toHaveURL(/\/logout\??$/);
+    expect(signOuts).toEqual(["GET /logout"]);
+  });
+}
+
 for (const width of [1100, 900, 390]) {
   test(`index tables collapse into labelled cards at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });

@@ -140,7 +140,9 @@ table, time { font-variant-numeric: tabular-nums; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.header-signout { min-height: 2rem; }
+/* Sign out is a square icon button like the theme toggle beside it (the
+   .icon-action box); its GET form only carries it into the header row. */
+.header-signout-form { display: inline-flex; margin: 0; }
 
 .theme-toggle { position: relative; display: inline-grid; place-items: center; }
 .theme-toggle__icon { grid-area: 1 / 1; }
@@ -1189,8 +1191,7 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
   :root { --pages-sticky-header: 4rem; }
   .shell-header { min-height: 4rem; padding-inline: var(--space-4); }
   .ds-app-header__mark { width: 2rem; height: 2rem; }
-  .ds-app-header__eyebrow, .header-signout span { display: none; }
-  .header-signout { width: 2rem; min-width: 2rem; padding: 0; }
+  .ds-app-header__eyebrow { display: none; }
   .shell { padding: var(--space-6) var(--space-4) var(--space-8); gap: var(--space-6); }
   .page-heading__row { align-items: start; }
   .page-heading__actions, .page-heading__actions .btn { width: 100%; }
@@ -1259,7 +1260,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
     min-width: 2.75rem;
     min-height: 2.75rem;
   }
-  .header-signout { width: auto; min-width: 2.75rem; }
   .toggle-label { min-height: 2.75rem; }
 }
 
