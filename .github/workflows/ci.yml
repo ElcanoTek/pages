@@ -77,10 +77,21 @@ jobs:
         with:
           version: v2.15.0
       - name: Install PostgreSQL 16 tools (pg_dump and initdb for the backup rehearsal and dev cluster tests)
+        # From PGDG, not the runner's own archive: ubuntu-latest moved to 26.04,
+        # which no longer carries postgresql-16, and the tools must match the
+        # production major (16) whatever the image ships. Same source as
+        # Fleet's CI.
         run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-16 postgresql-client-16 >/dev/null
           echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version | grep -q ' 16\.'
       - name: Test (race)
         run: go test -race -count=1 ./...
       - name: Latency backstops (no race detector)

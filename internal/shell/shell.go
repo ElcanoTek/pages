@@ -168,7 +168,13 @@ func Icon(name, className string) string {
 }
 
 // Header is the Flag app header: brand, the signed-in email, the theme toggle
-// and sign-out.
+// and sign-out. Sign out is an icon button like the theme toggle beside it
+// (and like Lens's and Explorer's), submitting a GET form to /logout: the
+// same request the old link made, so it works without script, and a button
+// has no middle-click or open-in-new-tab to slip past the "Sign out?"
+// confirmation primitives.js puts in front of it. Not POST: the shell sends
+// Referrer-Policy: no-referrer, so a POST would carry Origin: null, which the
+// central logout refuses as foreign.
 func Header(email string) string {
 	return `<header class="page-header">
   <div class="ds-app-header shell-header">
@@ -184,9 +190,9 @@ func Header(email string) string {
         ` + Icon("sun", "icon-inline theme-toggle__icon theme-toggle__icon--sun") + `
         ` + Icon("moon", "icon-inline theme-toggle__icon theme-toggle__icon--moon") + `
       </button>
-      <!-- The label is hidden on narrow viewports, so the accessible name has to
-           come from aria-label or the link becomes an unnamed icon. -->
-      <a class="btn btn-ghost header-signout" href="/logout" aria-label="Sign out">` + Icon("logout", "") + `<span>Sign out</span></a>
+      <form class="header-signout-form" method="get" action="/logout">
+        <button class="icon-action header-signout" type="submit" aria-label="Sign out" title="Sign out">` + Icon("logout", "") + `</button>
+      </form>
     </div>
   </div>
 </header>`
