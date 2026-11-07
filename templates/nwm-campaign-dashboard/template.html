@@ -657,9 +657,8 @@ initDate(); initDeal(); renderAll();
   /* Every string and every affordance below matches lib/render.js's built-in
      control. A partner moving between a templated dashboard and one Pages renders
      itself sees the same menu; two vocabularies for one thing is the mess. */
-  const safeNavPath = function(u){ return (typeof u === "string" && u.startsWith("/") && !u.startsWith("//") && !u.startsWith("/\\")) ? u : ""; };
   const portalName = (nav.portal && nav.portal.name) ? nav.portal.name : "";
-  const portalUrl = (nav.portal && nav.portal.url) ? safeNavPath(nav.portal.url) : "";
+  const portalUrl = (nav.portal && nav.portal.url) ? nav.portal.url : "";
   const menu = document.createElement("nav");
   menu.className = "pagenav__menu";
   menu.setAttribute("aria-label", portalName ? portalName + " dashboards" : "Your dashboards");
@@ -668,13 +667,12 @@ initDate(); initDeal(); renderAll();
      used to name it without offering a way back. */
   const label = document.createElement(portalUrl ? "a" : "div");
   label.className = "pagenav__label";
-  if(portalUrl && portalUrl.startsWith("/")) label.href = portalUrl;
+  if(portalUrl) label.href = portalUrl;
   label.textContent = portalName || "Your dashboards";
   menu.append(label);
   pages.forEach(function(entry){
     const link = document.createElement("a");
-    const entryUrl = safeNavPath(entry && entry.url);
-    if(entryUrl && entryUrl.startsWith("/")) link.href = entryUrl; /* ready-made and absolute: slugs nest */
+    link.href = entry.url;                  /* ready-made and absolute: slugs nest */
     link.textContent = entry.title || entry.slug;
     if(entry.current) link.setAttribute("aria-current","page");
     if(entry.home){
