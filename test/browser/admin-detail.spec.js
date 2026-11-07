@@ -1061,7 +1061,7 @@ test("the page switcher can be browsed with the keyboard without navigating away
 
   // Enter commits.
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(new RegExp(`/admin/${pending.replace(/\//g, "/")}$`));
+  await expect(page).toHaveURL(new RegExp(`/admin/${pending}$`));
 });
 
 test("abandoning a keyboard browse leaves the switcher describing the page you are on", async ({ page }) => {
