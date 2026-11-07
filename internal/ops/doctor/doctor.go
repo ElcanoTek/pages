@@ -56,7 +56,7 @@ type Options struct {
 	Runner   runner.Runner
 	Log      *term.Printer
 
-	Check, NoRestart, DryRun, Strict bool
+	Check, NoRestart, DryRun, Strict, FromSource bool
 
 	// CaddySnippet and Caddyfile locate the proxy configuration.
 	CaddySnippet, Caddyfile string
@@ -197,7 +197,7 @@ func Run(ctx context.Context, o Options) int {
 	if o.DryRun {
 		log.Step(fmt.Sprintf("pages doctor --dry-run (app=%s, src=%s, service=%s)", s.AppDir, s.SrcDir, install.Service))
 		for _, line := range []string{
-			"Runtime: " + s.Binary() + " present and executable; " + s.CLITarget + " links to it; go and make present for pages update",
+			"Runtime: " + s.Binary() + " present and executable; " + s.CLITarget + " links to it; git present for pages update",
 			"Configuration: " + s.EnvFile + " exists, mode 0640 root:" + s.AppUser + ", with AUTH_SIGNING_PUBKEY (base64 32-byte), PAGE_COOKIE_SECRET, RAW_TOKEN_SECRET, API_TOKEN_PEPPER, DATABASE_URL, DASHBOARD_HOST and CONTENT_HOST set; content host on a DIFFERENT registrable domain (eTLD+1) than the dashboard host",
 			"Database: postgresql.service active; psql probes DATABASE_URL as " + s.AppUser,
 			"Service: " + install.Service + " active + enabled; the running release matches " + s.AppDir + " (stale releases restart, unless --no-restart); filesystem repairs happen before any unit start",
@@ -273,16 +273,23 @@ func (d *run) runtime() {
 	} else {
 		r.fail("no executable " + bin + " — the active release is not a Go release; run sudo pages update")
 	}
-	var missing []string
-	for _, tool := range []string{"go", "make", "git"} {
-		if !runner.Have(o.Runner, tool) {
-			missing = append(missing, tool)
+	switch {
+	case o.FromSource || os.Getenv("PAGES_FROM_SOURCE") == "1":
+		var missing []string
+		for _, tool := range []string{"go", "make", "git"} {
+			if !runner.Have(o.Runner, tool) {
+				missing = append(missing, tool)
+			}
 		}
-	}
-	if len(missing) == 0 {
-		r.pass("go, make and git present (pages update builds from the checkout)")
-	} else {
-		r.advise(strings.Join(missing, ", ") + " missing — pages update cannot build; rerun scripts/bootstrap.sh")
+		if len(missing) == 0 {
+			r.pass("go, make and git present (pages update --from-source builds from the checkout)")
+		} else {
+			r.advise(strings.Join(missing, ", ") + " missing — pages update --from-source cannot build; rerun scripts/bootstrap.sh")
+		}
+	case runner.Have(o.Runner, "git"):
+		r.pass("git present (pages update installs verified signed release binaries)")
+	default:
+		r.advise("git missing — pages update cannot fetch release tags; rerun scripts/bootstrap.sh")
 	}
 }
 
@@ -722,9 +729,16 @@ func (d *run) source(ctx context.Context) {
 	if err != nil || branch == "" {
 		branch = "?"
 	}
-	if branch == "main" {
+	switch branch {
+	case "main":
 		r.pass("checkout on main")
-	} else {
+	case "HEAD":
+		if tag, terr := git(ctx, "describe", "--tags", "--exact-match", "HEAD"); terr == nil && releaseTagRE.MatchString(strings.TrimSpace(tag)) {
+			r.pass("checkout at release tag " + strings.TrimSpace(tag))
+		} else {
+			r.advise("checkout is on '" + branch + "', not main — 'pages update' follows the checked-out branch")
+		}
+	default:
 		r.advise("checkout is on '" + branch + "', not main — 'pages update' follows the checked-out branch")
 	}
 	switch dirty, err := git(ctx, "status", "--porcelain"); {
@@ -777,7 +791,10 @@ func newestVersion(vs []string) string {
 	return vs[len(vs)-1]
 }
 
-var numRun = regexp.MustCompile(`\d+|\D+`)
+var (
+	numRun       = regexp.MustCompile(`\d+|\D+`)
+	releaseTagRE = regexp.MustCompile(`^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[1-9][0-9]*$`)
+)
 
 func versionLess(a, b string) bool {
 	pa, pb := numRun.FindAllString(a, -1), numRun.FindAllString(b, -1)

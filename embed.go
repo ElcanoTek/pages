@@ -28,6 +28,9 @@ var docs embed.FS
 //go:embed deploy/pages.service deploy/pages.caddy deploy/motd
 var deploy embed.FS
 
+//go:embed cosign.lock
+var cosignLock []byte
+
 func sub(f embed.FS, dir string) fs.FS {
 	s, err := fs.Sub(f, dir)
 	if err != nil {
@@ -53,3 +56,7 @@ func Docs() fs.FS { return sub(docs, "docs") }
 // operator CLI renders and installs (pages bootstrap / pages update), so a
 // release always installs the control files it was built with.
 func Deploy() fs.FS { return sub(deploy, "deploy") }
+
+// CosignLock is cosign.lock: the pinned cosign version and per-architecture
+// SHA-256 digests that release.yml signs with and pages update verifies with.
+func CosignLock() []byte { return append([]byte(nil), cosignLock...) }

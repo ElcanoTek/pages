@@ -41,6 +41,7 @@ type opts struct {
 	runningPrevious      bool
 	inactive             bool
 	gitBehind, gitRemote string
+	gitBranch, gitTag    string
 	lsRemoteFail         bool
 	readyzFails          int
 	dbPassword           string
@@ -49,6 +50,8 @@ type opts struct {
 	euid                 int
 	caddySnippet         string
 	certErr              error
+	missingTools         map[string]bool
+	fromSource           bool
 }
 
 type result struct {
@@ -141,7 +144,7 @@ func doctor(t *testing.T, o opts) result {
 	if o.gitRemote == "" {
 		o.gitRemote = "abc1230"
 	}
-	fake := &runner.Fake{Handle: func(c runner.Cmd) (string, int) {
+	fake := &runner.Fake{Missing: o.missingTools, Handle: func(c runner.Cmd) (string, int) {
 		args := strings.Join(c.Args, " ")
 		switch c.Name {
 		case "systemctl":
@@ -184,7 +187,15 @@ func doctor(t *testing.T, o opts) result {
 				}
 				return o.gitRemote + "\trefs/heads/main\n", 0
 			case strings.Contains(args, "--abbrev-ref"):
+				if o.gitBranch != "" {
+					return o.gitBranch + "\n", 0
+				}
 				return "main\n", 0
+			case strings.Contains(args, "describe --tags --exact-match HEAD"):
+				if o.gitTag != "" {
+					return o.gitTag + "\n", 0
+				}
+				return "", 128
 			case strings.Contains(args, "rev-list --count"):
 				return o.gitBehind + "\n", 0
 			case strings.Contains(args, "rev-parse"):
@@ -220,6 +231,7 @@ func doctor(t *testing.T, o opts) result {
 	var out bytes.Buffer
 	options := Options{
 		Settings: settings, Runner: fake, Log: term.Buffer(&out), EUID: o.euid, Username: "contoso",
+		FromSource:   o.fromSource,
 		CaddySnippet: snippet, Caddyfile: filepath.Join(dir, "Caddyfile"), OSRelease: osRelease,
 		StatOwner: func(string) (string, error) { return statPerms, nil },
 		Readable:  func(p string) bool { return o.envFile != "unreadable" && readable(p) },
@@ -422,4 +434,27 @@ func TestHelpers(t *testing.T) {
 	if pw != "p:w" || red != "postgres://pages@x@127.0.0.1/pages" {
 		t.Fatal(pw, red) // the shell split at the FIRST '@', as libpq-unaware text
 	}
+}
+
+func TestSignedReleaseModeDoesNotRequireGoOrMakeAndAcceptsReleaseTag(t *testing.T) {
+	r := doctor(t, opts{
+		args:         []string{"--check"},
+		euid:         1000,
+		missingTools: map[string]bool{"go": true, "make": true},
+		gitBranch:    "HEAD",
+		gitTag:       "v2026.11.07.2",
+	})
+	must(t, r, 0,
+		`git present \(pages update installs verified signed release binaries\)`,
+		`checkout at release tag v2026\.11\.07\.2`,
+		`box healthy`,
+	)
+
+	rFromSource := doctor(t, opts{
+		args:         []string{"--check"},
+		euid:         1000,
+		fromSource:   true,
+		missingTools: map[string]bool{"go": true, "make": true},
+	})
+	must(t, rFromSource, 0, `go, make missing — pages update --from-source cannot build`)
 }

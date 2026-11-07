@@ -42,6 +42,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/ops/install"
 	"github.com/ElcanoTek/pages/internal/ops/runner"
 	"github.com/ElcanoTek/pages/internal/ops/term"
+	"github.com/ElcanoTek/pages/internal/version"
 )
 
 // Options configures an update. Zero hooks take production defaults.
@@ -50,7 +51,35 @@ type Options struct {
 	Runner   runner.Runner
 	Log      *term.Printer
 
-	// NoPull builds the current checkout without fetching (pages rebuild).
+	// FromSource compiles the checkout with `make build` instead of
+	// downloading a signed release binary (--from-source / PAGES_FROM_SOURCE=1).
+	FromSource bool
+	// Tag pins a specific release tag vYYYY.MM.DD.N (--tag / PAGES_RELEASE_TAG).
+	Tag string
+	// AllowDowngrade permits installing a release older than CurrentVersion
+	// (--allow-downgrade / PAGES_ALLOW_DOWNGRADE=1).
+	AllowDowngrade bool
+	// CurrentVersion is the running version compared against Tag for
+	// downgrade protection (defaults to version.Version).
+	CurrentVersion string
+	// ReleaseBaseURL overrides DefaultBaseURL (PAGES_RELEASE_BASE_URL).
+	ReleaseBaseURL string
+	// ReleaseLatestURL overrides DefaultLatestURL (PAGES_RELEASE_LATEST_URL).
+	ReleaseLatestURL string
+	// CosignCacheDir caches the pinned cosign binary and its TUF root.
+	CosignCacheDir string
+	// VerifiedStageDir points at a private staging directory already populated
+	// by scripts/update.sh (PAGES_VERIFIED_STAGE_DIR); LoadVerified re-verifies
+	// every signature and digest before installing.
+	VerifiedStageDir string
+	// Arch overrides HostArch() in tests.
+	Arch string
+	// HTTPClient overrides the HTTP client used by Downloader in tests.
+	HTTPClient *http.Client
+	// Verifier overrides the Cosign verifier in tests.
+	Verifier Verifier
+
+	// NoPull uses the current checkout without fetching (pages rebuild).
 	NoPull bool
 	// Yes skips the confirmation prompt (PAGES_UPDATE_YES=1).
 	Yes bool
@@ -129,6 +158,32 @@ func (o *Options) defaults() {
 	}
 	if o.ProcCwd == nil {
 		o.ProcCwd = func(pid int) (string, error) { return filepath.EvalSymlinks(fmt.Sprintf("/proc/%d/cwd", pid)) }
+	}
+	if o.CurrentVersion == "" {
+		if v := os.Getenv("PAGES_CURRENT_VERSION"); v != "" {
+			o.CurrentVersion = v
+		} else {
+			o.CurrentVersion = version.Version
+		}
+	}
+	if o.ReleaseBaseURL == "" {
+		o.ReleaseBaseURL = BaseURL()
+	}
+	if o.ReleaseLatestURL == "" {
+		o.ReleaseLatestURL = os.Getenv("PAGES_RELEASE_LATEST_URL")
+	}
+	if o.CosignCacheDir == "" {
+		if v := os.Getenv("PAGES_COSIGN_CACHE_DIR"); v != "" {
+			o.CosignCacheDir = v
+		} else {
+			o.CosignCacheDir = filepath.Join(o.Settings.ReleaseRoot(), ".cosign")
+		}
+	}
+	if o.VerifiedStageDir == "" {
+		o.VerifiedStageDir = os.Getenv("PAGES_VERIFIED_STAGE_DIR")
+	}
+	if o.Arch == "" {
+		o.Arch = HostArch()
 	}
 }
 
@@ -409,8 +464,9 @@ func (o *Options) precheck() error {
 	return nil
 }
 
-// Run is stage one: lock, fetch, confirm, build the candidate, hand off.
+// Run is stage one: lock, fetch/verify or build the candidate, hand off.
 func Run(ctx context.Context, o Options) error {
+	fromSource := o.FromSource || o.Build != nil || os.Getenv("PAGES_FROM_SOURCE") == "1"
 	o.defaults()
 	s := o.Settings
 	if err := o.precheck(); err != nil {
@@ -429,6 +485,9 @@ func Run(ctx context.Context, o Options) error {
 			lock.Close()
 		}
 	}()
+	if !fromSource {
+		return o.runSignedRelease(ctx, lock, &locked)
+	}
 	if !o.NoPull {
 		o.Log.Plain("Fetching latest")
 		if _, err := o.git(ctx, "fetch", "--quiet", "origin"); err != nil {
@@ -482,6 +541,139 @@ func Run(ctx context.Context, o Options) error {
 	// never deadlocks against itself.
 	lock.Close()
 	locked = false
+	handed = true
+	if err := o.Handoff(ctx, trusted, candidate); err != nil {
+		_ = os.RemoveAll(candidate)
+		return err
+	}
+	return nil
+}
+
+func (o *Options) downloader() *Downloader {
+	if o.HTTPClient != nil {
+		return &Downloader{Client: o.HTTPClient}
+	}
+	return NewDownloader()
+}
+
+func (o *Options) runSignedRelease(ctx context.Context, lock *os.File, locked *bool) error {
+	s := o.Settings
+	dl := o.downloader()
+
+	var (
+		tag Tag
+		err error
+	)
+	if o.Tag != "" {
+		tag, err = ParseTag(o.Tag)
+		if err != nil {
+			return fail("%v", err)
+		}
+	} else {
+		o.Log.Plain("Checking latest release")
+		tag, err = dl.LatestTag(ctx, o.ReleaseLatestURL)
+		if err != nil {
+			return fail("could not determine latest release: %v", err)
+		}
+	}
+	if cur, ok := ParseVersion(o.CurrentVersion); ok && !o.AllowDowngrade && tag.Compare(cur) < 0 {
+		return fail("%s: %s is older than the running %s (pass --allow-downgrade to roll back on purpose)", ErrDowngrade, tag, cur)
+	}
+
+	if !o.NoPull {
+		o.Log.Plain("Fetching release tags")
+		if _, err := o.git(ctx, "fetch", "--quiet", "--force", "--tags", "origin"); err != nil {
+			return fail("git fetch failed: %v", err)
+		}
+	}
+	commit, err := o.git(ctx, "rev-parse", "--verify", "refs/tags/"+tag.String()+"^{commit}")
+	commit = strings.TrimSpace(commit)
+	if err != nil || !commitSHARE.MatchString(commit) {
+		return fail("tag %s is not in %s", tag, s.SrcDir)
+	}
+
+	if !o.Yes && o.Interactive {
+		fmt.Fprintf(o.Log.Out, "Install and activate release %s? [y/N] ", tag)
+		answer, _ := bufio.NewReader(o.Stdin).ReadString('\n')
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "y", "yes":
+		default:
+			return fail("aborted")
+		}
+	}
+
+	verifier := o.Verifier
+	if verifier == nil {
+		cosignBin, err := EnsureCosign(ctx, dl, o.CosignCacheDir, o.Arch)
+		if err != nil {
+			return fail("%v", err)
+		}
+		verifier = &Cosign{
+			Bin:     cosignBin,
+			Policy:  PagesPolicy(),
+			TUFRoot: filepath.Join(o.CosignCacheDir, "tuf"),
+		}
+	}
+
+	var fetched *Fetched
+	if o.VerifiedStageDir != "" {
+		o.Log.Plain("Verifying staged release " + tag.String())
+		fetched, err = LoadVerified(ctx, verifier, o.VerifiedStageDir, tag, o.Arch, commit)
+	} else {
+		o.Log.Plain("Downloading and verifying release " + tag.String())
+		stage, serr := os.MkdirTemp("", "pages-release-")
+		if serr != nil {
+			return serr
+		}
+		defer func() { _ = os.RemoveAll(stage) }()
+		if serr := EnsurePrivateDir(stage); serr != nil {
+			return fail("%v", serr)
+		}
+		fetched, err = FetchRelease(ctx, dl, verifier, FetchOptions{
+			Tag:            tag,
+			Arch:           o.Arch,
+			Dir:            stage,
+			BaseURL:        o.ReleaseBaseURL,
+			Current:        o.CurrentVersion,
+			AllowDowngrade: o.AllowDowngrade,
+			Commit:         commit,
+		})
+	}
+	if err != nil {
+		o.Log.PlainErr(err.Error())
+		return fail("%v — installed service untouched", err)
+	}
+	defer func() { _ = fetched.BinaryFile.Close() }()
+
+	if _, err := o.git(ctx, "checkout", "--quiet", "--detach", "refs/tags/"+tag.String()); err != nil {
+		return fail("git checkout %s failed: %v — installed service untouched", tag, err)
+	}
+
+	candidate, err := os.MkdirTemp(s.ReleaseRoot(), ".candidate.")
+	if err != nil {
+		return err
+	}
+	handed := false
+	defer func() {
+		if !handed {
+			_ = os.RemoveAll(candidate)
+		}
+	}()
+	if err := os.Chmod(candidate, 0o755); err != nil {
+		return err
+	}
+	bin := filepath.Join(candidate, install.BinaryName)
+	if err := copyFromFD(fetched.BinaryFile, bin, fetched.BinarySHA256); err != nil {
+		return fail("installing verified binary: %v — installed service untouched", err)
+	}
+	_ = fetched.BinaryFile.Close()
+
+	trusted, err := trustedCandidate(candidate)
+	if err != nil {
+		return fail("refusing to hand off to the candidate: %v", err)
+	}
+	lock.Close()
+	*locked = false
 	handed = true
 	if err := o.Handoff(ctx, trusted, candidate); err != nil {
 		_ = os.RemoveAll(candidate)
