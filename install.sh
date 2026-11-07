@@ -4,9 +4,10 @@
 # Public entry point. Bash parses the complete function before installation;
 # a truncated download cannot execute a partial function. Prompts use the TTY.
 #
-# It runs before Go exists on the box: install git and a Go toolchain (dnf's
-# golang, or the official one go.mod pins when dnf's is too old), clone main,
-# then scripts/bootstrap.sh builds `pages` and runs `pages bootstrap`.
+# Installs git and curl, clones main into /opt/pages-src, then
+# scripts/bootstrap.sh fetches and verifies the latest signed release with
+# cosign (or builds from source when PAGES_FROM_SOURCE=1) and runs
+# `pages bootstrap`.
 set -euo pipefail
 main() {
   if [[ "${1:-}" == --help ]]; then
@@ -21,7 +22,11 @@ main() {
     echo "$src already exists. Use pages update, or run its scripts/bootstrap.sh to reconfigure." >&2
     exit 1
   fi
-  dnf install -y git make golang ca-certificates curl
+  local pkgs=(git ca-certificates curl)
+  if [[ "${PAGES_FROM_SOURCE:-0}" == "1" ]]; then
+    pkgs+=(make golang)
+  fi
+  dnf install -y "${pkgs[@]}"
   git clone --branch main --single-branch https://github.com/ElcanoTek/pages.git "$src"
   exec bash "$src/scripts/bootstrap.sh"
 }

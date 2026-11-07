@@ -5,7 +5,7 @@
 GOTOOLCHAIN ?= auto
 export GOTOOLCHAIN
 
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION := $(shell scripts/version.sh describe 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/ElcanoTek/pages/internal/version.Version=$(VERSION)
 
 # Where `make build` writes the binary. `pages update` builds each release

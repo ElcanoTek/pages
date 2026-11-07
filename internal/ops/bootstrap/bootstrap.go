@@ -160,8 +160,12 @@ func (r *run) all(ctx context.Context) error {
 	log.Say("")
 	log.Say("Safe to re-run: existing env is preserved; only missing values are prompted.")
 
-	log.Step("1/6  Installing PostgreSQL + build tools + system dependencies")
-	if err := r.cmd(ctx, "dnf", "install", "-y", "git", "make", "golang", "postgresql", "postgresql-server"); err != nil {
+	log.Step("1/6  Installing PostgreSQL + system dependencies")
+	pkgs := []string{"git", "curl", "ca-certificates", "postgresql", "postgresql-server"}
+	if o.Getenv("PAGES_FROM_SOURCE") == "1" {
+		pkgs = []string{"git", "make", "golang", "postgresql", "postgresql-server"}
+	}
+	if err := r.cmd(ctx, "dnf", append([]string{"install", "-y"}, pkgs...)...); err != nil {
 		return die("dnf install failed — check the package repositories and network")
 	}
 	if err := s.Validate(); err != nil {
