@@ -80,6 +80,23 @@ commit="$(git -C "$root" rev-parse --verify "refs/tags/${tag}^{commit}" 2>/dev/n
 
 cache="${PAGES_COSIGN_CACHE_DIR:-/var/cache/pages-cosign}"
 stage="$build/stage"
+current_version="${PAGES_CURRENT_VERSION:-}"
+if [[ -z "$current_version" ]]; then
+  app_dir="${APP_DIR:-/opt/pages}"
+  if [[ -f "${PAGES_INSTALL_CONFIG:-/etc/default/pages-install}" ]]; then
+    cfg_app="$(awk -F= '$1=="APP_DIR"{gsub(/^["'\'']|["'\'']$/,"",$2); print $2}' "${PAGES_INSTALL_CONFIG:-/etc/default/pages-install}" | tail -n 1)"
+    [[ -n "$cfg_app" ]] && app_dir="$cfg_app"
+  fi
+  if [[ -x "$app_dir/pages" ]]; then
+    current_version="$("$app_dir/pages" version 2>/dev/null | awk 'NR==1 {print $2}' || true)"
+  fi
+  if [[ -z "$current_version" || "$current_version" == "dev"* ]]; then
+    current_version="$("$root/scripts/version.sh" current 2>/dev/null || true)"
+  fi
+fi
+export PAGES_CURRENT_VERSION="$current_version"
+export PAGES_ALLOW_DOWNGRADE="$allow_downgrade"
+
 echo "Downloading and verifying signed release ${tag}"
 bin="$(pages_release_fetch "$root" "$tag" "$stage" "$cache" "$commit")" || {
   rm -rf "$build"
@@ -92,6 +109,7 @@ install -m 0755 "$bin" "$build/pages"
 exec env \
   PAGES_UPDATE_SHIM_DIR="$build" \
   PAGES_RELEASE_TAG="$tag" \
+  PAGES_CURRENT_VERSION="$current_version" \
   PAGES_ALLOW_DOWNGRADE="$allow_downgrade" \
   PAGES_VERIFIED_STAGE_DIR="$stage" \
   PAGES_SRC_DIR="${PAGES_SRC_DIR:-$root}" \

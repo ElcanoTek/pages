@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 ElcanoTek, Inc.
+#
 # Automatic date-based releases with keyless Sigstore OIDC signed binary artifacts.
 #
 # pages ships from a rolling release train: every PR squash-merges into `main`,
@@ -45,6 +48,9 @@ jobs:
     name: Tag the release
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: release-tag
+      cancel-in-progress: false
     if: >-
       ${{ (github.event_name == 'workflow_run'
            && github.event.workflow_run.conclusion == 'success'
@@ -104,6 +110,8 @@ jobs:
             fi
           fi
 
+          git fetch --force --tags origin refs/heads/main:refs/remotes/origin/main
+
           if existing="$(scripts/version.sh released-at "${HEAD_SHA}")" && [ -n "${existing}" ]; then
             echo "::notice::${HEAD_SHA} is already tagged ${existing}; not re-tagging. Checking its release is published."
             {
@@ -114,7 +122,14 @@ jobs:
             exit 0
           fi
 
-          tip="$(git rev-parse HEAD)"
+          descendant_tag="$(git tag --contains "${HEAD_SHA}" --list 'v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].[0-9]*' | scripts/version.sh filter | tail -n 1)"
+          if [ -n "${descendant_tag}" ]; then
+            echo "::notice::${HEAD_SHA} is superseded: a descendant commit is already tagged ${descendant_tag}; not assigning a newer ordinal to an older commit."
+            echo "released=false" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          tip="$(git rev-parse origin/main)"
           if [ "${HEAD_SHA}" != "${tip}" ] && ! git diff --quiet "${HEAD_SHA}" "${tip}" -- .github/workflows; then
             echo "::notice::${HEAD_SHA} is superseded: main is at ${tip}, whose workflow files differ, so a release tag on ${HEAD_SHA} cannot be pushed with this token. ${tip}'s own release covers this commit; not tagging it."
             echo "released=false" >>"${GITHUB_OUTPUT}"
@@ -125,6 +140,12 @@ jobs:
           attempt=0
           while :; do
             attempt=$((attempt + 1))
+            descendant_tag="$(git tag --contains "${HEAD_SHA}" --list 'v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].[0-9]*' | scripts/version.sh filter | tail -n 1)"
+            if [ -n "${descendant_tag}" ]; then
+              echo "::notice::${HEAD_SHA} is superseded: a descendant commit is already tagged ${descendant_tag}; not assigning a newer ordinal to an older commit."
+              echo "released=false" >>"${GITHUB_OUTPUT}"
+              exit 0
+            fi
             tag="$(scripts/version.sh next)"
             echo "attempt ${attempt}: tagging ${HEAD_SHA} as ${tag}"
 

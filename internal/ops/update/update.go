@@ -160,7 +160,11 @@ func (o *Options) defaults() {
 		o.ProcCwd = func(pid int) (string, error) { return filepath.EvalSymlinks(fmt.Sprintf("/proc/%d/cwd", pid)) }
 	}
 	if o.CurrentVersion == "" {
-		o.CurrentVersion = version.Version
+		if v := os.Getenv("PAGES_CURRENT_VERSION"); v != "" {
+			o.CurrentVersion = v
+		} else {
+			o.CurrentVersion = version.Version
+		}
 	}
 	if o.ReleaseBaseURL == "" {
 		o.ReleaseBaseURL = BaseURL()

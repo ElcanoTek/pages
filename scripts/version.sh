@@ -105,10 +105,7 @@ tree_is_dirty() {
 
 # newest_tag prints the highest release tag REACHABLE FROM HEAD, or nothing.
 newest_tag() {
-	local tag
-	tag="$(git describe --tags --abbrev=0 --match "$TAG_GLOB" 2>/dev/null)" || return 0
-	is_release_tag "$tag" || return 0
-	printf '%s' "$tag"
+	git tag --merged HEAD --list "$TAG_GLOB" 2>/dev/null | cmd_filter | tail -n 1
 }
 
 cmd_current() {
@@ -127,11 +124,9 @@ cmd_current() {
 # nothing. release.yml's idempotence check calls it rather than matching the
 # glob itself.
 cmd_released_at() {
-	local rev="${1:-HEAD}" tag
+	local rev="${1:-HEAD}"
 	in_pages_git_repo || return 0
-	tag="$(git describe --tags --exact-match --match "$TAG_GLOB" "$rev" 2>/dev/null)" || return 0
-	is_release_tag "$tag" || return 0
-	printf '%s\n' "$tag"
+	git tag --points-at "$rev" --list "$TAG_GLOB" 2>/dev/null | cmd_filter | tail -n 1
 }
 
 cmd_describe() {
@@ -141,23 +136,14 @@ cmd_describe() {
 	fi
 
 	local -a meta=()
-	local version
+	local version tag distance
 
-	local described
-	if described="$(git describe --tags --long --abbrev=12 --match "$TAG_GLOB" 2>/dev/null)"; then
-		local sha without_sha distance
-		sha="${described##*-g}"
-		without_sha="${described%-g*}"
-		distance="${without_sha##*-}"
-		version="${without_sha%-*}"
-		if is_release_tag "$version"; then
-			version="${version#v}"
-			if [ "$distance" != "0" ]; then
-				meta+=("$distance" "g${sha}")
-			fi
-		else
-			version="$DEV_SENTINEL"
-			meta=("g$(short_sha)")
+	tag="$(newest_tag)"
+	if [ -n "$tag" ]; then
+		version="${tag#v}"
+		distance="$(git rev-list --count "refs/tags/${tag}..HEAD" 2>/dev/null || echo 0)"
+		if [ "$distance" != "0" ]; then
+			meta+=("$distance" "g$(short_sha)")
 		fi
 	else
 		version="$DEV_SENTINEL"

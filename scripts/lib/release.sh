@@ -196,8 +196,18 @@ pages_release_verify_manifest() {
 # binary for this box; copy the verified files into DIR (a private dir, see
 # pages_release_private_dir) and print the verified binary's path there.
 pages_release_fetch() {
-  local root="$1" tag="$2" dir="$3" cache="$4" commit="${5:-}" arch cosign base name want got _max tmp rc=0
+  local root="$1" tag="$2" dir="$3" cache="$4" commit="${5:-}" arch cosign base name want got _max tmp rc=0 cur cur_tag newest
   [[ "$tag" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[1-9][0-9]*$ ]] || { echo "not a release tag: $tag" >&2; return 1; }
+  cur="${PAGES_CURRENT_VERSION:-}"
+  cur="${cur%%+*}"
+  if [[ -n "$cur" && "${PAGES_ALLOW_DOWNGRADE:-0}" != "1" && "$cur" =~ ^v?[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[1-9][0-9]*$ ]]; then
+    cur_tag="v${cur#v}"
+    newest="$(printf '%s\n%s\n' "$cur_tag" "$tag" | sort -t. -k1.2,1n -k2,2n -k3,3n -k4,4n | tail -n 1)"
+    if [[ "$newest" != "$tag" ]]; then
+      echo "downgrade refused: ${tag} is older than the running ${cur_tag} (pass --allow-downgrade to roll back on purpose)" >&2
+      return 1
+    fi
+  fi
   arch="$(pages_release_arch)" || return 1
   cosign="$(pages_release_cosign "$root" "$cache")" || return 1
   base="$(pages_release_base_url)/${tag}"
