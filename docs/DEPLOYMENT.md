@@ -95,13 +95,15 @@ and derivatives** (Rocky, Alma). It uses `dnf`, `postgresql-setup --initdb`,
 to Debian or Ubuntu as written — see [§16 Known gaps](#16-known-gaps). The binary
 itself runs anywhere Linux and PostgreSQL do.
 
-**What bootstrap installs for you:** `git`, `make`, `golang`, `postgresql`,
-`postgresql-server`, and optionally `caddy`. The box builds its own releases
-from the source checkout: `go.mod` pins the exact Go toolchain and the build runs
-with `GOTOOLCHAIN=auto`, so any Go from 1.21 on downloads that pin itself. When
-dnf's `golang` is missing or older than that, `scripts/bootstrap.sh` (and the
-updater bridge) fetch the official toolchain `go.mod` names from go.dev, check
-it against its published SHA-256 and unpack it to `/usr/local/go`.
+**What bootstrap installs for you:** `git`, `ca-certificates`, `curl`,
+`postgresql`, `postgresql-server`, and optionally `caddy`. By default,
+`scripts/bootstrap.sh` and `pages update` download and verify the keyless
+Sigstore OIDC signed release binary (`vYYYY.MM.DD.N`) using the `cosign` digest
+pinned in `cosign.lock` — no Go or `make` toolchain is required on the box.
+Pass `--from-source` (`PAGES_FROM_SOURCE=1`) if you want the box to install
+`golang` and `make` and compile from the source checkout instead (`go.mod` pins
+the exact Go toolchain and `GOTOOLCHAIN=auto` downloads that pin from `go.dev`
+when dnf's `golang` is older).
 
 **What you must have before you start:**
 
@@ -236,21 +238,24 @@ actually exercises.
 curl -fsSL https://raw.githubusercontent.com/ElcanoTek/pages/main/install.sh | sudo bash
 ```
 
-`install.sh` installs `git`, `make`, `golang`, `ca-certificates` and `curl` with
-dnf, clones `main` into `/opt/pages-src` (`PAGES_SRC_DIR`), and runs that
-checkout's `scripts/bootstrap.sh`. It refuses to run if the directory already
-exists — use `pages update` there, or re-run its `scripts/bootstrap.sh` to
-reconfigure. The manual equivalent:
+`install.sh` installs `git`, `ca-certificates` and `curl` (plus `make` and
+`golang` only when `PAGES_FROM_SOURCE=1`) with dnf, clones `main` into
+`/opt/pages-src` (`PAGES_SRC_DIR`), and runs that checkout's
+`scripts/bootstrap.sh`. It refuses to run if the directory already exists — use
+`pages update` there, or re-run its `scripts/bootstrap.sh` to reconfigure. The
+manual equivalent:
 
 ```bash
-sudo dnf install -y git
+sudo dnf install -y git curl ca-certificates
 sudo git clone https://github.com/ElcanoTek/pages.git /opt/pages-src
 cd /opt/pages-src
 sudo bash scripts/bootstrap.sh
 ```
 
-`scripts/bootstrap.sh` is a short bridge: it makes sure a Go toolchain is
-present, builds `pages` from the checkout into a temporary directory, and runs
+`scripts/bootstrap.sh` is a short bridge: by default it downloads and verifies
+the latest signed `pages` release binary with the `cosign` pinned in
+`cosign.lock` (or, with `--from-source`, makes sure a Go toolchain is present
+and builds `pages` from the checkout into a temporary directory), and runs
 `pages bootstrap`, which does the work in six steps — packages; the service
 account and the installed checkout; the first release; database, environment
 file, migrations and the initial token; the systemd unit, CLI, login banner,
@@ -290,7 +295,7 @@ fatal error, which is what you want in automation.
 
 | Path | What |
 | --- | --- |
-| `/opt/pages-src` | The git checkout, root-owned. `pages update` fetches and builds here as root, and refuses to while anything in it (or above it) is writable by the service account |
+| `/opt/pages-src` | The git checkout, root-owned. `pages update` fetches and verifies signed releases here as root (or builds with `--from-source`), and refuses to while anything in it (or above it) is writable by the service account |
 | `/opt/pages.releases/<sha>-<UTC>-<pid>/` | One release: the `pages` binary (root-owned, `0755`: the service account runs it but cannot replace it, since root runs it too through the CLI link), plus `assets` (and `.env`, when present) links to the shared paths |
 | `/opt/pages` | Symlink to the active release; the service runs `/opt/pages/pages serve` |
 | `/opt/pages.releases/previous` | Link to the last successful predecessor (after the first update) |
@@ -788,9 +793,12 @@ PAGES_UPDATE_YES=1 pages update
 ```
 
 `pages update` serializes updates to one installation with a file lock
-(`/opt/pages.update.lock`, which `pages backup` takes shared), fetches and
-fast-forwards the source checkout, and builds a complete candidate release
-under `/opt/pages.releases` (`make build` into the release directory). It then
+(`/opt/pages.update.lock`, which `pages backup` takes shared), resolves the
+latest signed release tag (`vYYYY.MM.DD.N`, or `--tag`), verifies its keyless
+Sigstore OIDC bundle and `SHA256SUMS` with the pinned `cosign` in `cosign.lock`,
+and stages a complete candidate release under `/opt/pages.releases` (or, with
+`--from-source` / `PAGES_FROM_SOURCE=1`, fast-forwards the source checkout and
+runs `make build` into the release directory). It then
 hands over to the **candidate** binary, so the code that preflights, migrates,
 renders the systemd unit and judges readiness is always the code being
 installed. Before the active service is touched, the candidate runs, as the
