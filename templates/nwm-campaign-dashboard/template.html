@@ -611,7 +611,7 @@ function initDate(){
   syncDraftInputs();renderCal();
 }
 let DEAL_DRAFT=STATE.deals.slice();
-function renderDealList(){$("#dealCount").textContent=DEAL_DRAFT.length+" of "+CONFIG.deals.length+" selected";$("#dealList").innerHTML=CONFIG.deals.map(d=>{const on=DEAL_DRAFT.indexOf(d.id)>=0;return '<label class="dealitem'+(on?" on":"")+'"><input type="checkbox" data-id="'+d.id+'"'+(on?" checked":"")+'>'+'<span><span class="sn">'+esc(d.short)+'</span><div class="fn">'+esc(d.full)+'</div></span></label>';}).join("");$("#dealList").querySelectorAll("input").forEach(cb=>{cb.onchange=()=>{const id=cb.dataset.id;if(cb.checked){if(DEAL_DRAFT.indexOf(id)<0)DEAL_DRAFT.push(id);}else DEAL_DRAFT=DEAL_DRAFT.filter(x=>x!==id);renderDealList();};});}
+function renderDealList(){$("#dealCount").textContent=DEAL_DRAFT.length+" of "+CONFIG.deals.length+" selected";$("#dealList").innerHTML=CONFIG.deals.map(d=>{const on=DEAL_DRAFT.indexOf(d.id)>=0;return '<label class="dealitem'+(on?" on":"")+'"><input type="checkbox" data-id="'+escAttr(d.id)+'"'+(on?" checked":"")+'>'+'<span><span class="sn">'+esc(d.short)+'</span><div class="fn">'+esc(d.full)+'</div></span></label>';}).join("");$("#dealList").querySelectorAll("input").forEach(cb=>{cb.onchange=()=>{const id=cb.dataset.id;if(cb.checked){if(DEAL_DRAFT.indexOf(id)<0)DEAL_DRAFT.push(id);}else DEAL_DRAFT=DEAL_DRAFT.filter(x=>x!==id);renderDealList();};});}
 function syncDealTrigger(){const sel=CONFIG.deals.filter(d=>STATE.deals.indexOf(d.id)>=0);$("#dealTriggerLabel").textContent=(sel.length===CONFIG.deals.length)?"All deals":(sel.length<=2?sel.map(d=>d.short).join(" + "):sel.length+" deals");$("#scopeNote").textContent="Showing: "+((sel.length===CONFIG.deals.length)?"all deals":sel.length+" of "+CONFIG.deals.length+" deals")+" \u00B7 one table per channel";}
 function initDeal(){$("#dealTrigger").onclick=e=>{e.stopPropagation();const p=$("#dealPop"); const open=p.classList.contains("open");closeAll(); if(!open){DEAL_DRAFT=STATE.deals.slice();renderDealList();p.classList.add("open");}};$("#dealPop").onclick=e=>e.stopPropagation();$("#dealAll").onclick=()=>{DEAL_DRAFT=CONFIG.deals.map(d=>d.id);renderDealList();};$("#dealClear").onclick=()=>{DEAL_DRAFT=[];renderDealList();};$("#dealCancel").onclick=()=>{$("#dealPop").classList.remove("open");};$("#dealDone").onclick=()=>{STATE.deals=DEAL_DRAFT.length?DEAL_DRAFT.slice():CONFIG.deals.map(d=>d.id);$("#dealPop").classList.remove("open"); renderAll();};}
 function closeAll(){document.querySelectorAll(".pop,.dpop").forEach(p=>p.classList.remove("open"));}
@@ -657,8 +657,9 @@ initDate(); initDeal(); renderAll();
   /* Every string and every affordance below matches lib/render.js's built-in
      control. A partner moving between a templated dashboard and one Pages renders
      itself sees the same menu; two vocabularies for one thing is the mess. */
+  const safeNavPath = function(u){ return (typeof u === "string" && u.startsWith("/") && !u.startsWith("//") && !u.startsWith("/\\")) ? u : ""; };
   const portalName = (nav.portal && nav.portal.name) ? nav.portal.name : "";
-  const portalUrl = (nav.portal && nav.portal.url) ? nav.portal.url : "";
+  const portalUrl = (nav.portal && nav.portal.url) ? safeNavPath(nav.portal.url) : "";
   const menu = document.createElement("nav");
   menu.className = "pagenav__menu";
   menu.setAttribute("aria-label", portalName ? portalName + " dashboards" : "Your dashboards");
@@ -667,12 +668,13 @@ initDate(); initDeal(); renderAll();
      used to name it without offering a way back. */
   const label = document.createElement(portalUrl ? "a" : "div");
   label.className = "pagenav__label";
-  if(portalUrl) label.href = portalUrl;
+  if(portalUrl && portalUrl.startsWith("/")) label.href = portalUrl;
   label.textContent = portalName || "Your dashboards";
   menu.append(label);
   pages.forEach(function(entry){
     const link = document.createElement("a");
-    link.href = entry.url;                  /* ready-made and absolute: slugs nest */
+    const entryUrl = safeNavPath(entry && entry.url);
+    if(entryUrl && entryUrl.startsWith("/")) link.href = entryUrl; /* ready-made and absolute: slugs nest */
     link.textContent = entry.title || entry.slug;
     if(entry.current) link.setAttribute("aria-current","page");
     if(entry.home){
