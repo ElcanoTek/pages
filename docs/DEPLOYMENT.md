@@ -100,10 +100,12 @@ itself runs anywhere Linux and PostgreSQL do.
 `scripts/bootstrap.sh` and `pages update` download and verify the keyless
 Sigstore OIDC signed release binary (`vYYYY.MM.DD.N`) using the `cosign` digest
 pinned in `cosign.lock` — no Go or `make` toolchain is required on the box.
-Pass `--from-source` (`PAGES_FROM_SOURCE=1`) if you want the box to install
-`golang` and `make` and compile from the source checkout instead (`go.mod` pins
-the exact Go toolchain and `GOTOOLCHAIN=auto` downloads that pin from `go.dev`
-when dnf's `golang` is older).
+Pass `--from-source` (`PAGES_FROM_SOURCE=1`) to `scripts/bootstrap.sh` if you
+want the box to install `golang` and `make` and compile from the source checkout
+instead (`go.mod` pins the exact Go toolchain and `GOTOOLCHAIN=auto` downloads
+that pin from `go.dev` when dnf's `golang` is older; if you later run
+`pages update --from-source` on a host bootstrapped in signed-release mode,
+install `golang` and `make` via `dnf` first).
 
 **What you must have before you start:**
 
