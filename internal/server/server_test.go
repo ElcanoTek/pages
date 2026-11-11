@@ -301,6 +301,9 @@ func TestViewBroker(t *testing.T) {
 
 func TestMeRootLogout(t *testing.T) {
 	e := setup(t, func() { t.Setenv("AUTH_LOGIN_URL", "https://auth.northwind.example/") })
+	if r := e.get("/logout?lang=es-MX", opt{}); r.status != 303 || r.header.Get("Location") != "https://auth.northwind.example/logout?lang=es" {
+		t.Fatalf("localized logout = %d %s", r.status, r.header.Get("Location"))
+	}
 	me := e.get("/api/me", opt{cookie: e.adminCk})
 	if me.status != 200 || me.body != `{"email":"admin@elcanotek.com","tenant":"","admin":true}` {
 		t.Fatalf("/api/me = %d %s", me.status, me.body)
@@ -313,6 +316,14 @@ func TestMeRootLogout(t *testing.T) {
 	}
 	if r := e.get("/", opt{}); r.status != 302 || r.header.Get("Location") != "/admin" {
 		t.Fatalf("/ = %d %s", r.status, r.header.Get("Location"))
+	}
+	if r := e.get("/?lang=pt", opt{}); r.status != 302 || r.header.Get("Location") != "/admin?lang=pt" {
+		t.Fatalf("localized root = %d %s", r.status, r.header.Get("Location"))
+	}
+	if r := e.get("/admin?lang=es", opt{}); r.status != 302 {
+		t.Fatalf("localized sign-in = %d", r.status)
+	} else if destination, err := url.Parse(r.header.Get("Location")); err != nil || destination.Query().Get("lang") != "es" || !strings.Contains(destination.Query().Get("return_to"), "/admin?lang=es") {
+		t.Fatalf("localized sign-in destination = %s", r.header.Get("Location"))
 	}
 	for _, m := range []string{"GET", "POST", "DELETE"} {
 		if r := e.do(m, "/logout", opt{}); r.status != 303 || r.header.Get("Location") != "https://auth.northwind.example/logout" {

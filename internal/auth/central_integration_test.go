@@ -748,6 +748,9 @@ func TestCentralCallbackRetainsLanguage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if authorize.Query().Get("lang") != tc.language || authorize.Query().Get("redirect_uri") != "http://localhost/auth/callback" {
+				t.Fatal("Auth language metadata or fixed callback changed")
+			}
 			h.auth.mu.Lock()
 			h.auth.tokenStatus = tc.tokenStatus
 			h.auth.mu.Unlock()
@@ -778,5 +781,22 @@ func TestCentralCallbackRetainsLanguage(t *testing.T) {
 	response := h.req("GET", "/auth/callback?code=expired&state=wrong", cookieFrom(start, "pages_login"), nil, nil)
 	if response.status != 400 || !strings.Contains(response.body, "Sign-in expired") || cookieFrom(response, "pages_session") != "" {
 		t.Fatalf("unverified callback = %d %s", response.status, response.body)
+	}
+}
+
+func TestCentralLogoutForwardsLanguage(t *testing.T) {
+	h := newHarness(t)
+	login := h.req("GET", "/admin?lang=pt", "", nil, nil)
+	destination, err := url.Parse(login.headers.Get("Location"))
+	if err != nil || login.status != 302 || destination.Query().Get("lang") != "pt" || destination.Query().Get("next") != "/admin?lang=pt" {
+		t.Fatal("language did not reach the local sign-in page")
+	}
+	for _, tc := range []struct{ query, suffix string }{
+		{"lang=es", "&lang=es"}, {"lang=pt-BR", "&lang=pt"}, {"lang=en", "&lang=en"}, {"lang=unsupported", ""},
+	} {
+		response := h.req("GET", "/logout?"+tc.query, "", map[string]string{"Sec-Fetch-Site": "same-origin"}, nil)
+		if response.status != 303 || response.headers.Get("Location") != h.auth.srv.URL+"/logout?client_id=pages"+tc.suffix {
+			t.Fatalf("logout %s = %d %s", tc.query, response.status, response.headers.Get("Location"))
+		}
 	}
 }

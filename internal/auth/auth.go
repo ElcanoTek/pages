@@ -40,6 +40,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/db"
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
@@ -329,7 +330,7 @@ func (a *Authenticator) LoginRedirectURL(r *http.Request) string {
 		if jsstr.UTF16Len(target) > 2048 {
 			target = "/admin"
 		}
-		return "/auth/login?next=" + httpx.EncodeURIComponent(target)
+		return i18n.FromRequest(r).URL("/auth/login?next=" + httpx.EncodeURIComponent(target))
 	}
 	// Caddy terminates TLS and proxies to us over plain HTTP, so the
 	// connection reads as plain on a genuinely https request. Trust the
@@ -348,7 +349,7 @@ func (a *Authenticator) LoginRedirectURL(r *http.Request) string {
 		host = "localhost"
 	}
 	returnTo := protocol + "://" + host + target
-	return a.loginURL + "/?return_to=" + httpx.EncodeURIComponent(returnTo)
+	return a.loginURL + i18n.FromRequest(r).URL("/?return_to="+httpx.EncodeURIComponent(returnTo))
 }
 
 func (a *Authenticator) fail(w http.ResponseWriter, r *http.Request, err error) {

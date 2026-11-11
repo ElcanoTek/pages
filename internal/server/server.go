@@ -449,11 +449,11 @@ func (s *Server) serveRoutes(w http.ResponseWriter, r *http.Request) {
 	// so the browser re-issues as GET. In central mode the sign-in surface
 	// owns /logout (served upstream).
 	case s.central == nil && logoutRE.MatchString(p):
-		httpx.Redirect(w, r, http.StatusSeeOther, s.auth.LoginURL()+"/logout")
+		httpx.Redirect(w, r, http.StatusSeeOther, s.auth.LoginURL()+i18n.FromRequest(r).URL("/logout"))
 	// Root is not a public surface: bounce to /admin, which is admin-gated —
 	// staff land on the welcome index, everyone else is sent to sign-in.
 	case run(&rtRoot, func(w http.ResponseWriter, r *http.Request, _ route.Params) {
-		httpx.Redirect(w, r, http.StatusFound, "/admin")
+		httpx.Redirect(w, r, http.StatusFound, i18n.FromRequest(r).URL("/admin"))
 	}):
 	default:
 		dashboardNotFound(w, r)

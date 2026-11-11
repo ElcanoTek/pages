@@ -180,6 +180,11 @@ func Icon(name, className string) string {
 // central logout refuses as foreign.
 func Header(email string, locales ...i18n.Locale) string {
 	locale := i18n.First(locales...)
+	languageField := ""
+	if locale.Explicit {
+		// GET form submission replaces the action query with successful fields.
+		languageField = `<input type="hidden" name="lang" value="` + Esc(locale.Language) + `">`
+	}
 	return `<header class="page-header">
   <div class="ds-app-header shell-header">
     <a class="ds-app-header__brand brand-link" href="` + Esc(locale.URL("/admin")) + `" aria-label="` + Esc(locale.T("Pages home")) + `">
@@ -195,7 +200,7 @@ func Header(email string, locales ...i18n.Locale) string {
         ` + Icon("sun", "icon-inline theme-toggle__icon theme-toggle__icon--sun") + `
         ` + Icon("moon", "icon-inline theme-toggle__icon theme-toggle__icon--moon") + `
       </button>
-      <form class="header-signout-form" method="get" action="/logout">
+      <form class="header-signout-form" method="get" action="` + Esc(locale.URL("/logout")) + `">` + languageField + `
         <button class="icon-action header-signout" type="submit" aria-label="` + Esc(locale.T("Sign out")) + `" title="` + Esc(locale.T("Sign out")) + `">` + Icon("logout", "") + `</button>
       </form>
     </div>

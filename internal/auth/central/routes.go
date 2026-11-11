@@ -250,7 +250,7 @@ func (x *routes) noAccess(w http.ResponseWriter, r *http.Request) {
 	x.page(w, r, http.StatusForbidden, i18n.Source("No access"),
 		i18n.Source("Your account does not have access to Pages"),
 		i18n.Source("You are signed in, but this account has not been granted Pages. Ask an administrator to grant it in the account console."),
-		&CTA{Href: x.rt.Config.Issuer + "/account", Label: i18n.Source("Your account")})
+		&CTA{Href: x.rt.Config.Issuer + i18n.FromRequest(r).URL("/account"), Label: i18n.Source("Your account")})
 }
 
 func (x *routes) login(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +271,13 @@ func (x *routes) login(w http.ResponseWriter, r *http.Request) {
 	tx := NewTransaction(next, 0)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Set-Cookie", x.rt.Cookie(x.rt.LoginCookie, SealTransaction(tx, x.rt.Config.TransactionKey), LoginTransactionSeconds))
-	httpx.Redirect(w, r, http.StatusSeeOther, x.rt.Client.AuthorizationURL(tx.State, tx.Nonce, tx.Challenge))
+	authorize := x.rt.Client.AuthorizationURL(tx.State, tx.Nonce, tx.Challenge)
+	if destination, parseErr := url.Parse(next); parseErr == nil {
+		if language := i18n.Normalize(destination.Query().Get("lang")); language != "" {
+			authorize += "&lang=" + language
+		}
+	}
+	httpx.Redirect(w, r, http.StatusSeeOther, authorize)
 }
 
 func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
@@ -501,7 +507,11 @@ func (x *routes) logout(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("Set-Cookie", x.rt.clearCookie(x.rt.SessionCookie))
 	h.Add("Set-Cookie", x.rt.clearCookie(x.rt.LoginCookie))
-	httpx.Redirect(w, r, http.StatusSeeOther, x.rt.Client.LogoutURL())
+	destination := x.rt.Client.LogoutURL()
+	if locale := i18n.FromRequest(r); locale.Explicit {
+		destination += "&lang=" + locale.Language
+	}
+	httpx.Redirect(w, r, http.StatusSeeOther, destination)
 }
 
 // signedOut is registered with Auth as the post-logout landing. Public and

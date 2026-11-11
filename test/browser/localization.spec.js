@@ -39,6 +39,8 @@ for(const language of ["es","pt"]) {
     await expect(page).toHaveURL(new RegExp("lang="+language));
     await expect(page.getByRole("heading",{level:1,name:"Client 01 operations dashboard"})).toBeVisible();
     await expect(page.getByRole("heading",{name:language==="es"?"Configuración":"Definições",exact:true})).toBeVisible();
+    await page.goto("/admin/long/client/q2-report?lang="+language);
+    await expect(page.locator("#preview-open-full")).toHaveAttribute("href",new RegExp("lang="+language));
     await page.goto("/admin/templates?lang="+language);
     await expect(page.getByRole("heading",{level:1,name:templates})).toBeVisible();
     await expect(page.getByRole("columnheader",{name:"Páginas",exact:true})).toBeVisible();
@@ -86,6 +88,10 @@ test("denied storage still permits language changes and section navigation",asyn
   await page.getByRole("link",{name:"Biblioteca de modelos",exact:true}).click();
   await expect(page).toHaveURL(/\/admin\/templates\?lang=pt$/);
   await expect(page.getByRole("heading",{level:1,name:"Biblioteca de modelos"})).toBeVisible();
+  await page.route("**/logout*", route => route.fulfill({status:200, contentType:"text/html", body:"<!doctype html><title>Signed out</title>"}));
+  await page.locator("button.header-signout").click();
+  await page.getByRole("dialog").getByRole("button",{name:"Terminar sessão",exact:true}).click();
+  await expect(page).toHaveURL(/\/logout\?lang=pt$/);
 });
 
 test("browser language supplies the initial choice with English fallback",async({browser})=>{
@@ -110,6 +116,10 @@ test("scriptless gates retain localized forms and customer names",async({browser
   await expect(page.getByRole("heading",{name:"Northwind Media Group"})).toBeVisible();
   await expect(page.getByText("Empieza aquí",{exact:true})).toBeVisible();
   await expect(page.locator(".portal-list a").first()).toHaveAttribute("href",/lang=es/);
+  await page.goto("/admin?lang=pt");
+  await page.route("**/logout*", route => route.fulfill({status:200, contentType:"text/html", body:"<!doctype html><title>Signed out</title>"}));
+  await page.locator("button.header-signout").click();
+  await expect(page).toHaveURL(/\/logout\?lang=pt$/);
   await context.close();
 });
 

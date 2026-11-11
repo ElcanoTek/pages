@@ -529,7 +529,7 @@
       frame.src = I18N.ownedURL(result.url);
       const full = document.getElementById("preview-open-full");
       if (full) {
-        full.href = result.url;
+        full.href = I18N.ownedURL(result.url);
         full.hidden = false;
       }
       frame.onload = () => {
