@@ -14,10 +14,10 @@ import (
 	"github.com/ElcanoTek/pages/internal/ops/install"
 )
 
-// The app-data verbs (token, template, access) talk to the database the
-// server uses, and `token` must hash with the SERVICE's API_TOKEN_PEPPER — a
-// token minted with a different or absent pepper is one the server never
-// matches. On an installed box neither is in the operator's shell: they live
+// The app-data verbs (token, template, access, refresh-schedule, check-idle)
+// talk to the database the server uses, and `token` must hash with the
+// SERVICE's API_TOKEN_PEPPER — a token minted with a different or absent pepper
+// is one the server never matches. On an installed box neither is in the operator's shell: they live
 // in the service environment file (root:pages 0640). So, like the unit
 // itself, these verbs run as the service account with that file's
 // assignments, and `sudo pages token add agent deploy` just works.
