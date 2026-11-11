@@ -49,7 +49,7 @@ func TestTranslationDataAndNavigation(t *testing.T) {
 	if got := locale.T("Customer authored {0}", "text"); got != "Customer authored text" {
 		t.Fatal(got)
 	}
-	if got := locale.URL("/admin?workspace=2#review"); got != "/admin?lang=es&workspace=2#review" {
+	if got := locale.URL("/admin?workspace=2#review"); got != "/admin?workspace=2&lang=es#review" {
 		t.Fatal(got)
 	}
 	for _, href := range []string{"https://customer.example/a?x=1", "//customer.example/a"} {
@@ -72,6 +72,29 @@ func TestTranslationDataAndNavigation(t *testing.T) {
 	}
 	if strings.Contains(locale.Bootstrap(), "</script>") {
 		t.Fatal("unsafe JSON island")
+	}
+}
+
+func TestNavigationPreservesUnrelatedQueryBytes(t *testing.T) {
+	for _, tc := range []struct{ name, input, want string }{
+		{"semicolon", "/admin?q=alpha;beta", "/admin?q=alpha;beta&lang=pt"},
+		{"opaque values", "/admin?q=%zz%&amount=100%done&space=a%20b&plus=a+b&state=A%2bB%2fC%3d", "/admin?q=%zz%&amount=100%done&space=a%20b&plus=a+b&state=A%2bB%2fC%3d&lang=pt"},
+		{"duplicates", "/admin?filter=one&filter=two&l%61ng=en&%6cang=es&lang=fr&LANG=keep", "/admin?filter=one&filter=two&LANG=keep&lang=pt"},
+		{"empty fields and malformed key", "/admin?&flag&&%zz=keep&lang=es&", "/admin?&flag&&%zz=keep&&lang=pt"},
+		{"trailing empty field", "/admin?lang=es&", "/admin?&lang=pt"},
+		{"owned empty key", "/admin?lang&lang=&x=1", "/admin?x=1&lang=pt"},
+		{"encoded path and fragment", "/admin/a%2fb?lang=es&q=one;two#saved%2fview", "/admin/a%2fb?q=one;two&lang=pt#saved%2fview"},
+		{"empty query", "/admin?", "/admin?lang=pt"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			locale := Locale{Language: "pt-BR", Explicit: true}
+			if got := locale.URL(tc.input); got != tc.want {
+				t.Fatalf("URL(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+			if got := locale.URL(tc.want); got != tc.want {
+				t.Fatalf("repeated language navigation changed unrelated fields: %q", got)
+			}
+		})
 	}
 }
 

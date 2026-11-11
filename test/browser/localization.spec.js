@@ -123,6 +123,21 @@ test("scriptless gates retain localized forms and customer names",async({browser
   await context.close();
 });
 
+test("scriptless language links preserve opaque query fields",async({browser,baseURL})=>{
+  const context=await browser.newContext({javaScriptEnabled:false,baseURL});
+  const page=await context.newPage();
+  const query="q=alpha;beta&token=A%2bB%2fC%3d&filter=one&filter=two&&flag&";
+  await page.goto("/gate/password?"+query+"l%61ng=en&lang=es");
+  await expect(page.getByRole("link",{name:"Português",exact:true})).toHaveAttribute("href","/gate/password?"+query+"lang=pt");
+  await page.getByRole("link",{name:"Português",exact:true}).click();
+  await expect(page).toHaveURL(baseURL+"/gate/password?"+query+"lang=pt");
+  await expect(page.getByRole("heading",{name:"Esta página está protegida"})).toBeVisible();
+  await page.getByRole("link",{name:"Español",exact:true}).click();
+  await expect(page).toHaveURL(baseURL+"/gate/password?"+query+"lang=es");
+  await expect(page.getByLabel("Contraseña de la página")).toBeVisible();
+  await context.close();
+});
+
 test("the injected Page menu translates without modifying customer content",async({page})=>{
   await page.goto("/dashboard/raw-with-portal?lang=pt");
   await expect(page.getByRole("heading",{name:"Harbor Sun · flight to date"})).toBeVisible();

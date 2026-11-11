@@ -165,9 +165,20 @@ func (l Locale) URL(path string) string {
 	if err != nil || u.IsAbs() || u.Host != "" {
 		return path
 	}
-	q := u.Query()
-	q.Set("lang", First(l).Language)
-	u.RawQuery = q.Encode()
+	// Query parses and re-encodes unrelated values, and silently drops fields
+	// with literal semicolons or malformed escapes. Only the owned key needs
+	// decoding; preserve every other field, including its order and spelling.
+	var fields []string
+	if u.RawQuery != "" {
+		for _, field := range strings.Split(u.RawQuery, "&") {
+			key, _, _ := strings.Cut(field, "=")
+			if decoded, decodeErr := url.QueryUnescape(key); decodeErr == nil && decoded == "lang" {
+				continue
+			}
+			fields = append(fields, field)
+		}
+	}
+	u.RawQuery = strings.Join(append(fields, "lang="+First(l).Language), "&")
 	return u.String()
 }
 

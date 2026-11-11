@@ -14,4 +14,6 @@ Language changes affect Pages controls and guidance. They do not translate custo
 
 Keep complete sentences and separate singular/plural forms. Preserve numeric placeholders, code, URLs, commands, and identifiers. Mark a static Go message that is selected dynamically with `i18n.Source` so catalog coverage can find it. Never apply translation to arbitrary user content or HTML.
 
+Server language links and authentication return URLs replace only the decoded `lang` query key. Keep all other raw query fields, including literal semicolons, repeated keys, empty fields, and opaque percent escapes; parsing and re-encoding the entire query can silently discard data. Authentication still validates local return paths and applies its existing fragment and HTTP redirect escaping rules.
+
 `go test ./internal/i18n` checks request negotiation and server-message coverage. `node --test test/frontend.test.js` checks browser negotiation, storage denial, catalog parity, placeholder parity, and browser-message coverage. `npx playwright test test/browser/localization.spec.js` covers all dashboard sections, scriptless gates, storage failures, language persistence, and unchanged customer content.
