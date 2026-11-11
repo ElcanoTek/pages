@@ -10,6 +10,8 @@
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.PagesUI = api;
 })(typeof window !== "undefined" ? window : null, function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
   // The shell loads this file from its versioned base
   // (/shell-assets/_v/<version>/primitives.js, see internal/assetver), so the
   // sprite is resolved against that URL and shares its version and its
@@ -50,6 +52,8 @@
         node.addEventListener(key.slice(2), value);
       } else if (["checked", "disabled", "selected", "readOnly", "required", "autofocus"].includes(key)) {
         node[key] = Boolean(value);
+      } else if (key === "href" && tag === "a" && /^\/admin(?:[/?#]|$)/.test(String(value))) {
+        node.setAttribute(key, I18N.withLanguage(String(value)));
       } else if (key === "value") {
         node.value = value;
       } else {
@@ -80,9 +84,9 @@
   // behaviour. They stay pure so test/unit.test.js can cover them under plain
   // `node --test`, with no DOM and no new dependency.
 
-  // Timestamps render in the browser's own locale, exactly as the four local
-  // `fmt` helpers did. `locale`/`timeZone` are undefined in production and exist
-  // only so a unit test can assert an exact string. Each call site passes the
+  // Timestamps follow the selected interface language. Explicit locale/timeZone
+  // options also support UTC operational dates and deterministic tests. Each
+  // call site passes the
   // fallback wording it already uses; unifying those four wordings is #151.
   // Timestamps in an operations UI answer "how stale is this?", and a reader
   // computes that from "7/22/2026, 9:25:00 AM" by doing arithmetic. So say it:
@@ -96,7 +100,7 @@
   const HOUR = 60 * MINUTE;
   const DAY = 24 * HOUR;
   const RELATIVE_LIMIT = 7 * DAY;
-  const WHEN_FALLBACK = "Never";
+  const WHEN_FALLBACK = t("Never");
 
   function toDate(value) {
     if (value == null || value === "") return null;
@@ -117,7 +121,7 @@
   function relativeWhen(elapsed, locale) {
     // numeric:"auto" is what turns -1 day into "yesterday" rather than "1 day ago".
     const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-    if (elapsed < MINUTE) return "just now";
+    if (elapsed < MINUTE) return t("just now");
     if (elapsed < HOUR) return rtf.format(-Math.round(elapsed / MINUTE), "minute");
     if (elapsed < DAY) return rtf.format(-Math.round(elapsed / HOUR), "hour");
     return rtf.format(-Math.round(elapsed / DAY), "day");
@@ -127,7 +131,7 @@
   // "time" (the clock alone).
   // `now` exists so the relative branch is testable without freezing the clock.
   function formatWhen(value, options = {}) {
-    const { fallback = WHEN_FALLBACK, style = "auto", locale, timeZone, now } = options;
+    const { fallback = WHEN_FALLBACK, style = "auto", locale = I18N.locale, timeZone, now } = options;
     const date = toDate(value);
     if (!date) return fallback;
     if (style === "date") return absoluteWhen(date, { locale, timeZone, withTime: false });
@@ -153,14 +157,14 @@
     return el("time", {
       class: options.class,
       datetime: date.toISOString(),
-      title: absoluteWhen(date, { locale: options.locale, timeZone: options.timeZone, withTime: true }),
+      title: absoluteWhen(date, { locale: options.locale || I18N.locale, timeZone: options.timeZone, withTime: true }),
     }, text);
   }
 
   // One caller today (the attached-file help line on /admin/templates). It is
   // exported anyway so no screen has to reach for toLocaleString() itself: the
   // point of this module is that every locale-dependent format lives in one file.
-  function formatCount(value, locale) {
+  function formatCount(value, locale = I18N.locale) {
     return Number(value).toLocaleString(locale);
   }
 
@@ -176,13 +180,15 @@
   }
 
   // The single error-message policy for the whole admin UI: the server's own
-  // words when it sent any, else the status. `text` is deliberately unused — a
+  // words translated at presentation when known, else the original text or status. `text` is deliberately unused — a
   // non-JSON body (an nginx 502 page, say) must never reach a toast, so it is
   // kept on error.text instead. The parameter documents that decision.
   function describeError(status, body, text) {
     void text;
     const usable = (value) => (typeof value === "string" && value.trim() ? value : null);
-    return (body && (usable(body.error) || usable(body.message))) || `Request failed (${status})`;
+    const value = body && (usable(body.error) || usable(body.message));
+    const messages = typeof window !== "undefined" && window.PagesMessages ? window.PagesMessages : require("./messages.js");
+    return value ? messages.message(value) : t("Request failed ({0})", status);
   }
 
   // ── the admin JSON API ──────────────────────────────────────────────────────
@@ -244,7 +250,7 @@
         signal,
       });
     } catch (cause) {
-      const failure = new Error((cause && cause.message) || "Network request failed");
+      const failure = new Error((cause && cause.message) || t("Network request failed"));
       failure.status = 0;
       failure.code = "network";
       failure.body = null;
@@ -293,7 +299,7 @@
   // level, for the same reason state() takes one: these panels are dropped inside
   // sections of different depths, and a hard-coded <h2> between two <h3>s inverts
   // the outline even while it is hidden.
-  function loadingContent(title = "Loading", message, options = {}) {
+  function loadingContent(title = t("Loading"), message, options = {}) {
     const nodes = [
       el("span", { class: "spinner spinner--panel", "aria-hidden": "true" }),
       el(options.level || "h2", { class: "state-panel__title" }, title),
@@ -358,8 +364,8 @@
       item.append(el("button", {
         class: "icon-action toast__close",
         type: "button",
-        "aria-label": "Dismiss",
-        title: "Dismiss",
+        "aria-label": t("Dismiss"),
+        title: t("Dismiss"),
         onclick: dismiss,
       }, icon("close")));
       item.addEventListener("mouseenter", () => { if (timer) window.clearTimeout(timer); timer = null; });
@@ -380,15 +386,15 @@
   function loadFailed(noun, error, retry) {
     // request() guarantees .message is a displayable sentence — a server's own
     // words when it sent any, "Request failed (503)" when it did not.
-    const reason = (error && error.message) || "Something went wrong.";
+    const reason = (error && error.message) || t("Something went wrong.");
     const guidance = error && error.status === 0
-      ? "Check your connection and try again."
-      : "Try again, or reload if it keeps happening.";
+      ? t("Check your connection and try again.")
+      : t("Try again, or reload if it keeps happening.");
     return errorState(
-      `Couldn't load ${noun}`,
+      t("Couldn't load {0}", noun),
       `${reason.replace(/\.?$/, ".")} ${guidance}`,
       typeof retry === "function"
-        ? el("button", { class: "btn btn-primary", type: "button", onclick: () => retry() }, "Try again")
+        ? el("button", { class: "btn btn-primary", type: "button", onclick: () => retry() }, t("Try again"))
         : retry || null
     );
   }
@@ -407,12 +413,12 @@
     const closeButton = el("button", {
       class: "icon-action ui-dialog__close",
       type: "button",
-      "aria-label": options.closeLabel || "Close dialog",
-      title: options.closeLabel || "Close dialog",
+      "aria-label": options.closeLabel || t("Close dialog"),
+      title: options.closeLabel || t("Close dialog"),
     }, icon("close"));
     const heading = el("div", { class: "ui-dialog__heading" },
       options.kicker ? el("p", { class: "overline" }, options.kicker) : null,
-      el("h2", { id: titleId }, options.title || "Dialog"),
+      el("h2", { id: titleId }, options.title || t("Dialog")),
       options.description ? el("p", { id: descriptionId, class: "ui-dialog__description" }, options.description) : null);
     const body = el("div", { class: "ui-dialog__body" });
     const actions = el("div", { class: "ui-dialog__actions" });
@@ -488,11 +494,11 @@
   // Shared so both screens promise the same thing in the same words.
   function credentialDialog({ title, kicker, description, value, notes, actions, closeLabel } = {}) {
     const modal = makeDialog({
-      title: title || "Copy this now",
-      kicker: kicker || "Copy this now",
+      title: title || t("Copy this now"),
+      kicker: kicker || t("Copy this now"),
       description: description
-        || "This is the only time Pages will show this. It cannot be read back.",
-      closeLabel: closeLabel || "Close",
+        || t("This is the only time Pages will show this. It cannot be read back."),
+      closeLabel: closeLabel || t("Close"),
       onClose() { modal.dialog.remove(); },
     });
     modal.body.append(
@@ -500,11 +506,11 @@
       ...[].concat(notes || []).filter(Boolean).map((note) =>
         (note && note.nodeType) ? note : el("p", { class: "note" }, note))
     );
-    const copy = el("button", { class: "btn", type: "button" }, icon("copy"), "Copy");
+    const copy = el("button", { class: "btn", type: "button" }, icon("copy"), t("Copy"));
     copy.addEventListener("click", async () => {
       try {
         await copyText(value);
-        toast("Copied");
+        toast(t("Copied"));
       } catch (error) {
         toast(error.message, { tone: "error" });
       }
@@ -512,7 +518,7 @@
     modal.actions.append(
       copy,
       ...[].concat(actions || []).filter(Boolean),
-      el("button", { class: "btn btn-primary", type: "button", onclick: () => modal.close("ack") }, "Done")
+      el("button", { class: "btn btn-primary", type: "button", onclick: () => modal.close("ack") }, t("Done"))
     );
     modal.open(document.activeElement);
     modal.body.querySelector("pre")?.focus();
@@ -523,20 +529,20 @@
     return new Promise((resolve) => {
       let settled = false;
       const modal = makeDialog({
-        title: options.title || "Confirm action",
-        kicker: options.kicker || "Confirmation",
-        description: options.message || "Are you sure?",
-        closeLabel: "Close confirmation",
+        title: options.title || t("Confirm action"),
+        kicker: options.kicker || t("Confirmation"),
+        description: options.message || t("Are you sure?"),
+        closeLabel: t("Close confirmation"),
         onClose() {
           if (!settled) resolve(false);
           modal.dialog.remove();
         },
       });
-      const cancel = el("button", { class: "btn", type: "button" }, options.cancelLabel || "Cancel");
+      const cancel = el("button", { class: "btn", type: "button" }, options.cancelLabel || t("Cancel"));
       const proceed = el("button", {
         class: options.danger ? "btn btn-danger-solid" : "btn btn-primary",
         type: "button",
-      }, options.confirmLabel || "Confirm");
+      }, options.confirmLabel || t("Confirm"));
       cancel.addEventListener("click", () => modal.requestClose("cancel"));
       proceed.addEventListener("click", () => {
         settled = true;
@@ -559,9 +565,9 @@
   // must never cost the way out: where a modal dialog cannot open the button
   // is left as it is, and if opening one fails it signs out directly.
   const SIGN_OUT_CONFIRMATION = {
-    title: "Sign out?",
-    message: "You'll be signed out of all your apps, not just Pages.",
-    confirmLabel: "Sign out",
+    title: t("Sign out?"),
+    message: t("You'll be signed out of all your apps, not just Pages."),
+    confirmLabel: t("Sign out"),
   };
 
   function confirmSignOut(button) {
@@ -610,22 +616,22 @@
   // --color-status-warning-* tokens, which the design system has always shipped
   // and this stylesheet never used.
   const STATUS_KINDS = {
-    live: { tone: "live", label: "Live" },
-    gated: { tone: "live", label: "Live · gated" },
-    published: { tone: "live", label: "Published" },
-    approved: { tone: "live", label: "Approved" },
+    live: { tone: "live", label: t("Live") },
+    gated: { tone: "live", label: t("Live · gated") },
+    published: { tone: "live", label: t("Published") },
+    approved: { tone: "live", label: t("Approved") },
     // "Current" is the expected state of a revision — colouring it makes every
     // healthy row shout. Only "Behind" is worth standing out.
-    current: { tone: "draft", label: "Current" },
-    set: { tone: "live", label: "Set" },
-    pending: { tone: "pending", label: "Pending" },
-    behind: { tone: "warning", label: "Behind" },
-    warning: { tone: "warning", label: "Warning" },
-    draft: { tone: "draft", label: "Draft" },
+    current: { tone: "draft", label: t("Current") },
+    set: { tone: "live", label: t("Set") },
+    pending: { tone: "pending", label: t("Pending") },
+    behind: { tone: "warning", label: t("Behind") },
+    warning: { tone: "warning", label: t("Warning") },
+    draft: { tone: "draft", label: t("Draft") },
     neutral: { tone: "draft", label: "" },
-    rejected: { tone: "error", label: "Rejected" },
-    disabled: { tone: "error", label: "Disabled" },
-    error: { tone: "error", label: "Error" },
+    rejected: { tone: "error", label: t("Rejected") },
+    disabled: { tone: "error", label: t("Disabled") },
+    error: { tone: "error", label: t("Error") },
   };
 
   // A pill. `label` overrides the vocabulary's own word where a screen has a more
@@ -643,14 +649,14 @@
           el("h1", { id }, title),
           intro ? el("p", { class: "page-heading__intro" }, intro) : null),
         live.length ? el("div", { class: "page-heading__actions" }, ...live) : null),
-      tiles.length ? el("div", { class: "stats", "aria-label": `${title} statistics` }, ...tiles) : null);
+      tiles.length ? el("div", { class: "stats", "aria-label": t("{0} statistics", title) }, ...tiles) : null);
   }
 
   function statTile(value, singular, plural) {
     const count = Number(value) || 0;
     return el("div", { class: "stat" },
       el("strong", {}, String(count)),
-      el("span", {}, count === 1 ? singular : (plural || `${singular}s`)));
+      el("span", {}, count === 1 ? singular : (plural || singular)));
   }
 
   function statusChip(kind, label, options = {}) {
@@ -704,7 +710,7 @@
       button.setAttribute("aria-busy", "true");
       button.replaceChildren(
         el("span", { class: "spinner spinner--inline", "aria-hidden": "true" }),
-        document.createTextNode(label || "Working…")
+        document.createTextNode(label || t("Working…"))
       );
     } else {
       button.disabled = false;
@@ -713,7 +719,7 @@
       // what the button says after the action ("Enable page" after a disable).
       if (label) button.replaceChildren(document.createTextNode(label));
       else if (idleContent.has(button)) button.replaceChildren(...idleContent.get(button));
-      else button.textContent = "Done";
+      else button.textContent = t("Done");
       idleContent.delete(button);
     }
   }
@@ -846,7 +852,7 @@
       }
     }
     if (copyBySelection(text)) return;
-    throw new Error("Couldn't copy automatically. Select the value and copy it with your keyboard.");
+    throw new Error(t("Couldn't copy automatically. Select the value and copy it with your keyboard."));
   }
 
   return {

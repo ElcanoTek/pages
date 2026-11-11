@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ElcanoTek/pages/internal/assetver"
+	"github.com/ElcanoTek/pages/internal/i18n"
 )
 
 // StandaloneCSS is the one inline sheet every standalone page carries (the
@@ -68,6 +69,9 @@ const StandaloneCSS = `  :root{--pages-action-fill:color-mix(in srgb,var(--color
   .credential-account{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   @media(max-width:30rem){body{padding:var(--space-4)}.card{padding:var(--space-5)}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important}}
+  .language-links{display:flex;flex-wrap:wrap;gap:var(--space-4);font-size:var(--font-size-caption)}
+  .language-links a{color:var(--color-text-secondary)}
+  .language-links [aria-current]{font-weight:var(--font-weight-bold);color:var(--color-text-primary)}
   .cta{width:fit-content;min-height:3rem;padding:var(--space-3) var(--space-5);display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--pages-action-fill);border-radius:var(--radius-md);color:var(--color-white);background:var(--pages-action-fill);text-decoration:none;font-weight:var(--font-weight-bold);transition:background var(--transition-fast),border-color var(--transition-fast)}
   .cta:hover{border-color:var(--pages-action-hover);background:var(--pages-action-hover)}
 `
@@ -98,21 +102,22 @@ type StandaloneOptions struct {
 // rather than on prefers-color-scheme, so following the OS would mean writing
 // a second palette by hand for surfaces that carry no product UI. These pages
 // are a brand moment; the dashboard behind them keeps its own theme.
-func Standalone(o StandaloneOptions) string {
+func Standalone(o StandaloneOptions, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	base := o.AssetsBase
 	if base == "" {
 		base = assetver.ContentFlag()
 	}
 	action := ""
 	if o.CTA != nil {
-		action = `<a class="cta" href="` + Esc(o.CTA.Href) + `">` + Esc(o.CTA.Label) + `</a>`
+		action = `<a class="cta" href="` + Esc(locale.URL(o.CTA.Href)) + `">` + Esc(o.CTA.Label) + `</a>`
 	}
 	kicker := ""
 	if o.Kicker != "" {
 		kicker = `<p class="kicker">` + Esc(o.Kicker) + `</p>`
 	}
 	var b strings.Builder
-	b.WriteString(`<!doctype html><html lang="en" data-theme="dark"><head>
+	b.WriteString(`<!doctype html><html lang="` + locale.Language + `" data-theme="dark"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark">
 <title>` + Esc(o.Title) + `</title>
 <link rel="icon" href="` + base + `/logos/elcano-mark-favicon.svg" type="image/svg+xml">
@@ -130,6 +135,7 @@ func Standalone(o StandaloneOptions) string {
     ` + o.BodyHTML + `
     ` + action + `
   </main>
+  ` + LanguageLinks(locale) + `
 </div></body></html>`)
 	return b.String()
 }

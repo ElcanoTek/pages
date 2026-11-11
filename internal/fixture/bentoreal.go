@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/render"
 )
@@ -49,14 +51,14 @@ func realDeck(w http.ResponseWriter, r *req) (string, bool) {
 }
 
 func (a *App) realBentoRoutes() []route {
-	serve := func(headers func() csp.Headers, body func(deck string) string) handler {
+	serve := func(headers func() csp.Headers, body func(deck string, r *req) string) handler {
 		return func(w http.ResponseWriter, r *req) {
 			deck, ok := realDeck(w, r)
 			if !ok {
 				return
 			}
 			headers().Apply(w.Header())
-			sendHTML(w, r.Request, http.StatusOK, body(deck))
+			sendHTML(w, r.Request, http.StatusOK, body(deck, r))
 		}
 	}
 	options := func(w http.ResponseWriter, r *req) {
@@ -64,11 +66,12 @@ func (a *App) realBentoRoutes() []route {
 		w.WriteHeader(http.StatusNoContent)
 	}
 	return []route{
-		{method: "GET", pattern: "/bento/real", h: serve(csp.RawHeaders, func(deck string) string {
+		{method: "GET", pattern: "/bento/real", h: serve(csp.RawHeaders, func(deck string, r *req) string {
 			return renderPage(deck, "raw", nil, "")
 		})},
-		{method: "GET", pattern: "/bento/real-edit", h: serve(a.editHeaders, func(deck string) string {
+		{method: "GET", pattern: "/bento/real-edit", h: serve(a.editHeaders, func(deck string, r *req) string {
 			return render.EditSession(deck, render.EditSessionOptions{
+				Locale:        i18n.FromRequest(r.Request),
 				SaveURL:       a.origin + "/bento/real-save",
 				Token:         "fixture-edit-token",
 				VersionID:     "1",

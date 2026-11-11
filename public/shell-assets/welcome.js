@@ -22,6 +22,8 @@ function filterWorkspacePages(pages, view, query = "") {
 if (typeof module !== "undefined" && module.exports) module.exports = { filterWorkspacePages };
 
 if (typeof document !== "undefined") (function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
   const UI = window.PagesUI;
   const { el, icon, toast, makeDialog, confirmDialog, setBusy, field, runAction, formatWhen, timeWhen, slugPath, errorState, emptyState, keepingFocus, statusDot, statusChip, pageHeader, statTile, loadFailed } = UI;
   const Health = window.PagesRefreshHealth;
@@ -93,11 +95,11 @@ if (typeof document !== "undefined") (function () {
 
   function statusNode(page) {
     const kind = statusOf(page);
-    return statusDot(kind, kind === "pending" ? "Approval gated" : null);
+    return statusDot(kind, kind === "pending" ? t("Approval gated") : null);
   }
 
   function workspaceOptions(select, workspaces) {
-    select.append(el("option", { value: "" }, "Ungrouped"));
+    select.append(el("option", { value: "" }, t("Ungrouped")));
     for (const workspace of workspaces) {
       select.append(el("option", { value: String(workspace.id) }, workspace.name));
     }
@@ -112,12 +114,12 @@ if (typeof document !== "undefined") (function () {
       id: `workspace-of-${page.id}`,
       class: "btn btn-ghost btn-sm workspace-assignment__button",
       type: "button",
-      "aria-label": `Workspace for ${page.title || page.slug}: ${page.workspace_name || "Ungrouped"}. Change`,
-      title: "Move to another workspace",
+      "aria-label": t("Workspace for {0}: {1}. Change", page.title || page.slug, page.workspace_name || t("Ungrouped")),
+      title: t("Move to another workspace"),
       onclick: (event) => openMoveDialog(event.currentTarget, page, workspaces),
-    }, page.workspace_name || "Ungrouped");
+    }, page.workspace_name || t("Ungrouped"));
 
-    const days = (n) => (n === 0 ? "today" : n === 1 ? "1d ago" : `${n}d ago`);
+    const days = (n) => (n === 0 ? t("today") : n === 1 ? t("1d ago") : t("{0}d ago", n));
 
     // A dashboard frozen for six weeks looked exactly like one refreshed this
     // morning, in this very table: "Last update" is the page ROW's updated_at,
@@ -138,18 +140,18 @@ if (typeof document !== "undefined") (function () {
       if (!freshness) return null;
       const { days_since_source: source, days_since_refresh: refresh, days_since_check: check } = freshness;
       const parts = [];
-      if (source !== null) parts.push(`Data ${source === 0 ? "today" : `${source}d old`}`);
-      else if (freshness.refreshed_at) parts.push("No data yet");
-      if (check !== null && (refresh === null || check < refresh)) parts.push(`checked ${days(check)}`);
+      if (source !== null) parts.push(t("Data {0}", source === 0 ? t("today") : t("{0}d old", source)));
+      else if (freshness.refreshed_at) parts.push(t("No data yet"));
+      if (check !== null && (refresh === null || check < refresh)) parts.push(t("checked {0}", days(check)));
       if (!parts.length) return null;
       const detail = [
-        `Source coverage: ${freshness.source_as_of ? formatWhen(freshness.source_as_of) : "none yet"}`,
-        `Refreshed: ${formatWhen(freshness.refreshed_at)}`,
-        `Last checked: ${formatWhen(freshness.checked_at)}`,
-        freshness.latest_outcome ? `Latest outcome: ${freshness.latest_outcome}` : null,
+        t("Source coverage: {0}", freshness.source_as_of ? formatWhen(freshness.source_as_of) : t("none yet")),
+        t("Refreshed: {0}", formatWhen(freshness.refreshed_at)),
+        t("Last checked: {0}", formatWhen(freshness.checked_at)),
+        freshness.latest_outcome ? t("Latest outcome: {0}", window.PagesMessages.outcome(freshness.latest_outcome)) : null,
         freshness.latest_detail,
         freshness.last_check_at && freshness.last_check_at !== freshness.checked_at
-          ? `Previous check: ${formatWhen(freshness.last_check_at)} (${freshness.last_check_outcome || "unknown"})` : null,
+          ? t("Previous check: {0} ({1})", formatWhen(freshness.last_check_at), window.PagesMessages.outcome(freshness.last_check_outcome || "unknown")) : null,
       ].filter(Boolean).join("\n");
       return el("span", { class: "table-meta", title: detail },
         ...parts.map((part) => el("span", { class: "table-meta__line" }, part)));
@@ -171,7 +173,7 @@ if (typeof document !== "undefined") (function () {
     const refreshHealthNode = (row) => {
       if (Health.needsAttention(row)) {
         const { kind, label } = Health.describeHealth(row);
-        const reason = row.refresh_health.health_reason || "";
+        const reason = window.PagesMessages.healthReason(row.refresh_health, row.freshness || {});
         return el("div", { class: "refresh-health" },
           statusChip(kind, label, { title: reason }),
           el("span", { class: "refresh-health__reason", title: reason }, reason));
@@ -191,66 +193,66 @@ if (typeof document !== "undefined") (function () {
       page.published_version_id && !page.disabled
         ? el("a", {
             class: "btn btn-ghost btn-sm",
-            href: `/view/${slugPath(page.slug)}`,
+            href: I18N.ownedURL(`/view/${slugPath(page.slug)}`),
             target: "_blank",
             rel: "noopener",
-            title: `Open the live client page for /${page.slug} in a new tab`,
+            title: t("Open the live client page for /{0} in a new tab", page.slug),
             // The sprite has no external-link glyph; the page-switcher already
             // uses a bare arrow character for the same reason.
-          }, "View live", el("span", { "aria-hidden": "true" }, "\u2197"))
+          }, t("View live"), el("span", { "aria-hidden": "true" }, "\u2197"))
         : null,
       boot.compose && page.published_version_id
-        ? el("button", { id: `revise-page-${page.id}`, class: "btn btn-ghost btn-sm", type: "button", onclick: (event) => openComposeDialog(event.currentTarget, "revise", page.slug) }, "Revise")
+        ? el("button", { id: `revise-page-${page.id}`, class: "btn btn-ghost btn-sm", type: "button", onclick: (event) => openComposeDialog(event.currentTarget, "revise", page.slug) }, t("Revise"))
         : null);
 
     return el("tr", {},
-      el("td", { "data-label": "Status" }, statusNode(page)),
-      el("td", { "data-label": "Page" },
+      el("td", { "data-label": t("Status"), "data-column": "status" }, statusNode(page)),
+      el("td", { "data-label": t("Page"), "data-column": "page" },
         el("div", { class: "page-cell" },
           el("a", { class: "page-cell__title", href: `/admin/${slugPath(page.slug)}` }, page.title || page.slug),
           el("code", {}, `/${page.slug}`))),
-      el("td", { "data-label": "Live version" },
+      el("td", { "data-label": t("Live version"), "data-column": "live" },
         page.published_version_id
           ? el("span", {
               class: "table-meta",
-              title: "Page-local version number",
-            }, Number(page.published_version_number) > 0 ? `Version ${page.published_version_number}` : "Published")
-          : el("span", { class: "table-meta" }, "Not published")),
+              title: t("Page-local version number"),
+            }, Number(page.published_version_number) > 0 ? t("Version {0}", page.published_version_number) : t("Published"))
+          : el("span", { class: "table-meta" }, t("Not published"))),
       // Two independent facts — when the page changed, and how old its data is —
       // were inline siblings, so they ran together as "5 minutes agoData 46d old".
       // .page-cell is the stack this table already uses for title-over-slug.
-      el("td", { "data-label": "Last update" },
+      el("td", { "data-label": t("Last update"), "data-column": "updated" },
         el("div", { class: "page-cell" },
           timeWhen(page.updated_at, { class: "table-meta" }),
           dataAgeNode(page.freshness),
           refreshHealthNode(page))),
-      el("td", { "data-label": "Workspace" },
+      el("td", { "data-label": t("Workspace"), "data-column": "workspace" },
         el("div", { class: "workspace-assignment" }, assignment)),
-      el("td", { "data-label": "Actions" }, actions));
+      el("td", { "data-label": t("Actions"), "data-column": "actions" }, actions));
   }
 
   function operationalList(pages, workspaces) {
     // --index opts this table into the bespoke collapsed arrangement keyed to
-    // these six data-labels. Other operation-tables collapse generically.
+    // these six stable column keys. Other operation-tables collapse generically.
     const table = el("table", { class: "operation-table operation-table--index" },
-      el("caption", { class: "sr-only" }, "Pages, serving status, current live version, update time, workspace, and actions"),
+      el("caption", { class: "sr-only" }, t("Pages, serving status, current live version, update time, workspace, and actions")),
       el("thead", {}, el("tr", {},
-        el("th", { class: "operation-table__status", scope: "col" }, "Status"),
-        el("th", { class: "operation-table__page", scope: "col" }, "Page"),
-        el("th", { class: "operation-table__live", scope: "col" }, "Live version"),
-        el("th", { class: "operation-table__updated", scope: "col" }, "Last update"),
-        el("th", { class: "operation-table__workspace", scope: "col" }, "Workspace"),
-        el("th", { class: "operation-table__actions", scope: "col" }, "Actions"))),
+        el("th", { class: "operation-table__status", scope: "col" }, t("Status")),
+        el("th", { class: "operation-table__page", scope: "col" }, t("Page")),
+        el("th", { class: "operation-table__live", scope: "col" }, t("Live version")),
+        el("th", { class: "operation-table__updated", scope: "col" }, t("Last update")),
+        el("th", { class: "operation-table__workspace", scope: "col" }, t("Workspace")),
+        el("th", { class: "operation-table__actions", scope: "col" }, t("Actions")))),
       el("tbody", {}, pages.map((page) => operationRow(page, workspaces))));
     return el("div", { class: "operation-table-wrap" }, table);
   }
 
   function activeWorkspaceLabel(workspaces) {
-    if (currentView === "ungrouped") return "Ungrouped";
+    if (currentView === "ungrouped") return t("Ungrouped");
     if (currentView.startsWith("workspace:")) {
-      return workspaces.find((workspace) => String(workspace.id) === workspaceIdForView())?.name || "All pages";
+      return workspaces.find((workspace) => String(workspace.id) === workspaceIdForView())?.name || t("All pages");
     }
-    return "All pages";
+    return t("All pages");
   }
 
   function changeView(view, focusSelector) {
@@ -261,7 +263,7 @@ if (typeof document !== "undefined") (function () {
   }
 
   function workspaceNavigation(pages, workspaces) {
-    const nav = el("nav", { class: "workspace-nav", "aria-label": "Page workspaces" });
+    const nav = el("nav", { class: "workspace-nav", "aria-label": t("Page workspaces") });
     const add = (view, label, count) => {
       nav.append(el("button", {
         class: "workspace-nav__item",
@@ -271,42 +273,42 @@ if (typeof document !== "undefined") (function () {
       }, el("span", { class: "workspace-nav__label", title: label }, label),
          el("span", { class: "workspace-nav__count" }, String(count))));
     };
-    add("all", "All pages", pages.length);
-    add("ungrouped", "Ungrouped", pages.filter((page) => page.workspace_id == null).length);
+    add("all", t("All pages"), pages.length);
+    add("ungrouped", t("Ungrouped"), pages.filter((page) => page.workspace_id == null).length);
     workspaces.forEach((workspace) => add(`workspace:${workspace.id}`, workspace.name, Number(workspace.page_count || 0)));
     return el("aside", { class: "workspace-sidebar" },
       el("div", { class: "workspace-sidebar__head" },
-        el("h2", {}, "Workspaces"),
+        el("h2", {}, t("Workspaces")),
         el("button", {
           id: "workspace-manager-sidebar",
           class: "icon-action",
           type: "button",
-          title: "Manage workspaces",
-          "aria-label": "Manage workspaces",
+          title: t("Manage workspaces"),
+          "aria-label": t("Manage workspaces"),
           onclick: (event) => openWorkspaceManager(event.currentTarget),
         }, icon("folder"))),
       nav);
   }
 
   function mobileWorkspacePicker(pages, workspaces) {
-    const select = el("select", { id: "mobile-workspace", "aria-label": "Current workspace" },
-      el("option", { value: "all" }, `All pages (${pages.length})`),
-      el("option", { value: "ungrouped" }, `Ungrouped (${pages.filter((page) => page.workspace_id == null).length})`));
+    const select = el("select", { id: "mobile-workspace", "aria-label": t("Current workspace") },
+      el("option", { value: "all" }, t("All pages ({0})", pages.length)),
+      el("option", { value: "ungrouped" }, t("Ungrouped ({0})", pages.filter((page) => page.workspace_id == null).length)));
     for (const workspace of workspaces) {
       select.append(el("option", { value: `workspace:${workspace.id}` }, `${workspace.name} (${workspace.page_count || 0})`));
     }
     select.value = currentView;
     select.addEventListener("change", () => changeView(select.value, "#mobile-workspace"));
     return el("div", { class: "workspace-mobile" },
-      field({ id: "mobile-workspace", label: "Workspace", control: select, wrap: "label" }),
+      field({ id: "mobile-workspace", label: t("Workspace"), control: select, wrap: "label" }),
       el("button", {
         id: "workspace-manager-mobile",
         class: "btn workspace-mobile__manage",
         type: "button",
-        title: "Manage workspaces",
-        "aria-label": "Manage workspaces",
+        title: t("Manage workspaces"),
+        "aria-label": t("Manage workspaces"),
         onclick: (event) => openWorkspaceManager(event.currentTarget),
-      }, icon("folder"), el("span", { class: "workspace-mobile__manage-label" }, "Manage workspaces")));
+      }, icon("folder"), el("span", { class: "workspace-mobile__manage-label" }, t("Manage workspaces"))));
   }
 
   function openMoveDialog(trigger, page, workspaces) {
@@ -316,34 +318,34 @@ if (typeof document !== "undefined") (function () {
     const status = el("p", { class: "field-error", role: "alert" });
 
     const modal = makeDialog({
-      kicker: "Organization",
-      title: `Move ${page.title || `/${page.slug}`}`,
-      description: "Workspaces group pages for this index only. Moving one changes nothing a client sees.",
-      closeLabel: "Close move dialog",
+      kicker: t("Organization"),
+      title: t("Move {0}", page.title || `/${page.slug}`),
+      description: t("Workspaces group pages for this index only. Moving one changes nothing a client sees."),
+      closeLabel: t("Close move dialog"),
     });
     const form = el("form", { class: "form-stack" },
-      field({ id: "move-workspace", label: "Workspace", control: select }),
+      field({ id: "move-workspace", label: t("Workspace"), control: select }),
       status);
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
+    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     // The action row is a sibling of the body, so a type="submit" button there is
     // outside the form and submits nothing. Every dialog on this screen bridges it
     // the same way.
-    const save = el("button", { class: "btn btn-primary", type: "button" }, "Move page");
+    const save = el("button", { class: "btn btn-primary", type: "button" }, t("Move page"));
     save.addEventListener("click", () => form.requestSubmit());
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       status.textContent = "";
       const outcome = await runAction({
         button: save,
-        busyLabel: "Moving…",
+        busyLabel: t("Moving…"),
         run: () => api(`/pages/${slugPath(page.slug)}/workspace`, {
           body: { workspace_id: select.value ? Number(select.value) : null },
         }),
-        success: `Moved /${page.slug}`,
-        failure: (error) => `Couldn't move /${page.slug}: ${error.message}`,
+        success: t("Moved /{0}", page.slug),
+        failure: (error) => t("Couldn't move /{0}: {1}", page.slug, error.message),
       });
       if (!outcome.ok) {
-        status.textContent = outcome.error ? outcome.error.message : "Something went wrong.";
+        status.textContent = outcome.error ? outcome.error.message : t("Something went wrong.");
         return;
       }
       modal.close("moved");
@@ -384,21 +386,21 @@ if (typeof document !== "undefined") (function () {
       return filters[name];
     };
     const attention = filterButton("attention", "attention-filter",
-      "Pages whose scheduled refresh is blocked, overdue, or finding no new source data",
-      `Needs attention (${attentionCount})`);
+      t("Pages whose scheduled refresh is blocked, overdue, or finding no new source data"),
+      t("Needs attention ({0})", attentionCount));
     // Only offered when there is something to show (or it is already on, so it
     // can be turned off): on an estate where every live page has a schedule it
     // would be a permanent "(0)" beside the one filter that matters.
     const unscheduled = unscheduledCount || indexFilter === "unscheduled"
       ? filterButton("unscheduled", "unscheduled-filter",
-          "Live pages with no refresh schedule whose data is more than 7 days old: set a schedule, or ignore the ones whose campaign has ended",
+          t("Live pages with no refresh schedule whose data is more than 7 days old: set a schedule, or ignore the ones whose campaign has ended"),
           `${Health.NO_REFRESH.filter} (${unscheduledCount})`)
       : null;
     const search = el("input", {
       type: "search",
       value: currentQuery,
-      placeholder: "Search title, slug, or workspace",
-      "aria-label": `Search ${label}`,
+      placeholder: t("Search title, slug, or workspace"),
+      "aria-label": t("Search {0}", label),
     });
     const results = el("div", { class: "workspace-index__results" });
 
@@ -414,9 +416,9 @@ if (typeof document !== "undefined") (function () {
       // The count is the only thing that says the list is not all of it, so it
       // has to say so rather than reporting a total the table does not show.
       const total = currentQuery.trim() || indexFilter
-        ? `${visible.length} of ${baseCount} ${baseCount === 1 ? "page" : "pages"}`
-        : `${baseCount} ${baseCount === 1 ? "page" : "pages"}`;
-      count.textContent = remaining > 0 ? `Showing ${windowed.length} of ${total}` : total;
+        ? (baseCount === 1 ? t("{0} of 1 page", visible.length) : t("{0} of {1} pages", visible.length, baseCount))
+        : (baseCount === 1 ? t("1 page") : t("{0} pages", baseCount));
+      count.textContent = remaining > 0 ? t("Showing {0} of {1}", windowed.length, total) : total;
       if (visible.length) {
         const list = operationalList(windowed, workspaces);
         if (remaining <= 0) {
@@ -456,9 +458,9 @@ if (typeof document !== "undefined") (function () {
             // — without dragging the viewport along.
             count.focus({ preventScroll: true });
           },
-        }, `Show ${Math.min(remaining, PAGE_WINDOW)} more`);
+        }, t("Show {0} more", Math.min(remaining, PAGE_WINDOW)));
         results.replaceChildren(list, el("div", { class: "index-more" },
-          el("span", { class: "table-meta" }, `${remaining} more ${remaining === 1 ? "page" : "pages"}`),
+          el("span", { class: "table-meta" }, remaining === 1 ? t("1 more page") : t("{0} more pages", remaining)),
           more));
         return;
       }
@@ -466,8 +468,8 @@ if (typeof document !== "undefined") (function () {
       if (indexFilter && !searching) {
         const active = filters[indexFilter];
         const [title, text] = indexFilter === "attention"
-          ? ["Nothing needs attention", "Every page with a refresh schedule here is on time, finding new data and showing all of it."]
-          : ["Every live page has a refresh", "No live page here has gone more than 7 days without new data and without a refresh schedule."];
+          ? [t("Nothing needs attention"), t("Every page with a refresh schedule here is on time, finding new data and showing all of it.")]
+          : [t("Every live page has a refresh"), t("No live page here has gone more than 7 days without new data and without a refresh schedule.")];
         results.replaceChildren(emptyState(title, text,
           el("button", {
             class: "btn",
@@ -478,7 +480,7 @@ if (typeof document !== "undefined") (function () {
               draw();
               active.focus();
             },
-          }, "Show all pages")));
+          }, t("Show all pages"))));
         return;
       }
       // An empty workspace used to say "Move a page here from another workspace."
@@ -489,17 +491,17 @@ if (typeof document !== "undefined") (function () {
             class: "btn btn-primary",
             type: "button",
             onclick: (event) => openNewPageDialog(event.currentTarget),
-          }, icon("plus"), "New page")
+          }, icon("plus"), t("New page"))
         : el("button", {
             class: "btn",
             type: "button",
             onclick: () => changeView("all", '.workspace-nav__item[aria-pressed="true"]'),
-          }, `Show all ${pages.length} pages`);
+          }, t("Show all {0} pages", pages.length));
       results.replaceChildren(emptyState(
-        searching ? "No matching pages" : `Nothing in ${label}`,
+        searching ? t("No matching pages") : t("Nothing in {0}", label),
         searching
-          ? "Try a title, slug, or workspace name."
-          : pages.length ? "Move a page here from another workspace." : "Create an empty page, then add source from its review screen or deploy over MCP.",
+          ? t("Try a title, slug, or workspace name.")
+          : pages.length ? t("Move a page here from another workspace.") : t("Create an empty page, then add source from its review screen or deploy over MCP."),
         action
       ));
     }
@@ -520,41 +522,41 @@ if (typeof document !== "undefined") (function () {
           attention,
           unscheduled,
           el("label", { class: "search-field" },
-            el("span", { class: "sr-only" }, `Search ${label}`),
+            el("span", { class: "sr-only" }, t("Search {0}", label)),
             icon("search"), search))),
       results);
   }
 
   function openNewPageDialog(trigger) {
     const modal = makeDialog({
-      title: "New page",
-      kicker: "Create",
-      description: "Create an empty page shell. Add source from its review screen or deploy content over MCP.",
+      title: t("New page"),
+      kicker: t("Create"),
+      description: t("Create an empty page shell. Add source from its review screen or deploy content over MCP."),
       onClose: () => modal.dialog.remove(),
     });
     const slug = el("input", { id: "new-page-slug", type: "text", autocapitalize: "off", autocomplete: "off", spellcheck: "false", placeholder: "client/report-q2", required: true });
-    const title = el("input", { id: "new-page-title", type: "text", placeholder: "Client Q2 report" });
+    const title = el("input", { id: "new-page-title", type: "text", placeholder: t("Client Q2 report") });
     const workspace = el("select", { id: "new-page-workspace" });
     workspaceOptions(workspace, currentData.workspaces);
     workspace.value = workspaceIdForView();
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
-    const create = el("button", { class: "btn btn-primary", type: "submit" }, "Create page");
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
+    const create = el("button", { class: "btn btn-primary", type: "submit" }, t("Create page"));
+    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const form = el("form", { class: "form-stack" },
       el("div", { class: "form-grid" },
         field({
           id: "new-page-slug",
-          label: "Slug",
+          label: t("Slug"),
           control: slug,
-          help: "Lowercase path; nested slugs such as client/q2 are supported.",
+          help: t("Lowercase path; nested slugs such as client/q2 are supported."),
           wrap: "label",
         }),
-        field({ id: "new-page-title", label: "Title (optional)", control: title, wrap: "label" })),
-      field({ id: "new-page-workspace", label: "Workspace", control: workspace, wrap: "label" }));
+        field({ id: "new-page-title", label: t("Title (optional)"), control: title, wrap: "label" })),
+      field({ id: "new-page-workspace", label: t("Workspace"), control: workspace, wrap: "label" }));
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (!slug.value.trim()) { status.textContent = "Enter a slug."; slug.focus(); return; }
-      setBusy(create, true, "Creating…");
+      if (!slug.value.trim()) { status.textContent = t("Enter a slug."); slug.focus(); return; }
+      setBusy(create, true, t("Creating…"));
       status.textContent = "";
       try {
         const result = await api("/pages", {
@@ -564,10 +566,10 @@ if (typeof document !== "undefined") (function () {
             workspace_id: workspace.value ? Number(workspace.value) : null,
           },
         });
-        window.location.assign(`/admin/${slugPath(result.page.slug)}`);
+        window.location.assign(I18N.withLanguage(`/admin/${slugPath(result.page.slug)}`));
       } catch (error) {
         status.textContent = error.message;
-        setBusy(create, false, "Create page");
+        setBusy(create, false, t("Create page"));
       }
     });
     modal.body.append(form, status);
@@ -578,37 +580,37 @@ if (typeof document !== "undefined") (function () {
   }
 
   function renderWorkspaceManager(modal, workspaces) {
-    const name = el("input", { id: "workspace-create-name", type: "text", maxlength: "100", placeholder: "Client or team name", required: true });
-    const add = el("button", { class: "btn btn-primary", type: "submit" }, "Add workspace");
+    const name = el("input", { id: "workspace-create-name", type: "text", maxlength: "100", placeholder: t("Client or team name"), required: true });
+    const add = el("button", { class: "btn btn-primary", type: "submit" }, t("Add workspace"));
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
     const createForm = el("form", { class: "workspace-create-form" },
-      field({ id: "workspace-create-name", label: "Workspace name", control: name, wrap: "label" }),
+      field({ id: "workspace-create-name", label: t("Workspace name"), control: name, wrap: "label" }),
       add,
       status);
     createForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const value = name.value.trim();
-      if (!value) { status.textContent = "Enter a workspace name."; name.focus(); return; }
-      setBusy(add, true, "Adding…");
+      if (!value) { status.textContent = t("Enter a workspace name."); name.focus(); return; }
+      setBusy(add, true, t("Adding…"));
       try {
         const result = await api("/workspaces", { body: { name: value } });
         setView(`workspace:${result.workspace.id}`);
         await load();
         renderWorkspaceManager(modal, currentData.workspaces);
-        toast(`Created ${result.workspace.name}`);
+        toast(t("Created {0}", result.workspace.name));
       } catch (error) {
         status.textContent = error.message;
-        setBusy(add, false, "Add workspace");
+        setBusy(add, false, t("Add workspace"));
       }
     });
 
     const list = el("div", { class: "workspace-manager-list" });
-    if (!workspaces.length) list.append(emptyState("No workspaces yet", "Create one to group related client pages."));
+    if (!workspaces.length) list.append(emptyState(t("No workspaces yet"), t("Create one to group related client pages.")));
     for (const workspace of workspaces) {
       const row = el("div", { class: "workspace-manager-row" });
       const actions = el("div", { class: "workspace-manager-row__actions" });
-      const rename = el("button", { class: "btn btn-sm", type: "button" }, "Rename");
-      const remove = el("button", { class: "btn btn-sm btn-danger", type: "button" }, "Remove");
+      const rename = el("button", { class: "btn btn-sm", type: "button" }, t("Rename"));
+      const remove = el("button", { class: "btn btn-sm btn-danger", type: "button" }, t("Remove"));
       actions.append(rename, remove);
       row.append(el("div", { class: "workspace-manager-row__main" },
         el("div", { class: "workspace-manager-row__copy" },
@@ -617,24 +619,24 @@ if (typeof document !== "undefined") (function () {
         actions));
 
       rename.addEventListener("click", () => {
-        const input = el("input", { type: "text", maxlength: "100", value: workspace.name, "aria-label": `New name for ${workspace.name}` });
-        const save = el("button", { class: "btn btn-sm btn-primary", type: "submit" }, "Save");
-        const cancel = el("button", { class: "btn btn-sm", type: "button" }, "Cancel");
+        const input = el("input", { type: "text", maxlength: "100", value: workspace.name, "aria-label": t("New name for {0}", workspace.name) });
+        const save = el("button", { class: "btn btn-sm btn-primary", type: "submit" }, t("Save"));
+        const cancel = el("button", { class: "btn btn-sm", type: "button" }, t("Cancel"));
         const form = el("form", { class: "workspace-rename-form" }, input, save, cancel);
         cancel.addEventListener("click", () => renderWorkspaceManager(modal, currentData.workspaces));
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
           const value = input.value.trim();
           if (!value) { input.focus(); return; }
-          setBusy(save, true, "Saving…");
+          setBusy(save, true, t("Saving…"));
           try {
             await api(`/workspaces/${workspace.id}/rename`, { body: { name: value } });
             await load();
             renderWorkspaceManager(modal, currentData.workspaces);
-            toast("Workspace renamed");
+            toast(t("Workspace renamed"));
           } catch (error) {
-            toast(`Rename failed: ${error.message}`, { tone: "error" });
-            setBusy(save, false, "Save");
+            toast(t("Rename failed: {0}", error.message), { tone: "error" });
+            setBusy(save, false, t("Save"));
           }
         });
         row.replaceChildren(form);
@@ -646,9 +648,9 @@ if (typeof document !== "undefined") (function () {
         const count = Number(workspace.page_count || 0);
         const approved = await confirmDialog({
           trigger: remove,
-          title: `Remove ${workspace.name}?`,
-          message: `${count} ${count === 1 ? "page" : "pages"} will move to Ungrouped. No pages will be deleted.`,
-          confirmLabel: "Remove workspace",
+          title: t("Remove {0}?", workspace.name),
+          message: count === 1 ? t("1 page will move to Ungrouped. No pages will be deleted.") : t("{0} pages will move to Ungrouped. No pages will be deleted.", count),
+          confirmLabel: t("Remove workspace"),
           danger: true,
         });
         if (!approved) return;
@@ -658,10 +660,10 @@ if (typeof document !== "undefined") (function () {
           if (currentView === `workspace:${workspace.id}`) setView("ungrouped", { replace: true });
           await load();
           renderWorkspaceManager(modal, currentData.workspaces);
-          toast("Workspace removed; pages moved to Ungrouped");
+          toast(t("Workspace removed; pages moved to Ungrouped"));
         } catch (error) {
           remove.disabled = false;
-          toast(`Remove failed: ${error.message}`, { tone: "error" });
+          toast(t("Remove failed: {0}", error.message), { tone: "error" });
         }
       });
       list.append(row);
@@ -672,13 +674,13 @@ if (typeof document !== "undefined") (function () {
 
   function openWorkspaceManager(trigger) {
     const modal = makeDialog({
-      title: "Manage workspaces",
-      kicker: "Organization",
-      description: "Create, rename, or remove one-level groups. Removing a workspace never deletes its pages.",
+      title: t("Manage workspaces"),
+      kicker: t("Organization"),
+      description: t("Create, rename, or remove one-level groups. Removing a workspace never deletes its pages."),
       onClose: () => modal.dialog.remove(),
     });
     modal.body.classList.add("workspace-manager-body");
-    modal.actions.append(el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("done") }, "Done"));
+    modal.actions.append(el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("done") }, t("Done")));
     renderWorkspaceManager(modal, currentData.workspaces);
     modal.open(trigger);
     // Without this the dialog opens focused on its close button, while every other
@@ -686,51 +688,51 @@ if (typeof document !== "undefined") (function () {
     modal.body.querySelector("input, select, textarea")?.focus();
   }
 
-  const CREATE_PLACEHOLDER = "Describe the page, its audience, required metrics, and desired layout.";
-  const REVISE_PLACEHOLDER = "Describe what is wrong and what Cutlass should improve.";
+  const CREATE_PLACEHOLDER = t("Describe the page, its audience, required metrics, and desired layout.");
+  const REVISE_PLACEHOLDER = t("Describe what is wrong and what Cutlass should improve.");
 
   function openComposeDialog(trigger, initialMode = "create", initialSlug = "") {
     const mode = initialMode === "revise" ? "revise" : "create";
     const modal = makeDialog({
-      title: mode === "revise" ? "Revise with Cutlass" : "Compose with Cutlass",
-      kicker: mode === "revise" ? "Existing page" : "New page",
+      title: mode === "revise" ? t("Revise with Cutlass") : t("Compose with Cutlass"),
+      kicker: mode === "revise" ? t("Existing page") : t("New page"),
       description: mode === "revise"
-        ? "Cutlass reads the published page, audits it against your notes, and publishes an improved version."
-        : "Describe a page and Cutlass writes themed HTML and publishes it through the existing MCP workflow.",
+        ? t("Cutlass reads the published page, audits it against your notes, and publishes an improved version.")
+        : t("Describe a page and Cutlass writes themed HTML and publishes it through the existing MCP workflow."),
       size: "wide",
       onClose: () => modal.dialog.remove(),
     });
     const prompt = el("textarea", { id: "compose-prompt", rows: "6", placeholder: mode === "revise" ? REVISE_PLACEHOLDER : CREATE_PLACEHOLDER, required: true });
     const slug = el("input", { id: "compose-slug", type: "text", value: initialSlug, placeholder: "client-report", autocapitalize: "off", autocomplete: "off", spellcheck: "false", required: true, readOnly: mode === "revise" });
-    const title = el("input", { id: "compose-title", type: "text", placeholder: "Client report" });
+    const title = el("input", { id: "compose-title", type: "text", placeholder: t("Client report") });
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
     const log = el("pre", { class: "compose-log", hidden: true });
-    const run = el("button", { class: "btn btn-primary", type: "submit" }, mode === "revise" ? "Revise with Cutlass" : "Generate with Cutlass");
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
+    const run = el("button", { class: "btn btn-primary", type: "submit" }, mode === "revise" ? t("Revise with Cutlass") : t("Generate with Cutlass"));
+    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const form = el("form", { class: "form-stack" },
       field({
         id: "compose-prompt",
-        label: mode === "revise" ? "What to change" : "Page brief",
+        label: mode === "revise" ? t("What to change") : t("Page brief"),
         control: prompt,
         wrap: "label",
       }),
       el("div", { class: "form-grid" },
-        field({ id: "compose-slug", label: "Slug", control: slug, wrap: "label" }),
+        field({ id: "compose-slug", label: t("Slug"), control: slug, wrap: "label" }),
         mode === "create"
-          ? field({ id: "compose-title", label: "Title (optional)", control: title, wrap: "label" })
+          ? field({ id: "compose-title", label: t("Title (optional)"), control: title, wrap: "label" })
           : null),
       log);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const brief = prompt.value.trim();
       const pageSlug = slug.value.trim().toLowerCase();
-      if (!brief) { status.textContent = mode === "revise" ? "Describe what to change." : "Enter a page brief."; prompt.focus(); return; }
-      if (!pageSlug) { status.textContent = "Enter a slug."; slug.focus(); return; }
-      setBusy(run, true, mode === "revise" ? "Revising…" : "Generating…");
+      if (!brief) { status.textContent = mode === "revise" ? t("Describe what to change.") : t("Enter a page brief."); prompt.focus(); return; }
+      if (!pageSlug) { status.textContent = t("Enter a slug."); slug.focus(); return; }
+      setBusy(run, true, mode === "revise" ? t("Revising…") : t("Generating…"));
       cancel.disabled = true;
       log.hidden = false;
       log.textContent = "";
-      status.textContent = "Cutlass is starting…";
+      status.textContent = t("Cutlass is starting…");
       try {
         const { jobId } = await api("/compose", { body: { prompt: brief, slug: pageSlug, title: title.value.trim(), mode } });
         for (;;) {
@@ -738,20 +740,20 @@ if (typeof document !== "undefined") (function () {
           const job = await api(`/compose/${jobId}`);
           log.textContent = job.log || "";
           log.scrollTop = log.scrollHeight;
-          if (job.status === "running") { status.textContent = "Cutlass is working…"; continue; }
+          if (job.status === "running") { status.textContent = t("Cutlass is working…"); continue; }
           if (job.status === "done") {
-            status.textContent = `Published /${job.slug}`;
-            toast(`Cutlass published /${job.slug}`);
+            status.textContent = t("Published /{0}", job.slug);
+            toast(t("Cutlass published /{0}", job.slug));
             await load();
           } else {
-            status.textContent = "Cutlass failed. Review the log for details.";
+            status.textContent = t("Cutlass failed. Review the log for details.");
           }
           break;
         }
       } catch (error) {
         status.textContent = error.message;
       } finally {
-        setBusy(run, false, mode === "revise" ? "Revise with Cutlass" : "Generate with Cutlass");
+        setBusy(run, false, mode === "revise" ? t("Revise with Cutlass") : t("Generate with Cutlass"));
         cancel.disabled = false;
       }
     });
@@ -780,17 +782,17 @@ if (typeof document !== "undefined") (function () {
       pageHeader({
         // No kicker: the section tab above already names this screen, and
         // repeating it over a differently-worded h1 read as two headers.
-        title: "Client pages",
-        intro: "Review, publish, organize, and share versioned client work from one queue.",
+        title: t("Client pages"),
+        intro: t("Review, publish, organize, and share versioned client work from one queue."),
         actions: [
-          boot.compose ? el("button", { id: "compose-action", class: "btn", type: "button", onclick: (event) => openComposeDialog(event.currentTarget) }, icon("file"), "Compose with Cutlass") : null,
-          el("button", { id: "new-page-action", class: "btn btn-primary", type: "button", onclick: (event) => openNewPageDialog(event.currentTarget) }, icon("plus"), "New page"),
+          boot.compose ? el("button", { id: "compose-action", class: "btn", type: "button", onclick: (event) => openComposeDialog(event.currentTarget) }, icon("file"), t("Compose with Cutlass")) : null,
+          el("button", { id: "new-page-action", class: "btn btn-primary", type: "button", onclick: (event) => openNewPageDialog(event.currentTarget) }, icon("plus"), t("New page")),
         ],
         stats: [
-          statTile(currentData.pages.length, "page"),
-          statTile(live, "live", "live"),
-          statTile(gated, "approval gated", "approval gated"),
-          statTile(attention, "needs attention", "need attention"),
+          statTile(currentData.pages.length, t("page"), t("pages")),
+          statTile(live, t("live page"), t("live pages")),
+          statTile(gated, t("approval gated"), t("approval gated")),
+          statTile(attention, t("needs attention"), t("need attention")),
         ],
       }),
       mobileWorkspacePicker(currentData.pages, currentData.workspaces),
@@ -803,7 +805,7 @@ if (typeof document !== "undefined") (function () {
     try {
       render(await api("/pages"));
     } catch (error) {
-      app.replaceChildren(loadFailed("client pages", error, load));
+      app.replaceChildren(loadFailed(t("client pages"), error, load));
     }
   }
 

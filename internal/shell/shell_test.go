@@ -18,7 +18,8 @@ import (
 // the browser suite key off exact ids, classes and data attributes, so the Go
 // output must match byte for byte. Edited by hand since only to load a new
 // browser module (refresh-health.js on the index and the page detail) and to
-// make the header's sign-out an icon button in a GET form.
+// make the header's sign-out an icon button in a GET form. Localization adds
+// language controls, bootstrap data, and shared message modules.
 const (
 	nasty = `a"<b>&'c</script>`
 	weird = "line\u2028sep\u2029x\b\f\n\r\t\u0001\u001f\\\"é😀"
@@ -178,7 +179,8 @@ func TestNoInternalWordsOnDashboard404(t *testing.T) {
 
 func TestBootstrapIslandCannotCloseScript(t *testing.T) {
 	out := Head("t", Bootstrap{{"slug", "</script><script>alert(1)</script>"}}, nil)
-	if strings.Count(out, "</script>") != 3 { // theme controller, island, primitives
+	baseline := Head("t", Bootstrap{{"slug", "safe"}}, nil)
+	if strings.Count(out, "</script>") != strings.Count(baseline, "</script>") {
 		t.Fatalf("bootstrap value escaped its <script>: %s", out)
 	}
 }

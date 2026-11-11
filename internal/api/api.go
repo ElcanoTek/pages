@@ -19,6 +19,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/db"
@@ -98,7 +100,7 @@ func newHandler(d Deps, auth func(*handler, http.Handler) http.Handler) *handler
 	}
 	if d.NotFound == nil {
 		d.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpx.SendHTML(w, r, http.StatusNotFound, shell.NotFound())
+			httpx.SendHTML(w, r, http.StatusNotFound, shell.NotFound(i18n.FromRequest(r)))
 		})
 	}
 	if d.Body == (reqbody.Options{}) {

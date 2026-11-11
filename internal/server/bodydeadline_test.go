@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/shell"
 )
 
@@ -30,8 +31,8 @@ func TestStalledBodyHitsReadDeadline(t *testing.T) {
 	for _, c := range []struct {
 		path, contentType, body string
 	}{
-		{"/nope", "application/json", shell.RequestError(http.StatusBadRequest)},
-		{"/some/arbitrary/fallback", "application/x-www-form-urlencoded", shell.RequestError(http.StatusBadRequest)},
+		{"/nope", "application/json", shell.RequestError(http.StatusBadRequest, i18n.Locale{Language: "en", Location: "/nope"})},
+		{"/some/arbitrary/fallback", "application/x-www-form-urlencoded", shell.RequestError(http.StatusBadRequest, i18n.Locale{Language: "en", Location: "/some/arbitrary/fallback"})},
 		{"/api/v1/pages", "application/json", `{"error":"invalid request","code":"bad_request"}`},
 	} {
 		conn, err := net.Dial("tcp", e.srv.Listener.Addr().String())

@@ -26,6 +26,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	"github.com/jackc/pgx/v5"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
@@ -102,7 +104,7 @@ func Handler(d Deps) http.Handler {
 	}
 	if d.Next == nil {
 		d.Next = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpx.SendHTML(w, r, http.StatusNotFound, shell.NotFound())
+			httpx.SendHTML(w, r, http.StatusNotFound, shell.NotFound(i18n.FromRequest(r)))
 		})
 	}
 	if d.Body == (reqbody.Options{}) {

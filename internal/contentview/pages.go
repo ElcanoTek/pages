@@ -28,6 +28,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/env"
 	"github.com/ElcanoTek/pages/internal/httpx"
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 	"github.com/ElcanoTek/pages/internal/jsx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
@@ -58,10 +59,11 @@ func esc(s string) string { return shell.Esc(s) }
 // (password prompt, staff-only notice, 404). Scriptless by design: it runs
 // under the gate/raw CSP (default-src 'none', NO script-src). The agent's page
 // content is NEVER rendered here — this is our chrome only (invariant #2).
-func chrome(title, kicker, heading, body string) string {
+func chrome(title, kicker, heading, body string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	return shell.Standalone(shell.StandaloneOptions{
 		Title: title, Kicker: kicker, Heading: heading, BodyHTML: body, AssetsBase: assetver.ContentFlag(),
-	})
+	}, locale)
 }
 
 // GatePageOptions describe a password prompt or staff-only notice.
@@ -79,28 +81,29 @@ type GatePageOptions struct {
 
 var (
 	gatePrompt = map[string]string{
-		"page":   "Enter the client password to continue to this page.",
-		"portal": "Enter your portal password to continue to this dashboard.",
-		"either": "Enter the password for this page, or your portal password, to continue.",
+		"page":   i18n.Source("Enter the client password to continue to this page."),
+		"portal": i18n.Source("Enter your portal password to continue to this dashboard."),
+		"either": i18n.Source("Enter the password for this page, or your portal password, to continue."),
 	}
 	gateHelp = map[string]string{
-		"page":   "Use the password supplied with this page link.",
-		"portal": "Use the password from your portal link — the same one opens every dashboard in your portal.",
-		"either": "Use the password supplied with this page link, or the one from your portal link.",
+		"page":   i18n.Source("Use the password supplied with this page link."),
+		"portal": i18n.Source("Use the password from your portal link — the same one opens every dashboard in your portal."),
+		"either": i18n.Source("Use the password supplied with this page link, or the one from your portal link."),
 	}
-	gateLabel = map[string]string{"portal": "Portal password", "page": "Page password", "either": "Password"}
+	gateLabel = map[string]string{"portal": i18n.Source("Portal password"), "page": i18n.Source("Page password"), "either": i18n.Source("Password")}
 )
 
 // GatePage is the password prompt or staff-only notice, in the shared chrome.
-func GatePage(o GatePageOptions) string {
+func GatePage(o GatePageOptions, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	cred := o.Credential
 	if cred == "" {
 		cred = "page"
 	}
 	msg := ""
 	if o.Message != "" {
-		msg = `<div class="alert" id="password-error" role="alert"><strong>` + esc(o.Message) +
-			`</strong><span>Check the password and try again. Each wrong attempt adds a short delay before the next one.</span></div>`
+		msg = `<div class="alert" id="password-error" role="alert"><strong>` + esc(locale.T(o.Message)) +
+			`</strong><span>` + esc(locale.T("Check the password and try again. Each wrong attempt adds a short delay before the next one.")) + `</span></div>`
 	}
 	var body string
 	if o.ShowForm {
@@ -108,29 +111,29 @@ func GatePage(o GatePageOptions) string {
 		if o.Message != "" {
 			described += " password-error"
 		}
-		body = `<p class="sub">` + esc(gatePrompt[cred]) + `</p>` + msg + `
-       <form method="post" action="/` + esc(o.Slug) + `">
+		body = `<p class="sub">` + esc(locale.T(gatePrompt[cred])) + `</p>` + msg + `
+       <form method="post" action="` + esc(locale.URL("/"+o.Slug)) + `">
          <input type="text" name="account" value="` + esc(o.Slug) + `" autocomplete="username" readonly tabindex="-1" aria-hidden="true" class="credential-account">
          <div class="field">
-           <label for="page-password">` + gateLabel[cred] + `</label>
+           <label for="page-password">` + esc(locale.T(gateLabel[cred])) + `</label>
            <input id="page-password" type="password" name="password" autofocus autocomplete="current-password" required aria-describedby="` + described + `">
-           <span class="help" id="password-help">` + esc(gateHelp[cred]) + `</span>
+           <span class="help" id="password-help">` + esc(locale.T(gateHelp[cred])) + `</span>
          </div>
-         <button type="submit">View page</button>
+         <button type="submit">` + esc(locale.T("View page")) + `</button>
        </form>`
 	} else {
-		body = `<p class="sub">The person who sent you this link needs to turn on access before it will open. Ask them to share it again.</p>` +
-			msg + `<p class="guidance">Elcano staff: <a href="` + esc(env.DashboardOrigin()+"/view/"+o.Slug) +
-			`">open it from the Pages dashboard</a>.</p>`
+		body = `<p class="sub">` + esc(locale.T("The person who sent you this link needs to turn on access before it will open. Ask them to share it again.")) + `</p>` +
+			msg + `<p class="guidance">` + esc(locale.T("Elcano staff:")) + ` <a href="` + esc(env.DashboardOrigin()+locale.URL("/view/"+o.Slug)) +
+			`">` + esc(locale.T("open it from the Pages dashboard")) + `</a>.</p>`
 	}
-	kicker, heading := "Restricted", "This page hasn't been shared yet"
+	kicker, heading := i18n.Source("Restricted"), i18n.Source("This page hasn't been shared yet")
 	if o.ShowForm {
 		// The heading names what the READER can do about it. "Staff-only page"
 		// is true and useless to the partner who followed a link shared before
 		// the page was passworded — which is who actually lands here.
-		kicker, heading = "Protected", "This page is protected"
+		kicker, heading = i18n.Source("Protected"), i18n.Source("This page is protected")
 	}
-	return chrome("Protected page · Elcano Pages", kicker, heading, body)
+	return chrome(locale.T("Protected page · Elcano Pages"), locale.T(kicker), locale.T(heading), body, locale)
 }
 
 // ── partner-facing timestamps ───────────────────────────────────────────────
@@ -145,25 +148,37 @@ func GatePage(o GatePageOptions) string {
 const relativeLimit = 7 * 24 * time.Hour
 
 // en-GB short months as current ICU writes them ("Sept", not "Sep").
-var gbMonths = [...]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"}
+var gbMonths = [...]string{i18n.Source("Jan"), i18n.Source("Feb"), i18n.Source("Mar"), i18n.Source("Apr"), i18n.Source("May"), i18n.Source("Jun"), i18n.Source("Jul"), i18n.Source("Aug"), i18n.Source("Sept"), i18n.Source("Oct"), i18n.Source("Nov"), i18n.Source("Dec")}
 
 func jsRound(x float64) int64 { return int64(math.Floor(x + 0.5)) }
 
-func relative(n int64, unit string) string {
+func relative(n int64, unit string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	if unit == "day" && n == 1 {
-		return "yesterday"
+		return locale.T("yesterday")
 	}
-	if n != 1 {
-		unit += "s"
+	switch unit {
+	case "minute":
+		if n == 1 {
+			return locale.T("1 minute ago")
+		}
+		return locale.T("{0} minutes ago", n)
+	case "hour":
+		if n == 1 {
+			return locale.T("1 hour ago")
+		}
+		return locale.T("{0} hours ago", n)
+	default:
+		return locale.T("{0} days ago", n)
 	}
-	return strconv.FormatInt(n, 10) + " " + unit + " ago"
 }
 
 // WhenPhrase is the partner-facing phrase for t as seen at now: "just now",
 // "5 minutes ago", "yesterday", "3 days ago", or — past a week, or in the
 // future (clock skew, not a countdown) — a date like "18 Aug 2026" in the
 // server's local zone. The zero time yields "".
-func WhenPhrase(t, now time.Time) string {
+func WhenPhrase(t, now time.Time, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	if t.IsZero() {
 		return ""
 	}
@@ -171,18 +186,18 @@ func WhenPhrase(t, now time.Time) string {
 	elapsed := now.Sub(t)
 	if elapsed < 0 || elapsed >= relativeLimit {
 		l := t.Local()
-		return strconv.Itoa(l.Day()) + " " + gbMonths[l.Month()-1] + " " + strconv.Itoa(l.Year())
+		return strconv.Itoa(l.Day()) + " " + locale.T(gbMonths[l.Month()-1]) + " " + strconv.Itoa(l.Year())
 	}
 	ms := float64(elapsed.Milliseconds())
 	switch {
 	case elapsed < time.Minute:
-		return "just now"
+		return locale.T("just now")
 	case elapsed < time.Hour:
-		return relative(jsRound(ms/60000), "minute")
+		return relative(jsRound(ms/60000), "minute", locale)
 	case elapsed < 24*time.Hour:
-		return relative(jsRound(ms/3600000), "hour")
+		return relative(jsRound(ms/3600000), "hour", locale)
 	default:
-		return relative(jsRound(ms/86400000), "day")
+		return relative(jsRound(ms/86400000), "day", locale)
 	}
 }
 
@@ -192,18 +207,19 @@ func WhenPhrase(t, now time.Time) string {
 // asking; PublishedAt is only when we last published something. "Updated
 // today" about a page republished today from a three-week-old extract is
 // precisely the false reassurance this is meant to remove.
-func freshnessHTML(e PortalPage, now time.Time) string {
-	stamp, label := e.SourceAsOf, "Data as of "
+func freshnessHTML(e PortalPage, now time.Time, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
+	stamp, label := e.SourceAsOf, i18n.Source("Data as of {0}")
 	if stamp.IsZero() {
-		stamp, label = e.PublishedAt, "Updated "
+		stamp, label = e.PublishedAt, i18n.Source("Updated {0}")
 	}
-	phrase := WhenPhrase(stamp, now)
+	phrase := WhenPhrase(stamp, now, locale)
 	if phrase == "" {
 		return ""
 	}
 	iso := jsx.FormatTime(stamp)
 	return `<span class="portal-item__when"><time datetime="` + esc(iso) + `" title="` + esc(iso) + `">` +
-		esc(label+phrase) + `</time></span>`
+		esc(locale.T(label, phrase)) + `</time></span>`
 }
 
 // PortalIndexOptions describe the partner's portal landing page.
@@ -221,17 +237,18 @@ type PortalIndexOptions struct {
 // NOT sandboxed — its links are ordinary links. It is also the surface that
 // always works: the in-page switcher depends on a template rendering a block,
 // this does not.
-func PortalIndexPage(o PortalIndexOptions) string {
+func PortalIndexPage(o PortalIndexOptions, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	now := o.Now
 	if now.IsZero() {
 		now = time.Now()
 	}
 	portal := o.Portal
-	action := "/portal/" + esc(portal.Slug)
+	action := esc(locale.URL("/portal/" + portal.Slug))
 	msg := ""
 	if o.Message != "" {
-		msg = `<div class="alert" id="portal-error" role="alert"><strong>` + esc(o.Message) +
-			`</strong><span>Check the password and try again. Each wrong attempt adds a short delay before the next one.</span></div>`
+		msg = `<div class="alert" id="portal-error" role="alert"><strong>` + esc(locale.T(o.Message)) +
+			`</strong><span>` + esc(locale.T("Check the password and try again. Each wrong attempt adds a short delay before the next one.")) + `</span></div>`
 	}
 	var body string
 	switch {
@@ -240,15 +257,15 @@ func PortalIndexPage(o PortalIndexOptions) string {
 		if o.Message != "" {
 			described += " portal-error"
 		}
-		body = `<p class="sub">Enter your portal password to open your dashboards.</p>` + msg + `
+		body = `<p class="sub">` + esc(locale.T("Enter your portal password to open your dashboards.")) + `</p>` + msg + `
        <form method="post" action="` + action + `">
          <input class="credential-account" type="text" name="account" value="` + esc(portal.Slug) + `" tabindex="-1" aria-hidden="true" autocomplete="username" readonly>
          <div class="field">
-           <label for="portal-password">Portal password</label>
+           <label for="portal-password">` + esc(locale.T("Portal password")) + `</label>
            <input id="portal-password" type="password" name="password" autofocus autocomplete="current-password" required aria-describedby="` + described + `">
-           <span class="help" id="portal-help">Use the password supplied with this portal link. One password opens every dashboard listed here.</span>
+           <span class="help" id="portal-help">` + esc(locale.T("Use the password supplied with this portal link. One password opens every dashboard listed here.")) + `</span>
          </div>
-         <button type="submit">Open portal</button>
+         <button type="submit">` + esc(locale.T("Open portal")) + `</button>
        </form>`
 	case len(o.Pages) > 0:
 		// Root-absolute hrefs, never relative: slugs nest, so on /a/b/c a
@@ -257,9 +274,9 @@ func PortalIndexPage(o PortalIndexOptions) string {
 		// anchor: "Portfolio overview, data as of 3 days ago" is the reason
 		// someone picks one link over another, so it earns its place in the name.
 		item := func(e PortalPage) string {
-			return `<li class="portal-item"><a href="/` + esc(e.Slug) + `">` +
+			return `<li class="portal-item"><a href="` + esc(locale.URL("/"+e.Slug)) + `">` +
 				`<span class="portal-item__title">` + esc(e.Title) + `</span>` +
-				freshnessHTML(e, now) + `</a></li>`
+				freshnessHTML(e, now, locale) + `</a></li>`
 		}
 		join := func(list []PortalPage) string {
 			var b strings.Builder
@@ -280,105 +297,115 @@ func PortalIndexPage(o PortalIndexOptions) string {
 		// a list of one are hierarchy for its own sake.
 		var list string
 		if len(home) > 0 && len(rest) > 0 {
-			list = `<h2 class="portal-section">Start here</h2>` +
+			list = `<h2 class="portal-section">` + esc(locale.T("Start here")) + `</h2>` +
 				`<ul class="portal-list portal-list--lead">` + join(home) + `</ul>` +
-				`<h2 class="portal-section">All dashboards</h2>` +
+				`<h2 class="portal-section">` + esc(locale.T("All dashboards")) + `</h2>` +
 				`<ul class="portal-list">` + join(rest) + `</ul>`
 		} else {
 			list = `<ul class="portal-list">` + join(o.Pages) + `</ul>`
 		}
-		plural := "s"
+		summary := locale.T("{0} dashboards available to you.", len(o.Pages))
 		if len(o.Pages) == 1 {
-			plural = ""
+			summary = locale.T("1 dashboard available to you.")
 		}
-		body = `<p class="sub">` + strconv.Itoa(len(o.Pages)) + ` dashboard` + plural + ` available to you.</p>` +
-			list + sessionFooter(portal)
+		body = `<p class="sub">` + esc(summary) + `</p>` + list + sessionFooter(portal, locale)
 	default:
 		// A real state, not an error: a portal can exist before anything is
 		// added to it, and a member that is taken down or unpublished is
 		// filtered out rather than listed as a dead link.
-		body = `<p class="sub">No dashboards are available in this portal yet.</p>` +
-			`<p class="guidance">Nothing is wrong with your password — ask your Elcano contact to add your dashboards to this portal.</p>` +
-			sessionFooter(portal)
+		body = `<p class="sub">` + esc(locale.T("No dashboards are available in this portal yet.")) + `</p>` +
+			`<p class="guidance">` + esc(locale.T("Nothing is wrong with your password — ask your Elcano contact to add your dashboards to this portal.")) + `</p>` +
+			sessionFooter(portal, locale)
 	}
-	return chrome(portal.Name+" · Elcano Pages", "Partner portal", portal.Name, body)
+	return chrome(portal.Name+" · Elcano Pages", locale.T("Partner portal"), portal.Name, body, locale)
 }
 
 // sessionFooter — how long this browser stays open, and how to close it. The
 // lifetime is read from pagecookie rather than restated, and the button is a
 // plain form because this host runs no script.
-func sessionFooter(p Portal) string {
+func sessionFooter(p Portal, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	return `<div class="portal-footer">` +
-		`<p class="guidance">Each dashboard opens without another password for ` + strconv.Itoa(pagecookie.DefaultTTLDays) + ` days on this device.</p>` +
-		`<form class="portal-signout" method="post" action="/portal/` + esc(p.Slug) + `/lock">` +
-		`<button type="submit">Sign out</button>` +
+		`<p class="guidance">` + esc(locale.T("Each dashboard opens without another password for {0} days on this device.", pagecookie.DefaultTTLDays)) + `</p>` +
+		`<form class="portal-signout" method="post" action="` + esc(locale.URL("/portal/"+p.Slug+"/lock")) + `">` +
+		`<button type="submit">` + esc(locale.T("Sign out")) + `</button>` +
 		`</form>` +
 		`</div>`
 }
 
 // NotFoundPage is the content host's styled 404.
-func NotFoundPage() string {
-	return chrome("Not found · Elcano Pages", "Not found", "Page not found",
-		`<p class="sub">This address may be wrong, or the page may have been taken down. Check the link with the person who shared it.</p>`)
+func NotFoundPage(locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
+	return chrome(locale.T("Not found · Elcano Pages"), locale.T("Not found"), locale.T("Page not found"),
+		`<p class="sub">`+esc(locale.T("This address may be wrong, or the page may have been taken down. Check the link with the person who shared it."))+`</p>`, locale)
 }
 
 // ExpiredLinkPage — a preview link is signed and short-lived, so this is the
 // state a reviewer reaches most often; it gets a branded interstitial that
 // says what to do next rather than a page that looks like a server fault.
-func ExpiredLinkPage() string {
-	return chrome("Link expired · Elcano Pages", "Link expired", "This preview link is no longer valid",
-		`<p class="sub">Preview links expire after a short time, so they cannot be shared or bookmarked.</p>`+
-			`<p class="guidance">Ask for a fresh link — generating one takes a second and the design has not changed.</p>`)
+func ExpiredLinkPage(locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
+	return chrome(locale.T("Link expired · Elcano Pages"), locale.T("Link expired"), locale.T("This preview link is no longer valid"),
+		`<p class="sub">`+esc(locale.T("Preview links expire after a short time, so they cannot be shared or bookmarked."))+`</p>`+
+			`<p class="guidance">`+esc(locale.T("Ask for a fresh link — generating one takes a second and the design has not changed."))+`</p>`, locale)
 }
 
 // RateLimitPage is the password brute-force guard's 429 body. slug ("" for
 // none) adds a way back to the page; minutes <= 0 means the configured
 // RL_PASSWORD_WINDOW_MIN (default 15).
-func RateLimitPage(slug string, minutes int) string {
+func RateLimitPage(slug string, minutes int, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	if minutes <= 0 {
 		minutes = passwordWindowMinutes()
 	}
 	back := ""
 	if slug != "" {
-		back = `<p class="guidance"><a href="/` + esc(slug) + `">Return to the page</a> when the wait is over.</p>`
+		back = `<p class="guidance"><a href="` + esc(locale.URL("/"+slug)) + `">` + esc(locale.T("Return to the page")) + `</a> ` + esc(locale.T("when the wait is over.")) + `</p>`
 	}
-	return chrome("Too many attempts · Elcano Pages", "Access paused", "Too many password attempts",
-		`<p class="sub">Too many passwords have been tried for this page. Wait about `+strconv.Itoa(minutes)+` minutes, then try again.</p>`+
-			`<p class="guidance">If access is urgent, ask the person who shared this page to confirm the password.</p>`+back)
+	wait := locale.T("Too many passwords have been tried for this page. Wait about {0} minutes, then try again.", minutes)
+	if minutes == 1 {
+		wait = locale.T("Too many passwords have been tried for this page. Wait about 1 minute, then try again.")
+	}
+	return chrome(locale.T("Too many attempts · Elcano Pages"), locale.T("Access paused"), locale.T("Too many password attempts"),
+		`<p class="sub">`+esc(wait)+`</p>`+
+			`<p class="guidance">`+esc(locale.T("If access is urgent, ask the person who shared this page to confirm the password."))+`</p>`+back, locale)
 }
 
 // AttemptBusyPage is the 429 body for a password attempt refused because
 // other attempts on the same page or portal are still being checked (the
 // per-credential turn, passwordgate.Turns). slug "" omits the return link.
-func AttemptBusyPage(slug string) string {
+func AttemptBusyPage(slug string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	back := ""
 	if slug != "" {
-		back = `<p class="guidance"><a href="/` + esc(slug) + `">Return to the page</a> and try again.</p>`
+		back = `<p class="guidance"><a href="` + esc(locale.URL("/"+slug)) + `">` + esc(locale.T("Return to the page")) + `</a> ` + esc(locale.T("and try again.")) + `</p>`
 	}
-	return chrome("Too many attempts · Elcano Pages", "Access paused", "Too many password attempts",
-		`<p class="sub">Other password attempts for this page are being checked. Wait a few seconds, then try again.</p>`+
-			`<p class="guidance">If access is urgent, ask the person who shared this page to confirm the password.</p>`+back)
+	return chrome(locale.T("Too many attempts · Elcano Pages"), locale.T("Access paused"), locale.T("Too many password attempts"),
+		`<p class="sub">`+esc(locale.T("Other password attempts for this page are being checked. Wait a few seconds, then try again."))+`</p>`+
+			`<p class="guidance">`+esc(locale.T("If access is urgent, ask the person who shared this page to confirm the password."))+`</p>`+back, locale)
 }
 
 // BusyPage is the READ limiter's 429 body — a different event from the
 // password guard: nothing is wrong with the viewer's credentials, the host is
 // shedding load. slug "" omits the reload link.
-func BusyPage(slug string) string {
+func BusyPage(slug string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	reload := ""
 	if slug != "" {
-		reload = `<p class="guidance"><a href="/` + esc(slug) + `">Reload the page</a></p>`
+		reload = `<p class="guidance"><a href="` + esc(locale.URL("/"+slug)) + `">` + esc(locale.T("Reload the page")) + `</a></p>`
 	}
-	return chrome("Too many requests · Elcano Pages", "Slow down", "This page is being loaded too often",
-		`<p class="sub">The page is fine — requests from your network are arriving faster than our servers can answer them. Wait a moment and reload.</p>`+
-			`<p class="guidance">If this keeps happening, tell the person who shared the page; it usually means something is reloading it automatically.</p>`+reload)
+	return chrome(locale.T("Too many requests · Elcano Pages"), locale.T("Slow down"), locale.T("This page is being loaded too often"),
+		`<p class="sub">`+esc(locale.T("The page is fine — requests from your network are arriving faster than our servers can answer them. Wait a moment and reload."))+`</p>`+
+			`<p class="guidance">`+esc(locale.T("If this keeps happening, tell the person who shared the page; it usually means something is reloading it automatically."))+`</p>`+reload, locale)
 }
 
 // ServerErrorPage — a fault on our side, said plainly rather than implying the
 // viewer's link is wrong (which a 404 would) or leaking a default error page.
-func ServerErrorPage() string {
-	return chrome("Something went wrong · Elcano Pages", "Error", "This page couldn't be loaded",
-		`<p class="sub">Something went wrong on our side, not with your link. Reloading in a moment usually works.</p>`+
-			`<p class="guidance">If it keeps failing, tell the person who shared this page so an Elcano admin can look.</p>`)
+func ServerErrorPage(locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
+	return chrome(locale.T("Something went wrong · Elcano Pages"), locale.T("Error"), locale.T("This page couldn't be loaded"),
+		`<p class="sub">`+esc(locale.T("Something went wrong on our side, not with your link. Reloading in a moment usually works."))+`</p>`+
+			`<p class="guidance">`+esc(locale.T("If it keeps failing, tell the person who shared this page so an Elcano admin can look."))+`</p>`, locale)
 }
 
 // ── page switcher ───────────────────────────────────────────────────────────

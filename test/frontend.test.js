@@ -1015,3 +1015,8 @@ test("bento: the admin's file check and the server's recogniser agree", () => {
     assert.equal(UI.looksLikeBentoDeck(sample), server[index], sample.slice(0, 70));
   });
 });
+
+// Shared language behavior and catalog completeness are part of the frontend gate.
+require("./i18n.test.js");
+
+require("./messages.test.js");

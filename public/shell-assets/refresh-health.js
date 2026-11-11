@@ -14,18 +14,20 @@
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.PagesRefreshHealth = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
   // `kind` is a primitives.js status kind. Red for a run that failed, amber for
   // one that is late, finding nothing new, or publishing data part of which
   // stopped weeks ago while the rest kept arriving ("Partial data": the
   // server's coverage_gap, read from the published rows themselves); ok and
   // unscheduled carry no alarm.
   const HEALTH = {
-    blocked: { kind: "error", label: "Blocked", rank: 0, attention: true },
-    overdue: { kind: "warning", label: "Overdue", rank: 1, attention: true },
-    source_stale: { kind: "warning", label: "Source stuck", rank: 2, attention: true },
-    coverage_gap: { kind: "warning", label: "Partial data", rank: 3, attention: true },
-    ok: { kind: "live", label: "On schedule", rank: 4, attention: false },
-    unscheduled: { kind: "neutral", label: "Not scheduled", rank: 5, attention: false },
+    blocked: { kind: "error", label: t("Blocked"), rank: 0, attention: true },
+    overdue: { kind: "warning", label: t("Overdue"), rank: 1, attention: true },
+    source_stale: { kind: "warning", label: t("Source stuck"), rank: 2, attention: true },
+    coverage_gap: { kind: "warning", label: t("Partial data"), rank: 3, attention: true },
+    ok: { kind: "live", label: t("On schedule"), rank: 4, attention: false },
+    unscheduled: { kind: "neutral", label: t("Not scheduled"), rank: 5, attention: false },
   };
 
   function healthOf(pageOrHealth) {
@@ -66,7 +68,7 @@
   // says "No refresh" because a pill does not wrap and the index's Last update
   // column has 104px for it ("No refresh set" measures 123); the filter that
   // lists these pages says the whole phrase.
-  const NO_REFRESH = { kind: "neutral", label: "No refresh", filter: "No refresh set" };
+  const NO_REFRESH = { kind: "neutral", label: t("No refresh"), filter: t("No refresh set") };
 
   function unscheduledStale(pageOrHealth) {
     const health = healthOf(pageOrHealth);
@@ -78,8 +80,8 @@
   function unscheduledStaleHint(pageOrHealth) {
     if (!unscheduledStale(pageOrHealth)) return "";
     const days = healthOf(pageOrHealth).days_since_source;
-    const age = Number.isInteger(days) ? `data ${days} ${days === 1 ? "day" : "days"} old` : "data over a week old";
-    return `No refresh schedule · ${age} — set a schedule or ignore if the campaign has ended`;
+    const age = Number.isInteger(days) ? (days === 1 ? t("data 1 day old") : t("data {0} days old", days)) : t("data over a week old");
+    return t("No refresh schedule · {0} — set a schedule or ignore if the campaign has ended", age);
   }
 
   // The hinted rows, the oldest data first, keeping the list's own order on a
@@ -102,11 +104,11 @@
   // the server validates.
 
   const DAYS = [
-    ["1", "Monday"], ["2", "Tuesday"], ["3", "Wednesday"], ["4", "Thursday"],
-    ["5", "Friday"], ["6", "Saturday"], ["0", "Sunday"],
+    ["1", t("Monday")], ["2", t("Tuesday")], ["3", t("Wednesday")], ["4", t("Thursday")],
+    ["5", t("Friday")], ["6", t("Saturday")], ["0", t("Sunday")],
   ];
   const DAY_NAME = Object.fromEntries(DAYS);
-  DAY_NAME["7"] = "Sunday";
+  DAY_NAME["7"] = t("Sunday");
 
   const pad = (n) => String(n).padStart(2, "0");
 
@@ -129,26 +131,31 @@
     if (preset === "none") return { cron: null };
     if (preset === "custom") {
       const text = String(cron || "").trim().split(/\s+/).join(" ");
-      return text ? { cron: text } : { error: "Enter a cron expression, or pick a preset." };
+      return text ? { cron: text } : { error: t("Enter a cron expression, or pick a preset.") };
     }
-    if (!["daily", "weekdays", "weekly"].includes(preset)) return { error: "Pick a schedule." };
+    if (!["daily", "weekdays", "weekly"].includes(preset)) return { error: t("Pick a schedule.") };
     const match = /^(\d{1,2}):(\d{2})$/.exec(String(time || "").trim());
-    if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return { error: "Enter a time as HH:MM (UTC)." };
+    if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return { error: t("Enter a time as HH:MM (UTC).") };
     const at = `${Number(match[2])} ${Number(match[1])}`;
     if (preset === "daily") return { cron: `${at} * * *` };
     if (preset === "weekdays") return { cron: `${at} * * 1-5` };
-    return DAY_NAME[String(day)] ? { cron: `${at} * * ${day}` } : { error: "Pick a day of the week." };
+    return DAY_NAME[String(day)] ? { cron: `${at} * * ${day}` } : { error: t("Pick a day of the week.") };
   }
 
   // "Weekdays at 14:30 UTC" — what the schedule means, for a human.
   function describeSchedule(cron) {
     const parsed = presetFromCron(cron);
     switch (parsed.preset) {
-      case "none": return "Not scheduled";
-      case "daily": return `Daily at ${parsed.time} UTC`;
-      case "weekdays": return `Weekdays at ${parsed.time} UTC`;
-      case "weekly": return `${DAY_NAME[parsed.day]}s at ${parsed.time} UTC`;
-      default: return `${parsed.cron} (cron, UTC)`;
+      case "none": return t("Not scheduled");
+      case "daily": return t("Daily at {0} UTC", parsed.time);
+      case "weekdays": return t("Weekdays at {0} UTC", parsed.time);
+      case "weekly": return ({
+        "1": () => t("Mondays at {0} UTC", parsed.time), "2": () => t("Tuesdays at {0} UTC", parsed.time),
+        "3": () => t("Wednesdays at {0} UTC", parsed.time), "4": () => t("Thursdays at {0} UTC", parsed.time),
+        "5": () => t("Fridays at {0} UTC", parsed.time), "6": () => t("Saturdays at {0} UTC", parsed.time),
+        "0": () => t("Sundays at {0} UTC", parsed.time),
+      })[parsed.day]();
+      default: return t("{0} (cron, UTC)", parsed.cron);
     }
   }
 

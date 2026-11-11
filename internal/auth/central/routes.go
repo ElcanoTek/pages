@@ -5,12 +5,15 @@ package central
 
 import (
 	"errors"
+	"html"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/ElcanoTek/pages/internal/i18n"
 
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/assetver"
@@ -98,6 +101,7 @@ func (rt *Runtime) clearCookie(name string) string { return rt.Cookie(name, "", 
 // ChromePage is what a standalone "chrome" page shows (lib/standalone-chrome.js
 // render's options).
 type ChromePage struct {
+	Locale     i18n.Locale
 	Title      string
 	Kicker     string
 	Heading    string
@@ -220,24 +224,32 @@ func (rt *Runtime) Handlers(opts RoutesOptions) Handlers {
 
 func (x *routes) page(w http.ResponseWriter, r *http.Request, status int, title, heading, body string, cta *CTA) {
 	w.Header().Set("Cache-Control", "no-store")
+	locale := i18n.FromRequest(r)
+	if cta != nil {
+		copyCTA := *cta
+		copyCTA.Label = locale.T(copyCTA.Label)
+		copyCTA.Href = locale.URL(copyCTA.Href)
+		cta = &copyCTA
+	}
 	html := x.opts.Render(ChromePage{
-		Title:      title + " · Pages",
-		Kicker:     title,
-		Heading:    heading,
-		BodyHTML:   "<p>" + body + "</p>",
+		Locale:     locale,
+		Title:      locale.T(title) + " · Pages",
+		Kicker:     locale.T(title),
+		Heading:    locale.T(heading),
+		BodyHTML:   "<p>" + html.EscapeString(locale.T(body)) + "</p>",
 		AssetsBase: assetver.ShellFlag(),
 		CTA:        cta,
 	})
 	httpx.SendHTML(w, r, status, html)
 }
 
-var retry = &CTA{Href: "/auth/login", Label: "Sign in again"}
+var retry = &CTA{Href: "/auth/login", Label: i18n.Source("Sign in again")}
 
 func (x *routes) noAccess(w http.ResponseWriter, r *http.Request) {
-	x.page(w, r, http.StatusForbidden, "No access",
-		"Your account does not have access to Pages",
-		"You are signed in, but this account has not been granted Pages. Ask an administrator to grant it in the account console.",
-		&CTA{Href: x.rt.Config.Issuer + "/account", Label: "Your account"})
+	x.page(w, r, http.StatusForbidden, i18n.Source("No access"),
+		i18n.Source("Your account does not have access to Pages"),
+		i18n.Source("You are signed in, but this account has not been granted Pages. Ask an administrator to grant it in the account console."),
+		&CTA{Href: x.rt.Config.Issuer + "/account", Label: i18n.Source("Your account")})
 }
 
 func (x *routes) login(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +257,7 @@ func (x *routes) login(w http.ResponseWriter, r *http.Request) {
 	if q := httpx.QueryParam(r, "next"); q.Present {
 		nextRaw, _ = q.String() // an array is not a string: SafeLocalPath("") → /admin
 	}
-	next := SafeLocalPath(nextRaw)
+	next := i18n.FromRequest(r).URL(SafeLocalPath(nextRaw))
 	id, err := x.rt.Store.Identity(r.Context(), x.rt.SessionToken(r))
 	if err != nil {
 		x.opts.OnError(w, r, err)
@@ -287,7 +299,7 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 	// `error` is truthy unless it is a single empty string.
 	errTruthy := errPresent && (len(errVals) != 1 || errVals[0] != "")
 	if errTruthy || wrongIssuer || !codeOK || code == "" || !stateOK || state == "" {
-		x.page(w, r, http.StatusBadRequest, "Sign-in", "Sign-in was not completed", "Start again from the sign-in page.", retry)
+		x.page(w, r, http.StatusBadRequest, "Sign-in", i18n.Source("Sign-in was not completed"), i18n.Source("Start again from the sign-in page."), retry)
 		return
 	}
 	err := func() error {
@@ -314,11 +326,11 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrAccessDenied):
 		x.noAccess(w, r)
 	case errors.Is(err, ErrAuthTransaction), errors.Is(err, ErrCodeExchangeRejected):
-		x.page(w, r, http.StatusBadRequest, "Sign-in", "Sign-in expired", "That sign-in link is no longer valid. Try again.", retry)
+		x.page(w, r, http.StatusBadRequest, "Sign-in", i18n.Source("Sign-in expired"), i18n.Source("That sign-in link is no longer valid. Try again."), retry)
 	case errors.Is(err, ErrCentralAuth):
 		x.opts.Logger.Error("central auth: code exchange failed: " + err.Error())
-		x.page(w, r, http.StatusBadGateway, "Sign-in", "The sign-in service is unavailable",
-			"Pages could not reach the account service. Try again shortly.", retry)
+		x.page(w, r, http.StatusBadGateway, "Sign-in", i18n.Source("The sign-in service is unavailable"),
+			i18n.Source("Pages could not reach the account service. Try again shortly."), retry)
 	default:
 		x.opts.OnError(w, r, err)
 	}
@@ -473,5 +485,5 @@ func (x *routes) logout(w http.ResponseWriter, r *http.Request) {
 // signedOut is registered with Auth as the post-logout landing. Public and
 // identity-free: bouncing to /admin would start a silent sign-in at once.
 func (x *routes) signedOut(w http.ResponseWriter, r *http.Request) {
-	x.page(w, r, http.StatusOK, "Signed out", "You are signed out of Pages", "Sign in again to manage dashboards.", retry)
+	x.page(w, r, http.StatusOK, i18n.Source("Signed out"), i18n.Source("You are signed out of Pages"), i18n.Source("Sign in again to manage dashboards."), retry)
 }

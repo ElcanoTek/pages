@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/apierror"
 	"github.com/ElcanoTek/pages/internal/assetver"
@@ -220,7 +222,7 @@ func (h *handler) fail(w *trackingWriter, r *http.Request, err error) {
 	if status < 400 || status >= 500 {
 		status = http.StatusInternalServerError
 	}
-	sendWith(w, r, csp.RawHeaders(), status, ServerErrorPage())
+	sendWith(w, r, csp.RawHeaders(), status, ServerErrorPage(i18n.FromRequest(r)))
 }
 
 // pathIs is Express's non-strict, case-insensitive match of a literal path:
@@ -391,7 +393,7 @@ func (h *handler) raw(w http.ResponseWriter, r *http.Request, slug string) error
 	// a different id space, and a "session" token is a page credential, not a
 	// render credential. A purpose added later is refused here by default.
 	if c == nil || (c.Purpose != rawtoken.View && c.Purpose != rawtoken.Edit) {
-		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
+		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage(i18n.FromRequest(r)))
 		return nil
 	}
 	if c.Purpose == rawtoken.Edit {
@@ -400,17 +402,17 @@ func (h *handler) raw(w http.ResponseWriter, r *http.Request, slug string) error
 	v, err := h.store.GetRenderable(r.Context(), c.VersionID)
 	if err != nil {
 		slog.Error("render error", "err", err)
-		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
+		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage(i18n.FromRequest(r)))
 		return nil
 	}
 	// The token's version must match what we loaded, belong to this slug, and
 	// the page must not be disabled (takedown switch).
 	if v == nil || v.ID != c.VersionID || v.Slug != slug || v.Disabled {
-		httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
+		httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage(i18n.FromRequest(r)))
 		return nil
 	}
 	httpx.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{
-		HTML: v.HTML, RenderMode: v.RenderMode, OverrideCSS: v.OverrideCSS,
+		Locale: i18n.FromRequest(r), HTML: v.HTML, RenderMode: v.RenderMode, OverrideCSS: v.OverrideCSS,
 	}))
 	return nil
 }
@@ -424,20 +426,21 @@ func (h *handler) deckEditSession(w http.ResponseWriter, r *http.Request, slug, 
 	v, err := h.store.GetLatestRenderable(r.Context(), c.PageID)
 	if err != nil {
 		slog.Error("edit session error", "err", err)
-		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
+		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage(i18n.FromRequest(r)))
 		return nil
 	}
 	if v == nil || v.Slug != slug || v.Disabled {
-		httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
+		httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage(i18n.FromRequest(r)))
 		return nil
 	}
 	if !render.IsBentoDeck(v.HTML) {
-		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
+		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage(i18n.FromRequest(r)))
 		return nil
 	}
 	csp.RawEditHeaders().Apply(w.Header())
 	origin := env.ContentOrigin()
 	httpx.SendHTML(w, r, http.StatusOK, render.EditSession(v.HTML, render.EditSessionOptions{
+		Locale:        i18n.FromRequest(r),
 		SaveURL:       origin + "/raw/" + slug + "/versions",
 		Token:         token,
 		VersionID:     strconv.FormatInt(v.ID, 10),
@@ -549,7 +552,7 @@ func (h *handler) rawTemplate(w http.ResponseWriter, r *http.Request, id string)
 		c = rawtoken.Verify(t)
 	}
 	if c == nil || c.Purpose != rawtoken.Template || jsstr.Number(id) != float64(c.VersionID) {
-		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage())
+		httpx.SendHTML(w, r, http.StatusForbidden, ExpiredLinkPage(i18n.FromRequest(r)))
 		return nil
 	}
 	// Not the stored bytes: the template MATERIALIZED, so a preview shows the
@@ -563,15 +566,15 @@ func (h *handler) rawTemplate(w http.ResponseWriter, r *http.Request, id string)
 	}
 	if err != nil {
 		if ae, ok := apierror.As(err); ok && ae.Status == http.StatusNotFound {
-			httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage())
+			httpx.SendHTML(w, r, http.StatusNotFound, NotFoundPage(i18n.FromRequest(r)))
 			return nil
 		}
 		slog.Error("template preview error", "err", err)
-		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage())
+		httpx.SendHTML(w, r, http.StatusInternalServerError, ServerErrorPage(i18n.FromRequest(r)))
 		return nil
 	}
 	// The token carries the mode the previewer asked for, so a themed template
 	// is previewed the way create_page_from_template would render it.
-	httpx.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{HTML: html, RenderMode: c.Mode}))
+	httpx.SendHTML(w, r, http.StatusOK, render.RenderVersion(render.Renderable{Locale: i18n.FromRequest(r), HTML: html, RenderMode: c.Mode}))
 	return nil
 }

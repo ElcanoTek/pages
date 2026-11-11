@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/ElcanoTek/pages/internal/datalimits"
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
@@ -98,6 +99,7 @@ func StripCollab(html string) (out string, stripped bool) {
 
 // EditSessionOptions configure an edit session.
 type EditSessionOptions struct {
+	Locale i18n.Locale
 	// SaveURL is where the save channel POSTs the edited deck.
 	SaveURL string
 	// Token is the signed edit token, sent as a Bearer credential.
@@ -122,13 +124,15 @@ type EditSessionOptions struct {
 // revoked its own URL. Same attribute as the host adaptation, so the
 // deploy-time strip removes it, and it removes itself from the DOM so a file
 // that leaves carries nothing of Pages.
-func EditSessionScript(saveURL, token, versionID string) string {
+func EditSessionScript(saveURL, token, versionID string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	version := "null"
 	if versionID != "" {
 		version = jsonv.Quote(versionID)
 	}
 	config := strings.ReplaceAll(`{"saveUrl":`+jsonv.Quote(saveURL)+`,"token":`+jsonv.Quote(token)+`,"versionId":`+version+`}`, "<", `\u003c`)
-	return `<script data-pages-deck-host>(function(){var s=document.currentScript;var cfg=` + config + `;var saves=Promise.resolve();var saveBlocked=false;` +
+	translator := locale.Script(i18n.Source("Pages could not store the version"), i18n.Source("Pages is updating — retry shortly"), i18n.Source("a deck edit session requires a staff actor"), i18n.Source("a newer deck version was saved — reopen the editor from the admin and reconcile your changes before saving again"), i18n.Source("internal error"), i18n.Source("invalid JSON request body"), i18n.Source("invalid request"), i18n.Source("reopen the deck from the admin before saving: a valid X-Pages-Base-Version is required"), i18n.Source("request body could not be decoded"), i18n.Source("request body too large"), i18n.Source("this action is admin-only"), i18n.Source("this edit session has expired — reopen the deck from the admin"), i18n.Source("this edit session is no longer available for this page"), i18n.Source("this page has been disabled (taken down) by an admin — agents cannot publish, roll back, or delete it"), i18n.Source("this page is no longer a deck — reopen it from the admin"), i18n.Source("this page requires approval — agents may only deploy a pending version; a human must approve"), i18n.Source("database query timed out — retry shortly"), i18n.Source("database unavailable — retry shortly"), i18n.Source("the page is busy with another update — retry shortly"), i18n.Source("only a Bento deck can be saved through this channel"), i18n.Source("Saving to Pages…"), i18n.Source("Reopen the editor from the admin to continue saving to Pages"), i18n.Source("Pages answered {0}"), i18n.Source("Nothing changed since the last save."), i18n.Source("Saved to Pages as a new draft version. Publish it from the admin when it is ready."), i18n.Source("Couldn’t save to Pages ({0}). Starting a download of your file instead — keep it before closing the editor, then upload it as a new version."), i18n.Source("Couldn’t save to Pages ({0}). Couldn’t start the download. Keep this editor open and try Save again."))
+	return `<script data-pages-deck-host>(function(){` + translator + `var s=document.currentScript;var cfg=` + config + `;var saves=Promise.resolve();var saveBlocked=false;` +
 		`if(!(window.origin==="null"&&/^https?:$/.test(location.protocol))){if(s&&s.parentNode)s.parentNode.removeChild(s);return}` +
 		// toast: a shadow root, so the deck's own styles cannot reach it and vice versa
 		`var host=null;function say(text,kind){if(!host){host=document.createElement("div");host.setAttribute("data-pages-save-toast","");` +
@@ -144,13 +148,13 @@ func EditSessionScript(saveURL, token, versionID string) string {
 		`function download(blob,name){var a=document.createElement("a");var u=cou.call(URL,blob);a.href=u;a.download=name;` +
 		`try{document.body.appendChild(a);clickA.call(a)}finally{a.remove();setTimeout(function(){rou.call(URL,u)},1000)}}` +
 		`HTMLAnchorElement.prototype.click=function(){var a=this;if(!a.download||!blobs.has(a.href)){return clickA.apply(a,arguments)}` +
-		`var url=a.href;var blob=blobs.get(url);var filename=a.download;blobs.delete(url);say("Saving to Pages\u2026");` +
-		`saves=saves.then(function(){if(saveBlocked)throw new Error("Reopen the editor from the admin to continue saving to Pages");return blob.text().then(function(text){return fetch(cfg.saveUrl,{method:"POST",headers:{"Authorization":"Bearer "+cfg.token,"Content-Type":"text/html; charset=utf-8","X-Pages-Base-Version":cfg.versionId||""},body:text,credentials:"omit"})})` +
-		`.then(function(res){return res.text().then(function(body){var data={};try{data=JSON.parse(body)}catch(e){}if(!res.ok){if(res.status===409||res.status===403)saveBlocked=true;throw new Error(data.error||("Pages answered "+res.status))}return data})})` +
-		`.then(function(data){cfg.versionId=String(data.version_id||cfg.versionId||"");say(data.deduped?"Nothing changed since the last save.":"Saved to Pages as a new draft version. Publish it from the admin when it is ready.","ok")})` +
-		`}).catch(function(err){var reason="Couldn\u2019t save to Pages ("+(err&&err.message?err.message:err)+"). ";` +
-		`try{download(blob,filename);say(reason+"Starting a download of your file instead \u2014 keep it before closing the editor, then upload it as a new version.","err")}` +
-		`catch(e){say(reason+"Couldn\u2019t start the download. Keep this editor open and try Save again.","err")}})` +
+		`var url=a.href;var blob=blobs.get(url);var filename=a.download;blobs.delete(url);say(t("Saving to Pages…"));` +
+		`saves=saves.then(function(){if(saveBlocked)throw new Error(t("Reopen the editor from the admin to continue saving to Pages"));return blob.text().then(function(text){return fetch(cfg.saveUrl,{method:"POST",headers:{"Authorization":"Bearer "+cfg.token,"Content-Type":"text/html; charset=utf-8","X-Pages-Base-Version":cfg.versionId||""},body:text,credentials:"omit"})})` +
+		`.then(function(res){return res.text().then(function(body){var data={};try{data=JSON.parse(body)}catch(e){}if(!res.ok){if(res.status===409||res.status===403)saveBlocked=true;throw new Error(data.error?t(String(data.error)):t("Pages answered {0}",res.status))}return data})})` +
+		`.then(function(data){cfg.versionId=String(data.version_id||cfg.versionId||"");say(data.deduped?t("Nothing changed since the last save."):t("Saved to Pages as a new draft version. Publish it from the admin when it is ready."),"ok")})` +
+		`}).catch(function(err){var reason=err&&err.message?err.message:err;` +
+		`try{download(blob,filename);say(t("Couldn’t save to Pages ({0}). Starting a download of your file instead — keep it before closing the editor, then upload it as a new version.",reason),"err")}` +
+		`catch(e){say(t("Couldn’t save to Pages ({0}). Couldn’t start the download. Keep this editor open and try Save again.",reason),"err")}})` +
 		`.finally(function(){rou.call(URL,url)});` +
 		`return undefined};` +
 		`if(s&&s.parentNode)s.parentNode.removeChild(s)})();</script>`
@@ -169,7 +173,7 @@ func EditSession(html string, opts EditSessionOptions) string {
 	widened := replaceFirst(guardMetaRE, adapted, func(tag string) string {
 		return strings.Replace(tag, "connect-src 'none'", "connect-src "+opts.ContentOrigin, 1)
 	})
-	script := EditSessionScript(opts.SaveURL, opts.Token, opts.VersionID)
+	script := EditSessionScript(opts.SaveURL, opts.Token, opts.VersionID, opts.Locale)
 	// Directly after the host adaptation, which sits right after <head>.
 	from := strings.Index(widened, "data-pages-deck-host")
 	at := -1

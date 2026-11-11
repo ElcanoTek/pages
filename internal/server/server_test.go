@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/ElcanoTek/pages/internal/assetver"
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/rawtoken"
 	"github.com/ElcanoTek/pages/internal/shell"
 	"github.com/ElcanoTek/pages/internal/tokens"
@@ -22,6 +23,28 @@ const pageHTML = `<!doctype html><html><head><title>Northwind</title></head><bod
 func TestNewRequiresDB(t *testing.T) {
 	if _, err := New(Config{}); err == nil {
 		t.Fatal("New without a DB must fail")
+	}
+}
+
+func TestDashboardLanguagePreference(t *testing.T) {
+	e := setup(t, nil)
+	for _, tc := range []struct {
+		path, cookie, accept, language, heading string
+	}{
+		{"/admin?lang=es", "elcano_language=pt", "en", "es", "Páginas de clientes"}, //nolint:misspell // Spanish UI text.
+		{"/admin/templates", "elcano_language=pt", "es", "pt", "Biblioteca de modelos"},
+		{"/admin/portals", "", "es-MX,en;q=0.5", "es", "Portales de socios"},
+		{"/admin", "", "de", "en", "Client pages"},
+	} {
+		r := e.get(tc.path, opt{cookie: e.adminCk + "; " + tc.cookie, headers: map[string]string{"Accept-Language": tc.accept}})
+		if r.status != http.StatusOK || !strings.Contains(r.body, `lang="`+tc.language+`"`) || !strings.Contains(r.body, tc.heading) {
+			t.Errorf("%s: language or heading missing, status %d", tc.path, r.status)
+		}
+	}
+	// Error JSON is a protocol response even when the dashboard is Spanish.
+	r := e.do("POST", "/api/v1/pages?lang=es", opt{body: "{not json"})
+	if r.status != http.StatusBadRequest || r.json(t)["error"] != "invalid JSON request body" {
+		t.Fatalf("localized API payload: %s", r.body)
 	}
 }
 
@@ -44,7 +67,7 @@ func TestHostSplit(t *testing.T) {
 	// Content routes do not exist on the dashboard host.
 	for _, p := range []string{"/raw/northwind", "/northwind", "/assets/flag/tokens/design-tokens.css", "/raw-template/1", "/favicon.ico"} {
 		r := e.get(p, opt{cookie: e.adminCk})
-		if r.status != http.StatusNotFound || r.body != shell.NotFound() {
+		if r.status != http.StatusNotFound || r.body != shell.NotFound(i18n.Locale{Language: "en", Location: p}) {
 			t.Errorf("dashboard %s = %d, want the shell 404", p, r.status)
 		}
 	}
@@ -193,7 +216,7 @@ func TestShells(t *testing.T) {
 		}
 	}
 	// A malformed escape in a splat is Express's 400, as the branded page.
-	if r := e.get("/admin/%E0%A4", admin); r.status != 400 || r.body != shell.RequestError(400) {
+	if r := e.get("/admin/%E0%A4", admin); r.status != 400 || r.body != shell.RequestError(400, i18n.Locale{Language: "en", Location: "/admin/%E0%A4"}) {
 		t.Errorf("bad escape = %d", r.status)
 	}
 }
@@ -230,7 +253,7 @@ func TestBodyParserErrorContract(t *testing.T) {
 		{"/nope", "{not json", 400},
 	} {
 		r := e.do("POST", c.path, opt{body: c.body})
-		if r.status != c.status || r.body != shell.RequestError(c.status) {
+		if r.status != c.status || r.body != shell.RequestError(c.status, i18n.Locale{Language: "en", Location: c.path}) {
 			t.Fatalf("%s = %d %s", c.path, r.status, r.body)
 		}
 	}
@@ -265,7 +288,7 @@ func TestViewBroker(t *testing.T) {
 	if r := e.get("/view/northwind/q2", opt{cookie: e.outCk}); r.status != 403 {
 		t.Fatalf("outsider broker = %d", r.status)
 	}
-	if r := e.get("/view/missing", opt{cookie: e.adminCk}); r.status != 404 || r.body != shell.RequestError(404) {
+	if r := e.get("/view/missing", opt{cookie: e.adminCk}); r.status != 404 || r.body != shell.RequestError(404, i18n.Locale{Language: "en", Location: "/view/missing"}) {
 		t.Fatalf("missing page = %d %s", r.status, r.body)
 	}
 	if _, err := e.s.cfg.DB.Exec(context.Background(), `INSERT INTO pages(slug,title) VALUES('empty','Empty')`); err != nil {
@@ -550,14 +573,14 @@ func TestMountSemantics(t *testing.T) {
 	}
 	e := setup(t, nil)
 	// /uploadx is not the upload mount: the dashboard 404.
-	if r := e.do("PUT", "/uploadx", opt{}); r.status != 404 || r.body != shell.NotFound() {
+	if r := e.do("PUT", "/uploadx", opt{}); r.status != 404 || r.body != shell.NotFound(i18n.Locale{Language: "en", Location: "/uploadx"}) {
 		t.Fatalf("/uploadx = %d", r.status)
 	}
 	// A path the upload router does not take falls through to the 404 page.
-	if r := e.get("/upload", opt{}); r.status != 404 || r.body != shell.NotFound() {
+	if r := e.get("/upload", opt{}); r.status != 404 || r.body != shell.NotFound(i18n.Locale{Language: "en", Location: "/upload"}) {
 		t.Fatalf("GET /upload = %d %s", r.status, r.body)
 	}
-	if r := e.get("/export", opt{}); r.status != 404 || r.body != shell.NotFound() {
+	if r := e.get("/export", opt{}); r.status != 404 || r.body != shell.NotFound(i18n.Locale{Language: "en", Location: "/export"}) {
 		t.Fatalf("GET /export = %d %s", r.status, r.body)
 	}
 }

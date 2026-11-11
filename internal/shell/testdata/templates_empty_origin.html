@@ -9,7 +9,10 @@
 <link rel="stylesheet" href="/shell-assets/flag/tokens/design-tokens.css">
 <link rel="stylesheet" href="/shell-assets/shell.css">
 <script src="/shell-assets/flag/theme/theme-controller.js"></script>
+<script type="application/json" id="pages-i18n">{"language":"en","messages":null}</script>
+<script src="/shell-assets/i18n.js"></script>
 <script type="application/json" id="pages-bootstrap">{"csrf":"tok","admin":"a&b@example.com","contentOrigin":""}</script>
+<script src="/shell-assets/messages.js" defer></script>
 <script src="/shell-assets/primitives.js" defer></script>
 <script src="/shell-assets/templates.js" defer></script>
 </head>
@@ -23,6 +26,7 @@
       </span>
     </a>
     <div class="ds-app-header__actions">
+      <label class="sr-only" for="pages-language">Language</label><select id="pages-language" class="language-picker" aria-label="Language"><option value="en" selected>English</option><option value="es">Español</option><option value="pt">Português</option></select>
       <span class="session-user" title="a&amp;b@example.com">a&amp;b@example.com</span>
       <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="Switch theme" aria-pressed="false" title="Change color theme">
         <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>

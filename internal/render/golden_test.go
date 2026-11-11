@@ -17,7 +17,8 @@ import (
 // testdata/golden.json.gz holds the outputs lib/render.js and lib/bento.js
 // produced for 900+ inputs (recorded with the default CONTENT_ORIGIN and
 // FLAG_ASSETS_BASE). The served bytes must be identical, so every case is
-// compared byte for byte.
+// compared byte for byte. The owned navigation/save scripts were updated for
+// interface localization; customer source and protocol fixtures stay unchanged.
 
 type goldenCase struct {
 	Fn     string          `json:"fn"`

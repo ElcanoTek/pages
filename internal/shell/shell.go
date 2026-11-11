@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ElcanoTek/pages/internal/assetver"
+	"github.com/ElcanoTek/pages/internal/i18n"
 )
 
 // The shell links its assets under the versioned /shell-assets/_v/<version>
@@ -140,7 +141,8 @@ func writeJSONString(sb *strings.Builder, s string) {
 // Head is the shared <head> body: charset, viewport, favicon, title, the Flag
 // fonts/tokens and shell.css, the theme controller, the bootstrap island,
 // primitives.js, then each of scripts (deferred, in order).
-func Head(title string, bootstrap Bootstrap, scripts []string) string {
+func Head(title string, bootstrap Bootstrap, scripts []string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	tags := make([]string, len(scripts))
 	for i, src := range scripts {
 		tags[i] = `<script src="` + Esc(shellAsset(src)) + `" defer></script>`
@@ -153,7 +155,10 @@ func Head(title string, bootstrap Bootstrap, scripts []string) string {
 <link rel="stylesheet" href="` + assetver.ShellFlag() + `/tokens/design-tokens.css">
 <link rel="stylesheet" href="` + assetver.Shell() + `/shell.css">
 <script src="` + assetver.ShellFlag() + `/theme/theme-controller.js"></script>
+<script type="application/json" id="pages-i18n">` + locale.Bootstrap() + `</script>
+<script src="` + assetver.Shell() + `/i18n.js"></script>
 <script type="application/json" id="pages-bootstrap">` + jsonIsland(bootstrap) + `</script>
+<script src="` + assetver.Shell() + `/messages.js" defer></script>
 <script src="` + assetver.Shell() + `/primitives.js" defer></script>
 ` + strings.Join(tags, "\n")
 }
@@ -175,23 +180,25 @@ func Icon(name, className string) string {
 // confirmation primitives.js puts in front of it. Not POST: the shell sends
 // Referrer-Policy: no-referrer, so a POST would carry Origin: null, which the
 // central logout refuses as foreign.
-func Header(email string) string {
+func Header(email string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	return `<header class="page-header">
   <div class="ds-app-header shell-header">
-    <a class="ds-app-header__brand brand-link" href="/admin" aria-label="Pages home">
+    <a class="ds-app-header__brand brand-link" href="` + Esc(locale.URL("/admin")) + `" aria-label="` + Esc(locale.T("Pages home")) + `">
       <img class="ds-app-header__mark" src="` + mark() + `" alt="">
       <span class="ds-app-header__text">
         <span class="ds-app-header__title">Pages</span>
       </span>
     </a>
     <div class="ds-app-header__actions">
+      ` + LanguagePicker(locale) + `
       <span class="session-user" title="` + Esc(email) + `">` + Esc(email) + `</span>
-      <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="Switch theme" aria-pressed="false" title="Change color theme">
+      <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="` + Esc(locale.T("Switch theme")) + `" aria-pressed="false" title="` + Esc(locale.T("Change color theme")) + `">
         ` + Icon("sun", "icon-inline theme-toggle__icon theme-toggle__icon--sun") + `
         ` + Icon("moon", "icon-inline theme-toggle__icon theme-toggle__icon--moon") + `
       </button>
       <form class="header-signout-form" method="get" action="/logout">
-        <button class="icon-action header-signout" type="submit" aria-label="Sign out" title="Sign out">` + Icon("logout", "") + `</button>
+        <button class="icon-action header-signout" type="submit" aria-label="` + Esc(locale.T("Sign out")) + `" title="` + Esc(locale.T("Sign out")) + `">` + Icon("logout", "") + `</button>
       </form>
     </div>
   </div>
@@ -215,23 +222,24 @@ const (
 // a tab whose label is echoed by an overline above a different heading reads
 // as a second header rather than as navigation.
 var sections = []struct{ key, href, label string }{
-	{SectionPages, "/admin", "Client pages"},
-	{SectionTemplates, "/admin/templates", "Template library"},
-	{SectionPortals, "/admin/portals", "Partner portals"},
+	{SectionPages, "/admin", i18n.Source("Client pages")},
+	{SectionTemplates, "/admin/templates", i18n.Source("Template library")},
+	{SectionPortals, "/admin/portals", i18n.Source("Partner portals")},
 }
 
 // SectionNav is the top-level section navigation, shared so every section
 // renders identical markup; current is marked aria-current="page".
-func SectionNav(current string) string {
+func SectionNav(current string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	tabs := make([]string, len(sections))
 	for i, s := range sections {
 		active := ""
 		if s.key == current {
 			active = ` aria-current="page"`
 		}
-		tabs[i] = `    <a class="context-tab" href="` + s.href + `"` + active + `>` + Esc(s.label) + `</a>`
+		tabs[i] = `    <a class="context-tab" href="` + Esc(locale.URL(s.href)) + `"` + active + `>` + Esc(locale.T(s.label)) + `</a>`
 	}
-	return `<nav class="context-nav" aria-label="Pages sections">
+	return `<nav class="context-nav" aria-label="` + Esc(locale.T("Pages sections")) + `">
 ` + strings.Join(tabs, "\n") + `
   </nav>`
 }
@@ -240,10 +248,11 @@ func SectionNav(current string) string {
 // from the slug so there is something correct before the payload lands;
 // admin.js then upgrades the workspace and the human title in place. Marking
 // the last crumb aria-current makes the trail a location, not a set of links.
-func Breadcrumb(slug string) string {
-	return `<nav class="breadcrumb" aria-label="Breadcrumb">
+func Breadcrumb(slug string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
+	return `<nav class="breadcrumb" aria-label="` + Esc(locale.T("Breadcrumb")) + `">
     <ol class="breadcrumb__list">
-      <li class="breadcrumb__item"><a href="/admin">Client pages</a></li>
+      <li class="breadcrumb__item"><a href="` + Esc(locale.URL("/admin")) + `">` + Esc(locale.T("Client pages")) + `</a></li>
       <li class="breadcrumb__item breadcrumb__item--workspace" id="breadcrumb-workspace" hidden></li>
       <li class="breadcrumb__item"><span id="breadcrumb-current" aria-current="page">/` + Esc(slug) + `</span></li>
     </ol>
@@ -251,9 +260,10 @@ func Breadcrumb(slug string) string {
 }
 
 // Loading is the loading state panel; label "" means "Loading pages".
-func Loading(label string) string {
+func Loading(label string, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	if label == "" {
-		label = "Loading pages"
+		label = locale.T("Loading pages")
 	}
 	return `<div class="state-panel state-panel--loading" role="status" aria-live="polite">
   <span class="spinner spinner--panel" aria-hidden="true"></span>

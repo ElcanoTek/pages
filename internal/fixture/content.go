@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/contentview"
 	"github.com/ElcanoTek/pages/internal/csp"
@@ -108,8 +110,8 @@ const rawDarkDashboard = `<!doctype html><html><head><title>Bespoke dark</title>
 h1{margin:0 0 18px;color:#e8c37a}main{padding:30px}</style>
 </head><body><main><h1>Night desk · flight to date</h1><p>Deliberately dark.</p></main></body></html>`
 
-func renderPage(src, mode string, nav obj, overrideCSS string) string {
-	rr := render.Renderable{HTML: src, RenderMode: mode, OverrideCSS: overrideCSS}
+func renderPage(src, mode string, nav obj, overrideCSS string, locales ...i18n.Locale) string {
+	rr := render.Renderable{Locale: i18n.First(locales...), HTML: src, RenderMode: mode, OverrideCSS: overrideCSS}
 	if nav != nil {
 		rr.Nav = navJSON(nav)
 	}
@@ -117,12 +119,12 @@ func renderPage(src, mode string, nav obj, overrideCSS string) string {
 }
 
 func dashboard(src, mode string, nav func() obj) handler {
-	return html(http.StatusOK, func(*req) string {
+	return html(http.StatusOK, func(r *req) string {
 		var n obj
 		if nav != nil {
 			n = nav()
 		}
-		return renderPage(src, mode, n, "")
+		return renderPage(src, mode, n, "", i18n.FromRequest(r.Request))
 	})
 }
 
@@ -140,7 +142,7 @@ func daysBefore(days float64) time.Time {
 	return portalNow.Add(-time.Duration(days * 86400000 * float64(time.Millisecond)))
 }
 
-func portalOpenPage() string {
+func portalOpenPage(locales ...i18n.Locale) string {
 	return contentview.PortalIndexPage(contentview.PortalIndexOptions{
 		Portal: fixturePortal,
 		Now:    portalNow,
@@ -151,7 +153,7 @@ func portalOpenPage() string {
 			{Slug: "nwm/contoso-fabrikam-always-on", Title: "Contoso — Fabrikam always-on performance, quarter to date", SourceAsOf: daysBefore(3), PublishedAt: daysBefore(3)},
 			{Slug: "nwm-zeta-q3", Title: "Zeta Q3", PublishedAt: daysBefore(19)},
 		},
-	})
+	}, locales...)
 }
 
 // withCSP returns hs with its Content-Security-Policy replaced by edit(csp).
@@ -220,14 +222,16 @@ func sandboxTarget(r *req) string {
 func (a *App) shellRoutes() []route {
 	live := a.origin + "/live"
 	return []route{
-		{method: "GET", pattern: "/admin", h: static(http.StatusOK, shell.Welcome(adminEmail, live, shell.WelcomeOptions{CSRF: adminCSRF, Compose: true}))},
+		{method: "GET", pattern: "/admin", h: html(http.StatusOK, func(r *req) string {
+			return shell.Welcome(adminEmail, live, shell.WelcomeOptions{CSRF: adminCSRF, Compose: true}, i18n.FromRequest(r.Request))
+		})},
 		// Registered before /admin/*slug, exactly as the server does it —
 		// otherwise "templates" is read as a page slug and the library never
 		// renders.
-		{method: "GET", pattern: "/admin/templates", h: static(http.StatusOK, shell.Templates(adminCSRF, adminEmail, live))},
-		{method: "GET", pattern: "/admin/portals", h: static(http.StatusOK, shell.Portals(adminCSRF, adminEmail, live))},
+		{method: "GET", pattern: "/admin/templates", h: html(http.StatusOK, func(r *req) string { return shell.Templates(adminCSRF, adminEmail, live, i18n.FromRequest(r.Request)) })},
+		{method: "GET", pattern: "/admin/portals", h: html(http.StatusOK, func(r *req) string { return shell.Portals(adminCSRF, adminEmail, live, i18n.FromRequest(r.Request)) })},
 		{method: "GET", pattern: "/admin/*slug", h: html(http.StatusOK, func(r *req) string {
-			return shell.Admin(r.params["slug"], adminCSRF, adminEmail, live)
+			return shell.Admin(r.params["slug"], adminCSRF, adminEmail, live, i18n.FromRequest(r.Request))
 		})},
 	}
 }
@@ -251,14 +255,22 @@ func (a *App) contentRoutes() []route {
 			return `<!doctype html><title>Client fixture</title><h1>Client ` + r.params["slug"] + `</h1>`
 		})},
 
-		{method: "GET", pattern: "/gate/password", h: static(http.StatusUnauthorized, gate(contentview.GatePageOptions{Slug: "gate/password", ShowForm: true}))},
-		{method: "GET", pattern: "/gate/incorrect", h: static(http.StatusUnauthorized, gate(contentview.GatePageOptions{Slug: "gate/incorrect", Message: "Incorrect password.", ShowForm: true}))},
-		{method: "GET", pattern: "/gate/staff", h: static(http.StatusForbidden, gate(contentview.GatePageOptions{Slug: "gate/staff"}))},
-		{method: "GET", pattern: "/gate/404", h: static(http.StatusNotFound, contentview.NotFoundPage())},
-		{method: "GET", pattern: "/gate/rate-limit", h: static(http.StatusTooManyRequests, contentview.RateLimitPage("gate/rate-limit", 15))},
-		{method: "GET", pattern: "/gate/busy", h: static(http.StatusTooManyRequests, contentview.BusyPage("gate/busy"))},
-		{method: "GET", pattern: "/gate/error", h: static(http.StatusInternalServerError, contentview.ServerErrorPage())},
-		{method: "GET", pattern: "/gate/expired", h: static(http.StatusForbidden, contentview.ExpiredLinkPage())},
+		{method: "GET", pattern: "/gate/password", h: html(http.StatusUnauthorized, func(r *req) string {
+			return gate(contentview.GatePageOptions{Slug: "gate/password", ShowForm: true}, i18n.FromRequest(r.Request))
+		})},
+		{method: "GET", pattern: "/gate/incorrect", h: html(http.StatusUnauthorized, func(r *req) string {
+			return gate(contentview.GatePageOptions{Slug: "gate/incorrect", Message: "Incorrect password.", ShowForm: true}, i18n.FromRequest(r.Request))
+		})},
+		{method: "GET", pattern: "/gate/staff", h: html(http.StatusForbidden, func(r *req) string {
+			return gate(contentview.GatePageOptions{Slug: "gate/staff"}, i18n.FromRequest(r.Request))
+		})},
+		{method: "GET", pattern: "/gate/404", h: html(http.StatusNotFound, func(r *req) string { return contentview.NotFoundPage(i18n.FromRequest(r.Request)) })},
+		{method: "GET", pattern: "/gate/rate-limit", h: html(http.StatusTooManyRequests, func(r *req) string {
+			return contentview.RateLimitPage("gate/rate-limit", 15, i18n.FromRequest(r.Request))
+		})},
+		{method: "GET", pattern: "/gate/busy", h: html(http.StatusTooManyRequests, func(r *req) string { return contentview.BusyPage("gate/busy", i18n.FromRequest(r.Request)) })},
+		{method: "GET", pattern: "/gate/error", h: html(http.StatusInternalServerError, func(r *req) string { return contentview.ServerErrorPage(i18n.FromRequest(r.Request)) })},
+		{method: "GET", pattern: "/gate/expired", h: html(http.StatusForbidden, func(r *req) string { return contentview.ExpiredLinkPage(i18n.FromRequest(r.Request)) })},
 
 		{method: "GET", pattern: "/dashboard/with-switcher", h: dashboard(shipped, "themed", full)},
 		{method: "GET", pattern: "/dashboard/no-switcher", h: dashboard(shipped, "themed", nil)},
@@ -283,13 +295,17 @@ func (a *App) contentRoutes() []route {
 		{method: "GET", pattern: "/dashboard/legacy-one-page", h: dashboard(legacyDashboard, "themed", onePage)},
 		{method: "GET", pattern: "/dashboard/one-page", h: dashboard(shipped, "themed", onePage)},
 
-		{method: "GET", pattern: "/gate/portal", h: static(http.StatusUnauthorized, portalIndex(contentview.PortalIndexOptions{Portal: fixturePortal, ShowForm: true}))},
-		{method: "GET", pattern: "/gate/portal-incorrect", h: static(http.StatusUnauthorized, portalIndex(contentview.PortalIndexOptions{Portal: fixturePortal, ShowForm: true, Message: "Incorrect password."}))},
-		{method: "GET", pattern: "/gate/portal-open", h: static(http.StatusOK, portalOpenPage())},
-		{method: "GET", pattern: "/gate/portal-empty", h: html(http.StatusOK, func(*req) string {
-			return portalIndex(contentview.PortalIndexOptions{Portal: fixturePortal})
+		{method: "GET", pattern: "/gate/portal", h: html(http.StatusUnauthorized, func(r *req) string {
+			return portalIndex(contentview.PortalIndexOptions{Portal: fixturePortal, ShowForm: true}, i18n.FromRequest(r.Request))
 		})},
-		{method: "GET", pattern: "/dashboard-missing", h: static(http.StatusNotFound, shell.NotFound())},
+		{method: "GET", pattern: "/gate/portal-incorrect", h: html(http.StatusUnauthorized, func(r *req) string {
+			return portalIndex(contentview.PortalIndexOptions{Portal: fixturePortal, ShowForm: true, Message: "Incorrect password."}, i18n.FromRequest(r.Request))
+		})},
+		{method: "GET", pattern: "/gate/portal-open", h: html(http.StatusOK, func(r *req) string { return portalOpenPage(i18n.FromRequest(r.Request)) })},
+		{method: "GET", pattern: "/gate/portal-empty", h: html(http.StatusOK, func(r *req) string {
+			return portalIndex(contentview.PortalIndexOptions{Portal: fixturePortal}, i18n.FromRequest(r.Request))
+		})},
+		{method: "GET", pattern: "/dashboard-missing", h: html(http.StatusNotFound, func(r *req) string { return shell.NotFound(i18n.FromRequest(r.Request)) })},
 
 		// Hands out a real page-session cookie, then bounces to the sandboxed
 		// source. Secure is off because the fixture is http://127.0.0.1.

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	pages "github.com/ElcanoTek/pages"
 	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/httpx"
@@ -372,7 +374,7 @@ func ShellAssets(next http.Handler) http.Handler {
 			}
 			var se *statusError
 			if errors.As(err, &se) {
-				httpx.SendHTML(w, r, se.status, shell.RequestError(se.status))
+				httpx.SendHTML(w, r, se.status, shell.RequestError(se.status, i18n.FromRequest(r)))
 			}
 			return
 		}

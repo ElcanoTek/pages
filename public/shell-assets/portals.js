@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Copyright (c) 2026 ElcanoTek, Inc.
 "use strict";
+(function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
+
 
 // Partner portals screen (/admin/portals).
 //
@@ -24,14 +28,14 @@
 function describeMember(member) {
   const warnings = [];
   if (member.page_deleted) {
-    warnings.push({ kind: "blocked", text: "Page deleted — a partner cannot open this. Remove it from the portal." });
+    warnings.push({ kind: "blocked", text: t("Page deleted — a partner cannot open this. Remove it from the portal.") });
   } else if (!member.published) {
-    warnings.push({ kind: "blocked", text: "Nothing published yet — hidden from this partner until there is." });
+    warnings.push({ kind: "blocked", text: t("Nothing published yet — hidden from this partner until there is.") });
   } else if (member.disabled) {
-    warnings.push({ kind: "blocked", text: "Taken down — hidden from this partner while it is disabled." });
+    warnings.push({ kind: "blocked", text: t("Taken down — hidden from this partner while it is disabled.") });
   }
   if (!member.page_deleted && !member.has_password) {
-    warnings.push({ kind: "note", text: "No password of its own: this portal is what makes it readable." });
+    warnings.push({ kind: "note", text: t("No password of its own: this portal is what makes it readable.") });
   }
   // Every published member shows a Page menu when opened through this portal —
   // themed via the template block or Pages' built-in control, raw via the
@@ -98,11 +102,11 @@ function describeMove(list, index, direction) {
   const member = (list || [])[index];
   if (!member) return "";
   const name = member.display_title;
-  if (list.length < 2) return `${name} is the only page in this portal.`;
-  if (index === 0) return `${name} is now first.`;
-  if (index === list.length - 1) return `${name} is now last.`;
+  if (list.length < 2) return t("{0} is the only page in this portal.", name);
+  if (index === 0) return t("{0} is now first.", name);
+  if (index === list.length - 1) return t("{0} is now last.", name);
   const neighbour = list[direction === "up" ? index + 1 : index - 1].display_title;
-  return direction === "up" ? `${name} moved above ${neighbour}.` : `${name} moved below ${neighbour}.`;
+  return direction === "up" ? t("{0} moved above {1}.", name, neighbour) : t("{0} moved below {1}.", name, neighbour);
 }
 
 // planMove — one press, resolved against the list as it stands. Returns null for
@@ -134,22 +138,21 @@ function planMove(members, pageId, direction) {
 // BEFORE sort_order, so the home row can sit anywhere here and the partner still
 // opens it first. Pure so test/unit.test.js can pin the home-not-first wording.
 function memberCaption({ count, openable, hasHome }) {
-  const noun = count === 1 ? "page" : "pages";
   // "in this order" only earns its place when there are two rows to order, and it
   // is said about every row rather than about the visible subset — the old
   // wording attached the order to the 2 of 3 that a partner can open.
   const head = count > 1
-    ? `${count} ${noun} in this order, ${openable} of them visible to this partner.`
-    : `${count} ${noun}, ${openable === count ? "visible" : "not visible"} to this partner.`;
+    ? t("{0} pages in this order, {1} of them visible to this partner.", count, openable)
+    : count === 0 ? t("0 pages, visible to this partner.") : openable === count ? t("1 page, visible to this partner.") : t("1 page, not visible to this partner.");
   const home = hasHome
-    ? " The partner's own index always shows the home page first, wherever it sits here."
+    ? t(" The partner's own index always shows the home page first, wherever it sits here.")
     : "";
   // The shortcut was named only in each control's `title`, which renders on hover
   // — so the operator who most needs it was the one who never saw it. Said once
   // here, in plain sight, as well as on each control via aria-keyshortcuts.
-  const shortcut = count > 1 ? " Alt+↑ and Alt+↓ move a row from anywhere in it." : "";
+  const shortcut = count > 1 ? t(" Alt+↑ and Alt+↓ move a row from anywhere in it.") : "";
   return `${head}${home}${shortcut}`
-    + " The list is read live: changes here reach them on their next page load, with nothing redeployed.";
+    + t(" The list is read live: changes here reach them on their next page load, with nothing redeployed.");
 }
 
 // nextSortOrder — where a newly added member lands now that nothing asks for a
@@ -215,9 +218,7 @@ function appendAllPlan(members, count) {
 // `.operation-table caption` pads its text one step in, which gave the section a
 // third left edge under a heading and a paragraph that share the first two.
 function auditCaption(count) {
-  const noun = count === 1 ? "page" : "pages";
-  const verb = count === 1 ? "is" : "are";
-  return `${count} linked ${noun} ${verb} not in this portal.`;
+  return count === 1 ? t("1 linked page is not in this portal.") : t("{0} linked pages are not in this portal.", count);
 }
 
 // describeAdded — what an admin is TOLD after an add made from the audit. The
@@ -230,15 +231,15 @@ function describeAdded(results) {
   // Nothing landed is not "Added 0 dashboards." — it is nothing to say, which is
   // what describePartialAdd asks this for when a batch fails on its first write.
   if (!list.length) return "";
-  const head = list.length === 1 ? "Page added." : `Added ${list.length} pages.`;
+  const head = list.length === 1 ? t("Page added.") : t("Added {0} pages.", list.length);
   const names = list
     .filter((result) => result.reclassifies_staff_only)
-    .map((result) => (result.member && result.member.display_title) || "A page");
+    .map((result) => (result.member && result.member.display_title) || t("A page"));
   if (!names.length) return head;
   const joined = names.length === 1
     ? names[0]
-    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-  return `${head} ${joined} ${names.length === 1 ? "is" : "are"} now readable with this portal's password.`;
+    : t("{0} and {1}", names.slice(0, -1).join(", "), names[names.length - 1]);
+  return head + " " + (names.length === 1 ? t("{0} is now readable with this portal's password.", joined) : t("{0} are now readable with this portal's password.", joined));
 }
 
 // describePartialAdd — what an admin is told when "Add all N" fails PART WAY.
@@ -257,7 +258,7 @@ function describeAdded(results) {
 function describePartialAdd(message, results) {
   const added = describeAdded(results);
   if (!added) return message;
-  return `${message} — the rest were not added. ${added}`;
+  return t("{0} — the rest were not added. {1}", message, added);
 }
 
 if (typeof module !== "undefined" && module.exports) {
@@ -312,12 +313,12 @@ if (typeof document !== "undefined") (function () {
       onclick: async () => {
         try {
           await copyText(value);
-          toast(`${label} copied.`);
+          toast(t("{0} copied.", label));
         } catch (error) {
           toast(error.message, { tone: "error" });
         }
       },
-    }, `Copy ${label.toLowerCase()}`);
+    }, t("Copy {0}", label.toLowerCase()));
   }
 
   // formDialog — the shape every mutation dialog here shares: fields, one primary
@@ -346,12 +347,12 @@ if (typeof document !== "undefined") (function () {
   function formDialog({ title, description, closeLabel, fields, confirmLabel, onConfirm }) {
     const modal = makeDialog({
       title,
-      kicker: "Partner portals",
+      kicker: t("Partner portals"),
       description,
       // A fixed label, never derived from the title: a title carries a partner
       // name and a field name, so a derived one reads badly to a screen reader and
       // collides with the labels of the fields inside the dialog.
-      closeLabel: closeLabel || "Close dialog",
+      closeLabel: closeLabel || t("Close dialog"),
       onClose() {
         modal.dialog.remove();
       },
@@ -360,7 +361,7 @@ if (typeof document !== "undefined") (function () {
     const formId = `portal-dialog-form-${++formSeq}`;
     const form = el("form", { id: formId, class: "form-stack" }, ...fields, error);
     modal.body.append(form);
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
+    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const proceed = el("button", { class: "btn btn-primary", type: "submit", form: formId }, confirmLabel);
     // setBusy disables the button while a request is in flight, and a disabled
     // default button also blocks implicit submission — but only while the form
@@ -402,12 +403,12 @@ if (typeof document !== "undefined") (function () {
   // request (`current`). Either way a dialog the admin dismisses deliberately.
   function showCredential(portal, password, { current = false } = {}) {
     const modal = makeDialog({
-      title: `Password for ${portal.name}`,
-      kicker: current ? "Current password" : "Copy this now",
+      title: t("Password for {0}", portal.name),
+      kicker: current ? t("Current password") : t("Copy this now"),
       description: current
-        ? "This is the password partners use today. Showing it changes nothing and is recorded in the audit log."
-        : "Copy it now. Staff can show it again later from this portal's Show password button.",
-      closeLabel: "Close password",
+        ? t("This is the password partners use today. Showing it changes nothing and is recorded in the audit log.")
+        : t("Copy it now. Staff can show it again later from this portal's Show password button."),
+      closeLabel: t("Close password"),
       onClose() {
         modal.dialog.remove();
       },
@@ -415,13 +416,13 @@ if (typeof document !== "undefined") (function () {
     modal.body.append(
       el("pre", { class: "code-block", tabindex: "0" }, password),
       el("p", { class: "note" },
-        "Send it separately from the link, and only to the people who should have it: one password opens every page in this portal, and a forwarded password is as good as the holder's."),
-      el("p", { class: "note" }, `Portal link: ${portal.url}`)
+        t("Send it separately from the link, and only to the people who should have it: one password opens every page in this portal, and a forwarded password is as good as the holder's.")),
+      el("p", { class: "note" }, t("Portal link: {0}", portal.url))
     );
     modal.actions.append(
-      copyButton(password, "Password"),
-      copyButton(portal.url, "Link"),
-      el("button", { class: "btn btn-primary", type: "button", onclick: () => modal.close("ack") }, "Done")
+      copyButton(password, t("Password")),
+      copyButton(portal.url, t("Link")),
+      el("button", { class: "btn btn-primary", type: "button", onclick: () => modal.close("ack") }, t("Done"))
     );
     modal.open();
   }
@@ -494,19 +495,19 @@ if (typeof document !== "undefined") (function () {
       slug.value = name.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
     });
     formDialog({
-      title: "New partner portal",
-      closeLabel: "Close new portal",
-      description: "Pages generates the password and shows it on the next screen.",
+      title: t("New partner portal"),
+      closeLabel: t("Close new portal"),
+      description: t("Pages generates the password and shows it on the next screen."),
       fields: [
-        field({ id: "portal-name", label: "Partner name", control: name, help: "What the partner sees at the top of their page." }),
+        field({ id: "portal-name", label: t("Partner name"), control: name, help: t("What the partner sees at the top of their page.") }),
         field({
           id: "portal-slug",
-          label: "URL slug",
+          label: t("URL slug"),
           control: slug,
-          help: `Their link will be ${boot.contentOrigin || ""}/portal/<slug>. Lower case letters, digits, - and _.`,
+          help: t("Their link will be {0}/portal/<slug>. Lower case letters, digits, - and _.", boot.contentOrigin || ""),
         }),
       ],
-      confirmLabel: "Create portal",
+      confirmLabel: t("Create portal"),
       onConfirm: async () => {
         const created = await api("/portals", { body: { name: name.value, slug: slug.value } });
         await load({ keepSelection: false });
@@ -613,7 +614,7 @@ if (typeof document !== "undefined") (function () {
     // any title ending in a direction. The row is still named, because a table of
     // identical "Move up" buttons tells a screen reader nothing about which
     // dashboard it would move.
-    const label = `Move ${direction}: ${member.display_title}`;
+    const label = direction === "up" ? t("Move up: {0}", member.display_title) : t("Move down: {0}", member.display_title);
     const button = el("button", {
       id: moveButtonId(member, direction),
       class: "icon-action",
@@ -647,7 +648,7 @@ if (typeof document !== "undefined") (function () {
 
   function addPageDialog(portal) {
     const picker = el("select", { id: "portal-add-page" },
-      el("option", { value: "" }, "Loading pages…"));
+      el("option", { value: "" }, t("Loading pages…")));
     // What the picker is doing is said in prose beside it, not only in the text of
     // a disabled <option>. Disabled option text composites to about 2.3:1 in the
     // light theme (3.2:1 in dark), so it is legible in one theme and nearly
@@ -658,7 +659,7 @@ if (typeof document !== "undefined") (function () {
       class: "field-help",
       role: "status",
       "data-testid": "portal-add-page-status",
-    }, "Loading the page list…");
+    }, t("Loading the page list…"));
     // Swallowing this list's failure left the picker holding one option reading
     // "Choose a page…" with nothing to choose and no reason given, on a
     // screen whose whole job is telling an admin what a click will do. Say it,
@@ -671,7 +672,7 @@ if (typeof document !== "undefined") (function () {
       hidden: true,
       "data-testid": "portal-add-page-error",
     });
-    const retry = el("button", { class: "btn btn-sm", type: "button" }, "Try again");
+    const retry = el("button", { class: "btn btn-sm", type: "button" }, t("Try again"));
     retry.addEventListener("click", () => { loadCandidates(); });
 
     // Whether there is anything to add is a property of the list, so the action
@@ -694,14 +695,14 @@ if (typeof document !== "undefined") (function () {
       // this is the state a screen reader is least likely to be told about.
       picker.disabled = false;
       picker.setAttribute("aria-busy", "true");
-      picker.replaceChildren(el("option", { value: "" }, "Loading pages…"));
-      pickerStatus.textContent = "Loading the page list…";
+      picker.replaceChildren(el("option", { value: "" }, t("Loading pages…")));
+      pickerStatus.textContent = t("Loading the page list…");
       syncAction();
       let index;
       try {
         index = await api("/pages");
       } catch (error) {
-        picker.replaceChildren(el("option", { value: "" }, "Pages unavailable"));
+        picker.replaceChildren(el("option", { value: "" }, t("Pages unavailable")));
         picker.disabled = true;
         picker.removeAttribute("aria-busy");
         pickerStatus.textContent = "";
@@ -709,7 +710,7 @@ if (typeof document !== "undefined") (function () {
         // out of the accessibility tree announces nothing.
         pickerFailure.hidden = false;
         pickerFailure.replaceChildren(
-          el("span", {}, `Couldn't load the page list: ${error.message}`),
+          el("span", {}, t("Couldn't load the page list: {0}", error.message)),
           retry
         );
         loading = false;
@@ -723,19 +724,19 @@ if (typeof document !== "undefined") (function () {
       // Nothing to add has two causes and they are not the same sentence: every
       // dashboard is already a member, or there are no dashboards at all. Saying
       // the first on a fresh install would be a plain lie.
-      const emptyLabel = all.length ? "Every page is already in this portal" : "No pages in Pages yet";
+      const emptyLabel = all.length ? t("Every page is already in this portal") : t("No pages in Pages yet");
       picker.replaceChildren(
-        el("option", { value: "" }, candidates.length ? "Choose a page…" : emptyLabel),
+        el("option", { value: "" }, candidates.length ? t("Choose a page…") : emptyLabel),
         ...candidates.map((page) =>
           el("option", { value: page.slug, dataset: { hasPassword: page.has_password ? "1" : "0" } },
-            `${page.title || page.slug} — /${page.slug}${page.has_password ? "" : " · staff-only"}`)));
+            `${page.title || page.slug} — /${page.slug}${page.has_password ? "" : t(" · staff-only")}`)));
       picker.disabled = !candidates.length;
       picker.removeAttribute("aria-busy");
       pickerStatus.textContent = candidates.length
-        ? `${candidates.length} page${candidates.length === 1 ? "" : "s"} to choose from.`
+        ? (candidates.length === 1 ? t("1 page to choose from.") : t("{0} pages to choose from.", candidates.length))
         : all.length
-          ? "Every page in Pages is already in this portal — there is nothing left to add."
-          : "There are no pages in Pages yet. Create one, then add it here.";
+          ? t("Every page in Pages is already in this portal — there is nothing left to add.")
+          : t("There are no pages in Pages yet. Create one, then add it here.");
       loading = false;
       syncAction();
     }
@@ -749,37 +750,37 @@ if (typeof document !== "undefined") (function () {
       const chosen = picker.selectedOptions[0];
       const reclassifies = Boolean(chosen && chosen.value && chosen.dataset.hasPassword === "0");
       notice.textContent = reclassifies
-        ? "This page has no client password of its own, so today it is staff-only. Adding it here is what makes it readable by everyone holding this portal's password."
+        ? t("This page has no client password of its own, so today it is staff-only. Adding it here is what makes it readable by everyone holding this portal's password.")
         : "";
       notice.hidden = !reclassifies;
     });
 
     dialog = formDialog({
-      title: `Add a page to ${portal.name}`,
-      closeLabel: "Close add page",
-      description: "The partner sees it on their next page load. Nothing is redeployed.",
+      title: t("Add a page to {0}", portal.name),
+      closeLabel: t("Close add page"),
+      description: t("The partner sees it on their next page load. Nothing is redeployed."),
       fields: [
         // The picker's failure and its status line belong INSIDE its field: at a
         // form-stack gap they sat as far from the select they describe as an
         // unrelated field would.
-        field({ id: "portal-add-page", label: "Page", control: [picker, pickerFailure], help: pickerStatus }),
+        field({ id: "portal-add-page", label: t("Page"), control: [picker, pickerFailure], help: pickerStatus }),
         notice,
         field({
           id: "portal-add-label",
-          label: "Label for the partner (optional)",
+          label: t("Label for the partner (optional)"),
           control: label,
-          help: "Overrides the page title in this partner's list. A page title can be changed by an agent; this cannot.",
+          help: t("Overrides the page title in this partner's list. A page title can be changed by an agent; this cannot."),
         }),
       ],
-      confirmLabel: "Add page",
+      confirmLabel: t("Add page"),
       onConfirm: async () => {
         // "Add page" is disabled while the list is loading and while there is
         // nothing to pick, and a disabled default button is also what blocks
         // implicit submission — but that is one attribute away from not being
         // true, and Enter can still arrive with the placeholder selected. Both
         // refusals stay written here, in the dialog, next to the picker.
-        if (loading) throw new Error("Still loading the page list.");
-        if (!picker.value) throw new Error("Choose a page to add.");
+        if (loading) throw new Error(t("Still loading the page list."));
+        if (!picker.value) throw new Error(t("Choose a page to add."));
         // No Order field to read: a new dashboard goes last, and the ↑/↓ controls
         // on its row are how it moves from there.
         const result = await addMember(portal, { slug: picker.value, label: label.value || null });
@@ -798,17 +799,17 @@ if (typeof document !== "undefined") (function () {
   function editMemberDialog(portal, member) {
     const label = el("input", { id: "portal-edit-label", type: "text", maxlength: "200", value: member.label || "", autocomplete: "off" });
     formDialog({
-      title: `Edit ${member.display_title}`,
-      closeLabel: "Close edit membership",
+      title: t("Edit {0}", member.display_title),
+      closeLabel: t("Close edit membership"),
       fields: [
         field({
           id: "portal-edit-label",
-          label: "Label for the partner",
+          label: t("Label for the partner"),
           control: label,
-          help: `Empty falls back to the page title (${member.title || member.slug}).`,
+          help: t("Empty falls back to the page title ({0}).", member.title || member.slug),
         }),
       ],
-      confirmLabel: "Save",
+      confirmLabel: t("Save"),
       onConfirm: async () => {
         await api(`/portals/${portal.id}/pages/update`, {
           // Label only. The endpoint is partial: lib/adminapi passes sortOrder
@@ -821,7 +822,7 @@ if (typeof document !== "undefined") (function () {
           body: { page_id: member.page_id, label: label.value || null },
         });
         await select(portal.id);
-        toast("Membership updated.");
+        toast(t("Membership updated."));
       },
     });
   }
@@ -829,14 +830,14 @@ if (typeof document !== "undefined") (function () {
   function renameDialog(portal) {
     const name = el("input", { id: "portal-rename", type: "text", maxlength: "100", value: portal.name });
     formDialog({
-      title: "Rename portal",
-      closeLabel: "Close rename portal",
-      fields: [field({ id: "portal-rename", label: "Partner name", control: name, help: "The link and the password do not change." })],
-      confirmLabel: "Rename",
+      title: t("Rename portal"),
+      closeLabel: t("Close rename portal"),
+      fields: [field({ id: "portal-rename", label: t("Partner name"), control: name, help: t("The link and the password do not change.") })],
+      confirmLabel: t("Rename"),
       onConfirm: async () => {
         await api(`/portals/${portal.id}/rename`, { body: { name: name.value } });
         await load();
-        toast("Portal renamed.");
+        toast(t("Portal renamed."));
       },
     });
   }
@@ -845,33 +846,33 @@ if (typeof document !== "undefined") (function () {
   function portalList() {
     if (!state.portals.length) {
       return emptyState(
-        "No partner portals yet",
-        "A portal gives one partner one link and one password for a set of pages. Create one, add their pages, then send them the link.",
-        el("button", { class: "btn btn-primary", type: "button", onclick: newPortalDialog }, "New portal")
+        t("No partner portals yet"),
+        t("A portal gives one partner one link and one password for a set of pages. Create one, add their pages, then send them the link."),
+        el("button", { class: "btn btn-primary", type: "button", onclick: newPortalDialog }, t("New portal"))
       );
     }
     const rows = state.portals.map((portal) => {
       const selected = String(portal.id) === String(state.selectedId);
       return el("tr", selected ? { class: "row--selected", "aria-current": "true" } : {},
-        el("td", { "data-label": "Partner" },
+        el("td", { "data-label": t("Partner") },
           el("button", {
             class: "btn btn-sm",
             type: "button",
             onclick: () => select(portal.id).catch((error) => toast(error.message, { tone: "error" })),
           }, portal.name),
           el("div", { class: "table-meta" }, `/portal/${portal.slug}`)),
-        el("td", { "data-label": "Pages" }, String(portal.page_count)),
-        el("td", { "data-label": "Home" }, portal.home_page_slug ? `/${portal.home_page_slug}` : el("span", { class: "table-meta" }, "None")),
-        el("td", { class: "table-meta", "data-label": "Updated" }, timeWhen(portal.updated_at)));
+        el("td", { "data-label": t("Pages") }, String(portal.page_count)),
+        el("td", { "data-label": t("Home") }, portal.home_page_slug ? `/${portal.home_page_slug}` : el("span", { class: "table-meta" }, t("None"))),
+        el("td", { class: "table-meta", "data-label": t("Updated") }, timeWhen(portal.updated_at)));
     });
     return el("div", { class: "operation-table-wrap" },
       el("table", { class: "operation-table" },
-        el("caption", { class: "table-meta" }, `${state.portals.length} portal${state.portals.length === 1 ? "" : "s"}`),
+        el("caption", { class: "table-meta" }, state.portals.length === 1 ? t("1 portal") : t("{0} portals", state.portals.length)),
         el("thead", {}, el("tr", {},
-          el("th", { scope: "col" }, "Partner"),
-          el("th", { scope: "col" }, "Pages"),
-          el("th", { scope: "col" }, "Home"),
-          el("th", { scope: "col" }, "Updated"))),
+          el("th", { scope: "col" }, t("Partner")),
+          el("th", { scope: "col" }, t("Pages")),
+          el("th", { scope: "col" }, t("Home")),
+          el("th", { scope: "col" }, t("Updated")))),
         el("tbody", {}, ...rows)));
   }
 
@@ -905,10 +906,10 @@ if (typeof document !== "undefined") (function () {
       // Ids on the text buttons too: they are what a keyboard operator is standing
       // on when Alt+↑/↓ rebuilds the row, and #146's keepingFocus and runMove both
       // restore focus by id.
-      const home = el("button", { id: `portal-home-${member.page_id}`, class: "btn btn-sm", type: "button" }, "Make home");
+      const home = el("button", { id: `portal-home-${member.page_id}`, class: "btn btn-sm", type: "button" }, t("Make home"));
       home.addEventListener("click", () => runAction({
         button: home,
-        success: "Home page set.",
+        success: t("Home page set."),
         run: async () => {
           await api(`/portals/${portal.id}/home`, { body: { slug: member.slug } });
           await select(portal.id);
@@ -921,18 +922,18 @@ if (typeof document !== "undefined") (function () {
       class: "btn btn-sm",
       type: "button",
       onclick: () => editMemberDialog(portal, member),
-    }, "Edit"));
+    }, t("Edit")));
 
-    const remove = el("button", { id: `portal-remove-${member.page_id}`, class: "btn btn-sm btn-danger", type: "button" }, "Remove");
+    const remove = el("button", { id: `portal-remove-${member.page_id}`, class: "btn btn-sm btn-danger", type: "button" }, t("Remove"));
     remove.addEventListener("click", () => runAction({
       button: remove,
       confirm: {
-        title: `Remove ${member.display_title}?`,
-        message: "This partner stops being able to open it on their next request. The page itself, its versions and its own password are untouched.",
-        confirmLabel: "Remove from portal",
+        title: t("Remove {0}?", member.display_title),
+        message: t("This partner stops being able to open it on their next request. The page itself, its versions and its own password are untouched."),
+        confirmLabel: t("Remove from portal"),
         danger: true,
       },
-      success: "Removed from portal.",
+      success: t("Removed from portal."),
       run: async () => {
         await api(`/portals/${portal.id}/pages/remove`, { body: { page_id: member.page_id } });
         await select(portal.id);
@@ -955,18 +956,18 @@ if (typeof document !== "undefined") (function () {
     });
 
     row.append(
-      el("td", { "data-label": "Page" },
+      el("td", { "data-label": t("Page") },
         el("strong", {}, member.display_title),
                 // Home is a role in this portal, not a serving status; it used to borrow
         // the success pill and read as "this one is live and the others are not".
-        isHome ? el("span", { class: "badge" }, "Home") : null,
+        isHome ? el("span", { class: "badge" }, t("Home")) : null,
         el("div", { class: "table-meta" }, `/${member.slug}`),
         ...described.warnings.map((warning) =>
           el("div", { class: warning.kind === "blocked" ? "note note--warning" : "note" }, warning.text))),
       // The zero-based integer that used to live here is gone: the position is
       // the row's position, and the controls in the action cluster are how it
       // changes. #173.
-      el("td", { "data-label": "Actions" }, actions));
+      el("td", { "data-label": t("Actions") }, actions));
     return row;
   }
 
@@ -978,7 +979,7 @@ if (typeof document !== "undefined") (function () {
 
     // Show the current password so it can be resent without rotating, which
     // would sign out every partner. Each reveal is audited server-side.
-    const reveal = el("button", { class: "btn btn-sm", type: "button", "data-testid": "portal-reveal-password" }, "Show password");
+    const reveal = el("button", { class: "btn btn-sm", type: "button", "data-testid": "portal-reveal-password" }, t("Show password"));
     reveal.addEventListener("click", async () => {
       const { ok, result } = await runAction({
         button: reveal,
@@ -987,22 +988,22 @@ if (typeof document !== "undefined") (function () {
       });
       if (!ok) return;
       if (!result.available) {
-        toast("Pages doesn't have a copy of this password yet. It appears after a partner next signs in with it, or rotate it to set a new one.", { tone: "error" });
+        toast(t("Pages doesn't have a copy of this password yet. It appears after a partner next signs in with it, or rotate it to set a new one."), { tone: "error" });
         return;
       }
       showCredential(portal, result.password, { current: true });
     });
 
-    const rotate = el("button", { class: "btn btn-sm", type: "button" }, "Rotate password");
+    const rotate = el("button", { class: "btn btn-sm", type: "button" }, t("Rotate password"));
     rotate.addEventListener("click", async () => {
       // No success toast: the credential dialog IS the confirmation, and a toast
       // that scrolls away next to a password shown exactly once reads as noise.
       const { ok, result } = await runAction({
         button: rotate,
         confirm: {
-          title: `Rotate the password for ${portal.name}?`,
-          message: "Every partner using the current password is signed out immediately and needs the new one. Use this when a password has been shared too widely, or when someone has left.",
-          confirmLabel: "Rotate password",
+          title: t("Rotate the password for {0}?", portal.name),
+          message: t("Every partner using the current password is signed out immediately and needs the new one. Use this when a password has been shared too widely, or when someone has left."),
+          confirmLabel: t("Rotate password"),
           danger: true,
         },
         success: null,
@@ -1013,16 +1014,16 @@ if (typeof document !== "undefined") (function () {
       showCredential({ ...portal, ...result.portal, url: portal.url }, result.password);
     });
 
-    const retire = el("button", { class: "btn btn-sm btn-danger", type: "button" }, "Retire portal");
+    const retire = el("button", { class: "btn btn-sm btn-danger", type: "button" }, t("Retire portal"));
     retire.addEventListener("click", () => runAction({
       button: retire,
       confirm: {
-        title: `Retire ${portal.name}?`,
-        message: `Their link stops working immediately and everyone using it is signed out. The ${members.length} membership${members.length === 1 ? "" : "s"} and the audit trail are kept, and no page is deleted.`,
-        confirmLabel: "Retire portal",
+        title: t("Retire {0}?", portal.name),
+        message: members.length === 1 ? t("Their link stops working immediately and everyone using it is signed out. The membership and the audit trail are kept, and no page is deleted.") : t("Their link stops working immediately and everyone using it is signed out. The {0} memberships and the audit trail are kept, and no page is deleted.", members.length),
+        confirmLabel: t("Retire portal"),
         danger: true,
       },
-      success: "Portal retired.",
+      success: t("Portal retired."),
       run: async () => {
         await api(`/portals/${portal.id}/delete`, { body: {} });
         await load({ keepSelection: false });
@@ -1035,10 +1036,10 @@ if (typeof document !== "undefined") (function () {
             el("caption", { class: "table-meta" },
               memberCaption({ count: members.length, openable, hasHome: portal.home_page_id != null })),
             el("thead", {}, el("tr", {},
-              el("th", { scope: "col", class: "operation-table__page" }, "Page"),
-              el("th", { scope: "col", class: "operation-table__member-actions" }, "Actions"))),
+              el("th", { scope: "col", class: "operation-table__page" }, t("Page")),
+              el("th", { scope: "col", class: "operation-table__member-actions" }, t("Actions")))),
             el("tbody", {}, ...members.map((member) => memberRow(portal, members, member)))))
-      : el("p", { class: "note" }, "No pages yet. Until one is added, this partner's link shows an empty portal.");
+      : el("p", { class: "note" }, t("No pages yet. Until one is added, this partner's link shows an empty portal."));
 
     return el("section", { class: "panel section-block" },
       el("div", { class: "section-heading section-heading--row" },
@@ -1046,20 +1047,20 @@ if (typeof document !== "undefined") (function () {
           el("h2", {}, portal.name),
           el("p", { class: "table-meta" }, portal.url)),
         el("div", { class: "row-actions" },
-          copyButton(portal.url, "Link"),
-          el("button", { class: "btn btn-sm", type: "button", onclick: () => renameDialog(portal) }, "Rename"),
+          copyButton(portal.url, t("Link")),
+          el("button", { class: "btn btn-sm", type: "button", onclick: () => renameDialog(portal) }, t("Rename")),
           reveal,
           rotate,
           retire)),
       el("div", { class: "section-heading section-heading--row" },
         // tabindex="-1" so an add that empties the audit below has somewhere to
         // land focus — see focusAfterAdd.
-        el("h3", { id: "portal-members-heading", tabindex: "-1" }, "Pages in this portal"),
+        el("h3", { id: "portal-members-heading", tabindex: "-1" }, t("Pages in this portal")),
         el("button", {
           class: "btn btn-sm btn-primary",
           type: "button",
           onclick: () => addPageDialog(portal),
-        }, "Add a page")),
+        }, t("Add a page"))),
       memberTable,
       linkAuditSection(portal));
   }
@@ -1139,8 +1140,8 @@ if (typeof document !== "undefined") (function () {
       type: "button",
       // A column of identical "Add to portal" buttons tells a screen reader
       // nothing about which dashboard it would add. The visible word stays short.
-      "aria-label": `Add to portal: ${page.title || page.slug}`,
-    }, "Add to portal");
+      "aria-label": t("Add to portal: {0}", page.title || page.slug),
+    }, t("Add to portal"));
     button.addEventListener("click", () => runAudit({
       button,
       success: (result) => describeAdded([result]),
@@ -1212,16 +1213,16 @@ if (typeof document !== "undefined") (function () {
         class: "btn btn-sm",
         type: "button",
         "data-testid": "portal-link-audit-add-all",
-      }, `Add all ${missing.length}`);
+      }, t("Add all {0}", missing.length));
       addAll.addEventListener("click", () => runAudit({
         button: addAll,
         // Named in the confirmation, before the click: one press adding several
         // pages at once is the one action here whose reach is not on the button.
         confirm: {
-          title: `Add all ${missing.length} to ${portal.name}?`,
-          message: `${missing.map((page) => page.title || page.slug).join(", ")} join this portal, after the pages already in it.`
-            + " Any of them with no client password of its own becomes readable by everyone holding this portal's password.",
-          confirmLabel: `Add all ${missing.length}`,
+          title: t("Add all {0} to {1}?", missing.length, portal.name),
+          message: t("{0} join this portal, after the pages already in it.", missing.map((page) => page.title || page.slug).join(", "))
+            + t(" Any of them with no client password of its own becomes readable by everyone holding this portal's password."),
+          confirmLabel: t("Add all {0}", missing.length),
         },
         success: (results) => describeAdded(results),
         // A failure that is only half a failure says so, and names what it left
@@ -1244,10 +1245,10 @@ if (typeof document !== "undefined") (function () {
         // auto` so it keeps that right edge wrapped or not, and the two section
         // headers go on reading the same way at 390 (#209 review).
         el("div", { class: "section-heading section-heading--row" },
-          el("h3", { id: "portal-link-audit-heading", tabindex: "-1" }, "Linked from the home page, but not members"),
+          el("h3", { id: "portal-link-audit-heading", tabindex: "-1" }, t("Linked from the home page, but not members")),
           addAll),
         el("p", { class: "note" },
-          "The home page links to these pages, but they are not in this portal — so a partner following the link loses the Page menu and may hit a password wall. Add the ones this partner is entitled to see."),
+          t("The home page links to these pages, but they are not in this portal — so a partner following the link loses the Page menu and may hit a password wall. Add the ones this partner is entitled to see.")),
         // The reclassification warning belongs on the SCREEN, before any click —
         // the same invariant this file opens with — and in the SAME voice the
         // dialog says it in. Buried in the descriptive paragraph it rendered as
@@ -1262,7 +1263,7 @@ if (typeof document !== "undefined") (function () {
         // lib/portals.js, which is a change to the admin API's response shape and
         // out of this PR's scope.
         el("p", { class: "note note--warning" },
-          "Any of them with no client password of its own becomes readable by everyone holding this portal's password.")),
+          t("Any of them with no client password of its own becomes readable by everyone holding this portal's password."))),
       el("div", { class: "operation-table-wrap" },
         el("table", { class: "operation-table" },
           // sr-only: the caption is this table's accessible name, not a second
@@ -1272,14 +1273,14 @@ if (typeof document !== "undefined") (function () {
           // that is what makes the two lists read as one column of dashboards
           // rather than as a table and a drift of right-aligned text.
           el("thead", {}, el("tr", {},
-            el("th", { scope: "col", class: "operation-table__page" }, "Page"),
-            el("th", { scope: "col", class: "operation-table__member-actions" }, "Actions"))),
+            el("th", { scope: "col", class: "operation-table__page" }, t("Page")),
+            el("th", { scope: "col", class: "operation-table__member-actions" }, t("Actions")))),
           el("tbody", {}, ...missing.map((page) =>
             el("tr", { "data-testid": `portal-link-audit-${page.slug}` },
-              el("td", { "data-label": "Page" },
+              el("td", { "data-label": t("Page") },
                 el("strong", {}, page.title || page.slug),
                 el("div", { class: "table-meta" }, `/${page.slug}`)),
-              el("td", { "data-label": "Actions" },
+              el("td", { "data-label": t("Actions") },
                 el("div", { class: "row-actions" }, addLinked(portal, page)))))))));
   }
 
@@ -1296,13 +1297,13 @@ if (typeof document !== "undefined") (function () {
       // The <h1> and the primary action used to live INSIDE a bordered panel, so
       // this screen's title sat in a card and the other three screens' did not.
       pageHeader({
-        title: "Partner portals",
-        intro: "One link and one password for a set of pages.",
+        title: t("Partner portals"),
+        intro: t("One link and one password for a set of pages."),
         actions: state.portals.length
-          ? el("button", { id: "new-portal", class: "btn btn-primary", type: "button", onclick: newPortalDialog }, "New portal")
+          ? el("button", { id: "new-portal", class: "btn btn-primary", type: "button", onclick: newPortalDialog }, t("New portal"))
           : null,
         stats: state.portals.length
-          ? [statTile(state.portals.length, "portal"), statTile(shared, "page shared", "pages shared")]
+          ? [statTile(state.portals.length, t("portal"), t("portals")), statTile(shared, t("page shared"), t("pages shared"))]
           : null,
       }),
       el("section", { class: "section-block" }, portalList())
@@ -1336,6 +1337,8 @@ if (typeof document !== "undefined") (function () {
   });
 
   load().catch((error) => {
-    app.replaceChildren(loadFailed("partner portals", error, () => load()));
+    app.replaceChildren(loadFailed(t("partner portals"), error, () => load()));
   });
+})();
+
 })();

@@ -94,7 +94,7 @@ test("client access supports URL copy, password generation/update, and confirmed
 
   await page.getByRole("button", { name: "Clear password" }).click();
   const clear = page.getByRole("dialog", { name: "Clear client access?" });
-  await expect(clear).toContainText("Anyone a client has open stops working immediately");
+  await expect(clear).toContainText("Any page a client has open stops working immediately");
   await clear.getByRole("button", { name: "Clear password" }).click();
   await expect(page.locator(".subpanel").filter({ hasText: "Password" }).getByText("Staff-only", { exact: true })).toBeVisible();
 

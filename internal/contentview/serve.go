@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/pagecookie"
@@ -49,7 +51,7 @@ func sendWith(w http.ResponseWriter, r *http.Request, h csp.Headers, status int,
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
-	sendWith(w, r, csp.RawHeaders(), http.StatusNotFound, NotFoundPage())
+	sendWith(w, r, csp.RawHeaders(), http.StatusNotFound, NotFoundPage(i18n.FromRequest(r)))
 }
 
 func gate(w http.ResponseWriter, r *http.Request, status int, html string) {
@@ -65,7 +67,7 @@ func attemptBusy(w http.ResponseWriter, r *http.Request, slug string) {
 	csp.GateHeaders(csp.GateOptions{}).Apply(w.Header())
 	w.Header().Set("Retry-After", strconv.Itoa(int(passwordgate.TurnWait/time.Second)))
 	w.Header().Set("Cache-Control", "no-store")
-	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(AttemptBusyPage(slug)))
+	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(AttemptBusyPage(slug, i18n.FromRequest(r))))
 }
 
 // defaultRecordTimeout bounds the attempt's database writes (recording a
@@ -154,7 +156,7 @@ func (h *handler) navPayload(ctx context.Context, portal *Portal, slug string) a
 func (h *handler) renderLive(w http.ResponseWriter, r *http.Request, page *PublicPage, portal *Portal) {
 	nav := h.navPayload(r.Context(), portal, page.Slug)
 	html := render.RenderVersion(render.Renderable{
-		HTML: page.HTML, RenderMode: page.RenderMode, OverrideCSS: page.OverrideCSS, Nav: nav,
+		Locale: i18n.FromRequest(r), HTML: page.HTML, RenderMode: page.RenderMode, OverrideCSS: page.OverrideCSS, Nav: nav,
 	})
 	sendWith(w, r, csp.RawHeaders(), http.StatusOK, html)
 }
@@ -243,7 +245,7 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request, rawSlug string) 
 			w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
 				TTLSeconds: 3600, Insecure: !isSecure(r), PasswordHash: page.PasswordHash,
 			}))
-			httpx.Redirect(w, r, http.StatusFound, "/"+slug)
+			httpx.Redirect(w, r, http.StatusFound, i18n.FromRequest(r).URL("/"+slug))
 			return nil
 		}
 	}
@@ -288,18 +290,18 @@ func (h *handler) serve(w http.ResponseWriter, r *http.Request, rawSlug string) 
 		if len(portals) > 0 {
 			cred = "either"
 		}
-		gate(w, r, http.StatusUnauthorized, GatePage(GatePageOptions{Slug: slug, ShowForm: true, Credential: cred}))
+		gate(w, r, http.StatusUnauthorized, GatePage(GatePageOptions{Slug: slug, ShowForm: true, Credential: cred}, i18n.FromRequest(r)))
 		return nil
 	}
 	if len(portals) > 0 {
 		// A member with no password of its own — the staff-only page a human
 		// deliberately reclassified by adding it to a portal. Its portal
 		// credential opens it, so it gets a prompt rather than the staff notice.
-		gate(w, r, http.StatusUnauthorized, GatePage(GatePageOptions{Slug: slug, ShowForm: true, Credential: "portal"}))
+		gate(w, r, http.StatusUnauthorized, GatePage(GatePageOptions{Slug: slug, ShowForm: true, Credential: "portal"}, i18n.FromRequest(r)))
 		return nil
 	}
 	// Staff-only (no password): no SSO on this origin → route via the dashboard.
-	gate(w, r, http.StatusForbidden, GatePage(GatePageOptions{Slug: slug}))
+	gate(w, r, http.StatusForbidden, GatePage(GatePageOptions{Slug: slug}, i18n.FromRequest(r)))
 	return nil
 }
 
@@ -325,10 +327,10 @@ func (h *handler) servePortalIndex(w http.ResponseWriter, r *http.Request, porta
 		if err != nil {
 			return err
 		}
-		gate(w, r, http.StatusOK, PortalIndexPage(PortalIndexOptions{Portal: *portal, Pages: pages}))
+		gate(w, r, http.StatusOK, PortalIndexPage(PortalIndexOptions{Portal: *portal, Pages: pages}, i18n.FromRequest(r)))
 		return nil
 	}
-	gate(w, r, http.StatusUnauthorized, PortalIndexPage(PortalIndexOptions{Portal: *portal, ShowForm: true}))
+	gate(w, r, http.StatusUnauthorized, PortalIndexPage(PortalIndexOptions{Portal: *portal, ShowForm: true}, i18n.FromRequest(r)))
 	return nil
 }
 
@@ -362,8 +364,8 @@ func (h *handler) unlockPortal(w http.ResponseWriter, r *http.Request, portalSlu
 		turn.holdFor(delay)
 		h.sleep(ctx, delay)
 		gate(w, r, http.StatusUnauthorized, PortalIndexPage(PortalIndexOptions{
-			Portal: *portal, ShowForm: true, Message: "Incorrect password.",
-		}))
+			Portal: *portal, ShowForm: true, Message: i18n.Source("Incorrect password."),
+		}, i18n.FromRequest(r)))
 		return nil
 	}
 	// Verified. The counter is cleared while the turn is still held, so a
@@ -380,7 +382,7 @@ func (h *handler) unlockPortal(w http.ResponseWriter, r *http.Request, portalSlu
 	w.Header().Set("Set-Cookie", pagecookie.PortalSessionCookieHeader(portal.ID, pagecookie.CookieOptions{
 		Insecure: !isSecure(r), PasswordHash: portal.PasswordHash,
 	}))
-	httpx.Redirect(w, r, http.StatusSeeOther, "/portal/"+portal.Slug) // 303 → browser GETs the index
+	httpx.Redirect(w, r, http.StatusSeeOther, i18n.FromRequest(r).URL("/portal/"+portal.Slug)) // 303 → browser GETs the index
 	return nil
 }
 
@@ -420,7 +422,7 @@ func (h *handler) lockPortal(w http.ResponseWriter, r *http.Request, portalSlug 
 	}
 	// 303 back to the index, which now renders the password form — the reader
 	// sees the sign-out took effect rather than being told it did.
-	httpx.Redirect(w, r, http.StatusSeeOther, "/portal/"+portal.Slug)
+	httpx.Redirect(w, r, http.StatusSeeOther, i18n.FromRequest(r).URL("/portal/"+portal.Slug))
 	return nil
 }
 
@@ -497,7 +499,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 			w.Header().Set("Set-Cookie", pagecookie.SessionCookieHeader(page.ID, pagecookie.CookieOptions{
 				Insecure: !secure, PasswordHash: page.PasswordHash,
 			}))
-			httpx.Redirect(w, r, http.StatusSeeOther, "/"+slug)
+			httpx.Redirect(w, r, http.StatusSeeOther, i18n.FromRequest(r).URL("/"+slug))
 			return nil
 		}
 		rctx, cancel := h.recordCtx(ctx)
@@ -544,7 +546,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 				w.Header().Set("Set-Cookie", pagecookie.PortalSessionCookieHeader(portal.ID, pagecookie.CookieOptions{
 					Insecure: !secure, PasswordHash: portal.PasswordHash,
 				}))
-				httpx.Redirect(w, r, http.StatusSeeOther, "/"+slug)
+				httpx.Redirect(w, r, http.StatusSeeOther, i18n.FromRequest(r).URL("/"+slug))
 				return nil
 			}
 		}
@@ -573,7 +575,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request, rawSlug, passwo
 		}
 	}
 	gate(w, r, http.StatusUnauthorized, GatePage(GatePageOptions{
-		Slug: slug, Message: "Incorrect password.", ShowForm: true, Credential: cred,
-	}))
+		Slug: slug, Message: i18n.Source("Incorrect password."), ShowForm: true, Credential: cred,
+	}, i18n.FromRequest(r)))
 	return nil
 }
