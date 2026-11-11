@@ -13,16 +13,26 @@ import (
 	"github.com/ElcanoTek/pages/internal/ops/compat"
 )
 
+const checkIdleUsage = "usage: pages check-idle [--wait]"
+
+// `pages check-idle` blocks or waits while an uncommitted staged upload or
+// database write transaction is active. Both `pages update` (via appCommand)
+// and operators checking a box over ssh call it; on an installed box it drops
+// to the service account and loads the service environment file (serviceenv.go).
 func init() {
 	Register(&Command{
 		Name:    "check-idle",
 		Summary: "refuse or wait on an automatic update while a staged upload or database write is in progress",
 		Hidden:  true,
-		Run:     runCheckIdle,
+		Run:     serviceVerb("check-idle", runCheckIdle),
 	})
 }
 
 func runCheckIdle(args []string) int {
+	if wantsHelp(args) || (len(args) > 0 && args[0] == "help") {
+		fmt.Println(checkIdleUsage)
+		return 0
+	}
 	wait := os.Getenv("PAGES_UPDATE_WAIT") == "1"
 	for _, a := range args {
 		switch a {

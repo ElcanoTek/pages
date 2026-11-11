@@ -6,6 +6,7 @@ package cli
 import (
 	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,6 +66,7 @@ func TestServiceEnvPlan(t *testing.T) {
 		"token: PGHOST and pepper":   {with(map[string]string{"PGHOST": "/run/pages-dev", "API_TOKEN_PEPPER": "p"}), "token"},
 		"template: database":         {with(map[string]string{"DATABASE_URL": "postgres://x"}), "template"},
 		"access: PGHOST":             {with(map[string]string{"PGHOST": "/run/pages-dev"}), "access"},
+		"check-idle: database":       {with(map[string]string{"DATABASE_URL": "postgres://x"}), "check-idle"},
 		"no environment file":        {func() serviceEnvInput { x := installed; x.EnvFileExists = false; return x }(), "token"},
 	} {
 		if step, argv, msg := serviceEnvPlan(tc.in, tc.verb, []string{"list"}); step != runAsInvoked || argv != nil || msg != "" {
@@ -89,6 +91,7 @@ func TestServiceEnvPlanRequiresTheCompleteEnvironment(t *testing.T) {
 		"token: pepper without database":     {map[string]string{"API_TOKEN_PEPPER": "p"}, "token"},
 		"template: pepper without database":  {map[string]string{"API_TOKEN_PEPPER": "p"}, "template"},
 		"access: nothing":                    {nil, "access"},
+		"check-idle: nothing":                {nil, "check-idle"},
 	} {
 		in := installed
 		in.Getenv = envOf(tc.env)
@@ -207,5 +210,72 @@ func TestServiceVerbLoadsTheInstalledEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://dev")
 	if code := run([]string{"list"}); code != 7 || saw != "dev-pepper postgres://dev" {
 		t.Fatalf("dev: code %d, saw %q", code, saw)
+	}
+}
+
+// Regression test: `pages check-idle` invoked directly by root on an installed
+// box must drop to the service account and load the service environment file
+// rather than connecting to PostgreSQL as role "root".
+func TestCheckIdleUsesServiceEnvironment(t *testing.T) {
+	cmd, ok := Lookup("check-idle")
+	if !ok {
+		t.Fatal("check-idle command not registered")
+	}
+
+	me := currentUser()
+	appUser := ""
+	for _, candidate := range []string{"nobody", "daemon", "root"} {
+		if candidate != me {
+			if _, err := user.Lookup(candidate); err == nil {
+				appUser = candidate
+				break
+			}
+		}
+	}
+	if appUser == "" {
+		t.Skip("no distinct local account available for service-account lookup")
+	}
+
+	defer func(g func() int, e func(string, []string, []string) error, x func() (string, error)) {
+		Geteuid, Exec, Executable = g, e, x
+	}(Geteuid, Exec, Executable)
+
+	var gotArgv []string
+	Geteuid = func() int { return 0 }
+	Executable = func() (string, error) { return "/usr/local/bin/pages", nil }
+	Exec = func(_ string, argv []string, _ []string) error {
+		gotArgv = append([]string{}, argv...)
+		return errors.New("stopped by test")
+	}
+
+	dir := t.TempDir()
+	envFile := filepath.Join(dir, "pages")
+	if err := os.WriteFile(envFile, []byte("DATABASE_URL=\"postgres://pages@127.0.0.1:5432/pages\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PAGES_INSTALL_CONFIG", filepath.Join(dir, "absent-install"))
+	t.Setenv("PAGES_ENV_FILE", envFile)
+	t.Setenv("APP_USER", appUser)
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("PGHOST", "")
+	t.Setenv("PAGES_CLI_AS_SERVICE_USER", "")
+	t.Setenv("PAGES_UPDATE_WAIT", "1")
+
+	if code := cmd.Run([]string{"--help"}); code != 0 || gotArgv != nil {
+		t.Fatalf("--help: code %d, argv %v", code, gotArgv)
+	}
+
+	_ = cmd.Run([]string{"--wait"})
+	joined := strings.Join(gotArgv, " ")
+	for _, want := range []string{
+		"-u " + appUser + " -- env ",
+		serviceEnvMarker,
+		"PAGES_ENV_FILE=" + envFile,
+		"PAGES_UPDATE_WAIT=1",
+		"/usr/local/bin/pages check-idle --wait",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q in %q", want, joined)
+		}
 	}
 }
