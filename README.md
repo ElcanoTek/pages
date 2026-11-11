@@ -396,6 +396,7 @@ security@elcanotek.com, not a public issue.
 | [docs/TEMPLATES.md](docs/TEMPLATES.md) | One stored design, many pages: templates, config and revisions |
 | [docs/DATA_UPDATES.md](docs/DATA_UPDATES.md) | Data-only dashboard refreshes and update-prompt preparation |
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | Connecting an MCP client to Pages |
+| [docs/LOCALIZATION.md](docs/LOCALIZATION.md) | Choosing an interface language and maintaining the shared catalogs |
 | [docs/UI_COPY.md](docs/UI_COPY.md) | The admin UI's vocabulary — one word per thing |
 | [docs/LICENSING.md](docs/LICENSING.md) | The licence in plain English: what you may and may not do |
 | [PLAN.md](PLAN.md) | The original design record. The "why" behind most decisions, cited by section from the source |

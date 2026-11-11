@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	"github.com/ElcanoTek/pages/internal/csp"
 	"github.com/ElcanoTek/pages/internal/httpx"
 	"github.com/ElcanoTek/pages/internal/render"
@@ -175,6 +177,7 @@ func (a *App) bentoRoutes() []route {
 				save = "/bento/save-fail"
 			}
 			return render.EditSession(bentoDeck, render.EditSessionOptions{
+				Locale:        i18n.FromRequest(r.Request),
 				SaveURL:       a.origin + save,
 				Token:         "fixture-edit-token",
 				VersionID:     "41",

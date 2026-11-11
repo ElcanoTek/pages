@@ -6,6 +6,7 @@ package render
 import (
 	"strings"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/jsonv"
 )
 
@@ -58,6 +59,7 @@ const switcherCSS = `:host{all:initial;position:fixed;z-index:10000;font:600 13p
 // evaluated in a scope that cannot see anything declared here, which is this
 // codebase's single most repeated authoring bug.
 const switcherJSTemplate = `(function(){
+ LOCALE_JS
   function build(){
     var block=document.getElementById(NAV_ID_JSON);
     if(!block||document.querySelector(".pgnav-host"))return;
@@ -110,7 +112,7 @@ const switcherJSTemplate = `(function(){
 
     var d=document.createElement("details"); d.className="pgnav";
     var s=document.createElement("summary");
-    s.appendChild(document.createTextNode("Page"));
+    s.appendChild(document.createTextNode(t("Page")));
     var c=document.createElement("span"); c.className="pgnav__caret"; c.setAttribute("aria-hidden","true");
     c.textContent="\u25be"; s.appendChild(c); d.appendChild(s);
     var m=document.createElement("nav"); m.className="pgnav__menu";
@@ -118,26 +120,26 @@ const switcherJSTemplate = `(function(){
     // made the accessible name read "Dashboard pages dashboards". A partner with
     // a portal gets its name; one without gets the plain possessive.
     var portalName=(nav.portal&&nav.portal.name)?nav.portal.name:"";
-    var label=portalName||"Your dashboards";
-    m.setAttribute("aria-label",portalName?portalName+" dashboards":"Your dashboards");
+    var label=portalName||t("Your dashboards");
+    m.setAttribute("aria-label",portalName?t("{0} dashboards",portalName):t("Your dashboards"));
     var portalUrl=(nav.portal&&nav.portal.url)?nav.portal.url:"";
     var h;
-    if(portalUrl){h=document.createElement("a"); h.className="pgnav__head pgnav__head--link"; h.setAttribute("href",portalUrl);}
+    if(portalUrl){h=document.createElement("a"); h.className="pgnav__head pgnav__head--link"; h.setAttribute("href",uiURL(portalUrl));}
     else{h=document.createElement("div"); h.className="pgnav__head";}
     h.textContent=label; m.appendChild(h);
     pages.forEach(function(p){
       var node=document.createElement(p.current?"span":"a");
       node.className="pgnav__item"+(p.current?" pgnav__item--current":"");
-      if(p.current){node.setAttribute("aria-current","page");}else{node.setAttribute("href",p.url);}
+      if(p.current){node.setAttribute("aria-current","page");}else{node.setAttribute("href",uiURL(p.url));}
       node.textContent=p.title||p.slug;
-      if(p.home){var hb=document.createElement("span"); hb.className="pgnav__home"; hb.textContent="Start here"; node.appendChild(hb);}
+      if(p.home){var hb=document.createElement("span"); hb.className="pgnav__home"; hb.textContent=t("Start here"); node.appendChild(hb);}
       m.appendChild(node);
     });
     if(nav.truncated){
       var more;
-      if(portalUrl){more=document.createElement("a"); more.className="pgnav__head pgnav__head--link"; more.setAttribute("href",portalUrl);}
+      if(portalUrl){more=document.createElement("a"); more.className="pgnav__head pgnav__head--link"; more.setAttribute("href",uiURL(portalUrl));}
       else{more=document.createElement("div"); more.className="pgnav__head";}
-      more.textContent="See all in your portal"; m.appendChild(more);
+      more.textContent=t("See all in your portal"); m.appendChild(more);
     }
     d.appendChild(m);
     // The click lands on the HOST from the document's point of view, so the
@@ -153,15 +155,18 @@ const switcherJSTemplate = `(function(){
 
 // switcherTags is the pair of head tags (sheet, builder) that make up the
 // built-in control, computed once.
-var switcherTags = func() []string {
+func switcherTags(locale i18n.Locale) []string {
 	js := strings.NewReplacer(
 		"NAV_ID_JSON", jsonv.Quote(NavBlockID),
+		"LOCALE_JS", locale.Script(i18n.Source("Page"), i18n.Source("Your dashboards"), i18n.Source("{0} dashboards"), i18n.Source("Start here"), i18n.Source("See all in your portal")),
 		"CSS_JSON", jsonv.Quote(switcherCSS),
 	).Replace(switcherJSTemplate)
 	return []string{
 		"<style data-flag-injected>\n" + switcherCSS + "\n</style>",
 		"<script data-flag-injected>\n" + js + "\n</script>",
 	}
-}()
+}
 
-func defaultSwitcherTags() []string { return append([]string(nil), switcherTags...) }
+func defaultSwitcherTags(locales ...i18n.Locale) []string {
+	return switcherTags(i18n.First(locales...))
+}

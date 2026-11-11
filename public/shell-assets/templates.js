@@ -20,6 +20,8 @@
 //    keeps stable input nodes inside a dialog and only swaps its verdict block.
 
 (function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
   const UI = window.PagesUI;
   const { el, errorState, emptyState, toast, makeDialog, confirmDialog, setBusy, keepingFocus, statusChip, pageHeader, statTile, loadFailed } = UI;
   const { field, runAction, timeWhen, formatCount, slugPath, pathSegment, loadingContent } = UI;
@@ -34,9 +36,9 @@
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const CONTRACT_VIEWS = [
-    { key: "config", label: "Reference config", pick: (d) => d.reference_config },
-    { key: "config_schema", label: "Config schema", pick: (d) => d.config_schema },
-    { key: "data_schema", label: "Data schema", pick: (d) => d.data_schema },
+    { key: "config", label: t("Reference config"), pick: (d) => d.reference_config },
+    { key: "config_schema", label: t("Config schema"), pick: (d) => d.config_schema },
+    { key: "data_schema", label: t("Data schema"), pick: (d) => d.data_schema },
   ];
 
   const state = {
@@ -74,15 +76,15 @@
   function heading() {
     const pages = state.templates.reduce((total, t) => total + Number(t.page_count || 0), 0);
     return pageHeader({
-      title: "Template library",
-      intro: "Every stored design, what it needs to render, and the pages built from it.",
+      title: t("Template library"),
+      intro: t("Every stored design, what it needs to render, and the pages built from it."),
       // When the library is empty the state panel below carries this action, with
       // the explanation attached. One invitation is enough.
       actions: state.templates.length
-        ? el("button", { id: "tpl-add", class: "btn btn-primary", type: "button", onclick: (event) => openUploadDialog(event.currentTarget) }, "Add a template")
+        ? el("button", { id: "tpl-add", class: "btn btn-primary", type: "button", onclick: (event) => openUploadDialog(event.currentTarget) }, t("Add a template"))
         : null,
       stats: state.templates.length
-        ? [statTile(state.templates.length, "template"), statTile(pages, "page built", "pages built")]
+        ? [statTile(state.templates.length, t("template"), t("templates")), statTile(pages, t("page built"), t("pages built"))]
         : null,
     });
   }
@@ -90,27 +92,27 @@
   function emptyPanel() {
     return el("section", { class: "panel section-block" },
       emptyState(
-        "No templates yet",
-        "Register a design once and every page built from it carries the same layout. " +
-          "Add an HTML file here, or ship it in the repo under templates/<name>/template.html and run pages template sync.",
+        t("No templates yet"),
+        t("Register a design once and every page built from it carries the same layout. ") +
+          t("Add an HTML file here, or ship it in the repo under templates/<name>/template.html and run pages template sync."),
         el("button", {
           id: "tpl-add-empty",
           class: "btn btn-primary",
           type: "button",
           onclick: (event) => openUploadDialog(event.currentTarget),
-        }, "Add a template")
+        }, t("Add a template"))
       ));
   }
 
   function listPanel() {
     const table = el("table", { class: "operation-table", id: "template-list" },
-      el("caption", { class: "sr-only" }, "Templates, current revision, pages built from each, and when each was last updated"),
+      el("caption", { class: "sr-only" }, t("Templates, current revision, pages built from each, and when each was last updated")),
       el("thead", {}, el("tr", {},
-        el("th", { class: "template-table__template", scope: "col" }, "Template"),
-        el("th", { class: "template-table__num", scope: "col" }, "Revision"),
-        el("th", { class: "template-table__num", scope: "col" }, "Pages"),
-        el("th", { class: "template-table__when", scope: "col" }, "Updated"),
-        el("th", { class: "template-table__actions", scope: "col" }, "Actions"))),
+        el("th", { class: "template-table__template", scope: "col" }, t("Template")),
+        el("th", { class: "template-table__num", scope: "col" }, t("Revision")),
+        el("th", { class: "template-table__num", scope: "col" }, t("Pages")),
+        el("th", { class: "template-table__when", scope: "col" }, t("Updated")),
+        el("th", { class: "template-table__actions", scope: "col" }, t("Actions")))),
       el("tbody", {}, state.templates.map(listRow)));
     // The wrap already draws the border, radius and shadow; a .panel around it
     // drew a second one, so the library's list had two frames where the index's
@@ -122,16 +124,16 @@
   function listRow(template) {
     const count = Number(template.page_count || 0);
     return el("tr", { class: state.selected === template.name ? "row--selected" : null },
-      el("td", { "data-label": "Template" },
+      el("td", { "data-label": t("Template") },
         el("div", { class: "page-cell" },
           el("strong", {}, template.title || template.name),
           el("code", {}, template.name))),
-      el("td", { "data-label": "Revision" }, el("span", { class: "table-meta" }, `Revision ${template.current_revision}`)),
-      el("td", { "data-label": "Pages" },
-        el("span", { class: "table-meta" }, count === 0 ? "None yet" : String(count))),
-      el("td", { "data-label": "Updated" },
+      el("td", { "data-label": t("Revision") }, el("span", { class: "table-meta" }, t("Revision {0}", template.current_revision))),
+      el("td", { "data-label": t("Pages") },
+        el("span", { class: "table-meta" }, count === 0 ? t("None yet") : String(count))),
+      el("td", { "data-label": t("Updated") },
         timeWhen(template.updated_at, { class: "table-meta" })),
-      el("td", { "data-label": "Actions" },
+      el("td", { "data-label": t("Actions") },
         el("div", { class: "row-actions" },
           // One action: inspecting now renders the design, so a separate row
           // Preview would open the same thing one panel further down.
@@ -143,7 +145,7 @@
             class: "btn btn-ghost btn-sm",
             type: "button",
             onclick: () => openTemplate(template.name),
-          }, "Inspect"))));
+          }, t("Inspect")))));
   }
 
   function detailPanel() {
@@ -162,7 +164,7 @@
         el("div", { class: "page-heading__copy" },
           heading2,
           el("code", {}, d.template.name),
-          el("span", { class: "badge" }, `Revision ${d.revision.revision}`)),
+          el("span", { class: "badge" }, t("Revision {0}", d.revision.revision))),
         el("div", { class: "cluster" },
           // Retiring is here rather than on the list row: it needs the page count
           // in front of you, which is two panels down.
@@ -171,20 +173,20 @@
             class: "btn btn-sm btn-danger",
             type: "button",
             onclick: (event) => retireTemplate(d, event.currentTarget),
-          }, "Retire"),
+          }, t("Retire")),
           el("button", {
             id: "tpl-detail-close",
             class: "btn btn-sm",
             type: "button",
             onclick: () => closeTemplate(),
-          }, "Close"))),
+          }, t("Close")))),
       d.template.description ? el("p", {}, d.template.description) : null,
       el("dl", { class: "template-kv" },
-        el("dt", {}, "Registered by"),
+        el("dt", {}, t("Registered by")),
         el("dd", {}, `${d.revision.author} `, el("span", { class: "muted" }, `(${d.revision.source})`)),
-        el("dt", {}, "Registered"),
+        el("dt", {}, t("Registered")),
         el("dd", {}, timeWhen(d.revision.created_at)),
-        el("dt", {}, "Content hash"),
+        el("dt", {}, t("Content hash")),
         el("dd", {}, el("code", {}, shortHash(d.revision.content_sha256)))),
       previewSection(d),
       d.pages.length ? pagesSection(d.pages) : null,
@@ -200,7 +202,7 @@
   function previewSection(d) {
     return el("div", { class: "section-block" },
       el("div", { class: "section-heading section-heading--row" },
-        el("h3", {}, "The design"),
+        el("h3", {}, t("The design")),
         el("div", { class: "cluster" },
           el("button", {
             id: "tpl-preview-reload",
@@ -208,14 +210,14 @@
             type: "button",
             onclick: (event) =>
               loadPreview(d.template.name, framedRevision(d), event.currentTarget),
-          }, "Reload"),
+          }, t("Reload")),
           el("button", {
             id: "tpl-preview-tab",
             class: "btn btn-sm",
             type: "button",
             onclick: (event) =>
               openPreviewTab(d.template.name, framedRevision(d), event.currentTarget),
-          }, "Open full size"))),
+          }, t("Open full size")))),
       el("div", { class: "panel preview-workspace" },
         el("div", { class: "preview-stage" },
           el("span", {
@@ -223,40 +225,40 @@
             class: "preview-stage__status",
             role: "status",
             "aria-live": "polite",
-          }, "Loading the design"),
+          }, t("Loading the design")),
           el("div", { id: "tpl-preview-state", class: "state-panel state-panel--loading", role: "status" },
-            ...loadingContent("Loading the design", "Preparing a short-lived sandboxed preview…", { level: "h4" })),
+            ...loadingContent(t("Loading the design"), t("Preparing a short-lived sandboxed preview…"), { level: "h4" })),
           el("iframe", {
             id: "tpl-preview-frame",
             hidden: true,
             sandbox: "allow-scripts",
             referrerpolicy: "no-referrer",
-            title: `Preview of ${d.template.name} revision ${d.revision.revision}`,
+            title: t("Preview of {0} revision {1}", d.template.name, d.revision.revision),
           }))));
   }
 
   function pagesSection(pages) {
     const table = el("table", { class: "operation-table" },
-      el("caption", { class: "sr-only" }, "Pages built from this template, the revision each is pinned to, and whether it is serving"),
+      el("caption", { class: "sr-only" }, t("Pages built from this template, the revision each is pinned to, and whether it is serving")),
       el("thead", {}, el("tr", {},
-        el("th", { scope: "col" }, "Page"),
-        el("th", { class: "template-table__num", scope: "col" }, "Revision"),
-        el("th", { class: "template-table__num", scope: "col" }, "Design"),
-        el("th", { class: "template-table__num", scope: "col" }, "Serving"))),
+        el("th", { scope: "col" }, t("Page")),
+        el("th", { class: "template-table__num", scope: "col" }, t("Revision")),
+        el("th", { class: "template-table__num", scope: "col" }, t("Design")),
+        el("th", { class: "template-table__num", scope: "col" }, t("Serving")))),
       el("tbody", {}, pages.map((page) => el("tr", {},
-        el("td", { "data-label": "Page" },
+        el("td", { "data-label": t("Page") },
           el("a", { href: `/admin/${slugPath(page.slug)}` }, el("code", {}, page.slug))),
-        el("td", { "data-label": "Revision" }, el("span", { class: "table-meta" }, String(page.revision))),
-        el("td", { "data-label": "Design" },
+        el("td", { "data-label": t("Revision") }, el("span", { class: "table-meta" }, String(page.revision))),
+        el("td", { "data-label": t("Design") },
           page.behind
             ? statusChip("behind")
             : statusChip("current")),
-        el("td", { "data-label": "Serving" },
+        el("td", { "data-label": t("Serving") },
           page.page_is_live
             ? statusChip("live")
-            : statusChip("draft", "Not live"))))));
+            : statusChip("draft", t("Not live")))))));
     return el("div", { class: "section-block" },
-      el("div", { class: "section-heading" }, el("h3", {}, "Pages built from this")),
+      el("div", { class: "section-heading" }, el("h3", {}, t("Pages built from this"))),
       el("div", { class: "operation-table-wrap" }, table));
   }
 
@@ -280,7 +282,7 @@
       }
     }
 
-    const segmented = el("div", { class: "segmented", role: "group", "aria-label": "Which part of the contract to show" },
+    const segmented = el("div", { class: "segmented", role: "group", "aria-label": t("Which part of the contract to show") },
       CONTRACT_VIEWS.map((view) => {
         const button = el("button", {
           id: `tpl-view-${view.key}`,
@@ -294,45 +296,45 @@
     show(state.contractView);
     return el("div", { class: "section-block" },
       el("div", { class: "section-heading" },
-        el("h3", {}, "Contract"),
+        el("h3", {}, t("Contract")),
         el("p", { class: "muted" },
-          "What a page built from this design must supply. The reference config is a starting point to read — ",
+          t("What a page built from this design must supply. The reference config is a starting point to read — "),
           el("code", {}, "create_page_from_template"),
-          " requires a complete config and never merges this in.")),
+          t(" requires a complete config and never merges this in."))),
       el("div", { class: "template-contract" }, segmented, block));
   }
 
   function revisionsSection(d) {
     const table = el("table", { class: "operation-table" },
-      el("caption", { class: "sr-only" }, "Every registered revision of this template, newest first"),
+      el("caption", { class: "sr-only" }, t("Every registered revision of this template, newest first")),
       el("thead", {}, el("tr", {},
-        el("th", { class: "template-table__num", scope: "col" }, "Revision"),
-        el("th", { class: "template-table__hash", scope: "col" }, "Hash"),
-        el("th", { scope: "col" }, "Registered by"),
-        el("th", { class: "template-table__when", scope: "col" }, "When"),
-        el("th", { scope: "col" }, "Note"),
-        el("th", { class: "template-table__num", scope: "col" }, "Actions"))),
+        el("th", { class: "template-table__num", scope: "col" }, t("Revision")),
+        el("th", { class: "template-table__hash", scope: "col" }, t("Hash")),
+        el("th", { scope: "col" }, t("Registered by")),
+        el("th", { class: "template-table__when", scope: "col" }, t("When")),
+        el("th", { scope: "col" }, t("Note")),
+        el("th", { class: "template-table__num", scope: "col" }, t("Actions")))),
       el("tbody", {}, d.revisions.map((revision) => el("tr", {},
-        el("td", { "data-label": "Revision" },
+        el("td", { "data-label": t("Revision") },
           el("span", { class: "table-meta" }, String(revision.revision)),
           revision.is_current ? statusChip("current") : null),
-        el("td", { "data-label": "Hash" }, el("code", {}, shortHash(revision.content_sha256))),
-        el("td", { "data-label": "Registered by" }, el("span", { class: "table-meta" }, revision.author)),
-        el("td", { "data-label": "When" },
+        el("td", { "data-label": t("Hash") }, el("code", {}, shortHash(revision.content_sha256))),
+        el("td", { "data-label": t("Registered by") }, el("span", { class: "table-meta" }, revision.author)),
+        el("td", { "data-label": t("When") },
           timeWhen(revision.created_at, { class: "table-meta" })),
-        el("td", { "data-label": "Note" }, el("span", { class: "table-meta" }, revision.note || "—")),
-        el("td", { "data-label": "Actions" },
+        el("td", { "data-label": t("Note") }, el("span", { class: "table-meta" }, revision.note || "—")),
+        el("td", { "data-label": t("Actions") },
           el("div", { class: "row-actions" },
             el("button", {
               id: `tpl-preview-revision-${revision.revision}`,
               class: "btn btn-sm",
               type: "button",
               // Several of these sit in one table, so the name has to say which.
-              "aria-label": `Preview revision ${revision.revision}`,
+              "aria-label": t("Preview revision {0}", revision.revision),
               onclick: (event) => loadPreview(d.template.name, revision.revision, event.currentTarget),
-            }, "Preview")))))));
+            }, t("Preview"))))))));
     return el("div", { class: "section-block" },
-      el("div", { class: "section-heading" }, el("h3", {}, "Revisions")),
+      el("div", { class: "section-heading" }, el("h3", {}, t("Revisions"))),
       el("div", { class: "operation-table-wrap" }, table));
   }
 
@@ -350,7 +352,7 @@
       }
       render();
     } catch (error) {
-      app.replaceChildren(loadFailed("the template library", error, () => load()));
+      app.replaceChildren(loadFailed(t("the template library"), error, () => load()));
     }
   }
 
@@ -379,7 +381,7 @@
       loadPreview(name, state.detail.revision.revision, null);
     } catch (error) {
       if (requestId !== detailRequest) return;
-      toast(`Couldn't open ${name}: ${error.message}`, { tone: "error" });
+      toast(t("Couldn't open {0}: {1}", name, error.message), { tone: "error" });
     }
   }
 
@@ -401,14 +403,14 @@
   async function retireTemplate(d, trigger) {
     const built = d.pages.length;
     const approved = await confirmDialog({
-      title: `Retire ${d.template.name}?`,
-      kicker: "Template library",
+      title: t("Retire {0}?", d.template.name),
+      kicker: t("Template library"),
       message: built === 0
-        ? "It leaves the library and the name becomes reusable. Revisions are kept."
-        : `${built} page${built === 1 ? "" : "s"} ${built === 1 ? "was" : "were"} built from this. ` +
-          `${built === 1 ? "It" : "They"} will keep serving — each page carries its own copy of the design — but ` +
-          `${built === 1 ? "it" : "they"} can no longer be re-rendered from this template.`,
-      confirmLabel: built === 0 ? "Retire" : `Retire anyway`,
+        ? t("It leaves the library and the name becomes reusable. Revisions are kept.")
+        : built === 1
+          ? t("1 page was built from this. It will keep serving — each page carries its own copy of the design — but it can no longer be re-rendered from this template.")
+          : t("{0} pages were built from this. They will keep serving — each page carries its own copy of the design — but they can no longer be re-rendered from this template.", built),
+      confirmLabel: built === 0 ? t("Retire") : t("Retire anyway"),
       danger: true,
       trigger,
     });
@@ -419,11 +421,11 @@
     // sequential version did.
     const { ok } = await runAction({
       button: trigger,
-      busyLabel: "Retiring…",
-      idleLabel: "Retire",
+      busyLabel: t("Retiring…"),
+      idleLabel: t("Retire"),
       keepBusy: true,
-      success: `${d.template.name} retired. The name is free to re-register.`,
-      failure: `Couldn't retire ${d.template.name}`,
+      success: t("{0} retired. The name is free to re-register.", d.template.name),
+      failure: t("Couldn't retire {0}", d.template.name),
       run: async () => {
         await api(`/templates/${pathSegment(d.template.name)}${built > 0 ? "?force=true" : ""}`, {
           method: "DELETE",
@@ -457,8 +459,8 @@
   // example dataset the honest label is "empty state", not "here is the design".
   function previewLabel(result) {
     return result.has_sample_data
-      ? `Revision ${result.revision}, rendered with the design's example data`
-      : `Revision ${result.revision}, empty state — this design ships no example data`;
+      ? t("Revision {0}, rendered with the design's example data", result.revision)
+      : t("Revision {0}, empty state — this design ships no example data", result.revision);
   }
 
   async function loadPreview(name, revision, trigger) {
@@ -467,16 +469,16 @@
     const panel = document.getElementById("tpl-preview-state");
     const status = document.getElementById("tpl-preview-status");
     if (!frame || !panel || !status) return;
-    if (trigger) setBusy(trigger, true, "Loading…");
+    if (trigger) setBusy(trigger, true, t("Loading…"));
     frame.hidden = true;
     panel.hidden = false;
     panel.className = "state-panel state-panel--loading";
-    panel.replaceChildren(...loadingContent("Loading the design", "Preparing a short-lived sandboxed preview…", { level: "h4" }));
-    status.textContent = "Loading the design";
+    panel.replaceChildren(...loadingContent(t("Loading the design"), t("Preparing a short-lived sandboxed preview…"), { level: "h4" }));
+    status.textContent = t("Loading the design");
     try {
       const result = await previewToken(name, revision);
       if (requestId !== previewRequest) return;
-      frame.src = result.url;
+      frame.src = I18N.ownedURL(result.url);
       frame.onload = () => {
         if (requestId !== previewRequest) return;
         panel.hidden = true;
@@ -492,11 +494,11 @@
       // the same defect the page detail had, and for the same reason.
       panel.className = "state-panel state-panel--error";
       panel.replaceChildren(
-        el("h4", { class: "state-panel__title" }, "Preview unavailable"),
-        el("p", {}, `${error.message}. Select Reload to try again.`)
+        el("h4", { class: "state-panel__title" }, t("Preview unavailable")),
+        el("p", {}, t("{0}. Select Reload to try again.", error.message))
       );
-      status.textContent = "Preview failed";
-      toast(`Preview failed: ${error.message}`, { tone: "error" });
+      status.textContent = t("Preview failed");
+      toast(t("Preview failed: {0}", error.message), { tone: "error" });
     } finally {
       if (trigger && trigger.isConnected) setBusy(trigger, false);
     }
@@ -507,20 +509,20 @@
   async function openPreviewTab(name, revision, trigger) {
     const tab = window.open("", "_blank");
     if (!tab) {
-      toast("Your browser blocked the preview window. Allow pop-ups for this site.", { tone: "error" });
+      toast(t("Your browser blocked the preview window. Allow pop-ups for this site."), { tone: "error" });
       return;
     }
     tab.opener = null;
     await runAction({
       button: trigger,
-      busyLabel: "Opening…",
-      idleLabel: "Open full size",
-      failure: "Preview failed",
+      busyLabel: t("Opening…"),
+      idleLabel: t("Open full size"),
+      failure: t("Preview failed"),
       run: async () => {
         try {
           const result = await previewToken(name, revision);
-          if (tab.closed) throw new Error("The preview tab was closed. Open full size to try again.");
-          tab.location = result.url;
+          if (tab.closed) throw new Error(t("The preview tab was closed. Open full size to try again."));
+          tab.location = I18N.ownedURL(result.url);
         } catch (error) {
           tab.close();
           throw error;
@@ -544,26 +546,26 @@
     let nameIsDerived = false;
 
     const fileInput = el("input", { type: "file", id: "tpl-file", accept: ".html,.htm,text/html" });
-    const fileHelp = el("span", { class: "field-help" }, "Nothing attached yet.");
+    const fileHelp = el("span", { class: "field-help" }, t("Nothing attached yet."));
     const nameInput = el("input", { type: "text", id: "tpl-name", placeholder: "nwm-campaign-dashboard", autocomplete: "off" });
-    const titleInput = el("input", { type: "text", id: "tpl-title", placeholder: "NWM Campaign Dashboard", autocomplete: "off" });
-    const descriptionInput = el("textarea", { id: "tpl-description", rows: "2", placeholder: "What this design is for, and when to reach for it." });
+    const titleInput = el("input", { type: "text", id: "tpl-title", placeholder: t("NWM Campaign Dashboard"), autocomplete: "off" });
+    const descriptionInput = el("textarea", { id: "tpl-description", rows: "2", placeholder: t("What this design is for, and when to reach for it.") });
     const verdict = el("div", { id: "tpl-verdict", role: "status", "aria-live": "polite" });
 
     const modal = makeDialog({
-      title: "Add a template",
-      kicker: "Template library",
+      title: t("Add a template"),
+      kicker: t("Template library"),
       description:
-        "Pick an HTML file. It is checked against the template format before anything is written — four managed " +
-        "blocks, both schemas self-contained JSON Schema 2020-12, and the shipped payloads validating against them.",
-      closeLabel: "Close add a template",
+        t("Pick an HTML file. It is checked against the template format before anything is written — four managed ") +
+        t("blocks, both schemas self-contained JSON Schema 2020-12, and the shipped payloads validating against them."),
+      closeLabel: t("Close add a template"),
       onClose() {
         modal.dialog.remove();
       },
     });
 
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
-    const register = el("button", { id: "tpl-register", class: "btn btn-primary", type: "button", disabled: true }, "Register");
+    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
+    const register = el("button", { id: "tpl-register", class: "btn btn-primary", type: "button", disabled: true }, t("Register"));
 
     let busy = false;
 
@@ -610,7 +612,7 @@
       const forHtml = html;
       const forName = currentName();
       setBusyState(true);
-      pendingVerdict("Checking the format…");
+      pendingVerdict(t("Checking the format…"));
       try {
         const result = await api("/templates/validate", {
           body: { html: forHtml, name: forName },
@@ -622,7 +624,7 @@
       } catch (error) {
         if (forHtml !== html || forName !== currentName()) return;
         check = null;
-        showVerdict(el("p", { class: "note note--warning" }, `Check failed: ${error.message}`));
+        showVerdict(el("p", { class: "note note--warning" }, t("Check failed: {0}", error.message)));
       } finally {
         setBusyState(false);
       }
@@ -635,7 +637,7 @@
       syncRegister();
       html = await chosen.text();
       fileName = chosen.name;
-      fileHelp.replaceChildren(`Attached ${fileName} — ${formatCount(html.length)} characters.`);
+      fileHelp.replaceChildren(t("Attached {0} — {1} characters.", fileName, formatCount(html.length)));
       if (!currentName() || nameIsDerived) {
         nameInput.value = fileName.replace(/\.html?$/i, "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
         nameIsDerived = true;
@@ -650,7 +652,7 @@
       if (check && check.forName !== currentName()) {
         check = null;
         syncRegister();
-        pendingVerdict("Name changed — checking again when you leave the field.");
+        pendingVerdict(t("Name changed — checking again when you leave the field."));
       }
     });
     nameInput.addEventListener("change", () => {
@@ -662,18 +664,18 @@
       const preflightFailed = check.result.preflight && check.result.preflight.ok === false;
       if (preflightFailed) {
         const approved = await confirmDialog({
-          title: "Register despite preflight errors?",
-          kicker: "Template library",
+          title: t("Register despite preflight errors?"),
+          kicker: t("Template library"),
           message:
-            "Preflight found errors in this design. Every page built from this template inherits them.",
-          confirmLabel: "Register anyway",
+            t("Preflight found errors in this design. Every page built from this template inherits them."),
+          confirmLabel: t("Register anyway"),
           danger: true,
           trigger: register,
         });
         if (!approved) return;
       }
       setBusyState(true);
-      pendingVerdict("Registering…");
+      pendingVerdict(t("Registering…"));
       try {
         const result = await api("/templates", {
           body: {
@@ -685,27 +687,28 @@
           },
         });
         modal.close("registered");
-        const what = result.deduped ? "was already registered as" : result.created ? "created as" : "registered as";
-        toast(`${result.template.name} ${what} revision ${result.revision.revision}.`);
+        toast(result.deduped ? t("{0} was already registered as revision {1}.", result.template.name, result.revision.revision)
+          : result.created ? t("{0} created as revision {1}.", result.template.name, result.revision.revision)
+          : t("{0} registered as revision {1}.", result.template.name, result.revision.revision));
         await load();
         await openTemplate(result.template.name);
       } catch (error) {
-        showVerdict(el("p", { class: "note note--warning" }, `Register failed: ${error.message}`));
+        showVerdict(el("p", { class: "note note--warning" }, t("Register failed: {0}", error.message)));
       } finally {
         setBusyState(false);
       }
     });
 
     modal.body.append(el("div", { class: "form-stack" },
-      field({ id: "tpl-file", label: "Template HTML", control: fileInput, help: fileHelp }),
+      field({ id: "tpl-file", label: t("Template HTML"), control: fileInput, help: fileHelp }),
       field({
         id: "tpl-name",
-        label: "Name",
+        label: t("Name"),
         control: nameInput,
-        help: "Lowercase letters, digits, hyphen and underscore. No slashes.",
+        help: t("Lowercase letters, digits, hyphen and underscore. No slashes."),
       }),
-      field({ id: "tpl-title", label: "Title", control: titleInput }),
-      field({ id: "tpl-description", label: "Description", control: descriptionInput }),
+      field({ id: "tpl-title", label: t("Title"), control: titleInput }),
+      field({ id: "tpl-description", label: t("Description"), control: descriptionInput }),
       verdict));
     modal.actions.append(cancel, register);
     modal.open(trigger);
@@ -716,36 +719,36 @@
     const rows = [];
     const add = (term, ...definition) => rows.push(el("dt", {}, term), el("dd", {}, ...definition));
 
-    add("Name", result.name
+    add(t("Name"), result.name
       ? el("code", {}, result.name)
-      : el("strong", {}, result.name_error ? result.name_error.message : "not set"));
-    add("Bytes", String(result.bytes));
-    add("Template format", result.contract_ok
-      ? "Valid — four managed blocks, both schemas 2020-12, payloads satisfy them."
+      : el("strong", {}, result.name_error ? window.PagesMessages.message(result.name_error.message) : t("not set")));
+    add(t("Bytes"), String(result.bytes));
+    add(t("Template format"), result.contract_ok
+      ? t("Valid — four managed blocks, both schemas 2020-12, payloads satisfy them.")
       : el("span", {},
-          el("strong", {}, "Invalid"),
-          ` — ${result.contract_error.message} `,
+          el("strong", {}, t("Invalid")),
+          ` — ${window.PagesMessages.message(result.contract_error.message)} `,
           el("code", {}, result.contract_error.code)));
 
     if (result.contract_ok) {
-      add("Config fields", String(Object.keys(result.reference_config).length));
-      add("Data keys", (result.data_keys || []).join(", ") || "—");
-      add("Ships empty", result.ships_empty === true
-        ? "Yes."
+      add(t("Config fields"), String(Object.keys(result.reference_config).length));
+      add(t("Data keys"), (result.data_keys || []).join(", ") || "—");
+      add(t("Ships empty"), result.ships_empty === true
+        ? t("Yes.")
         : result.ships_empty === false
-          ? el("strong", {}, "No — it carries data rows, which every page built from it would inherit.")
-          : "Not applicable.");
+          ? el("strong", {}, t("No — it carries data rows, which every page built from it would inherit."))
+          : t("Not applicable."));
     }
 
     const preflight = result.preflight;
     if (preflight) {
-      add("Preflight", preflight.ok
-        ? "No problems."
+      add(t("Preflight"), preflight.ok
+        ? t("No problems.")
         : el("span", {},
-            el("strong", {}, `${preflight.errors.length} error${preflight.errors.length === 1 ? "" : "s"}`),
-            " — inherited by every page built from this:",
+            el("strong", {}, preflight.errors.length === 1 ? t("1 error") : t("{0} errors", preflight.errors.length)),
+            t(" — inherited by every page built from this:"),
             el("ul", {}, preflight.errors.slice(0, 10).map((error) =>
-              el("li", {}, el("code", {}, error.code), ` ${error.message}`)))));
+              el("li", {}, el("code", {}, error.code), ` ${window.PagesMessages.message(error.message)}`)))));
     }
 
     return el("dl", { class: "template-kv" }, rows);

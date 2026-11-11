@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ElcanoTek/pages/internal/i18n"
+
 	"github.com/ElcanoTek/pages/internal/adminapi"
 	"github.com/ElcanoTek/pages/internal/api"
 	"github.com/ElcanoTek/pages/internal/apierror"
@@ -430,16 +432,16 @@ func (s *Server) serveRoutes(w http.ResponseWriter, r *http.Request) {
 	// same reason (both are reserved slug segments).
 	case run(&rtTemplates, s.admin(func(w http.ResponseWriter, r *http.Request, _ route.Params) {
 		email := auth.User(r).Email
-		httpx.SendHTML(w, r, http.StatusOK, shell.Templates(csrf.Mint(email), email, env.ContentOrigin()))
+		httpx.SendHTML(w, r, http.StatusOK, shell.Templates(csrf.Mint(email), email, env.ContentOrigin(), i18n.FromRequest(r)))
 	})):
 	case run(&rtPortals, s.admin(func(w http.ResponseWriter, r *http.Request, _ route.Params) {
 		email := auth.User(r).Email
-		httpx.SendHTML(w, r, http.StatusOK, shell.Portals(csrf.Mint(email), email, env.ContentOrigin()))
+		httpx.SendHTML(w, r, http.StatusOK, shell.Portals(csrf.Mint(email), email, env.ContentOrigin(), i18n.FromRequest(r)))
 	})):
 	// Admin shell — a bootstrap that drives the admin JSON API.
 	case run(&rtAdminSlug, s.admin(func(w http.ResponseWriter, r *http.Request, p route.Params) {
 		email := auth.User(r).Email
-		httpx.SendHTML(w, r, http.StatusOK, shell.Admin(p.Slug, csrf.Mint(email), email, env.ContentOrigin()))
+		httpx.SendHTML(w, r, http.StatusOK, shell.Admin(p.Slug, csrf.Mint(email), email, env.ContentOrigin(), i18n.FromRequest(r)))
 	})):
 	case under(p, "/api/v1"):
 		s.apiH.ServeHTTP(w, r)
@@ -447,11 +449,11 @@ func (s *Server) serveRoutes(w http.ResponseWriter, r *http.Request) {
 	// so the browser re-issues as GET. In central mode the sign-in surface
 	// owns /logout (served upstream).
 	case s.central == nil && logoutRE.MatchString(p):
-		httpx.Redirect(w, r, http.StatusSeeOther, s.auth.LoginURL()+"/logout")
+		httpx.Redirect(w, r, http.StatusSeeOther, s.auth.LoginURL()+i18n.FromRequest(r).URL("/logout"))
 	// Root is not a public surface: bounce to /admin, which is admin-gated —
 	// staff land on the welcome index, everyone else is sent to sign-in.
 	case run(&rtRoot, func(w http.ResponseWriter, r *http.Request, _ route.Params) {
-		httpx.Redirect(w, r, http.StatusFound, "/admin")
+		httpx.Redirect(w, r, http.StatusFound, i18n.FromRequest(r).URL("/admin"))
 	}):
 	default:
 		dashboardNotFound(w, r)
@@ -469,7 +471,7 @@ func (s *Server) welcome(w http.ResponseWriter, r *http.Request, _ route.Params)
 	email := auth.User(r).Email
 	httpx.SendHTML(w, r, http.StatusOK, shell.Welcome(email, env.ContentOrigin(), shell.WelcomeOptions{
 		CSRF: csrf.Mint(email), Compose: compose.Enabled(),
-	}))
+	}, i18n.FromRequest(r)))
 }
 
 type meBody struct {
@@ -501,7 +503,7 @@ func (s *Server) view(w http.ResponseWriter, r *http.Request, slug string) {
 	}
 	page := pv.Page
 	if page.PublishedVersionID == 0 {
-		httpx.Send(w, r, http.StatusNotFound, "text/plain; charset=utf-8", []byte("nothing published yet"))
+		httpx.Send(w, r, http.StatusNotFound, "text/plain; charset=utf-8", []byte(i18n.FromRequest(r).T("nothing published yet")))
 		return
 	}
 	// purpose "session": the only token the content host will exchange for
@@ -513,11 +515,11 @@ func (s *Server) view(w http.ResponseWriter, r *http.Request, slug string) {
 		s.fail(w, r, err)
 		return
 	}
-	httpx.Redirect(w, r, http.StatusFound, env.ContentOrigin()+"/"+page.Slug+"?t="+httpx.EncodeURIComponent(token))
+	httpx.Redirect(w, r, http.StatusFound, env.ContentOrigin()+i18n.FromRequest(r).URL("/"+page.Slug+"?t="+httpx.EncodeURIComponent(token)))
 }
 
 func dashboardNotFound(w http.ResponseWriter, r *http.Request) {
-	httpx.SendHTML(w, r, http.StatusNotFound, shell.NotFound())
+	httpx.SendHTML(w, r, http.StatusNotFound, shell.NotFound(i18n.FromRequest(r)))
 }
 
 var apiPathRE = regexp.MustCompile(`(?i)^/api/v1(?:/|$)`)
@@ -550,7 +552,7 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		httpx.SendJSON(w, r, mapped.Status, errorBody{Error: mapped.Message, Code: mapped.Code})
 		return
 	}
-	httpx.SendHTML(w, r, mapped.Status, shell.RequestError(mapped.Status))
+	httpx.SendHTML(w, r, mapped.Status, shell.RequestError(mapped.Status, i18n.FromRequest(r)))
 }
 
 // recoverer turns a panic into the error boundary's 500, as Express caught a
@@ -625,7 +627,7 @@ func slugOf(r *http.Request) string { return strings.TrimLeft(r.URL.EscapedPath(
 func contentBusy(w http.ResponseWriter, r *http.Request) {
 	csp.GateHeaders(csp.GateOptions{Framable: true}).Apply(w.Header())
 	w.Header().Set("Retry-After", "60")
-	httpx.SendHTML(w, r, http.StatusTooManyRequests, contentview.BusyPage(slugOf(r)))
+	httpx.SendHTML(w, r, http.StatusTooManyRequests, contentview.BusyPage(slugOf(r), i18n.FromRequest(r)))
 }
 
 // passwordBusy is the password form's brute-force guard answer: the page can
@@ -636,21 +638,22 @@ func passwordBusy(w http.ResponseWriter, r *http.Request) {
 	csp.GateHeaders(csp.GateOptions{}).Apply(w.Header())
 	w.Header().Set("Retry-After", strconv.FormatFloat(minutes*60, 'f', -1, 64))
 	// No ETag: a 429 is never fresh, so a validator could never serve a 304.
-	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(contentview.RateLimitPage(slugOf(r), int(minutes))))
+	httpx.SendNoValidator(w, r, http.StatusTooManyRequests, "text/html; charset=utf-8", []byte(contentview.RateLimitPage(slugOf(r), int(minutes), i18n.FromRequest(r))))
 }
 
 // signinBusy answers the central sign-in limiters: HTML, because a browser
 // is always the caller.
 func signinBusy(w http.ResponseWriter, r *http.Request) {
+	locale := i18n.FromRequest(r)
 	w.Header().Set("Retry-After", "60")
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.SendHTML(w, r, http.StatusTooManyRequests, shell.Standalone(shell.StandaloneOptions{
-		Title:      "Sign-in · Pages",
-		Kicker:     "Sign-in",
-		Heading:    "Too many sign-in attempts",
-		BodyHTML:   "<p>Wait a minute, then try again.</p>",
+		Title:      locale.T("Sign-in · Pages"),
+		Kicker:     locale.T("Sign-in"),
+		Heading:    locale.T("Too many sign-in attempts"),
+		BodyHTML:   "<p>" + shell.Esc(locale.T("Wait a minute, then try again.")) + "</p>",
 		AssetsBase: assetver.ShellFlag(),
-	}))
+	}, locale))
 }
 
 // renderChrome draws central sign-in's standalone pages.
@@ -659,7 +662,7 @@ func renderChrome(p central.ChromePage) string {
 	if p.CTA != nil {
 		o.CTA = &shell.CTA{Href: p.CTA.Href, Label: p.CTA.Label}
 	}
-	return shell.Standalone(o)
+	return shell.Standalone(o, p.Locale)
 }
 
 // ── Express mount semantics ────────────────────────────────────────────────

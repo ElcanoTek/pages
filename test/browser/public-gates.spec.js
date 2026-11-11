@@ -74,7 +74,8 @@ test("an empty portal explains itself instead of blaming the password", async ({
   await page.goto("/gate/portal-empty");
   await expect(page.getByText("No dashboards are available in this portal yet")).toBeVisible();
   await expect(page.getByText("Nothing is wrong with your password")).toBeVisible();
-  await expect(page.getByRole("link")).toHaveCount(0);
+  await expect(page.locator(".portal-list a")).toHaveCount(0);
+  await expect(page.locator(".language-links a")).toHaveCount(3);
 });
 
 test("the portal password error is announced and the field stays labeled", async ({ page }) => {

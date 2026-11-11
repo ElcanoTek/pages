@@ -724,6 +724,7 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
    portal. The index's filter and per-row chip, and the detail's banner and
    section. Red and amber are the status tokens the badges already use. */
 .index-toolbar__tools { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.index-toolbar__tools .btn { max-width: 100%; white-space: normal; }
 .attention-filter[aria-pressed="true"] { color: var(--color-status-warning-fg); border-color: var(--color-status-warning-border); background: var(--color-status-warning-bg); }
 /* Its grey twin, for live pages with old data and no refresh schedule: a
    question (is the campaign still running?), not a fault, so no status colour. */
@@ -808,6 +809,11 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
    where a long title takes a second line instead — a column that already wraps
    by design. */
 .operation-table__status { width: 8.5rem; }
+/* Translated status and health labels may need two lines in the fixed columns. */
+html:not([lang="en"]) .operation-table--index .status,
+html:not([lang="en"]) .operation-table--index .refresh-health .badge { white-space: normal; border-radius: var(--radius-md); }
+html:not([lang="en"]) .operation-table--index th { letter-spacing: 0; }
+html:not([lang="en"]) .operation-table--index .refresh-health .badge { letter-spacing: 0; padding-inline: var(--space-1); text-transform: none; }
 .operation-table__page { width: auto; }
 /* Every fixed column is the width of its own heading and no more, because what
    they take, the title column loses: at 8rem and 11rem the longest page title
@@ -1148,12 +1154,12 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
       "live updated workspace actions";
   }
   .operation-table--index td:not(:last-child) { border-bottom: 0; }
-  .operation-table--index td[data-label="Status"] { grid-area: status; border-bottom: 1px solid var(--color-border); }
-  .operation-table--index td[data-label="Page"] { grid-area: page; border-bottom: 1px solid var(--color-border); }
-  .operation-table--index td[data-label="Live version"] { grid-area: live; }
-  .operation-table--index td[data-label="Last update"] { grid-area: updated; }
-  .operation-table--index td[data-label="Workspace"] { grid-area: workspace; }
-  .operation-table--index td[data-label="Actions"] { grid-area: actions; }
+  .operation-table--index td[data-column="status"] { grid-area: status; border-bottom: 1px solid var(--color-border); }
+  .operation-table--index td[data-column="page"] { grid-area: page; border-bottom: 1px solid var(--color-border); }
+  .operation-table--index td[data-column="live"] { grid-area: live; }
+  .operation-table--index td[data-column="updated"] { grid-area: updated; }
+  .operation-table--index td[data-column="workspace"] { grid-area: workspace; }
+  .operation-table--index td[data-column="actions"] { grid-area: actions; }
   .row-actions { justify-content: flex-start; }
 }
 
@@ -1179,7 +1185,7 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
       "updated workspace"
       "actions actions";
   }
-  .operation-table--index td:not([data-label="Actions"]) { border-bottom: 1px solid var(--color-border); }
+  .operation-table--index td:not([data-column="actions"]) { border-bottom: 1px solid var(--color-border); }
 }
 
 @media (max-width: 40rem) {
@@ -1281,3 +1287,5 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+.language-picker { max-width: 8.5rem; min-height: 2.25rem; padding: var(--space-2); color: var(--color-text-primary); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); font: inherit; font-size: var(--font-size-caption); }

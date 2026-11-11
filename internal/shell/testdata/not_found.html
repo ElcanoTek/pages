@@ -52,6 +52,9 @@
   .credential-account{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   @media(max-width:30rem){body{padding:var(--space-4)}.card{padding:var(--space-5)}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important}}
+  .language-links{display:flex;flex-wrap:wrap;gap:var(--space-4);font-size:var(--font-size-caption)}
+  .language-links a{color:var(--color-text-secondary)}
+  .language-links [aria-current]{font-weight:var(--font-weight-bold);color:var(--color-text-primary)}
   .cta{width:fit-content;min-height:3rem;padding:var(--space-3) var(--space-5);display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--pages-action-fill);border-radius:var(--radius-md);color:var(--color-white);background:var(--pages-action-fill);text-decoration:none;font-weight:var(--font-weight-bold);transition:background var(--transition-fast),border-color var(--transition-fast)}
   .cta:hover{border-color:var(--pages-action-hover);background:var(--pages-action-hover)}
 </style></head>
@@ -63,4 +66,5 @@
     <p>This address is not a Pages route.</p>
     <a class="cta" href="/admin">Back to Pages</a>
   </main>
+  <nav class="language-links" aria-label="Language"><a href="?lang=en" lang="en" aria-current="true">English</a><a href="?lang=es" lang="es">Español</a><a href="?lang=pt" lang="pt">Português</a></nav>
 </div></body></html>

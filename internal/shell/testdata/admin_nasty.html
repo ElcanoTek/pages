@@ -9,7 +9,10 @@
 <link rel="stylesheet" href="/shell-assets/flag/tokens/design-tokens.css">
 <link rel="stylesheet" href="/shell-assets/shell.css">
 <script src="/shell-assets/flag/theme/theme-controller.js"></script>
+<script type="application/json" id="pages-i18n">{"language":"en","messages":null}</script>
+<script src="/shell-assets/i18n.js"></script>
 <script type="application/json" id="pages-bootstrap">{"slug":"a\"\u003cb>&'c\u003c/script>","csrf":"line sep x\b\f\n\r\t\u0001\u001f\\\"é😀","admin":"o'\"\u003cx>@example.com","contentOrigin":""}</script>
+<script src="/shell-assets/messages.js" defer></script>
 <script src="/shell-assets/primitives.js" defer></script>
 <script src="/shell-assets/page-switcher.js" defer></script>
 <script src="/shell-assets/refresh-health.js" defer></script>
@@ -25,6 +28,7 @@
       </span>
     </a>
     <div class="ds-app-header__actions">
+      <label class="sr-only" for="pages-language">Language</label><select id="pages-language" class="language-picker" aria-label="Language"><option value="en" selected>English</option><option value="es">Español</option><option value="pt">Português</option></select>
       <span class="session-user" title="o&#39;&quot;&lt;x&gt;@example.com">o&#39;&quot;&lt;x&gt;@example.com</span>
       <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="Switch theme" aria-pressed="false" title="Change color theme">
         <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
@@ -68,7 +72,7 @@
   <div id="app" class="screen-stack">
     <div class="state-panel state-panel--loading" role="status" aria-live="polite">
   <span class="spinner spinner--panel" aria-hidden="true"></span>
-  <p>Loading /a&amp;quot;&amp;lt;b&amp;gt;&amp;amp;&amp;#39;c&amp;lt;/script&amp;gt;…</p>
+  <p>Loading /a&quot;&lt;b&gt;&amp;&#39;c&lt;/script&gt;…</p>
 </div>
   </div>
 </main>

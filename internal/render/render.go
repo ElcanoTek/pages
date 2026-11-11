@@ -29,6 +29,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/assetver"
 	"github.com/ElcanoTek/pages/internal/datalimits"
 	"github.com/ElcanoTek/pages/internal/env"
+	"github.com/ElcanoTek/pages/internal/i18n"
 	"github.com/ElcanoTek/pages/internal/jsstr"
 )
 
@@ -222,7 +223,7 @@ func navBlockTag(nav any) string {
 	return `<script type="application/json" id="` + NavBlockID + `" data-flag-injected>` + datalimits.EscapedJSON(nav) + `</script>`
 }
 
-func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool) string {
+func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool, locale i18n.Locale) string {
 	// Escaped as an attribute value as well as validated (sameOriginPath), so
 	// no base can ever close the attribute it is written into.
 	base := html.EscapeString(assetsBase())
@@ -239,7 +240,7 @@ func flagHead(overrideCSS string, nav any, withDefaultSwitcher bool) string {
 		tags = append(tags, navBlockTag(nav))
 		// …and the control itself, unless the design renders its own.
 		if withDefaultSwitcher {
-			tags = append(tags, defaultSwitcherTags()...)
+			tags = append(tags, defaultSwitcherTags(locale)...)
 		}
 	}
 	return strings.Join(tags, "\n")
@@ -261,6 +262,7 @@ func isNil(v any) bool {
 
 // ThemeOptions are InjectThemed's inputs.
 type ThemeOptions struct {
+	Locale i18n.Locale
 	// OverrideCSS is the page's client theme sheet ("" for none).
 	OverrideCSS string
 	// Nav is the page-switcher payload, or nil when no portal authorised the
@@ -278,7 +280,7 @@ type ThemeOptions struct {
 func InjectThemed(sourceHTML string, opts ThemeOptions) string {
 	// Read the SOURCE, before the block we are about to add would answer for it.
 	withSwitcher := !isNil(opts.Nav) && !ReadsNavBlock(sourceHTML)
-	head := flagHead(opts.OverrideCSS, opts.Nav, withSwitcher)
+	head := flagHead(opts.OverrideCSS, opts.Nav, withSwitcher, opts.Locale)
 	if headOpenRE.MatchString(sourceHTML) {
 		return replaceFirst(headOpenRE, sourceHTML, func(m string) string { return m + "\n" + head })
 	}
@@ -302,11 +304,12 @@ func InjectThemed(sourceHTML string, opts ThemeOptions) string {
 // Placement matters. The payload goes as early as the document allows, because
 // a design that reads it can run its script anywhere; the control goes last, so
 // nothing of the author's is displaced.
-func InjectRawNav(sourceHTML string, nav any) string {
+func InjectRawNav(sourceHTML string, nav any, locales ...i18n.Locale) string {
+	locale := i18n.First(locales...)
 	payload := navBlockTag(nav)
 	var control []string
 	if !ReadsNavBlock(sourceHTML) {
-		control = defaultSwitcherTags()
+		control = defaultSwitcherTags(locale)
 	}
 	if !headOpenRE.MatchString(sourceHTML) {
 		// Nothing to hang the data on early. Everything goes at the end rather than
@@ -386,6 +389,7 @@ func StripDeckHostAdaptation(html string) string {
 
 // Renderable is a row from getRenderable plus the optional switcher payload.
 type Renderable struct {
+	Locale      i18n.Locale
 	HTML        string
 	RenderMode  string // "raw" or "themed"
 	OverrideCSS string
@@ -408,7 +412,7 @@ func RenderVersion(r Renderable) string {
 		if isNil(r.Nav) {
 			return r.HTML
 		}
-		return InjectRawNav(r.HTML, r.Nav)
+		return InjectRawNav(r.HTML, r.Nav, r.Locale)
 	}
-	return InjectThemed(r.HTML, ThemeOptions{OverrideCSS: r.OverrideCSS, Nav: r.Nav})
+	return InjectThemed(r.HTML, ThemeOptions{OverrideCSS: r.OverrideCSS, Nav: r.Nav, Locale: r.Locale})
 }

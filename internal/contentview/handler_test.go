@@ -1305,3 +1305,18 @@ func TestShellAssets(t *testing.T) {
 	expect(t, get("/shell-assets/nope.js").Code == 418, "a miss goes to next")
 	expect(t, get("/elsewhere").Code == 418, "other paths go to next")
 }
+
+func TestPortalLanguageSurvivesPasswordAndSignout(t *testing.T) {
+	f := newFixture(t)
+	portalID := f.portal("language-portal", "Save", "portal-password")
+	locked := f.get("/portal/language-portal?lang=es")
+	expect(t, locked.status == 401 && strings.Contains(locked.body, "Contraseña del portal"), "localized protected portal")
+	expect(t, strings.Contains(locked.body, `<h1 id="gate-title">Save</h1>`), "portal name stays user data")
+	expect(t, len(locked.cookies()) == 0 && !strings.Contains(locked.body, "<script"), "the gate sets no preferences or scripts")
+	opened := f.post("/portal/language-portal?lang=pt", "portal-password")
+	expect(t, opened.status == 303 && opened.header.Get("Location") == "/portal/language-portal?lang=pt", "language survives password submission: %s", opened.header.Get("Location"))
+	cookie := opened.cookie(`^pgp` + strconv.FormatInt(portalID, 10) + `=`)
+	listing := f.get(opened.header.Get("Location"), cookie)
+	expect(t, listing.status == 200 && strings.Contains(listing.body, "Ainda não há painéis disponíveis"), "localized unlocked portal")
+	expect(t, strings.Contains(listing.body, `action="/portal/language-portal/lock?lang=pt"`), "sign-out retains the language")
+}

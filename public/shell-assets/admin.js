@@ -5,6 +5,8 @@
 // Page detail/review UI. It keeps the existing admin API and sandboxed preview
 // pipeline intact while making the selected version the single workflow focus.
 (function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
   const UI = window.PagesUI;
   const { el, icon, toast, makeDialog, confirmDialog, setBusy, keepingFocus, statusChip, copyText, errorState, emptyState, loadFailed, credentialDialog } = UI;
   const { field, runAction, formatWhen, timeWhen, slugPath, loadingContent, looksLikeBentoDeck } = UI;
@@ -39,7 +41,7 @@
   // unifying the four wordings across the admin UI.
 
   function goToPage(targetSlug) {
-    if (targetSlug && targetSlug !== slug) window.location.assign(switcher.adminPath(targetSlug));
+    if (targetSlug && targetSlug !== slug) window.location.assign(I18N.withLanguage(switcher.adminPath(targetSlug)));
   }
 
   // Navigating on `change` alone made the switcher unusable from the keyboard: on a
@@ -84,7 +86,7 @@
     }
     // Say what the pending selection needs, in the live region that is already
     // describing this control.
-    switcherCount.textContent = "Press Enter to open";
+    switcherCount.textContent = t("Press Enter to open");
   });
   switcherSelect.addEventListener("blur", stopBrowsing);
   switcherPrev.addEventListener("click", () => goToPage(switcherPrev.dataset.slug));
@@ -94,12 +96,12 @@
     button.disabled = !item;
     if (!item) {
       delete button.dataset.slug;
-      button.title = `No ${direction} page`;
+      button.title = direction === "previous" ? t("No previous page") : t("No next page");
       button.setAttribute("aria-label", button.title);
       return;
     }
     button.dataset.slug = item.slug;
-    button.title = `${direction[0].toUpperCase() + direction.slice(1)} page: ${item.title} (/${item.slug})`;
+    button.title = direction === "previous" ? t("Previous page: {0} (/{1})", item.title, item.slug) : t("Next page: {0} (/{1})", item.title, item.slug);
     button.setAttribute("aria-label", button.title);
   }
 
@@ -107,11 +109,11 @@
     const navigation = switcher.model(pages, slug);
     switcherSelect.replaceChildren();
     if (!navigation.total) {
-      switcherSelect.append(el("option", {}, "No pages available"));
+      switcherSelect.append(el("option", {}, t("No pages available")));
       switcherSelect.disabled = true;
-      switcherCount.textContent = switcherCountLabel = "0 pages";
+      switcherCount.textContent = switcherCountLabel = t("0 pages");
     } else {
-      if (!navigation.current) switcherSelect.append(el("option", { value: "", selected: true, disabled: true }, "Select a page"));
+      if (!navigation.current) switcherSelect.append(el("option", { value: "", selected: true, disabled: true }, t("Select a page")));
       navigation.items.forEach((item) => switcherSelect.append(el("option", {
         value: item.slug,
         selected: item.slug === slug,
@@ -121,8 +123,8 @@
       if (navigation.current) {
         switcherSelect.value = navigation.current.slug;
         switcherSelect.title = navigation.current.optionLabel;
-        switcherCount.textContent = switcherCountLabel = `${navigation.current.position} of ${navigation.total}`;
-        switcherSelect.setAttribute("aria-label", `Switch admin page; current page ${navigation.current.position} of ${navigation.total}`);
+        switcherCount.textContent = switcherCountLabel = t("{0} of {1}", navigation.current.position, navigation.total);
+        switcherSelect.setAttribute("aria-label", t("Switch admin page; current page {0} of {1}", navigation.current.position, navigation.total));
       } else {
         switcherCount.textContent = switcherCountLabel = `${navigation.total} ${navigation.total === 1 ? "page" : "pages"}`;
       }
@@ -140,12 +142,12 @@
     switcherRoot.setAttribute("aria-busy", "false");
     switcherRoot.setAttribute("data-error", "");
     if (!switcherReady) {
-      switcherSelect.replaceChildren(el("option", {}, "Page list unavailable"));
+      switcherSelect.replaceChildren(el("option", {}, t("Page list unavailable")));
       switcherSelect.disabled = true;
       setStep(switcherPrev, null, "previous");
       setStep(switcherNext, null, "next");
     }
-    switcherCount.textContent = switcherCountLabel = "Unavailable";
+    switcherCount.textContent = switcherCountLabel = t("Unavailable");
     switcherCount.title = error.message;
   }
 
@@ -171,7 +173,7 @@
 
   function versionLabel(versionOrId, data = pageData) {
     const number = versionNumber(versionOrId, data);
-    return number == null ? "Version" : `Version ${number}`;
+    return number == null ? t("Version") : t("Version {0}", number);
   }
 
   function inlineVersionLabel(versionOrId, data = pageData) {
@@ -219,10 +221,10 @@
   async function mutate(button, successMessage, path, body, preferredVersionId, parts) {
     const { ok } = await runAction({
       button,
-      busyLabel: "Working…",
+      busyLabel: t("Working…"),
       keepBusy: true,
       success: successMessage,
-      failure: (error) => `${successMessage} failed: ${error.message}`,
+      failure: (error) => t("{0} failed: {1}", successMessage, error.message),
       run: async () => { await post(path, body); },
     });
     // The button is disabled for the whole action (keepBusy), which blurs it, so
@@ -251,23 +253,23 @@
   // not keeping up: what is wrong, in the run's or the schedule's own words,
   // and a way to the section that says the rest. Staff screen only — the
   // client's page and its portals never show any of this.
-  function refreshBanner(health) {
+  function refreshBanner(health, freshness) {
     if (!Health.needsAttention(health)) return null;
     const { kind, label } = Health.describeHealth(health);
     return el("p", { id: "refresh-banner", class: `refresh-banner refresh-banner--${kind}` },
       statusChip(kind, label),
-      el("span", { class: "refresh-banner__reason" }, health.health_reason || ""),
-      el("a", { class: "refresh-banner__link", href: "#refresh-title" }, "Refresh schedule"));
+      el("span", { class: "refresh-banner__reason" }, window.PagesMessages.healthReason(health, freshness || {})),
+      el("a", { class: "refresh-banner__link", href: "#refresh-title" }, t("Refresh schedule")));
   }
 
-  function pageOverview(page, pendingCount, health) {
+  function pageOverview(page, pendingCount, health, freshness) {
     return el("header", { class: "panel page-overview" },
       el("div", { class: "page-overview__top" },
         el("div", { class: "page-overview__identity" },
-          el("p", { class: "overline" }, "Page review"),
+          el("p", { class: "overline" }, t("Page review")),
           el("h1", {}, page.title || page.slug),
           el("code", { class: "page-overview__slug" }, `/${page.slug}`)),
-        el("div", { class: "page-overview__statuses", role: "group", "aria-label": "Page state" },
+        el("div", { class: "page-overview__statuses", role: "group", "aria-label": t("Page state") },
           // "Enabled" was every page's default state and badging it was noise, and
           // "Approval required" is a setting — it lives in Settings. What is left
           // is the state a client sees, and the work waiting on a human.
@@ -275,16 +277,16 @@
             ? statusChip("disabled")
             : statusChip(page.has_password || page.require_approval ? "gated" : "live",
                 page.published_version_id
-                  ? (page.has_password ? "Live · gated" : "Live")
-                  : "Nothing live"),
+                  ? (page.has_password ? t("Live · gated") : t("Live"))
+                  : t("Nothing live")),
           page.published_version_id
-            ? el("span", { class: "table-meta" }, `Live ${inlineVersionLabel(page.published_version_id)}`)
+            ? el("span", { class: "table-meta" }, t("Live {0}", inlineVersionLabel(page.published_version_id)))
             : null,
           pendingCount
             ? el("a", { class: "page-overview__todo", href: "#review-title" },
-                `${pendingCount} ${pendingCount === 1 ? "version" : "versions"} waiting for review`)
+                pendingCount === 1 ? t("1 version waiting for review") : t("{0} versions waiting for review", pendingCount))
             : null)),
-      refreshBanner(health));
+      refreshBanner(health, freshness));
   }
 
   function versionOption(version, page) {
@@ -299,7 +301,7 @@
       el("strong", {}, versionLabel(version)),
       statusBadge(version, page)),
     el("span", { class: "version-option__meta" },
-      el("span", { title: version.author || "Unknown author" }, version.author || "Unknown author"),
+      el("span", { title: version.author || t("Unknown author") }, version.author || t("Unknown author")),
       timeWhen(version.created_at)));
     return el("li", {}, button);
   }
@@ -321,24 +323,20 @@
   // What a reader needs to know before publishing: which version replaces which,
   // and that the one being replaced is still there afterwards.
   function pointerMoveMessage(page, version) {
-    const from = page.published_version_id
-      ? `replaces live ${inlineVersionLabel(page.published_version_id)}`
-      : "is the first version this page serves";
-    const keep = page.published_version_id
-      ? ` ${inlineVersionLabel(page.published_version_id)} stays available to roll back to.`
-      : "";
-    return `${inlineVersionLabel(version)} ${from} for everyone with the client link.${keep}`;
+    return page.published_version_id
+      ? t("{0} replaces live {1} for everyone with the client link. {1} stays available to roll back to.", inlineVersionLabel(version), inlineVersionLabel(page.published_version_id))
+      : t("{0} is the first version this page serves for everyone with the client link.", inlineVersionLabel(version));
   }
 
   async function approveVersion(button, version, page) {
     const ok = await confirmClientVisible({
       trigger: button,
-      title: `Approve and publish ${inlineVersionLabel(version)}?`,
+      title: t("Approve and publish {0}?", inlineVersionLabel(version)),
       message: pointerMoveMessage(page, version),
-      confirmLabel: "Approve & publish",
+      confirmLabel: t("Approve & publish"),
     });
     if (ok) {
-      await mutate(button, `Published ${inlineVersionLabel(version)}`, `/versions/${version.id}/approve`, {
+      await mutate(button, t("Published {0}", inlineVersionLabel(version)), `/versions/${version.id}/approve`, {
         expected_version: page.published_version_id,
       }, undefined, ["overview", "review"]);
     }
@@ -347,12 +345,12 @@
   async function publishVersion(button, version, page) {
     const ok = await confirmClientVisible({
       trigger: button,
-      title: `Publish ${inlineVersionLabel(version)}?`,
+      title: t("Publish {0}?", inlineVersionLabel(version)),
       message: pointerMoveMessage(page, version),
-      confirmLabel: "Publish",
+      confirmLabel: t("Publish"),
     });
     if (ok) {
-      await mutate(button, `Published ${inlineVersionLabel(version)}`, "/publish", {
+      await mutate(button, t("Published {0}", inlineVersionLabel(version)), "/publish", {
         version_id: version.id,
         expected_version: page.published_version_id,
       }, version.id, ["overview", "review"]);
@@ -368,18 +366,18 @@
     const approved = await confirmDialog({
       trigger: button,
       title: draft
-        ? `Discard ${inlineVersionLabel(version)}?`
-        : `Reject ${inlineVersionLabel(version)}?`,
+        ? t("Discard {0}?", inlineVersionLabel(version))
+        : t("Reject {0}?", inlineVersionLabel(version)),
       message: draft
-        ? "The draft stays in history and can still be previewed, but it can no longer be published. Nothing a client sees changes."
-        : "Rejected versions remain in history but cannot be published.",
-      confirmLabel: draft ? "Discard draft" : "Reject version",
+        ? t("The draft stays in history and can still be previewed, but it can no longer be published. Nothing a client sees changes.")
+        : t("Rejected versions remain in history but cannot be published."),
+      confirmLabel: draft ? t("Discard draft") : t("Reject version"),
       danger: true,
     });
     if (approved) {
       await mutate(
         button,
-        draft ? `Discarded ${inlineVersionLabel(version)}` : `Rejected ${inlineVersionLabel(version)}`,
+        draft ? t("Discarded {0}", inlineVersionLabel(version)) : t("Rejected {0}", inlineVersionLabel(version)),
         `/versions/${version.id}/reject`,
         {},
         null
@@ -390,12 +388,12 @@
   async function rollbackVersion(button, version, page) {
     const approved = await confirmDialog({
       trigger: button,
-      title: `Roll back to ${inlineVersionLabel(version)}?`,
-      message: `Clients will see ${inlineVersionLabel(version)} instead of ${page.published_version_id ? inlineVersionLabel(page.published_version_id) : "nothing"}. No version is deleted, so this can be undone.`,
-      confirmLabel: "Roll back",
+      title: t("Roll back to {0}?", inlineVersionLabel(version)),
+      message: t("Clients will see {0} instead of {1}. No version is deleted, so this can be undone.", inlineVersionLabel(version), page.published_version_id ? inlineVersionLabel(page.published_version_id) : t("nothing")),
+      confirmLabel: t("Roll back"),
     });
     if (approved) {
-      await mutate(button, `Rolled back to ${inlineVersionLabel(version)}`, "/rollback", {
+      await mutate(button, t("Rolled back to {0}", inlineVersionLabel(version)), "/rollback", {
         version_id: version.id,
         expected_version: page.published_version_id,
       }, version.id, ["overview", "review"]);
@@ -410,15 +408,15 @@
     // instead, before the deck — untrusted HTML — is navigated to.
     const tab = window.open("", "_blank");
     if (tab) tab.opener = null;
-    setBusy(button, true, "Opening…");
+    setBusy(button, true, t("Opening…"));
     try {
       const { url } = await post("/edit-token", {});
-      if (tab) tab.location = url;
-      else window.location.assign(url);
-      toast("Opened in Bento. Every Save there becomes a new draft version here.");
+      if (tab) tab.location = I18N.ownedURL(url);
+      else window.location.assign(I18N.ownedURL(url));
+      toast(t("Opened in Bento. Every Save there becomes a new draft version here."));
     } catch (error) {
       if (tab) tab.close();
-      toast(`Couldn't open the Bento editor: ${error.message}`, { kind: "error" });
+      toast(t("Couldn't open the Bento editor: {0}", error.message), { kind: "error" });
     } finally {
       setBusy(button, false);
     }
@@ -426,7 +424,7 @@
 
   function versionActions(version, page, data) {
     if (!version) return el("div", { class: "version-actions" });
-    const actions = el("div", { class: "version-actions", role: "group", "aria-label": `Actions for ${inlineVersionLabel(version)}` });
+    const actions = el("div", { class: "version-actions", role: "group", "aria-label": t("Actions for {0}", inlineVersionLabel(version)) });
     actions.append(
       // The stage is already showing this version, so the button reloads it. The
       // template library calls the same action "Reload"; this said "Preview", and
@@ -436,7 +434,7 @@
         class: "btn btn-sm",
         type: "button",
         onclick: (event) => loadPreview(version.id, event.currentTarget),
-      }, "Reload preview"),
+      }, t("Reload preview")),
       // "Fix a small thing in the version I am reviewing" is the flow this
       // screen exists for, so the editor opens from here, on the selected
       // version — not only from Settings, two sections down, on whatever is
@@ -446,7 +444,7 @@
         class: "btn btn-sm",
         type: "button",
         onclick: (event) => editVersionSource(event.currentTarget, data, version),
-      }, "Edit source"),
+      }, t("Edit source")),
       // A Bento deck is its own editor. Opening it here mints an eight-hour,
       // page-bound edit token and opens the deck on the content host with a
       // save channel back to Pages: every Save there lands as a new draft on
@@ -460,7 +458,7 @@
             class: "btn btn-sm",
             type: "button",
             onclick: (event) => openBentoEditor(event.currentTarget),
-          }, "Edit in Bento", el("span", { "aria-hidden": "true" }, "\u2197"))]
+          }, t("Edit in Bento"), el("span", { "aria-hidden": "true" }, "\u2197"))]
         : [])
     );
     if (version.status === "pending") {
@@ -470,8 +468,8 @@
           class: "btn btn-sm btn-primary",
           type: "button",
           onclick: (event) => approveVersion(event.currentTarget, version, page),
-        }, page.require_approval ? "Approve & publish" : "Approve"),
-        el("button", { id: `reject-version-${version.id}`, class: "btn btn-sm btn-danger", type: "button", onclick: (event) => rejectVersion(event.currentTarget, version, page) }, "Reject")
+        }, page.require_approval ? t("Approve & publish") : t("Approve")),
+        el("button", { id: `reject-version-${version.id}`, class: "btn btn-sm btn-danger", type: "button", onclick: (event) => rejectVersion(event.currentTarget, version, page) }, t("Reject"))
       );
     } else if (version.status === "draft") {
       actions.append(
@@ -480,7 +478,7 @@
           class: "btn btn-sm btn-primary",
           type: "button",
           onclick: (event) => publishVersion(event.currentTarget, version, page),
-        }, "Publish"),
+        }, t("Publish")),
         // Without this the only affordance on an unwanted draft was the button
         // that makes it live, so bad drafts accumulated in "All versions" forever.
         el("button", {
@@ -488,10 +486,10 @@
           class: "btn btn-sm btn-danger",
           type: "button",
           onclick: (event) => rejectVersion(event.currentTarget, version, page),
-        }, "Discard draft")
+        }, t("Discard draft"))
       );
     } else if (version.status === "approved" && !sameId(version.id, page.published_version_id)) {
-      actions.append(el("button", { id: `rollback-version-${version.id}`, class: "btn btn-sm", type: "button", onclick: (event) => rollbackVersion(event.currentTarget, version, page) }, "Roll back"));
+      actions.append(el("button", { id: `rollback-version-${version.id}`, class: "btn btn-sm", type: "button", onclick: (event) => rollbackVersion(event.currentTarget, version, page) }, t("Roll back")));
     }
     return actions;
   }
@@ -500,13 +498,13 @@
     if (!version) return el("div", { class: "version-detail" });
     return el("div", { class: "version-detail" },
       el("dl", {},
-        el("div", {}, el("dt", {}, "Status"), el("dd", {}, sameId(version.id, page.published_version_id) ? "Live / approved" : version.status)),
-        el("div", {}, el("dt", {}, "Author"), el("dd", {}, version.author || "Unknown")),
-        el("div", {}, el("dt", {}, "Source"), el("dd", {}, version.source || "Unknown")),
-        el("div", {}, el("dt", {}, "Created"), el("dd", {}, timeWhen(version.created_at))),
-        el("div", { class: "version-detail__note" }, el("dt", {}, "Note"), el("dd", {}, version.note || "No note provided.")),
+        el("div", {}, el("dt", {}, t("Status")), el("dd", {}, sameId(version.id, page.published_version_id) ? t("Live / approved") : statusChip(VERSION_KIND[version.status] || "draft"))),
+        el("div", {}, el("dt", {}, t("Author")), el("dd", {}, version.author || t("Unknown"))),
+        el("div", {}, el("dt", {}, t("Source")), el("dd", {}, version.source || t("Unknown"))),
+        el("div", {}, el("dt", {}, t("Created")), el("dd", {}, timeWhen(version.created_at))),
+        el("div", { class: "version-detail__note" }, el("dt", {}, t("Note")), el("dd", {}, version.note || t("No note provided."))),
         version.reviewed_by
-          ? el("div", { class: "version-detail__note" }, el("dt", {}, "Reviewed"), el("dd", {}, `${version.reviewed_by} · `, timeWhen(version.reviewed_at)))
+          ? el("div", { class: "version-detail__note" }, el("dt", {}, t("Reviewed")), el("dd", {}, `${version.reviewed_by} · `, timeWhen(version.reviewed_at)))
           : null));
   }
 
@@ -517,28 +515,28 @@
     const frame = document.getElementById("preview-frame");
     const status = document.getElementById("preview-status");
     if (!frame || !state || !status) return;
-    if (trigger) setBusy(trigger, true, "Loading…");
+    if (trigger) setBusy(trigger, true, t("Loading…"));
     frame.hidden = true;
     state.hidden = false;
     state.className = "state-panel state-panel--loading";
-    state.replaceChildren(...loadingContent(`Loading ${inlineVersionLabel(versionId)}`, "Preparing a short-lived sandboxed preview…", { level: "h4" }));
-    status.textContent = `Loading ${inlineVersionLabel(versionId)}`;
+    state.replaceChildren(...loadingContent(t("Loading {0}", inlineVersionLabel(versionId)), t("Preparing a short-lived sandboxed preview…"), { level: "h4" }));
+    status.textContent = t("Loading {0}", inlineVersionLabel(versionId));
     try {
       const result = await post("/preview-token", { version_id: versionId });
       if (requestId !== previewRequest || !sameId(versionId, selectedVersionId)) return;
       frame.setAttribute("sandbox", "allow-scripts");
       frame.setAttribute("referrerpolicy", "no-referrer");
-      frame.src = result.url;
+      frame.src = I18N.ownedURL(result.url);
       const full = document.getElementById("preview-open-full");
       if (full) {
-        full.href = result.url;
+        full.href = I18N.ownedURL(result.url);
         full.hidden = false;
       }
       frame.onload = () => {
         if (requestId !== previewRequest) return;
         state.hidden = true;
         frame.hidden = false;
-        status.textContent = `Previewing ${inlineVersionLabel(versionId)}`;
+        status.textContent = t("Previewing {0}", inlineVersionLabel(versionId));
       };
     } catch (error) {
       if (requestId !== previewRequest) return;
@@ -553,13 +551,13 @@
       // taller than the thing it replaced — the layout jumped on error.
       state.className = "state-panel state-panel--error";
       state.replaceChildren(
-        el("h4", { class: "state-panel__title" }, "Preview unavailable"),
-        el("p", {}, `${error.message}. Select Reload preview to try again.`)
+        el("h4", { class: "state-panel__title" }, t("Preview unavailable")),
+        el("p", {}, t("{0}. Select Reload preview to try again.", error.message))
       );
-      status.textContent = `Preview failed for ${inlineVersionLabel(versionId)}`;
-      toast(`Preview failed: ${error.message}`, { tone: "error" });
+      status.textContent = t("Preview failed for {0}", inlineVersionLabel(versionId));
+      toast(t("Preview failed: {0}", error.message), { tone: "error" });
     } finally {
-      if (trigger && trigger.isConnected) setBusy(trigger, false, "Reload preview");
+      if (trigger && trigger.isConnected) setBusy(trigger, false, t("Reload preview"));
     }
   }
 
@@ -578,7 +576,7 @@
         refresh(["review"]);
         syncPreview(selectedVersionId);
       },
-    }, `Needs review (${pending.length})`);
+    }, t("Needs review ({0})", pending.length));
     const allVersions = el("button", {
       class: "segmented__button",
       type: "button",
@@ -590,35 +588,35 @@
         refresh(["review"]);
         syncPreview(selectedVersionId);
       },
-    }, `All versions (${versions.length})`);
-    const list = el("ul", { class: "version-list", "aria-label": reviewFilter === "pending" ? "Versions needing review" : "All versions" });
+    }, t("All versions ({0})", versions.length));
+    const list = el("ul", { class: "version-list", "aria-label": reviewFilter === "pending" ? t("Versions needing review") : t("All versions") });
     if (visible.length) list.append(...visible.map((version) => versionOption(version, page)));
-    else list.append(el("li", { class: "version-list__empty" }, el("p", {}, reviewFilter === "pending" ? "No versions need review." : "No versions have been created.")));
+    else list.append(el("li", { class: "version-list__empty" }, el("p", {}, reviewFilter === "pending" ? t("No versions need review.") : t("No versions have been created."))));
 
     const browser = el("div", { class: "panel version-browser" },
       el("div", { class: "version-browser__header" },
-        el("h3", {}, "Version queue"),
-        el("div", { class: "segmented", role: "group", "aria-label": "Filter versions" }, needsReview, allVersions)),
+        el("h3", {}, t("Version queue")),
+        el("div", { class: "segmented", role: "group", "aria-label": t("Filter versions") }, needsReview, allVersions)),
       list);
 
     // "How will a client see this on a phone?" is the most common review question
     // and the stage could not answer it. Widths are set on the frame, not the
     // viewport, so the surrounding admin stays put.
     const VIEWPORTS = [
-      { key: "desktop", label: "Desktop", width: "100%" },
-      { key: "tablet", label: "Tablet", width: "768px" },
-      { key: "mobile", label: "Mobile", width: "390px" },
+      { key: "desktop", label: t("Desktop"), width: "100%" },
+      { key: "tablet", label: t("Tablet"), width: "768px" },
+      { key: "mobile", label: t("Mobile"), width: "390px" },
     ];
     const stage = selected
       ? el("div", { class: "preview-stage", "data-viewport": previewViewport },
           // Not a live region: #preview-status beside it already announces this, and
             // two of them read the same sentence twice on every version change.
             el("div", { id: "preview-state", class: "state-panel state-panel--loading" },
-            ...loadingContent(`Loading ${inlineVersionLabel(selected)}`, "Preparing a short-lived sandboxed preview…", { level: "h4" })),
-          el("iframe", { id: "preview-frame", hidden: true, sandbox: "allow-scripts", referrerpolicy: "no-referrer", title: `Preview of ${inlineVersionLabel(selected)}` }))
-      : emptyState("Nothing to preview", "Create or deploy a version to begin review.", null, { level: "h4" });
+            ...loadingContent(t("Loading {0}", inlineVersionLabel(selected)), t("Preparing a short-lived sandboxed preview…"), { level: "h4" })),
+          el("iframe", { id: "preview-frame", hidden: true, sandbox: "allow-scripts", referrerpolicy: "no-referrer", title: t("Preview of {0}", inlineVersionLabel(selected)) }))
+      : emptyState(t("Nothing to preview"), t("Create or deploy a version to begin review."), null, { level: "h4" });
 
-    const viewportControl = el("div", { class: "segmented preview-viewports", role: "group", "aria-label": "Preview width" });
+    const viewportControl = el("div", { class: "segmented preview-viewports", role: "group", "aria-label": t("Preview width") });
     for (const option of VIEWPORTS) {
       const button = el("button", {
         id: `preview-viewport-${option.key}`,
@@ -640,8 +638,8 @@
     const preview = el("div", { class: "panel preview-workspace" },
       el("div", { class: "preview-toolbar" },
         el("div", { class: "preview-toolbar__title" },
-          el("p", { class: "overline" }, "Selected version"),
-          el("h3", {}, selected ? versionLabel(selected) : "No version selected")),
+          el("p", { class: "overline" }, t("Selected version")),
+          el("h3", {}, selected ? versionLabel(selected) : t("No version selected"))),
         versionActions(selected, page, data)),
       selected
         ? el("div", { class: "preview-frame-bar" },
@@ -649,7 +647,7 @@
             // The chip used to float over the client's own content in the top-right
             // corner of the render. It belongs to the admin, so it sits in the admin.
             el("span", { id: "preview-status", class: "preview-frame-bar__status", role: "status", "aria-live": "polite" },
-              `Loading ${inlineVersionLabel(selected)}`),
+              t("Loading {0}", inlineVersionLabel(selected))),
             el("a", {
               id: "preview-open-full",
               class: "btn btn-ghost btn-sm",
@@ -657,16 +655,16 @@
               target: "_blank",
               rel: "noopener",
               hidden: true,
-            }, "Open full size", el("span", { "aria-hidden": "true" }, "\u2197")))
+            }, t("Open full size"), el("span", { "aria-hidden": "true" }, "\u2197")))
         : null,
       stage,
       versionMetadata(selected, page));
 
     return el("section", { class: "section-block", "aria-labelledby": "review-title" },
       el("div", { class: "section-heading" },
-        el("p", { class: "overline" }, "Workflow"),
-        el("h2", { id: "review-title", tabindex: "-1" }, "Review"),
-        el("p", {}, "Pick a version to preview. Only the actions that version can take are shown.")),
+        el("p", { class: "overline" }, t("Workflow")),
+        el("h2", { id: "review-title", tabindex: "-1" }, t("Review")),
+        el("p", {}, t("Pick a version to preview. Only the actions that version can take are shown."))),
       el("div", { class: "review-layout" }, browser, preview));
   }
 
@@ -685,7 +683,7 @@
       type: "password",
       readonly: true,
       autocomplete: "off",
-      placeholder: "Hidden",
+      placeholder: t("Hidden"),
     });
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
     // Visible text matches the new-password row's Show/Copy; the accessible names
@@ -694,25 +692,25 @@
       id: "show-current-password",
       class: "btn",
       type: "button",
-      "aria-label": "Show current password",
+      "aria-label": t("Show current password"),
       "aria-pressed": "false",
       "aria-controls": "current-password",
-    }, "Show");
+    }, t("Show"));
     const copy = el("button", {
       id: "copy-current-password",
       class: "btn",
       type: "button",
-      "aria-label": "Copy current password",
-    }, icon("copy"), "Copy");
+      "aria-label": t("Copy current password"),
+    }, icon("copy"), t("Copy"));
 
     let loaded = null;
     async function load(button) {
       if (loaded !== null) return loaded;
-      setBusy(button, true, "Loading…");
+      setBusy(button, true, t("Loading…"));
       try {
         const result = await post("/reveal-password");
         if (!result.available) {
-          status.textContent = "Pages doesn't have a copy of this password yet. It appears after a client next signs in with it, or set a new one below.";
+          status.textContent = t("Pages doesn't have a copy of this password yet. It appears after a client next signs in with it, or set a new one below.");
           return null;
         }
         loaded = result.password;
@@ -728,8 +726,8 @@
     function setShown(on) {
       input.type = on ? "text" : "password";
       show.setAttribute("aria-pressed", on ? "true" : "false");
-      show.setAttribute("aria-label", on ? "Hide current password" : "Show current password");
-      show.textContent = on ? "Hide" : "Show";
+      show.setAttribute("aria-label", on ? t("Hide current password") : t("Show current password"));
+      show.textContent = on ? t("Hide") : t("Show");
     }
     show.addEventListener("click", async () => {
       if (input.type === "text") return setShown(false);
@@ -738,16 +736,16 @@
     copy.addEventListener("click", async () => {
       const value = await load(copy);
       if (value === null) return;
-      try { await copyText(value); toast("Password copied"); }
+      try { await copyText(value); toast(t("Password copied")); }
       catch (error) { toast(error.message, { tone: "error" }); }
     });
 
     return el("div", { class: "form-stack" },
       field({
         id: "current-password",
-        label: "Current password",
+        label: t("Current password"),
         control: input,
-        help: "The password clients use today. Showing it is recorded in the audit log.",
+        help: t("The password clients use today. Showing it is recorded in the audit log."),
         wrap: "label",
       }),
       el("div", { class: "password-actions" }, show, copy),
@@ -757,9 +755,9 @@
   function clientAccessSection(page) {
     const liveUrl = contentOrigin ? `${contentOrigin.replace(/\/+$/, "")}/${slugPath(page.slug)}` : "";
     const urlInput = el("input", { id: "live-url", type: "url", value: liveUrl, readonly: true });
-    const copyUrl = el("button", { class: "btn", type: "button", disabled: !liveUrl }, icon("copy"), "Copy URL");
+    const copyUrl = el("button", { class: "btn", type: "button", disabled: !liveUrl }, icon("copy"), t("Copy URL"));
     copyUrl.addEventListener("click", async () => {
-      try { await copyText(liveUrl); toast("Live URL copied"); }
+      try { await copyText(liveUrl); toast(t("Live URL copied")); }
       catch (error) { toast(error.message, { tone: "error" }); }
     });
 
@@ -767,10 +765,10 @@
       id: "client-password",
       type: "password",
       autocomplete: "new-password",
-      placeholder: page.has_password ? "Enter a replacement password" : "Choose a client password",
+      placeholder: page.has_password ? t("Enter a replacement password") : t("Choose a client password"),
     });
     const accessStatus = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
-    const generate = el("button", { id: "generate-password", class: "btn", type: "button" }, "Generate");
+    const generate = el("button", { id: "generate-password", class: "btn", type: "button" }, t("Generate"));
     // Generate used to flip the input to type="text" and never flip it back, so a
     // password field silently stayed readable for the rest of the session. Showing
     // the value is its own decision now, and it is reversible.
@@ -780,15 +778,15 @@
       type: "button",
       "aria-pressed": "false",
       "aria-controls": "client-password",
-    }, "Show");
-    const copyPassword = el("button", { class: "btn", type: "button" }, icon("copy"), "Copy");
-    const save = el("button", { id: "save-password", class: "btn btn-primary", type: "submit" }, page.has_password ? "Update password" : "Set password");
-    const clear = page.has_password ? el("button", { id: "clear-password", class: "btn btn-danger btn-sm", type: "button" }, "Clear password") : null;
+    }, t("Show"));
+    const copyPassword = el("button", { class: "btn", type: "button" }, icon("copy"), t("Copy"));
+    const save = el("button", { id: "save-password", class: "btn btn-primary", type: "submit" }, page.has_password ? t("Update password") : t("Set password"));
+    const clear = page.has_password ? el("button", { id: "clear-password", class: "btn btn-danger btn-sm", type: "button" }, t("Clear password")) : null;
 
     function setRevealed(on) {
       password.type = on ? "text" : "password";
       reveal.setAttribute("aria-pressed", on ? "true" : "false");
-      reveal.textContent = on ? "Hide" : "Show";
+      reveal.textContent = on ? t("Hide") : t("Show");
     }
     reveal.addEventListener("click", () => setRevealed(password.type === "password"));
 
@@ -797,12 +795,12 @@
       setRevealed(true);
       password.focus();
       password.select();
-      try { await copyText(password.value); toast("Generated password copied; set it when ready"); }
-      catch { toast("Password generated; copy it and set it when ready"); }
+      try { await copyText(password.value); toast(t("Generated password copied; set it when ready")); }
+      catch { toast(t("Password generated; copy it and set it when ready")); }
     });
     copyPassword.addEventListener("click", async () => {
-      if (!password.value) { accessStatus.textContent = "Generate or enter a password first."; password.focus(); return; }
-      try { await copyText(password.value); toast("Password copied"); }
+      if (!password.value) { accessStatus.textContent = t("Generate or enter a password first."); password.focus(); return; }
+      try { await copyText(password.value); toast(t("Password copied")); }
       catch (error) { toast(error.message, { tone: "error" }); }
     });
 
@@ -816,11 +814,11 @@
       current,
       field({
         id: "client-password",
-        label: page.has_password ? "New client password" : "Client password",
+        label: page.has_password ? t("New client password") : t("Client password"),
         control: password,
         help: page.has_password
-          ? "Setting a new one replaces the current password for every client."
-          : "Clients open the address with this password.",
+          ? t("Setting a new one replaces the current password for every client.")
+          : t("Clients open the address with this password."),
         wrap: "label",
       }),
       // Clear password leaves the row of things that set one: it is the opposite
@@ -830,8 +828,8 @@
       clear ? el("div", { class: "cluster" }, clear) : null);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (!password.value.trim()) { accessStatus.textContent = "Enter a password first."; password.focus(); return; }
-      setBusy(save, true, "Saving…");
+      if (!password.value.trim()) { accessStatus.textContent = t("Enter a password first."); password.focus(); return; }
+      setBusy(save, true, t("Saving…"));
       const submitted = password.value;
       try {
         await post("/password", { password: password.value });
@@ -840,12 +838,12 @@
         // A dialog rather than a four-second toast and a clipboard write that may
         // have been overwritten: this is the moment the admin is about to send it.
         credentialDialog({
-          title: page.has_password ? "New client password" : "Client password",
-          description: "Send it to the client separately from the link. Staff can show it again later under Current password.",
+          title: page.has_password ? t("New client password") : t("Client password"),
+          description: t("Send it to the client separately from the link. Staff can show it again later under Current password."),
           value: submitted,
           notes: [
-            `Client link: ${liveUrl}`,
-            "Anyone with the link and this password can open the page.",
+            t("Client link: {0}", liveUrl),
+            t("Anyone with the link and this password can open the page."),
           ],
         });
         await reload({ parts: ["overview", "access"] });
@@ -857,33 +855,33 @@
     clear?.addEventListener("click", async () => {
       const approved = await confirmDialog({
         trigger: clear,
-        title: "Clear client access?",
-        message: "The page becomes staff-only. Anyone a client has open stops working immediately.",
-        confirmLabel: "Clear password",
+        title: t("Clear client access?"),
+        message: t("The page becomes staff-only. Any page a client has open stops working immediately."),
+        confirmLabel: t("Clear password"),
         danger: true,
       });
       if (!approved) return;
-      await mutate(clear, "Password cleared; page is now staff-only", "/password", { password: "" }, undefined, ["overview", "access"]);
+      await mutate(clear, t("Password cleared; page is now staff-only"), "/password", { password: "" }, undefined, ["overview", "access"]);
     });
 
     return el("section", { class: "section-block", "aria-labelledby": "access-title" },
       el("div", { class: "section-heading" },
-        el("p", { class: "overline" }, "Sharing"),
-        el("h2", { id: "access-title", tabindex: "-1" }, "Client access"),
+        el("p", { class: "overline" }, t("Sharing")),
+        el("h2", { id: "access-title", tabindex: "-1" }, t("Client access")),
         el("p", {}, page.has_password
-          ? "Clients open this address with the password. Staff can always open it with View live."
-          : "This page is staff-only. Set a password before sending the address to a client.")),
+          ? t("Clients open this address with the password. Staff can always open it with View live.")
+          : t("This page is staff-only. Set a password before sending the address to a client."))),
       el("div", { class: "access-grid" },
         el("div", { class: "subpanel" },
-          el("div", { class: "subpanel__head" }, el("h3", {}, "Live URL"), page.published_version_id ? statusChip("published") : statusChip("draft", "Not published")),
+          el("div", { class: "subpanel__head" }, el("h3", {}, t("Live URL")), page.published_version_id ? statusChip("published") : statusChip("draft", t("Not published"))),
           field({
             id: "live-url",
-            label: "Client-facing address",
+            label: t("Client-facing address"),
             control: el("div", { class: "copy-field" }, urlInput, copyUrl),
           }),
-          page.published_version_id ? el("a", { class: "btn", href: `/view/${slugPath(page.slug)}`, target: "_blank", rel: "noopener" }, "View live", el("span", { "aria-hidden": "true" }, "\u2197")) : null),
+          page.published_version_id ? el("a", { class: "btn", href: I18N.ownedURL(`/view/${slugPath(page.slug)}`), target: "_blank", rel: "noopener" }, t("View live"), el("span", { "aria-hidden": "true" }, "\u2197")) : null),
         el("div", { class: "subpanel" },
-          el("div", { class: "subpanel__head" }, el("h3", {}, "Password"), page.has_password ? statusChip("set") : statusChip("draft", "Staff-only")),
+          el("div", { class: "subpanel__head" }, el("h3", {}, t("Password")), page.has_password ? statusChip("set") : statusChip("draft", t("Staff-only"))),
           form)));
   }
 
@@ -901,7 +899,7 @@
   }
 
   async function editVersionSource(trigger, data, version) {
-    setBusy(trigger, true, "Opening…");
+    setBusy(trigger, true, t("Opening…"));
     let seed = null;
     let failure = null;
     try {
@@ -916,7 +914,7 @@
       // keyboard or screen-reader user is not silently moved to the top of the
       // document by a failure.
       if (trigger && trigger.isConnected) trigger.focus();
-      toast(`Couldn't open ${inlineVersionLabel(version)}: ${failure.message}`, { tone: "error" });
+      toast(t("Couldn't open {0}: {1}", inlineVersionLabel(version), failure.message), { tone: "error" });
       return;
     }
     openSourceEditor(trigger, { seed, from: version, published: data.published || null, versions: data.versions || [] });
@@ -930,15 +928,15 @@
     const { seed, from, published, versions } = options;
     if (!seed) {
       return {
-        title: "Write source",
+        title: t("Write source"),
         description: (versions || []).length
           // Versions exist, they are just none of them live. Saying "first
           // version" here would be false, and would invite someone to retype
           // source that is already sitting in the review queue.
-          ? "Nothing is published yet, so this starts from an empty file. "
-            + "Saving adds one more version; the versions already in review are left untouched."
-          : "This page has no source yet, so this starts from an empty file. "
-            + "Saving creates this page's first version from exactly the HTML you write here.",
+          ? t("Nothing is published yet, so this starts from an empty file. ")
+            + t("Saving adds one more version; the versions already in review are left untouched.")
+          : t("This page has no source yet, so this starts from an empty file. ")
+            + t("Saving creates this page's first version from exactly the HTML you write here."),
       };
     }
     // Being "the live version" is a property of the seed, not of which button
@@ -946,10 +944,10 @@
     // IS the live one is the same act as amending it from Settings, so it gets
     // the same name either way.
     const live = Boolean(published) && sameId(published.id, seed.id);
-    const name = live ? `the live ${inlineVersionLabel(seed.id)}` : inlineVersionLabel(from);
+    const name = live ? t("the live {0}", inlineVersionLabel(seed.id)) : inlineVersionLabel(from);
     return {
-      title: live ? "Edit live source" : "Edit source",
-      description: `Starting from ${name}. Saving creates a new version from this exact HTML — nothing already in history changes.`,
+      title: live ? t("Edit live source") : t("Edit source"),
+      description: t("Starting from {0}. Saving creates a new version from this exact HTML — nothing already in history changes.", name),
     };
   }
 
@@ -960,7 +958,7 @@
     let saving = false;
     const modal = makeDialog({
       title: copy.title,
-      kicker: "New version",
+      kicker: t("New version"),
       description: copy.description,
       size: "wide",
       onClose: () => {
@@ -971,10 +969,10 @@
     const source = el("textarea", { id: "source-html", class: "source-editor", spellcheck: "false", wrap: "off", placeholder: "<!doctype html>\n<html>…</html>" });
     source.value = seed?.html || "";
     const mode = el("select", { id: "source-mode" },
-      el("option", { value: "themed" }, "Themed"),
-      el("option", { value: "raw" }, "Raw"));
+      el("option", { value: "themed" }, t("Themed")),
+      el("option", { value: "raw" }, t("Raw")));
     mode.value = seed?.render_mode || "themed";
-    const note = el("input", { id: "source-note", type: "text", maxlength: "500", placeholder: "What changed?" });
+    const note = el("input", { id: "source-note", type: "text", maxlength: "500", placeholder: t("What changed?") });
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
     // A saved file instead of a paste. A Bento deck is 690KB of minified
     // application that a reader edited on the live page and saved; nobody pastes
@@ -991,7 +989,7 @@
       const chosen = file.files && file.files[0];
       if (!chosen) return;
       if (chosen.size > MAX_SOURCE_FILE_BYTES) {
-        status.textContent = `${chosen.name} is larger than 2 MB, the most a version can hold.`;
+        status.textContent = t("{0} is larger than 2 MB, the most a version can hold.", chosen.name);
         file.value = "";
         return;
       }
@@ -1003,17 +1001,17 @@
         // and say why, rather than letting the save bounce off the server.
         mode.value = "raw";
         mode.dispatchEvent(new Event("input", { bubbles: true }));
-        status.textContent = `${chosen.name} is a Bento deck: it opens in Bento's editor and is served raw.`;
+        status.textContent = t("{0} is a Bento deck: it opens in Bento's editor and is served raw.", chosen.name);
       } else {
-        status.textContent = `Loaded ${chosen.name}.`;
+        status.textContent = t("Loaded {0}.", chosen.name);
       }
     });
     // One save. "Save draft" and "Save & preview" called the same function with
     // no mode argument, and render() previews the selected version either way,
     // so the pair only ever asked the reader to choose between two identical
     // outcomes.
-    const save = el("button", { class: "btn btn-primary", type: "button" }, "Save as new version");
-    const cancel = el("button", { class: "btn btn-ghost", type: "button", onclick: () => modal.requestClose("cancel") }, "Cancel");
+    const save = el("button", { class: "btn btn-primary", type: "button" }, t("Save as new version"));
+    const cancel = el("button", { class: "btn btn-ghost", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
 
     const snapshot = () => ({ html: source.value, render_mode: mode.value, note: note.value });
     let baseline = snapshot();
@@ -1026,29 +1024,29 @@
     window.addEventListener("beforeunload", beforeUnload);
     modal.setBeforeClose(async () => {
       if (saving) {
-        status.textContent = "Wait for the current save to finish before closing.";
+        status.textContent = t("Wait for the current save to finish before closing.");
         return false;
       }
       if (clean || !isDirty()) return true;
       return confirmDialog({
         trigger: modal.closeButton,
-        title: "Discard unsaved source changes?",
-        message: "Your HTML, render mode, and note changes have not been saved.",
-        confirmLabel: "Discard changes",
+        title: t("Discard unsaved source changes?"),
+        message: t("Your HTML, render mode, and note changes have not been saved."),
+        confirmLabel: t("Discard changes"),
         danger: true,
       });
     });
 
     async function saveSource(button) {
       if (saving) return;
-      if (!source.value.trim()) { status.textContent = "HTML source cannot be empty."; source.focus(); return; }
+      if (!source.value.trim()) { status.textContent = t("HTML source cannot be empty."); source.focus(); return; }
       // The controls stay editable during the request. Only this snapshot is
       // saved; anything typed afterwards must keep its dirty/close guards.
       const submitted = snapshot();
-      const submittedNote = submitted.note.trim() || "Inline edit";
+      const submittedNote = submitted.note.trim() || t("Inline edit");
       saving = true;
-      setBusy(button, true, "Saving…");
-      status.textContent = "Saving a new version…";
+      setBusy(button, true, t("Saving…"));
+      status.textContent = t("Saving a new version…");
       try {
         const result = await post("/deploy-source", {
           ...submitted,
@@ -1067,16 +1065,16 @@
         const savedNumber = result.deduped
           ? versionNumber(result.version)
           : (pageData?.versions?.length || 0) + 1;
-        const savedLabel = savedNumber ? `version ${savedNumber}` : "version";
+        const savedLabel = savedNumber ? t("version {0}", savedNumber) : t("version");
         if (clean) {
           modal.setBeforeClose(null);
           modal.close("saved");
         } else {
           status.textContent = noteNotSaved
-            ? `Selected existing ${savedLabel}. Your note was not saved because the HTML and render mode are unchanged. Change either to save a new version with this note.`
-            : `Saved ${savedLabel}. You have unsaved changes; save again to keep them.`;
+            ? t("Selected existing {0}. Your note was not saved because the HTML and render mode are unchanged. Change either to save a new version with this note.", savedLabel)
+            : t("Saved {0}. You have unsaved changes; save again to keep them.", savedLabel);
         }
-        toast(result.deduped ? `No source changes; selected ${savedLabel}` : `Saved ${savedLabel}`);
+        toast(result.deduped ? t("No source changes; selected {0}", savedLabel) : t("Saved {0}", savedLabel));
         await load(result.version.id);
       } catch (error) {
         status.textContent = error.message;
@@ -1090,10 +1088,10 @@
     modal.body.append(el("form", { class: "form-stack" },
       el("div", { class: "field" },
         el("div", { class: "field-row" },
-          el("label", { class: "field-label", for: "source-html" }, "HTML source"),
+          el("label", { class: "field-label", for: "source-html" }, t("HTML source")),
           // "Upload a file" is the input's accessible name; what happens next
           // is said in the status line, not in a help row there is no room for.
-          el("label", { class: "field-upload", for: "source-file" }, "Upload a file", file)),
+          el("label", { class: "field-upload", for: "source-file" }, t("Upload a file"), file)),
         source),
       // The note is the audit trail — it is what a reviewer reads in the version
       // queue months later — so it leads the meta row and takes its wide column,
@@ -1104,16 +1102,16 @@
       el("div", { class: "editor-meta" },
         field({
           id: "source-note",
-          label: "Version note",
+          label: t("Version note"),
           control: note,
-          help: "Kept in this page's history. Left blank, it is recorded as “Inline edit”.",
+          help: t("Kept in this page's history. Left blank, it is recorded as “Inline edit”."),
           wrap: "label",
         }),
         field({
           id: "source-mode",
-          label: "Render mode",
+          label: t("Render mode"),
           control: mode,
-          help: "Themed adds the Elcano look; Raw serves your HTML unchanged.",
+          help: t("Themed adds the Elcano look; Raw serves your HTML unchanged."),
           wrap: "label",
         })),
       status));
@@ -1141,10 +1139,10 @@
 
   // The verdict in words. Partial data lists every finding, not just the
   // first the reason quotes: each names its fields, entities and dates.
-  function refreshSummary(health) {
+  function refreshSummary(health, freshness) {
     const gaps = Array.isArray(health.coverage_gaps) ? health.coverage_gaps : [];
-    if (!gaps.length) return el("p", { class: "refresh-health__summary" }, health.health_reason || "");
-    return el("ul", { class: "refresh-gaps" }, ...gaps.map((gap) => el("li", {}, gap.message || "")));
+    if (!gaps.length) return el("p", { class: "refresh-health__summary" }, window.PagesMessages.healthReason(health, freshness || {}));
+    return el("ul", { class: "refresh-gaps" }, ...gaps.map((gap) => el("li", {}, window.PagesMessages.coverageGap(gap))));
   }
 
   function refreshSection(data) {
@@ -1153,22 +1151,22 @@
     const scheduled = Boolean(health.refresh_schedule);
 
     const facts = el("dl", { class: "template-kv refresh-facts" },
-      ...refreshFact("Schedule", scheduled
+      ...refreshFact(t("Schedule"), scheduled
         ? [Health.describeSchedule(health.refresh_schedule), " ", el("code", {}, health.refresh_schedule)]
-        : "Not scheduled"),
-      ...refreshFact("Owner", health.refresh_owner || "Nobody yet"),
-      ...(scheduled ? refreshFact("Last due", utcWhen(health.last_due_at)) : []),
-      ...(scheduled ? refreshFact("Next due", utcWhen(health.next_due_at)) : []),
-      ...refreshFact("Last activity", timeWhen(health.last_activity_at, { fallback: "Never" })),
-      ...(health.health_since ? refreshFact("Since", timeWhen(health.health_since)) : []));
+        : t("Not scheduled")),
+      ...refreshFact(t("Owner"), health.refresh_owner || t("Nobody yet")),
+      ...(scheduled ? refreshFact(t("Last due"), utcWhen(health.last_due_at)) : []),
+      ...(scheduled ? refreshFact(t("Next due"), utcWhen(health.next_due_at)) : []),
+      ...refreshFact(t("Last activity"), timeWhen(health.last_activity_at, { fallback: t("Never") })),
+      ...(health.health_since ? refreshFact(t("Since"), timeWhen(health.health_since)) : []));
 
     const current = Health.presetFromCron(health.refresh_schedule);
     const preset = el("select", { id: "refresh-preset" },
-      el("option", { value: "none" }, "No schedule"),
-      el("option", { value: "daily" }, "Daily"),
-      el("option", { value: "weekdays" }, "Weekdays (Monday to Friday)"),
-      el("option", { value: "weekly" }, "Weekly"),
-      el("option", { value: "custom" }, "Custom cron"));
+      el("option", { value: "none" }, t("No schedule")),
+      el("option", { value: "daily" }, t("Daily")),
+      el("option", { value: "weekdays" }, t("Weekdays (Monday to Friday)")),
+      el("option", { value: "weekly" }, t("Weekly")),
+      el("option", { value: "custom" }, t("Custom cron")));
     preset.value = current.preset;
     const time = el("input", { id: "refresh-time", type: "time", value: current.time });
     const day = el("select", { id: "refresh-day" }, ...Health.DAYS.map(([value, name]) => el("option", { value }, name)));
@@ -1191,15 +1189,15 @@
     });
     const error = el("p", { id: "refresh-error", class: "field-error", role: "alert" });
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
-    const save = el("button", { id: "save-refresh-schedule", class: "btn btn-primary", type: "submit" }, "Save schedule");
+    const save = el("button", { id: "save-refresh-schedule", class: "btn btn-primary", type: "submit" }, t("Save schedule"));
 
-    const timeField = field({ id: "refresh-time", label: "Time (UTC)", control: time });
-    const dayField = field({ id: "refresh-day", label: "Day", control: day });
+    const timeField = field({ id: "refresh-time", label: t("Time (UTC)"), control: time });
+    const dayField = field({ id: "refresh-day", label: t("Day"), control: day });
     const cronField = field({
       id: "refresh-cron",
-      label: "Cron (UTC)",
+      label: t("Cron (UTC)"),
       control: cron,
-      help: "Five fields: minute hour day-of-month month day-of-week. Numbers, ranges, lists and */n steps.",
+      help: t("Five fields: minute hour day-of-month month day-of-week. Numbers, ranges, lists and */n steps."),
     });
     // Only the inputs the chosen preset reads are on screen.
     function showFields() {
@@ -1221,14 +1219,14 @@
     // novalidate: the hidden inputs a preset does not read must not block a
     // save, and the server's own words are the better error for the rest.
     const form = el("form", { class: "form-stack", novalidate: true, "aria-describedby": "refresh-error" },
-      field({ id: "refresh-preset", label: "Refreshes", control: preset }),
+      field({ id: "refresh-preset", label: t("Refreshes"), control: preset }),
       el("div", { class: "form-grid" }, timeField, dayField),
       cronField,
       field({
         id: "refresh-owner",
-        label: "Owner",
+        label: t("Owner"),
         control: owner,
-        help: "Who a missed or blocked refresh should reach. Leave blank for nobody.",
+        help: t("Who a missed or blocked refresh should reach. Leave blank for nobody."),
       }),
       error,
       el("div", { class: "cluster" }, save, status));
@@ -1240,10 +1238,10 @@
         error.textContent = chosen.error;
         return;
       }
-      setBusy(save, true, "Saving…");
+      setBusy(save, true, t("Saving…"));
       try {
         const result = await post("/refresh-schedule", { schedule: chosen.cron, owner: owner.value.trim() || null });
-        toast(result.changed ? "Refresh schedule saved" : "No changes to the refresh schedule");
+        toast(result.changed ? t("Refresh schedule saved") : t("No changes to the refresh schedule"));
         await reload({ parts: ["overview", "refresh"], focusFrom: "save-refresh-schedule" });
       } catch (failure) {
         error.textContent = failure.message;
@@ -1253,16 +1251,16 @@
 
     return el("section", { class: "section-block", "aria-labelledby": "refresh-title" },
       el("div", { class: "section-heading" },
-        el("p", { class: "overline" }, "Monitoring"),
-        el("h2", { id: "refresh-title", tabindex: "-1" }, "Refresh schedule"),
-        el("p", {}, "When this page's recurring refresh runs (in UTC) and who answers for it. Pages runs nothing on it: it is what Pages checks the page against, here and on the Pages index. Clients never see it.")),
+        el("p", { class: "overline" }, t("Monitoring")),
+        el("h2", { id: "refresh-title", tabindex: "-1" }, t("Refresh schedule")),
+        el("p", {}, t("When this page's recurring refresh runs (in UTC) and who answers for it. Pages runs nothing on it: it is what Pages checks the page against, here and on the Pages index. Clients never see it."))),
       el("div", { class: "access-grid" },
         el("div", { class: "subpanel", id: "refresh-status" },
-          el("div", { class: "subpanel__head" }, el("h3", {}, "Health"), statusChip(kind, label)),
-          refreshSummary(health),
+          el("div", { class: "subpanel__head" }, el("h3", {}, t("Health")), statusChip(kind, label)),
+          refreshSummary(health, data.freshness),
           facts),
         el("div", { class: "subpanel" },
-          el("div", { class: "subpanel__head" }, el("h3", {}, "Schedule")),
+          el("div", { class: "subpanel__head" }, el("h3", {}, t("Schedule"))),
           form)));
   }
 
@@ -1343,15 +1341,15 @@
         // "Not saved" in words. In the dark theme the alert and the progress line
         // are two pale tints of one lightness in the same slot at the same size:
         // colour cannot be the only thing that says which of the two you got.
-        alert.replaceChildren(`Not saved — ${saved.message}`);
+        alert.replaceChildren(t("Not saved — {0}", saved.message));
       } else {
         alert.replaceChildren();
         if (!saved) live.replaceChildren();
-        else if (saved.kind === "saving") live.replaceChildren("Saving…");
+        else if (saved.kind === "saving") live.replaceChildren(t("Saving…"));
         // The clock, not "just now": nothing re-renders this line, so a relative
         // time would still claim the save had just happened an hour later. The
         // <time> it renders carries the whole moment for anything reading markup.
-        else live.replaceChildren("Saved · ", timeWhen(saved.at, { style: "time" }));
+        else live.replaceChildren(t("Saved · "), timeWhen(saved.at, { style: "time" }));
       }
       const busy = settingBusy.has(key);
       row.controls.forEach((control) => {
@@ -1411,7 +1409,7 @@
     } catch (error) {
       // The save landed and only the refetch after it did not. Say that, rather
       // than letting the row claim the change failed.
-      toast(`Saved, but this screen could not refresh: ${error.message}`, { tone: "error" });
+      toast(t("Saved, but this screen could not refresh: {0}", error.message), { tone: "error" });
     } finally {
       settingBusy.delete(key);
       // If this section was rebuilt while the POST was open, the control on the
@@ -1494,7 +1492,7 @@
         // Not a toast and not muted help: the row itself says what is wrong, and
         // the typed value stays put so it can be corrected. One short line, so
         // saying it cannot reflow the panel out from under a pending click.
-        settingSaves.set("title", { kind: "error", client: true, message: "Enter a title." });
+        settingSaves.set("title", { kind: "error", client: true, message: t("Enter a title.") });
         paintSetting("title");
         return;
       }
@@ -1597,9 +1595,9 @@
         // screen, so it is confirmed. Putting the page back is not.
         confirm: enabling ? null : {
           trigger: availability,
-          title: `Take /${page.slug} down?`,
-          message: "Anyone with the client link gets an error page until it is enabled again. Nothing is deleted, and the live version is unchanged.",
-          confirmLabel: "Disable page",
+          title: t("Take /{0} down?", page.slug),
+          message: t("Anyone with the client link gets an error page until it is enabled again. Nothing is deleted, and the live version is unchanged."),
+          confirmLabel: t("Disable page"),
           danger: true,
         },
         revert: () => { availability.checked = !enabling; },
@@ -1619,18 +1617,18 @@
       class: "btn btn-ghost",
       type: "button",
       onclick: (event) => openSourceEditor(event.currentTarget, { seed: published, from: published, published, versions }),
-    }, icon("file"), published ? "Edit live source" : "Write source", el("span", { "aria-hidden": "true" }, "→"));
+    }, icon("file"), published ? t("Edit live source") : t("Write source"), el("span", { "aria-hidden": "true" }, "→"));
 
     const configuration = el("div", { class: "panel setting-list" },
       settingRow("title",
-        settingCopy("Page title", "Shown in Pages admin; the public slug does not change.", "page-title"),
+        settingCopy(t("Page title"), t("Shown in Pages admin; the public slug does not change."), "page-title"),
         title, titleFeedback),
       settingRow("theme",
-        settingCopy("Theme", "Applied at render time without changing stored source.", "page-theme"),
+        settingCopy(t("Theme"), t("Applied at render time without changing stored source."), "page-theme"),
         theme, themeFeedback),
       settingRow("approval",
-        settingCopy("Approval gate", "New agent versions wait for human approval when enabled."),
-        el("label", { class: "toggle-label", for: "approval-gate" }, approval, el("span", {}, "Require approval")),
+        settingCopy(t("Approval gate"), t("New agent versions wait for human approval when enabled.")),
+        el("label", { class: "toggle-label", for: "approval-gate" }, approval, el("span", {}, t("Require approval"))),
         approvalFeedback),
       settingRow("availability",
         // The switch carries the state, so this line does not have to — and must
@@ -1639,21 +1637,21 @@
         // commit here must not do. Wording that holds in both states is what lets
         // a takedown skip rebuilding this section, and lets its own "Saved" survive
         // long enough to be announced.
-        settingCopy("Availability", "On serves the published version; off returns an error page to anyone with the client link."),
-        el("label", { class: "toggle-label", for: "page-availability" }, availability, el("span", {}, "Page enabled")),
+        settingCopy(t("Availability"), t("On serves the published version; off returns an error page to anyone with the client link.")),
+        el("label", { class: "toggle-label", for: "page-availability" }, availability, el("span", {}, t("Page enabled"))),
         availabilityFeedback),
       settingRow("source",
-        settingCopy("Source", published
-          ? `Edit the HTML behind the live ${inlineVersionLabel(published.id)} and save it as a new version.`
+        settingCopy(t("Source"), published
+          ? t("Edit the HTML behind the live {0} and save it as a new version.", inlineVersionLabel(published.id))
           // A page can have versions and still have nothing live — the normal
           // state of an approval-gated page whose first versions are all still
           // pending. Calling that "no source" would hide them.
           : versions.length
-            ? "Nothing is published yet. Write a new version by hand, or edit one from the review queue above."
-            : "This page has no source yet. Write its first HTML by hand."),
+            ? t("Nothing is published yet. Write a new version by hand, or edit one from the review queue above.")
+            : t("This page has no source yet. Write its first HTML by hand.")),
         edit));
 
-    const remove = el("button", { class: "btn btn-danger", type: "button" }, icon("trash"), "Delete page");
+    const remove = el("button", { class: "btn btn-danger", type: "button" }, icon("trash"), t("Delete page"));
     remove.addEventListener("click", async () => {
       // This button carries an icon, so it is the one that proved setBusy's
       // textContent restore lossy: a failed delete used to leave "Delete page"
@@ -1661,34 +1659,34 @@
       const { ok } = await runAction({
         button: remove,
         confirm: {
-          title: `Delete /${page.slug}?`,
-          message: "The page will stop serving and leave the index. Its history remains recoverable by an administrator, and the slug becomes available for reuse.",
-          confirmLabel: "Delete page",
+          title: t("Delete /{0}?", page.slug),
+          message: t("The page will stop serving and leave the index. Its history remains recoverable by an administrator, and the slug becomes available for reuse."),
+          confirmLabel: t("Delete page"),
           danger: true,
         },
-        busyLabel: "Deleting…",
+        busyLabel: t("Deleting…"),
         // Navigation is not instant, and the page is already gone: the button
         // must not offer a second delete while the browser is leaving.
         keepBusy: true,
-        failure: "Delete failed",
+        failure: t("Delete failed"),
         run: () => post("/delete", {}),
       });
-      if (ok) window.location.assign("/admin");
+      if (ok) window.location.assign(I18N.withLanguage("/admin"));
     });
     const danger = el("section", { class: "danger-zone", "aria-labelledby": "danger-zone-title" },
       el("div", { class: "danger-zone__copy" },
-        el("p", { class: "overline" }, "Destructive action"),
-        el("h3", { id: "danger-zone-title" }, "Danger zone"),
-        el("p", {}, "Deleting stops this page from serving and removes it from the active index. Its version history remains recoverable.")),
+        el("p", { class: "overline" }, t("Destructive action")),
+        el("h3", { id: "danger-zone-title" }, t("Danger zone")),
+        el("p", {}, t("Deleting stops this page from serving and removes it from the active index. Its version history remains recoverable."))),
       el("div", { class: "danger-zone__action" }, remove));
 
     return el("section", { class: "section-block", "aria-labelledby": "settings-title" },
       el("div", { class: "section-heading" },
-        el("p", { class: "overline" }, "Configuration"),
-        el("h2", { id: "settings-title", tabindex: "-1" }, "Settings"),
+        el("p", { class: "overline" }, t("Configuration")),
+        el("h2", { id: "settings-title", tabindex: "-1" }, t("Settings")),
         // Precise about the two rows that do not save on change: the title waits
         // for Enter or for you to leave it, and Source is a way into the editor.
-        el("p", {}, "Each setting saves itself and reports the result beside its own control: the title when you press Enter or leave the field, the rest the moment you change them. Taking the page down asks first; Source opens the editor.")),
+        el("p", {}, t("Each setting saves itself and reports the result beside its own control: the title when you press Enter or leave the field, the rest the moment you change them. Taking the page down asks first; Source opens the editor."))),
       configuration,
       danger);
   }
@@ -1712,7 +1710,7 @@
       // Either "ungrouped" or a numeric database id, so nothing needs encoding.
       const id = String(page.workspace_id ?? "");
       const view = /^\d+$/.test(id) ? id : "ungrouped";
-      workspace.replaceChildren(el("a", { href: `/admin?workspace=${view}` }, page.workspace_name || "Ungrouped"));
+      workspace.replaceChildren(el("a", { href: `/admin?workspace=${view}` }, page.workspace_name || t("Ungrouped")));
       workspace.hidden = false;
     }
   }
@@ -1728,7 +1726,7 @@
   // input actually changed. The builders stay pure — this is only about which of
   // them run.
   const SECTIONS = {
-    overview: (data) => pageOverview(data.page, data.versions.filter((v) => v.status === "pending").length, data.refresh_health),
+    overview: (data) => pageOverview(data.page, data.versions.filter((v) => v.status === "pending").length, data.refresh_health, data.freshness),
     review: (data) => reviewSection(data, currentSelection(data)),
     access: (data) => clientAccessSection(data.page),
     refresh: (data) => refreshSection(data),
@@ -1758,10 +1756,10 @@
   // unrelated password save - and it would move, which is the one thing a fixed
   // point of reference may not do.
   const NAV_SECTIONS = [
-    { part: "review", target: "review-title", label: "Review" },
-    { part: "access", target: "access-title", label: "Client access" },
-    { part: "refresh", target: "refresh-title", label: "Refresh" },
-    { part: "settings", target: "settings-title", label: "Settings" },
+    { part: "review", target: "review-title", label: t("Review") },
+    { part: "access", target: "access-title", label: t("Client access") },
+    { part: "refresh", target: "refresh-title", label: t("Refresh") },
+    { part: "settings", target: "settings-title", label: t("Settings") },
   ];
   let sectionNav = null;
   const navLinks = new Map();
@@ -1799,7 +1797,7 @@
     // "On this page", not "Page sections": the product-level nav in
     // lib/shell.js is already labelled "Pages sections", and two navigation
     // landmarks a letter apart are indistinguishable when spoken.
-    return el("nav", { class: "detail-nav", id: "detail-nav", "aria-label": "On this page" }, list);
+    return el("nav", { class: "detail-nav", id: "detail-nav", "aria-label": t("On this page") }, list);
   }
 
   // Which section the reader is in: the last one they have scrolled to or past.
@@ -1939,7 +1937,7 @@
       // Nothing the bar points at is on screen any more, and a link that scrolls
       // nowhere is worse than no link.
       if (sectionNav) sectionNav.hidden = true;
-      app.replaceChildren(loadFailed("this page", error, () => load()));
+      app.replaceChildren(loadFailed(t("this page"), error, () => load()));
     }
   }
 

@@ -11,6 +11,8 @@
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.PagesPageSwitcher = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const I18N = typeof window !== "undefined" && window.PagesI18n ? window.PagesI18n : require("./i18n.js");
+  const t = I18N.t;
   function compareText(a, b) {
     const al = String(a || "").toLowerCase();
     const bl = String(b || "").toLowerCase();
@@ -59,7 +61,7 @@
           workspaceName: page.workspace_name || null,
           position: index + 1,
           href: adminPath(page.slug),
-          optionLabel: `${index + 1}. ${title} — /${page.slug} · ${status}`,
+          optionLabel: `${index + 1}. ${title} — /${page.slug} · ${({disabled: t("disabled"), live: t("live"), approval: t("approval"), draft: t("draft")})[status]}`,
         };
       });
     const currentIndex = items.findIndex((item) => item.slug === currentSlug);

@@ -364,6 +364,9 @@ func TestGateCopyPerCredential(t *testing.T) {
 }
 
 func TestRateLimitPageWait(t *testing.T) {
+	if !strings.Contains(RateLimitPage("", 1), "Wait about 1 minute, then") {
+		t.Fatal("singular wait")
+	}
 	if !strings.Contains(RateLimitPage("", 0), "Wait about 15 minutes") {
 		t.Fatal("default window")
 	}
