@@ -4,12 +4,26 @@
 package shell
 
 import (
+	"encoding/json"
+	"html/template"
 	"strings"
 
 	"github.com/ElcanoTek/pages/internal/i18n"
 )
 
 var languageNames = []struct{ tag, name string }{{"en", "English"}, {"es", "Español"}, {"pt", "Português"}}
+
+var languageBootstrapTemplate = template.Must(template.New("language-bootstrap").Parse(`<script type="application/json" id="pages-i18n">{{.}}</script>`))
+
+// languageBootstrap renders JSON in a script-data context through html/template,
+// so quotes remain JSON syntax and '<' cannot close the containing element.
+func languageBootstrap(locale i18n.Locale) string {
+	var b strings.Builder
+	if err := languageBootstrapTemplate.Execute(&b, json.RawMessage(locale.Bootstrap())); err != nil {
+		panic(err)
+	}
+	return b.String()
+}
 
 // LanguagePicker uses native language names so a visitor can recover from an
 // unfamiliar choice. Browser preferences remain host-local and optional.

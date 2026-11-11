@@ -813,7 +813,7 @@ input:disabled, select:disabled, textarea:disabled { color: var(--color-text-dis
 html:not([lang="en"]) .operation-table--index .status,
 html:not([lang="en"]) .operation-table--index .refresh-health .badge { white-space: normal; border-radius: var(--radius-md); }
 html:not([lang="en"]) .operation-table--index th { letter-spacing: 0; }
-html:not([lang="en"]) .operation-table--index .refresh-health .badge { letter-spacing: 0; padding-inline: var(--space-1); }
+html:not([lang="en"]) .operation-table--index .refresh-health .badge { letter-spacing: 0; padding-inline: var(--space-1); text-transform: none; }
 .operation-table__page { width: auto; }
 /* Every fixed column is the width of its own heading and no more, because what
    they take, the title column loses: at 8rem and 11rem the longest page title

@@ -155,7 +155,7 @@ func Head(title string, bootstrap Bootstrap, scripts []string, locales ...i18n.L
 <link rel="stylesheet" href="` + assetver.ShellFlag() + `/tokens/design-tokens.css">
 <link rel="stylesheet" href="` + assetver.Shell() + `/shell.css">
 <script src="` + assetver.ShellFlag() + `/theme/theme-controller.js"></script>
-<script type="application/json" id="pages-i18n">` + locale.Bootstrap() + `</script>
+` + languageBootstrap(locale) + `
 <script src="` + assetver.Shell() + `/i18n.js"></script>
 <script type="application/json" id="pages-bootstrap">` + jsonIsland(bootstrap) + `</script>
 <script src="` + assetver.Shell() + `/messages.js" defer></script>

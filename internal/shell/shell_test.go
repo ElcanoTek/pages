@@ -4,6 +4,7 @@
 package shell
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,23 @@ import (
 
 	"github.com/ElcanoTek/pages/internal/assetver"
 )
+
+func TestLanguageBootstrapJSONContext(t *testing.T) {
+	value := map[string]string{"message": `"</script><script>alert(1)</script>&'`}
+	var b strings.Builder
+	if err := languageBootstrapTemplate.Execute(&b, value); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if strings.Count(out, "</script>") != 1 || strings.Contains(out, "<script>alert") {
+		t.Fatal("JSON escaped its script-data context")
+	}
+	content := strings.TrimSuffix(strings.SplitN(out, ">", 2)[1], "</script>")
+	var decoded map[string]string
+	if err := json.Unmarshal([]byte(content), &decoded); err != nil || decoded["message"] != value["message"] {
+		t.Fatalf("JSON data changed: %v", err)
+	}
+}
 
 // The goldens in testdata/ were captured from lib/*shell.js and
 // lib/standalone-chrome.js under node for the same inputs. The front end and

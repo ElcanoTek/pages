@@ -17,6 +17,13 @@ for(const language of ["es","pt"]) {
     for (const width of [1280, 1201, 900, 390, 320]) {
       await page.setViewportSize({width,height:800});
       await expectNoHorizontalOverflow(page);
+      if (width >= 1201) {
+        const badge = await page.locator(".refresh-health .badge").first().evaluate(node => {
+          const style = getComputedStyle(node);
+          return {height:node.getBoundingClientRect().height, twoLines:2 * parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 2};
+        });
+        expect(badge.height).toBeLessThanOrEqual(badge.twoLines + 1);
+      }
       const cells = await page.locator(".operation-table--index tbody tr").first().locator("td").evaluateAll(nodes => nodes.map(node => {
         const status = node.querySelector(".status");
         return {key:node.dataset.column, area:getComputedStyle(node).gridArea, right:node.getBoundingClientRect().right, statusRight:status?.getBoundingClientRect().right};
