@@ -117,3 +117,14 @@ func TestStaticServerMessagesHaveTranslations(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDisplayLocaleDoesNotChangeAuthenticationURL(t *testing.T) {
+	original := httptest.NewRequest("GET", "/auth/callback?code=one-time&state=opaque", nil)
+	display := WithDisplayLocale(original, Locale{Language: "pt", Explicit: true, Location: "/auth/login?next=%2Fadmin"})
+	if original.URL.String() != display.URL.String() || FromRequest(original).Language != "en" {
+		t.Fatal("display preference changed the original authentication request")
+	}
+	if locale := FromRequest(display); locale.Language != "pt" || locale.Location != "/auth/login?next=%2Fadmin" {
+		t.Fatal("display preference was lost")
+	}
+}

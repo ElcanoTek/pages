@@ -6,6 +6,7 @@
 package i18n
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -50,11 +51,22 @@ func First(locales ...Locale) Locale {
 	return Locale{Language: "en"}
 }
 
+type displayLocaleKey struct{}
+
+// WithDisplayLocale carries a validated presentation choice on a copy of the
+// request. Authentication and redirect handling keep the original URL and data.
+func WithDisplayLocale(r *http.Request, locale Locale) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), displayLocaleKey{}, First(locale)))
+}
+
 // FromRequest prefers an explicit query, then the host-only preference cookie,
 // then supported Accept-Language values in quality order, and finally English.
 func FromRequest(r *http.Request) Locale {
 	if r == nil {
 		return First()
+	}
+	if locale, ok := r.Context().Value(displayLocaleKey{}).(Locale); ok {
+		return locale
 	}
 	if lang := Normalize(r.URL.Query().Get("lang")); lang != "" {
 		return Locale{Language: lang, Explicit: true, Location: r.URL.RequestURI()}

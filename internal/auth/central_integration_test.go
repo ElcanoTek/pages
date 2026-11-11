@@ -36,6 +36,7 @@ import (
 	"github.com/ElcanoTek/pages/internal/auth/central"
 	"github.com/ElcanoTek/pages/internal/csrf"
 	"github.com/ElcanoTek/pages/internal/db"
+	"github.com/ElcanoTek/pages/internal/shell"
 	"github.com/ElcanoTek/pages/internal/testdb"
 )
 
@@ -303,7 +304,7 @@ func newHarness(t *testing.T) *harness {
 	mux := http.NewServeMux()
 	a.Central().Register(mux, central.RoutesOptions{
 		Render: func(p central.ChromePage) string {
-			return "<title>" + p.Title + "</title><h1>" + p.Heading + "</h1>" + p.BodyHTML
+			return "<title>" + p.Title + "</title><h1>" + p.Heading + "</h1>" + p.BodyHTML + shell.LanguageLinks(p.Locale)
 		},
 		Signin:         h.counter("signin"),
 		SigninCallback: h.counter("callback"),
@@ -720,4 +721,62 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// A visitor arriving on a localized deep link has not initialized browser
+// preferences yet. The sealed login destination carries the display language
+// through Auth's fixed callback, including every error before a session exists.
+func TestCentralCallbackRetainsLanguage(t *testing.T) {
+	h := newHarness(t)
+	for _, tc := range []struct {
+		language, query, heading string
+		tokenStatus, status      int
+	}{
+		{"es", "error=access_denied", "Tu cuenta no tiene acceso a Pages", 200, 403},
+		{"pt", "error=access_denied", "A sua conta não tem acesso ao Pages", 200, 403},
+		{"es", "", "No se ha completado el inicio de sesión", 200, 400},
+		{"pt", "", "O início de sessão não foi concluído", 200, 400},
+		{"es", "code=expired", "El inicio de sesión ha caducado", 200, 400},
+		{"pt", "code=expired", "O início de sessão expirou", 200, 400},
+		{"es", "code=expired&lang=pt", "O início de sessão expirou", 200, 400},
+		{"es", "code=outage", "El servicio de inicio de sesión no está disponible", 500, 502},
+		{"pt", "code=outage", "O serviço de início de sessão está indisponível", 500, 502},
+	} {
+		t.Run(tc.language+tc.query, func(t *testing.T) {
+			start := h.req("GET", "/auth/login?next="+url.QueryEscape("/admin/templates?workspace=2&lang="+tc.language), "", nil, nil)
+			authorize, err := url.Parse(start.headers.Get("Location"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.auth.mu.Lock()
+			h.auth.tokenStatus = tc.tokenStatus
+			h.auth.mu.Unlock()
+			callback := "/auth/callback?state=" + url.QueryEscape(authorize.Query().Get("state")) + "&" + tc.query
+			response := h.req("GET", callback, cookieFrom(start, "pages_login"), nil, nil)
+			if response.status != tc.status || !strings.Contains(response.body, tc.heading) || cookieFrom(response, "pages_session") != "" {
+				t.Fatalf("callback = %d %s", response.status, response.body)
+			}
+			if !strings.Contains(response.body, `href="/auth/login?lang=es&amp;next=`) || strings.Contains(response.body, `href="/auth/callback`) {
+				t.Fatal("language selection would replay the one-time callback")
+			}
+			if !strings.Contains(response.body, "next="+url.QueryEscape("/admin/templates?workspace=2&lang="+tc.language)) {
+				t.Fatal("language selection lost the verified return target")
+			}
+		})
+	}
+	h.auth.mu.Lock()
+	h.auth.tokenStatus = 200
+	h.auth.mu.Unlock()
+	for language, heading := range map[string]string{"es": "Tu cuenta no tiene acceso a Pages", "pt": "A sua conta não tem acesso ao Pages"} {
+		denied := h.signIn("sub-localized-denied", "denied@northwind.example", "/admin/templates?lang="+language, nil, "")
+		if denied.callback.status != 403 || denied.session != "" || !strings.Contains(denied.callback.body, heading) || strings.Contains(denied.callback.body, `href="/auth/callback`) {
+			t.Fatalf("post-exchange denial = %d %s", denied.callback.status, denied.callback.body)
+		}
+	}
+	// An unverified transaction must never supply display data either.
+	start := h.req("GET", "/auth/login?next=%2Fadmin%3Flang%3Des", "", nil, nil)
+	response := h.req("GET", "/auth/callback?code=expired&state=wrong", cookieFrom(start, "pages_login"), nil, nil)
+	if response.status != 400 || !strings.Contains(response.body, "Sign-in expired") || cookieFrom(response, "pages_session") != "" {
+		t.Fatalf("unverified callback = %d %s", response.status, response.body)
+	}
 }

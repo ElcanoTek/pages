@@ -147,20 +147,18 @@ func Head(title string, bootstrap Bootstrap, scripts []string, locales ...i18n.L
 	for i, src := range scripts {
 		tags[i] = `<script src="` + Esc(shellAsset(src)) + `" defer></script>`
 	}
-	return `<meta charset="utf-8">
+	return strings.Join([]string{`<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="` + favicon() + `" type="image/svg+xml">
 <title>` + Esc(title) + `</title>
 <link rel="stylesheet" href="` + assetver.ShellFlag() + `/fonts/fonts.css">
 <link rel="stylesheet" href="` + assetver.ShellFlag() + `/tokens/design-tokens.css">
 <link rel="stylesheet" href="` + assetver.Shell() + `/shell.css">
-<script src="` + assetver.ShellFlag() + `/theme/theme-controller.js"></script>
-` + languageBootstrap(locale) + `
-<script src="` + assetver.Shell() + `/i18n.js"></script>
+<script src="` + assetver.ShellFlag() + `/theme/theme-controller.js"></script>`, languageBootstrap(locale), `<script src="` + assetver.Shell() + `/i18n.js"></script>
 <script type="application/json" id="pages-bootstrap">` + jsonIsland(bootstrap) + `</script>
 <script src="` + assetver.Shell() + `/messages.js" defer></script>
 <script src="` + assetver.Shell() + `/primitives.js" defer></script>
-` + strings.Join(tags, "\n")
+` + strings.Join(tags, "\n")}, "\n")
 }
 
 // Icon is an inline <svg> referencing name in the Flag core icon sprite.

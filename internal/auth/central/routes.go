@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -285,9 +286,29 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 		}
 		return v[0], true
 	}
+	state, stateOK := one("state")
+	sealed := httpx.RequestCookies(r)[x.rt.LoginCookie]
+	tx, transactionErr := OpenTransaction(sealed, state, x.rt.Config.TransactionKey, 0)
+	displayLocale := i18n.FromRequest(r)
+	// A callback contains a one-time authorization code. Language selection
+	// starts a fresh sign-in instead of replaying that consumed credential.
+	displayLocale.Location = "/auth/login"
+	if transactionErr == nil {
+		// Auth returns to a fixed callback URL. Only the verified transaction's
+		// destination supplies the error page's return target and fallback locale;
+		// all credential checks keep their original callback inputs.
+		displayLocale.Location += "?next=" + url.QueryEscape(tx.Next)
+		if next, parseErr := url.Parse(tx.Next); parseErr == nil && i18n.Normalize(r.URL.Query().Get("lang")) == "" {
+			if language := i18n.Normalize(next.Query().Get("lang")); language != "" {
+				displayLocale.Language = language
+				displayLocale.Explicit = true
+			}
+		}
+	}
+	displayRequest := i18n.WithDisplayLocale(r, displayLocale)
 	errVals, errPresent := q["error"]
 	if len(errVals) == 1 && errVals[0] == "access_denied" {
-		x.noAccess(w, r)
+		x.noAccess(w, displayRequest)
 		return
 	}
 	// Auth names itself in the response (RFC 9207); a different issuer means
@@ -295,14 +316,15 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 	issVals, issPresent := q["iss"]
 	wrongIssuer := issPresent && (len(issVals) != 1 || StripTrailingSlashes(issVals[0]) != x.rt.Config.Issuer)
 	code, codeOK := one("code")
-	state, stateOK := one("state")
 	// `error` is truthy unless it is a single empty string.
 	errTruthy := errPresent && (len(errVals) != 1 || errVals[0] != "")
 	if errTruthy || wrongIssuer || !codeOK || code == "" || !stateOK || state == "" {
-		x.page(w, r, http.StatusBadRequest, "Sign-in", i18n.Source("Sign-in was not completed"), i18n.Source("Start again from the sign-in page."), retry)
+		x.page(w, displayRequest, http.StatusBadRequest, "Sign-in", i18n.Source("Sign-in was not completed"), i18n.Source("Start again from the sign-in page."), retry)
 		return
 	}
 	err := func() error {
+		// Revalidate at the exchange boundary; the earlier lookup was only for
+		// presenting errors before an exchange is allowed.
 		sealed := httpx.RequestCookies(r)[x.rt.LoginCookie]
 		tx, err := OpenTransaction(sealed, state, x.rt.Config.TransactionKey, 0)
 		if err != nil {
@@ -324,15 +346,15 @@ func (x *routes) callback(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 	case errors.Is(err, ErrAccessDenied):
-		x.noAccess(w, r)
+		x.noAccess(w, displayRequest)
 	case errors.Is(err, ErrAuthTransaction), errors.Is(err, ErrCodeExchangeRejected):
-		x.page(w, r, http.StatusBadRequest, "Sign-in", i18n.Source("Sign-in expired"), i18n.Source("That sign-in link is no longer valid. Try again."), retry)
+		x.page(w, displayRequest, http.StatusBadRequest, "Sign-in", i18n.Source("Sign-in expired"), i18n.Source("That sign-in link is no longer valid. Try again."), retry)
 	case errors.Is(err, ErrCentralAuth):
 		x.opts.Logger.Error("central auth: code exchange failed: " + err.Error())
-		x.page(w, r, http.StatusBadGateway, "Sign-in", i18n.Source("The sign-in service is unavailable"),
+		x.page(w, displayRequest, http.StatusBadGateway, "Sign-in", i18n.Source("The sign-in service is unavailable"),
 			i18n.Source("Pages could not reach the account service. Try again shortly."), retry)
 	default:
-		x.opts.OnError(w, r, err)
+		x.opts.OnError(w, displayRequest, err)
 	}
 }
 
