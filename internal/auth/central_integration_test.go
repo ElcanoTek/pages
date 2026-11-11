@@ -212,12 +212,16 @@ type signInResult struct {
 	authorize *url.URL
 }
 
-func (h *harness) signIn(sub, email, next string, extra map[string]any, idToken string) signInResult {
+func (h *harness) signIn(sub, email, next string, extra map[string]any, idToken string, language ...string) signInResult {
 	h.t.Helper()
 	if next == "" {
 		next = "/admin"
 	}
-	start := h.req("GET", "/auth/login?next="+url.QueryEscape(next), "", nil, nil)
+	path := "/auth/login?next=" + url.QueryEscape(next)
+	if len(language) > 0 {
+		path += "&lang=" + url.QueryEscape(language[0])
+	}
+	start := h.req("GET", path, "", nil, nil)
 	if start.status != 303 {
 		h.t.Fatalf("login start = %d", start.status)
 	}
@@ -237,6 +241,43 @@ func (h *harness) signIn(sub, email, next string, extra map[string]any, idToken 
 	state := authorize.Query().Get("state")
 	cb := h.req("GET", "/auth/callback?code="+code+"&state="+url.QueryEscape(state)+"&iss="+url.QueryEscape(h.auth.srv.URL), login, nil, nil)
 	return signInResult{callback: cb, session: cookieFrom(cb, "pages_session"), authorize: authorize}
+}
+
+func TestCentralLocalizedReturnPreservesQueryBytes(t *testing.T) {
+	h := newHarness(t)
+	if status := h.backchannel(url.Values{"access_token": {h.accessToken("sub-return", "return@northwind.example", "grant", 1, nil)}}); status != http.StatusNoContent {
+		t.Fatalf("grant = %d", status)
+	}
+	for _, language := range []string{"es", "pt"} {
+		for _, tc := range []struct{ name, next, preserved string }{
+			{"opaque query", "/admin/templates?q=alpha;beta&token=%25zz%25&state=A%2bB%2fC%3d&filter=one&filter=two&l%61ng=en&%6cang=fr&lang=de&&flag&", "/admin/templates?q=alpha;beta&token=%25zz%25&state=A%2bB%2fC%3d&filter=one&filter=two&&flag&&lang="},
+			{"fragment follows existing auth policy", "/admin/a%2fb?q=alpha;beta#review", "/admin/a%2fb?q=alpha;beta&lang="},
+			{"unsafe target", "//evil.example/path?q=alpha;beta", "/admin?lang="},
+			{"oversized target", "/admin?q=" + strings.Repeat("x", 2048), "/admin?lang="},
+		} {
+			t.Run(language+"/"+tc.name, func(t *testing.T) {
+				// The harness sends only the sealed transaction cookie on the
+				// callback. No display cookie or localStorage can repair the URL.
+				result := h.signIn("sub-return", "return@northwind.example", tc.next, nil, "", language)
+				want := tc.preserved + language
+				if result.callback.status != http.StatusSeeOther || result.callback.headers.Get("Location") != want || result.session == "" {
+					t.Fatalf("callback = %d %q, want %q with a session", result.callback.status, result.callback.headers.Get("Location"), want)
+				}
+				if result.authorize.Query().Get("lang") != language || result.authorize.Query().Get("redirect_uri") != "http://localhost/auth/callback" {
+					t.Fatal("display language changed the fixed Auth callback or was lost")
+				}
+				if page := h.req("GET", want, result.session, nil, nil); page.status != http.StatusOK {
+					t.Fatalf("final destination = %d", page.status)
+				}
+				// An existing session takes the shortcut without a transaction
+				// and must preserve exactly the same validated return URL.
+				shortcut := h.req("GET", "/auth/login?next="+url.QueryEscape(tc.next)+"&lang="+language, result.session, nil, nil)
+				if shortcut.status != http.StatusSeeOther || shortcut.headers.Get("Location") != want {
+					t.Fatalf("authenticated redirect = %d %q, want %q", shortcut.status, shortcut.headers.Get("Location"), want)
+				}
+			})
+		}
+	}
 }
 
 func (h *harness) logoutToken(sub string, extra map[string]any) string {
@@ -759,7 +800,8 @@ func TestCentralCallbackRetainsLanguage(t *testing.T) {
 			if response.status != tc.status || !strings.Contains(response.body, tc.heading) || cookieFrom(response, "pages_session") != "" {
 				t.Fatalf("callback = %d %s", response.status, response.body)
 			}
-			if !strings.Contains(response.body, `href="/auth/login?lang=es&amp;next=`) || strings.Contains(response.body, `href="/auth/callback`) {
+			languageLink := `href="/auth/login?next=` + url.QueryEscape("/admin/templates?workspace=2&lang="+tc.language) + `&amp;lang=es"`
+			if !strings.Contains(response.body, languageLink) || strings.Contains(response.body, `href="/auth/callback`) {
 				t.Fatal("language selection would replay the one-time callback")
 			}
 			if !strings.Contains(response.body, "next="+url.QueryEscape("/admin/templates?workspace=2&lang="+tc.language)) {
