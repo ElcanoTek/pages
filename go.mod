@@ -2,7 +2,7 @@ module github.com/ElcanoTek/pages
 
 go 1.27.2
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/jackc/pgx/v5 v5.12.0
