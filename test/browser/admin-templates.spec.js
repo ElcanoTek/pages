@@ -84,9 +84,9 @@ test("inspecting a template shows its contract, revisions and the pages behind i
   // One vocabulary across the admin now: sentence case, "Behind" is a warning
   // tone rather than the pending tone it borrowed, and "Current" is neutral —
   // colouring the expected state makes every healthy row shout.
-  await expect(detail.getByText("Behind", { exact: true })).toHaveClass(/badge--warning/);
-  await expect(detail.getByText("Current", { exact: true }).first()).toHaveClass(/badge--draft/);
-  await expect(detail.getByText("Live", { exact: true }).first()).toHaveClass(/badge--live/);
+  await expect(detail.getByText("Behind", { exact: true })).toHaveClass(/badge-warning/);
+  await expect(detail.getByText("Current", { exact: true }).first()).toHaveClass(/badge-secondary/);
+  await expect(detail.getByText("Live", { exact: true }).first()).toHaveClass(/badge-success/);
 
   // Revision history, the current one badged the same way the pages table
   // badges state — not as muted body text.

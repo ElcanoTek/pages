@@ -27,18 +27,18 @@ test("the index marks the dashboards whose refresh needs a human, with the reaso
 
   const blocked = updated(page, "Client 03 operations dashboard");
   await expect(blocked.locator(".badge")).toHaveText("Blocked");
-  await expect(blocked.locator(".badge")).toHaveClass(/badge--error/);
+  await expect(blocked.locator(".badge")).toHaveClass(/badge-danger/);
   await expect(blocked.locator(".refresh-health__reason")).toHaveText("Required source ssp_daily could not be authenticated");
   await expect(blocked.locator(".badge")).toHaveAttribute("title", "Required source ssp_daily could not be authenticated");
 
   const overdue = updated(page, "Client 02 operations dashboard");
   await expect(overdue.locator(".badge")).toHaveText("Overdue");
-  await expect(overdue.locator(".badge")).toHaveClass(/badge--warning/);
+  await expect(overdue.locator(".badge")).toHaveClass(/badge-warning/);
   await expect(overdue.locator(".refresh-health__reason")).toHaveText("Expected a refresh at Jul 21 09:00 UTC; last activity Jul 20.");
 
   const stuck = updated(page, "Client 05 operations dashboard");
   await expect(stuck.locator(".badge")).toHaveText("Source stuck");
-  await expect(stuck.locator(".badge")).toHaveClass(/badge--warning/);
+  await expect(stuck.locator(".badge")).toHaveClass(/badge-warning/);
   await expect(stuck.locator(".refresh-health__reason")).toContainText("Source data hasn't advanced since Jul 17");
 
   // The existing data-age line is still there, above the chip.
@@ -46,7 +46,7 @@ test("the index marks the dashboards whose refresh needs a human, with the reaso
   // A page on schedule carries no chip at all; a page with no schedule carries
   // no verdict (the first row's grey hint is covered below).
   await expect(updated(page, "Client 01 operations dashboard").locator(".refresh-health")).toHaveCount(0);
-  await expect(page.locator(".operation-table tbody tr").first().locator(".badge--warning, .badge--error, .refresh-health__reason")).toHaveCount(0);
+  await expect(page.locator(".operation-table tbody tr").first().locator(".badge-warning, .badge-danger, .refresh-health__reason")).toHaveCount(0);
 
   // The summary says how many, before anyone filters.
   await expect(page.locator(".stat", { hasText: "need attention" }).locator("strong")).toHaveText("4");
@@ -62,7 +62,7 @@ test("a page whose data stopped in part reads Partial data, amber, with the find
   const partial = updated(page, "Client 06 operations dashboard");
   await expect(partial).toContainText("Data 1d old");
   await expect(partial.locator(".badge")).toHaveText("Partial data");
-  await expect(partial.locator(".badge")).toHaveClass(/badge--warning/);
+  await expect(partial.locator(".badge")).toHaveClass(/badge-warning/);
   await expect(partial.locator(".badge")).toHaveAttribute("title", PARTIAL);
   await expect(partial.locator(".refresh-health__reason")).toHaveText(PARTIAL);
   await expectNoSeriousAxeViolations(page, "index with a partial-data chip");
@@ -75,7 +75,7 @@ test("a page whose data stopped in part reads Partial data, amber, with the find
   await page.goto("/admin/client-06");
   const banner = page.locator("#refresh-banner");
   await expect(banner.locator(".badge")).toHaveText("Partial data");
-  await expect(banner).toHaveClass(/refresh-banner--warning/);
+  await expect(banner).toHaveClass(/alert--warning/);
   await expect(banner).toContainText(PARTIAL);
   await expect(page.locator("#refresh-status .badge")).toHaveText("Partial data");
   // The Refresh schedule section lists every finding.
@@ -146,7 +146,7 @@ test("with nothing late the filter says so and offers the way back", async ({ pa
   await expect(filter).toHaveAttribute("aria-pressed", "false");
   await expect(filter).toBeFocused();
   await expect(page.locator(".workspace-index__count")).toHaveText("Showing 25 of 37 pages");
-  await expect(page.locator(".operation-table .refresh-health").filter({ has: page.locator(".badge--warning, .badge--error") })).toHaveCount(0);
+  await expect(page.locator(".operation-table .refresh-health").filter({ has: page.locator(".badge-warning, .badge-danger") })).toHaveCount(0);
 });
 
 // ── No refresh set: a hint, not a verdict ─────────────────────────────────────
@@ -160,8 +160,8 @@ test("a live page with week-old data and no refresh schedule gets a grey hint, n
   const chip = frozen.locator(".refresh-health .badge");
   await expect(chip).toHaveText("No refresh");
   // Grey — the tone "Not scheduled" uses — never the amber or red of a verdict.
-  await expect(chip).toHaveClass(/badge--draft/);
-  await expect(chip).not.toHaveClass(/badge--(warning|error)/);
+  await expect(chip).toHaveClass(/badge-secondary/);
+  await expect(chip).not.toHaveClass(/badge-(warning|danger)/);
   // The sentence is the hover and the screen-reader text, not a clipped line:
   // the data age is already on the row.
   await expect(chip).toHaveAttribute("title", HINT_46);
@@ -199,7 +199,7 @@ test("No refresh set filters to those pages, oldest data first, beside Needs att
   await expect(titles.nth(1)).toHaveText("Client 35 operations dashboard");
   await expect(titles.nth(18)).toHaveText("Client 09 operations dashboard");
   await expect(page.locator(".workspace-index__count")).toHaveText("19 of 37 pages");
-  await expect(page.locator(".operation-table .badge--warning, .operation-table .badge--error")).toHaveCount(0);
+  await expect(page.locator(".operation-table .badge-warning, .operation-table .badge-danger")).toHaveCount(0);
   await expectNoSeriousAxeViolations(page, "index filtered to no refresh set");
 
   // Linkable, like ?attention=1.
@@ -273,7 +273,7 @@ test("with no page left to hint, the filter is not offered, and a stale link say
   await page.goto("/admin");
   await expect(page.getByRole("button", { name: /^Needs attention/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^No refresh set/ })).toHaveCount(0);
-  await expect(page.locator(".operation-table .refresh-health .badge--draft")).toHaveCount(0);
+  await expect(page.locator(".operation-table .refresh-health .badge-secondary")).toHaveCount(0);
 
   await page.goto("/admin?unscheduled=1");
   await expect(page.getByRole("heading", { name: "Every live page has a refresh" })).toBeVisible();
@@ -315,7 +315,7 @@ test("the review screen leads with a slim banner when the page's refresh needs a
   await expect(banner).toBeVisible();
   await expect(banner.locator(".badge")).toHaveText("Overdue");
   await expect(banner).toContainText("Expected a refresh at Jul 21 09:00 UTC; last activity Jul 20.");
-  await expect(banner).toHaveClass(/refresh-banner--warning/);
+  await expect(banner).toHaveClass(/alert--warning/);
   // The banner is part of the page header, under the identity, not a pill
   // beside the serving state.
   await expect(page.locator(".page-overview__statuses #refresh-banner")).toHaveCount(0);
@@ -324,7 +324,7 @@ test("the review screen leads with a slim banner when the page's refresh needs a
   await expectNoSeriousAxeViolations(page, "detail with a refresh banner");
 
   await page.goto("/admin/client-03");
-  await expect(page.locator("#refresh-banner")).toHaveClass(/refresh-banner--error/);
+  await expect(page.locator("#refresh-banner")).toHaveClass(/alert--destructive/);
   await expect(page.locator("#refresh-banner")).toContainText("Required source ssp_daily could not be authenticated");
 
   // On schedule, and unscheduled: no banner.

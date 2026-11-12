@@ -308,7 +308,7 @@ if (typeof document !== "undefined") (function () {
 
   function copyButton(value, label) {
     return el("button", {
-      class: "btn btn-sm",
+      class: "btn btn-secondary btn-sm",
       type: "button",
       onclick: async () => {
         try {
@@ -361,7 +361,7 @@ if (typeof document !== "undefined") (function () {
     const formId = `portal-dialog-form-${++formSeq}`;
     const form = el("form", { id: formId, class: "form-stack" }, ...fields, error);
     modal.body.append(form);
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
+    const cancel = el("button", { class: "btn btn-secondary", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const proceed = el("button", { class: "btn btn-primary", type: "submit", form: formId }, confirmLabel);
     // setBusy disables the button while a request is in flight, and a disabled
     // default button also blocks implicit submission — but only while the form
@@ -656,7 +656,7 @@ if (typeof document !== "undefined") (function () {
     // status also means the list ARRIVING is announced, rather than a select
     // silently gaining 38 options under a focus that never moved.
     const pickerStatus = el("p", {
-      class: "field-help",
+      class: "field-hint",
       role: "status",
       "data-testid": "portal-add-page-status",
     }, t("Loading the page list…"));
@@ -672,7 +672,7 @@ if (typeof document !== "undefined") (function () {
       hidden: true,
       "data-testid": "portal-add-page-error",
     });
-    const retry = el("button", { class: "btn btn-sm", type: "button" }, t("Try again"));
+    const retry = el("button", { class: "btn btn-secondary btn-sm", type: "button" }, t("Try again"));
     retry.addEventListener("click", () => { loadCandidates(); });
 
     // Whether there is anything to add is a property of the list, so the action
@@ -856,7 +856,7 @@ if (typeof document !== "undefined") (function () {
       return el("tr", selected ? { class: "row--selected", "aria-current": "true" } : {},
         el("td", { "data-label": t("Partner") },
           el("button", {
-            class: "btn btn-sm",
+            class: "btn btn-secondary btn-sm",
             type: "button",
             onclick: () => select(portal.id).catch((error) => toast(error.message, { tone: "error" })),
           }, portal.name),
@@ -865,7 +865,7 @@ if (typeof document !== "undefined") (function () {
         el("td", { "data-label": t("Home") }, portal.home_page_slug ? `/${portal.home_page_slug}` : el("span", { class: "table-meta" }, t("None"))),
         el("td", { class: "table-meta", "data-label": t("Updated") }, timeWhen(portal.updated_at)));
     });
-    return el("div", { class: "operation-table-wrap" },
+    return el("div", { class: "table-wrap operation-table-wrap" },
       el("table", { class: "operation-table" },
         el("caption", { class: "table-meta" }, state.portals.length === 1 ? t("1 portal") : t("{0} portals", state.portals.length)),
         el("thead", {}, el("tr", {},
@@ -906,7 +906,7 @@ if (typeof document !== "undefined") (function () {
       // Ids on the text buttons too: they are what a keyboard operator is standing
       // on when Alt+↑/↓ rebuilds the row, and #146's keepingFocus and runMove both
       // restore focus by id.
-      const home = el("button", { id: `portal-home-${member.page_id}`, class: "btn btn-sm", type: "button" }, t("Make home"));
+      const home = el("button", { id: `portal-home-${member.page_id}`, class: "btn btn-secondary btn-sm", type: "button" }, t("Make home"));
       home.addEventListener("click", () => runAction({
         button: home,
         success: t("Home page set."),
@@ -919,7 +919,7 @@ if (typeof document !== "undefined") (function () {
     }
     rest.append(el("button", {
       id: `portal-edit-${member.page_id}`,
-      class: "btn btn-sm",
+      class: "btn btn-secondary btn-sm",
       type: "button",
       onclick: () => editMemberDialog(portal, member),
     }, t("Edit")));
@@ -960,7 +960,7 @@ if (typeof document !== "undefined") (function () {
         el("strong", {}, member.display_title),
                 // Home is a role in this portal, not a serving status; it used to borrow
         // the success pill and read as "this one is live and the others are not".
-        isHome ? el("span", { class: "badge" }, t("Home")) : null,
+        isHome ? el("span", { class: "badge badge-secondary" }, t("Home")) : null,
         el("div", { class: "table-meta" }, `/${member.slug}`),
         ...described.warnings.map((warning) =>
           el("div", { class: warning.kind === "blocked" ? "note note--warning" : "note" }, warning.text))),
@@ -979,7 +979,7 @@ if (typeof document !== "undefined") (function () {
 
     // Show the current password so it can be resent without rotating, which
     // would sign out every partner. Each reveal is audited server-side.
-    const reveal = el("button", { class: "btn btn-sm", type: "button", "data-testid": "portal-reveal-password" }, t("Show password"));
+    const reveal = el("button", { class: "btn btn-secondary btn-sm", type: "button", "data-testid": "portal-reveal-password" }, t("Show password"));
     reveal.addEventListener("click", async () => {
       const { ok, result } = await runAction({
         button: reveal,
@@ -994,7 +994,7 @@ if (typeof document !== "undefined") (function () {
       showCredential(portal, result.password, { current: true });
     });
 
-    const rotate = el("button", { class: "btn btn-sm", type: "button" }, t("Rotate password"));
+    const rotate = el("button", { class: "btn btn-secondary btn-sm", type: "button" }, t("Rotate password"));
     rotate.addEventListener("click", async () => {
       // No success toast: the credential dialog IS the confirmation, and a toast
       // that scrolls away next to a password shown exactly once reads as noise.
@@ -1031,7 +1031,7 @@ if (typeof document !== "undefined") (function () {
     }));
 
     const memberTable = members.length
-      ? el("div", { class: "operation-table-wrap" },
+      ? el("div", { class: "table-wrap operation-table-wrap" },
           el("table", { class: "operation-table" },
             el("caption", { class: "table-meta" },
               memberCaption({ count: members.length, openable, hasHome: portal.home_page_id != null })),
@@ -1048,7 +1048,7 @@ if (typeof document !== "undefined") (function () {
           el("p", { class: "table-meta" }, portal.url)),
         el("div", { class: "row-actions" },
           copyButton(portal.url, t("Link")),
-          el("button", { class: "btn btn-sm", type: "button", onclick: () => renameDialog(portal) }, t("Rename")),
+          el("button", { class: "btn btn-secondary btn-sm", type: "button", onclick: () => renameDialog(portal) }, t("Rename")),
           reveal,
           rotate,
           retire)),
@@ -1136,7 +1136,7 @@ if (typeof document !== "undefined") (function () {
   function addLinked(portal, page) {
     const button = el("button", {
       id: `portal-link-audit-add-${page.page_id}`,
-      class: "btn btn-sm",
+      class: "btn btn-secondary btn-sm",
       type: "button",
       // A column of identical "Add to portal" buttons tells a screen reader
       // nothing about which dashboard it would add. The visible word stays short.
@@ -1210,7 +1210,7 @@ if (typeof document !== "undefined") (function () {
     if (missing.length > 1) {
       addAll = el("button", {
         id: "portal-link-audit-add-all",
-        class: "btn btn-sm",
+        class: "btn btn-secondary btn-sm",
         type: "button",
         "data-testid": "portal-link-audit-add-all",
       }, t("Add all {0}", missing.length));
@@ -1264,7 +1264,7 @@ if (typeof document !== "undefined") (function () {
         // out of this PR's scope.
         el("p", { class: "note note--warning" },
           t("Any of them with no client password of its own becomes readable by everyone holding this portal's password."))),
-      el("div", { class: "operation-table-wrap" },
+      el("div", { class: "table-wrap operation-table-wrap" },
         el("table", { class: "operation-table" },
           // sr-only: the caption is this table's accessible name, not a second
           // paragraph of prose — see auditCaption.

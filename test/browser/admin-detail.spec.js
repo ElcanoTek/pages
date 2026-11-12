@@ -176,12 +176,11 @@ test("every Settings row commits the same way and reports it; delete stays confi
   await expect(dangerZone).toContainText("version history remains recoverable");
   const deletePage = dangerZone.getByRole("button", { name: "Delete page" });
   await expect(deletePage).toHaveClass(/btn-danger/);
-  await expect(deletePage).not.toHaveClass(/btn-danger-solid/);
   await deletePage.click();
   const deleteDialog = page.getByRole("dialog", { name: "Delete /long/client/q2-report?" });
   await expect(deleteDialog).toContainText("history remains recoverable");
-  await expect(deleteDialog.getByRole("button", { name: "Delete page" })).toHaveClass(/btn-danger-solid/);
-  await deleteDialog.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+  await expect(deleteDialog.getByRole("button", { name: "Delete page" })).toHaveClass(/btn-danger/);
+  await deleteDialog.locator(".modal__footer").getByRole("button", { name: "Cancel" }).click();
   await expect(deleteDialog).toBeHidden();
 });
 
@@ -506,7 +505,7 @@ test("source editor warns on unsaved close and saves lossless source with mode a
   await source.fill("<!doctype html><html><body><h1>Unsaved</h1></body></html>");
   await page.keyboard.press("Escape");
   let warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
-  await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+  await warning.locator(".modal__footer").getByRole("button", { name: "Cancel" }).click();
   await expect(editor).toBeVisible();
   await page.keyboard.press("Escape");
   warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
@@ -589,7 +588,7 @@ for (const changedField of ["HTML source", "Render mode", "Version note"]) {
     await page.keyboard.press("Escape");
     const warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
     await expect(warning).toBeVisible();
-    await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+    await warning.locator(".modal__footer").getByRole("button", { name: "Cancel" }).click();
     await editor.getByRole("button", { name: "Save as new version" }).click();
     if (changedField === "Version note") {
       await expect(editor.getByRole("status")).toContainText("Your note was not saved because the HTML and render mode are unchanged");
@@ -597,7 +596,7 @@ for (const changedField of ["HTML source", "Render mode", "Version note"]) {
       await expect(editor.getByRole("button", { name: "Save as new version" })).toBeEnabled();
       await page.keyboard.press("Escape");
       await expect(warning).toBeVisible();
-      await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+      await warning.locator(".modal__footer").getByRole("button", { name: "Cancel" }).click();
       latest.html = "<h1>New source with the newer note</h1>";
       await editor.getByLabel("HTML source").fill(latest.html);
       await editor.getByRole("button", { name: "Save as new version" }).click();
@@ -683,7 +682,7 @@ test("failed source saves keep newer values and dirty guards available for retry
   await page.keyboard.press("Escape");
   const warning = page.getByRole("dialog", { name: "Discard unsaved source changes?" });
   await expect(warning).toBeVisible();
-  await warning.locator(".ui-dialog__actions").getByRole("button", { name: "Cancel" }).click();
+  await warning.locator(".modal__footer").getByRole("button", { name: "Cancel" }).click();
   await page.unroute("**/deploy-source");
   await editor.getByRole("button", { name: "Save as new version" }).click();
   await expect(editor).toBeHidden();
@@ -747,7 +746,7 @@ test("the editor offers one save action, with the note leading the meta row", as
   await openDetail(page);
   await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
   const editor = page.getByRole("dialog", { name: "Edit source" });
-  const actions = editor.locator(".ui-dialog__actions");
+  const actions = editor.locator(".modal__footer");
   await expect(actions.getByRole("button")).toHaveCount(2);
   await expect(actions.getByRole("button", { name: "Cancel" })).toBeVisible();
   await expect(actions.getByRole("button", { name: "Save as new version" })).toBeVisible();
@@ -756,7 +755,7 @@ test("the editor offers one save action, with the note leading the meta row", as
 
   // The note is the audit trail, so it reads before the render mode and says so.
   const order = await editor.evaluate((dialog) => {
-    const labels = [...dialog.querySelectorAll(".ui-dialog__body .field-label")].map((node) => node.textContent);
+    const labels = [...dialog.querySelectorAll(".modal__body .field-label")].map((node) => node.textContent);
     return labels;
   });
   expect(order).toEqual(["HTML source", "Version note", "Render mode"]);
@@ -777,7 +776,7 @@ test("the editor offers one save action, with the note leading the meta row", as
   for (const height of [720, 800, 900, 1000]) {
     await page.setViewportSize({ width: 1440, height });
     const row = await editor.evaluate((dialog) => {
-      const bodyEl = dialog.querySelector(".ui-dialog__body");
+      const bodyEl = dialog.querySelector(".modal__body");
       const body = bodyEl.getBoundingClientRect();
       const fields = [...dialog.querySelectorAll(".editor-meta > .field")];
       const [note, mode] = fields.map((node) => node.getBoundingClientRect());
@@ -869,8 +868,8 @@ for (const width of [480, 568, 667]) {
 
     const geometry = await editor.evaluate((dialog) => {
       const dialogBox = dialog.getBoundingClientRect();
-      const surface = dialog.querySelector(".ui-dialog__surface");
-      const body = dialog.querySelector(".ui-dialog__body");
+      const surface = dialog.querySelector(".modal__surface");
+      const body = dialog.querySelector(".modal__body");
       return {
         viewportHeight: document.documentElement.clientHeight,
         dialogTop: dialogBox.top,
@@ -977,7 +976,7 @@ test("a confirmation is header, message, actions — with no empty band between 
   // makeDialog always appends a body; a confirmation puts its whole message in the
   // header, so the body would otherwise render as a padded band fenced by two
   // borders — a form that looks like it failed to load.
-  await expect(confirmation.locator(".ui-dialog__body")).toBeHidden();
+  await expect(confirmation.locator(".modal__body")).toBeHidden();
   await expect(confirmation.getByText("Rejected versions remain in history")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(confirmation).toBeHidden();
@@ -986,7 +985,7 @@ test("a confirmation is header, message, actions — with no empty band between 
   await page.locator(".preview-toolbar .version-actions").getByRole("button", { name: "Edit source" }).click();
   const editor = page.getByRole("dialog", { name: "Edit source" });
   await expect(editor).toBeVisible();
-  await expect(editor.locator(".ui-dialog__body")).toBeVisible();
+  await expect(editor.locator(".modal__body")).toBeVisible();
 });
 
 test("page switcher handles long lists and nested neighbors", async ({ page }) => {
@@ -1279,10 +1278,10 @@ test("an approved version that is not serving is not styled as an unreviewed dra
   await page.getByRole("button", { name: /All versions/ }).click();
   const approved = page.locator(".version-option").filter({ hasText: "Version 1" }).locator(".badge");
   await expect(approved).toHaveText("Approved");
-  await expect(approved).toHaveClass(/badge--live/);
+  await expect(approved).toHaveClass(/badge-success/);
   const draft = page.locator(".version-option").filter({ hasText: "Version 4" }).locator(".badge");
   await expect(draft).toHaveText("Draft");
-  await expect(draft).toHaveClass(/badge--draft/);
+  await expect(draft).toHaveClass(/badge-secondary/);
 });
 
 test("the review stage can answer how a client sees this on a phone", async ({ page }) => {

@@ -713,7 +713,7 @@ test("a dialog's refusal is on screen at a short viewport, not below the fold", 
   const refusal = dialog.getByText("Choose a page to add.");
   await expect(refusal).toBeVisible();
   const clipped = await refusal.evaluate((node) => {
-    const body = node.closest(".ui-dialog__body");
+    const body = node.closest(".modal__body");
     const box = node.getBoundingClientRect();
     const frame = body.getBoundingClientRect();
     return { above: box.top < frame.top - 1, below: box.bottom > frame.bottom + 1 };

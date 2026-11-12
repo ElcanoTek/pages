@@ -139,8 +139,8 @@ func writeJSONString(sb *strings.Builder, s string) {
 }
 
 // Head is the shared <head> body: charset, viewport, favicon, title, the Flag
-// fonts/tokens and shell.css, the theme controller, the bootstrap island,
-// primitives.js, then each of scripts (deferred, in order).
+// fonts/tokens/components and shell.css, the theme controller, the bootstrap
+// island, primitives.js, then each of scripts (deferred, in order).
 func Head(title string, bootstrap Bootstrap, scripts []string, locales ...i18n.Locale) string {
 	locale := i18n.First(locales...)
 	tags := make([]string, len(scripts))
@@ -153,6 +153,8 @@ func Head(title string, bootstrap Bootstrap, scripts []string, locales ...i18n.L
 <title>` + Esc(title) + `</title>
 <link rel="stylesheet" href="` + assetver.ShellFlag() + `/fonts/fonts.css">
 <link rel="stylesheet" href="` + assetver.ShellFlag() + `/tokens/design-tokens.css">
+<link rel="stylesheet" href="` + assetver.ShellFlag() + `/components/components.css">
+<link rel="stylesheet" href="` + assetver.ShellFlag() + `/components/shadcn-parity.css">
 <link rel="stylesheet" href="` + assetver.Shell() + `/shell.css">
 <script src="` + assetver.ShellFlag() + `/theme/theme-controller.js"></script>`, languageBootstrap(locale), `<script src="` + assetver.Shell() + `/i18n.js"></script>
 <script type="application/json" id="pages-bootstrap">` + jsonIsland(bootstrap) + `</script>
@@ -197,8 +199,10 @@ func Header(email string, locales ...i18n.Locale) string {
       ` + LanguagePicker(locale) + `
       <span class="session-user" title="` + Esc(email) + `">` + Esc(email) + `</span>
       <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="` + Esc(locale.T("Switch theme")) + `" aria-pressed="false" title="` + Esc(locale.T("Change color theme")) + `">
-        ` + Icon("sun", "icon-inline theme-toggle__icon theme-toggle__icon--sun") + `
-        ` + Icon("moon", "icon-inline theme-toggle__icon theme-toggle__icon--moon") + `
+        <span class="theme-toggle__icon-wrap" aria-hidden="true">
+          ` + Icon("sun", "icon-inline theme-toggle__icon theme-toggle__icon--sun") + `
+          ` + Icon("moon", "icon-inline theme-toggle__icon theme-toggle__icon--moon") + `
+        </span>
       </button>
       <form class="header-signout-form" method="get" action="` + Esc(locale.URL("/logout")) + `">` + languageField + `
         <button class="icon-action header-signout" type="submit" aria-label="` + Esc(locale.T("Sign out")) + `" title="` + Esc(locale.T("Sign out")) + `">` + Icon("logout", "") + `</button>
@@ -240,9 +244,9 @@ func SectionNav(current string, locales ...i18n.Locale) string {
 		if s.key == current {
 			active = ` aria-current="page"`
 		}
-		tabs[i] = `    <a class="context-tab" href="` + Esc(locale.URL(s.href)) + `"` + active + `>` + Esc(locale.T(s.label)) + `</a>`
+		tabs[i] = `    <a class="tab context-tab" href="` + Esc(locale.URL(s.href)) + `"` + active + `>` + Esc(locale.T(s.label)) + `</a>`
 	}
-	return `<nav class="context-nav" aria-label="` + Esc(locale.T("Pages sections")) + `">
+	return `<nav class="tabs context-nav" aria-label="` + Esc(locale.T("Pages sections")) + `">
 ` + strings.Join(tabs, "\n") + `
   </nav>`
 }

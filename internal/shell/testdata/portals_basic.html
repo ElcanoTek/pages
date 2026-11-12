@@ -7,6 +7,8 @@
 <title>Partner portals · Pages</title>
 <link rel="stylesheet" href="/shell-assets/flag/fonts/fonts.css">
 <link rel="stylesheet" href="/shell-assets/flag/tokens/design-tokens.css">
+<link rel="stylesheet" href="/shell-assets/flag/components/components.css">
+<link rel="stylesheet" href="/shell-assets/flag/components/shadcn-parity.css">
 <link rel="stylesheet" href="/shell-assets/shell.css">
 <script src="/shell-assets/flag/theme/theme-controller.js"></script>
 <script type="application/json" id="pages-i18n">{"language":"en","messages":null}</script>
@@ -26,11 +28,13 @@
       </span>
     </a>
     <div class="ds-app-header__actions">
-      <label class="sr-only" for="pages-language">Language</label><select id="pages-language" class="language-picker" aria-label="Language"><option value="en" selected>English</option><option value="es">Español</option><option value="pt">Português</option></select>
+      <label class="sr-only" for="pages-language">Language</label><span class="select-wrap select-wrap--sm language-picker-wrap"><select id="pages-language" class="language-picker" aria-label="Language"><option value="en" selected>English</option><option value="es">Español</option><option value="pt">Português</option></select><svg class="select-icon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#chevron-down"></use></svg></span>
       <span class="session-user" title="ops@example.com">ops@example.com</span>
       <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="Switch theme" aria-pressed="false" title="Change color theme">
-        <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
-        <svg class="icon-inline theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#moon"></use></svg>
+        <span class="theme-toggle__icon-wrap" aria-hidden="true">
+          <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
+          <svg class="icon-inline theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#moon"></use></svg>
+        </span>
       </button>
       <form class="header-signout-form" method="get" action="/logout">
         <button class="icon-action header-signout" type="submit" aria-label="Sign out" title="Sign out"><svg class="icon-inline" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#logout"></use></svg></button>
@@ -40,10 +44,10 @@
 </header>
 <main class="shell detail-shell">
   <div class="context-bar">
-    <nav class="context-nav" aria-label="Pages sections">
-    <a class="context-tab" href="/admin">Client pages</a>
-    <a class="context-tab" href="/admin/templates">Template library</a>
-    <a class="context-tab" href="/admin/portals" aria-current="page">Partner portals</a>
+    <nav class="tabs context-nav" aria-label="Pages sections">
+    <a class="tab context-tab" href="/admin">Client pages</a>
+    <a class="tab context-tab" href="/admin/templates">Template library</a>
+    <a class="tab context-tab" href="/admin/portals" aria-current="page">Partner portals</a>
   </nav>
   </div>
   <div id="app" class="screen-stack">

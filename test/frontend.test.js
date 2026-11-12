@@ -864,6 +864,18 @@ function cssSelectors(css) {
 }
 
 const SHELL_CSS = fs.readFileSync(path.join(__dirname, "..", "public", "shell-assets", "shell.css"), "utf8");
+const FLAG_COMPONENTS_CSS = fs.readFileSync(path.join(__dirname, "..", "public", "assets", "flag", "components", "components.css"), "utf8");
+const FLAG_SHADCN_PARITY_CSS = fs.readFileSync(path.join(__dirname, "..", "public", "assets", "flag", "components", "shadcn-parity.css"), "utf8");
+
+function definedShellClasses() {
+  const defined = new Set();
+  for (const sheet of [FLAG_COMPONENTS_CSS, FLAG_SHADCN_PARITY_CSS, SHELL_CSS]) {
+    for (const selector of cssSelectors(sheet)) {
+      for (const match of selector.matchAll(/\.([A-Za-z0-9_-]+)/g)) defined.add(match[1]);
+    }
+  }
+  return defined;
+}
 
 test("shell.css: no comment leaks selector text into the stylesheet", () => {
   // A selector can never contain a slash. One appearing here means a comment
@@ -878,42 +890,37 @@ test("shell.css: no comment leaks selector text into the stylesheet", () => {
 });
 
 test("shell.css: every class the template library renders is defined", () => {
-  const defined = new Set();
-  for (const selector of cssSelectors(SHELL_CSS)) {
-    for (const match of selector.matchAll(/\.([A-Za-z0-9_-]+)/g)) defined.add(match[1]);
-  }
+  const defined = definedShellClasses();
   // Read from public/shell-assets/templates.js — the screen renders nothing else.
   const used = [
     "page-heading", "page-heading__row", "page-heading__copy", "page-heading__intro", "page-heading__actions",
     "stats", "stat", "panel", "section-block", "section-heading", "section-heading--row",
-    "operation-table", "operation-table-wrap", "page-cell", "table-meta", "row-actions",
+    "table-wrap", "operation-table", "operation-table-wrap", "page-cell", "table-meta", "row-actions",
     "template-table__template", "template-table__num", "template-table__hash",
     "template-table__when", "template-table__actions",
     "row--selected", "template-detail", "template-kv", "code-block", "template-contract",
-    "segmented", "segmented__button", "badge", "badge--live", "badge--pending",
-    "btn", "btn-sm", "btn-primary", "form-stack", "field", "field-label", "field-help",
+    "seg", "seg--md", "seg-option", "badge", "badge-success", "badge-pending", "badge-warning", "badge-secondary",
+    "btn", "btn-sm", "btn-primary", "btn-secondary", "btn-ghost", "form-stack", "field", "field-label", "field-hint",
+    "select-wrap", "select-icon",
     "note", "note--warning",
     "cluster", "muted", "sr-only", "state-panel",
   ];
   const missing = used.filter((name) => !defined.has(name));
-  assert.deepEqual(missing, [], `templates.js renders classes shell.css never defines: ${missing.join(", ")}`);
+  assert.deepEqual(missing, [], `templates.js renders classes Flag + shell.css never define: ${missing.join(", ")}`);
 });
 
 test("shell.css: every class the portals screen renders is defined", () => {
-  const defined = new Set();
-  for (const selector of cssSelectors(SHELL_CSS)) {
-    for (const match of selector.matchAll(/\.([A-Za-z0-9_-]+)/g)) defined.add(match[1]);
-  }
+  const defined = definedShellClasses();
   // Read from public/shell-assets/portals.js. It used to borrow the template
   // library's .template-code/.template-row--selected and the form primitives'
-  // .field-error/.field-help for things that are neither a template nor a form
+  // .field-error/.field-hint for things that are neither a template nor a form
   // field, so a rename on either screen could silently unstyle this one.
   const used = [
     "code-block", "row--selected", "note", "note--warning",
-    "field", "field-label", "field-help", "form-stack", "cluster",
-    "operation-table", "operation-table-wrap", "table-meta", "row-actions",
+    "field", "field-label", "field-hint", "select-wrap", "select-icon", "form-stack", "cluster",
+    "table-wrap", "operation-table", "operation-table-wrap", "table-meta", "row-actions",
     "section-block", "section-heading", "section-heading--row", "panel",
-    "badge", "badge--live", "btn", "btn-sm", "btn-primary", "btn-danger",
+    "badge", "badge-success", "badge-secondary", "btn", "btn-sm", "btn-primary", "btn-secondary", "btn-danger",
     "state-panel",
     // The move-up/move-down controls (#173) borrow the dialog close button's
     // square icon control and the shared icon sizing rather than adding a class
@@ -924,24 +931,21 @@ test("shell.css: every class the portals screen renders is defined", () => {
     "operation-table__page",
   ];
   const missing = used.filter((name) => !defined.has(name));
-  assert.deepEqual(missing, [], `portals.js renders classes shell.css never defines: ${missing.join(", ")}`);
+  assert.deepEqual(missing, [], `portals.js renders classes Flag + shell.css never define: ${missing.join(", ")}`);
 });
 
 test("shell.css: every class the refresh-health views render is defined", () => {
-  const defined = new Set();
-  for (const selector of cssSelectors(SHELL_CSS)) {
-    for (const match of selector.matchAll(/\.([A-Za-z0-9_-]+)/g)) defined.add(match[1]);
-  }
+  const defined = definedShellClasses();
   // Read from welcome.js (the index chip and filter) and admin.js (the banner
   // and the Refresh schedule section).
   const used = [
-    "index-toolbar__tools", "attention-filter", "unscheduled-filter", "refresh-health", "refresh-health__reason", "sr-only",
-    "refresh-banner", "refresh-banner--error", "refresh-banner--warning", "refresh-banner__reason", "refresh-banner__link",
+    "index-toolbar__tools", "btn-outline", "attention-filter", "unscheduled-filter", "refresh-health", "refresh-health__reason", "sr-only",
+    "alert", "alert--warning", "alert--destructive", "refresh-banner", "refresh-banner__reason", "refresh-banner__link",
     "refresh-health__summary", "refresh-gaps", "refresh-facts", "template-kv", "access-grid", "subpanel", "subpanel__head",
     "form-stack", "form-grid", "field", "field-error", "form-status", "cluster",
   ];
   const missing = used.filter((name) => !defined.has(name));
-  assert.deepEqual(missing, [], `refresh health renders classes shell.css never defines: ${missing.join(", ")}`);
+  assert.deepEqual(missing, [], `refresh health renders classes Flag + shell.css never define: ${missing.join(", ")}`);
 });
 
 test("shell-assets: only primitives.js and page-switcher.js may fetch, encode, or format", () => {

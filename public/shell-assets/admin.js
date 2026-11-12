@@ -256,7 +256,8 @@
   function refreshBanner(health, freshness) {
     if (!Health.needsAttention(health)) return null;
     const { kind, label } = Health.describeHealth(health);
-    return el("p", { id: "refresh-banner", class: `refresh-banner refresh-banner--${kind}` },
+    const tone = kind === "error" ? "alert--destructive" : "alert--warning";
+    return el("div", { id: "refresh-banner", class: `alert ${tone} refresh-banner` },
       statusChip(kind, label),
       el("span", { class: "refresh-banner__reason" }, window.PagesMessages.healthReason(health, freshness || {})),
       el("a", { class: "refresh-banner__link", href: "#refresh-title" }, t("Refresh schedule")));
@@ -431,7 +432,7 @@
       // its own busy-restore said "Reload" — the two disagreed.
       el("button", {
         id: `preview-version-${version.id}`,
-        class: "btn btn-sm",
+        class: "btn btn-secondary btn-sm",
         type: "button",
         onclick: (event) => loadPreview(version.id, event.currentTarget),
       }, t("Reload preview")),
@@ -441,7 +442,7 @@
       // live. Offered for every status: a rejected or superseded version is a
       // perfectly good starting point for the next one.
       el("button", {
-        class: "btn btn-sm",
+        class: "btn btn-secondary btn-sm",
         type: "button",
         onclick: (event) => editVersionSource(event.currentTarget, data, version),
       }, t("Edit source")),
@@ -455,7 +456,7 @@
       ...(data.deck
         ? [el("button", {
             id: "edit-in-bento",
-            class: "btn btn-sm",
+            class: "btn btn-secondary btn-sm",
             type: "button",
             onclick: (event) => openBentoEditor(event.currentTarget),
           }, t("Edit in Bento"), el("span", { "aria-hidden": "true" }, "\u2197"))]
@@ -489,7 +490,7 @@
         }, t("Discard draft"))
       );
     } else if (version.status === "approved" && !sameId(version.id, page.published_version_id)) {
-      actions.append(el("button", { id: `rollback-version-${version.id}`, class: "btn btn-sm", type: "button", onclick: (event) => rollbackVersion(event.currentTarget, version, page) }, t("Roll back")));
+      actions.append(el("button", { id: `rollback-version-${version.id}`, class: "btn btn-secondary btn-sm", type: "button", onclick: (event) => rollbackVersion(event.currentTarget, version, page) }, t("Roll back")));
     }
     return actions;
   }
@@ -566,7 +567,7 @@
     const pending = versions.filter((version) => version.status === "pending");
     const visible = reviewFilter === "pending" ? pending : versions;
     const needsReview = el("button", {
-      class: "segmented__button",
+      class: "seg-option",
       type: "button",
       "aria-pressed": reviewFilter === "pending" ? "true" : "false",
       onclick: () => {
@@ -578,7 +579,7 @@
       },
     }, t("Needs review ({0})", pending.length));
     const allVersions = el("button", {
-      class: "segmented__button",
+      class: "seg-option",
       type: "button",
       "aria-pressed": reviewFilter === "all" ? "true" : "false",
       onclick: () => {
@@ -596,7 +597,7 @@
     const browser = el("div", { class: "panel version-browser" },
       el("div", { class: "version-browser__header" },
         el("h3", {}, t("Version queue")),
-        el("div", { class: "segmented", role: "group", "aria-label": t("Filter versions") }, needsReview, allVersions)),
+        el("div", { class: "seg seg--md", role: "group", "aria-label": t("Filter versions") }, needsReview, allVersions)),
       list);
 
     // "How will a client see this on a phone?" is the most common review question
@@ -616,11 +617,11 @@
           el("iframe", { id: "preview-frame", hidden: true, sandbox: "allow-scripts", referrerpolicy: "no-referrer", title: t("Preview of {0}", inlineVersionLabel(selected)) }))
       : emptyState(t("Nothing to preview"), t("Create or deploy a version to begin review."), null, { level: "h4" });
 
-    const viewportControl = el("div", { class: "segmented preview-viewports", role: "group", "aria-label": t("Preview width") });
+    const viewportControl = el("div", { class: "seg seg--md preview-viewports", role: "group", "aria-label": t("Preview width") });
     for (const option of VIEWPORTS) {
       const button = el("button", {
         id: `preview-viewport-${option.key}`,
-        class: "segmented__button",
+        class: "seg-option",
         type: "button",
         "aria-pressed": previewViewport === option.key ? "true" : "false",
         onclick: () => {
@@ -690,7 +691,7 @@
     // say which password, since both rows sit in the same form.
     const show = el("button", {
       id: "show-current-password",
-      class: "btn",
+      class: "btn btn-secondary",
       type: "button",
       "aria-label": t("Show current password"),
       "aria-pressed": "false",
@@ -698,7 +699,7 @@
     }, t("Show"));
     const copy = el("button", {
       id: "copy-current-password",
-      class: "btn",
+      class: "btn btn-secondary",
       type: "button",
       "aria-label": t("Copy current password"),
     }, icon("copy"), t("Copy"));
@@ -755,7 +756,7 @@
   function clientAccessSection(page) {
     const liveUrl = contentOrigin ? `${contentOrigin.replace(/\/+$/, "")}/${slugPath(page.slug)}` : "";
     const urlInput = el("input", { id: "live-url", type: "url", value: liveUrl, readonly: true });
-    const copyUrl = el("button", { class: "btn", type: "button", disabled: !liveUrl }, icon("copy"), t("Copy URL"));
+    const copyUrl = el("button", { class: "btn btn-secondary", type: "button", disabled: !liveUrl }, icon("copy"), t("Copy URL"));
     copyUrl.addEventListener("click", async () => {
       try { await copyText(liveUrl); toast(t("Live URL copied")); }
       catch (error) { toast(error.message, { tone: "error" }); }
@@ -768,18 +769,18 @@
       placeholder: page.has_password ? t("Enter a replacement password") : t("Choose a client password"),
     });
     const accessStatus = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
-    const generate = el("button", { id: "generate-password", class: "btn", type: "button" }, t("Generate"));
+    const generate = el("button", { id: "generate-password", class: "btn btn-secondary", type: "button" }, t("Generate"));
     // Generate used to flip the input to type="text" and never flip it back, so a
     // password field silently stayed readable for the rest of the session. Showing
     // the value is its own decision now, and it is reversible.
     const reveal = el("button", {
       id: "reveal-password",
-      class: "btn",
+      class: "btn btn-secondary",
       type: "button",
       "aria-pressed": "false",
       "aria-controls": "client-password",
     }, t("Show"));
-    const copyPassword = el("button", { class: "btn", type: "button" }, icon("copy"), t("Copy"));
+    const copyPassword = el("button", { class: "btn btn-secondary", type: "button" }, icon("copy"), t("Copy"));
     const save = el("button", { id: "save-password", class: "btn btn-primary", type: "submit" }, page.has_password ? t("Update password") : t("Set password"));
     const clear = page.has_password ? el("button", { id: "clear-password", class: "btn btn-danger btn-sm", type: "button" }, t("Clear password")) : null;
 
@@ -879,7 +880,7 @@
             label: t("Client-facing address"),
             control: el("div", { class: "copy-field" }, urlInput, copyUrl),
           }),
-          page.published_version_id ? el("a", { class: "btn", href: I18N.ownedURL(`/view/${slugPath(page.slug)}`), target: "_blank", rel: "noopener" }, t("View live"), el("span", { "aria-hidden": "true" }, "\u2197")) : null),
+          page.published_version_id ? el("a", { class: "btn btn-secondary", href: I18N.ownedURL(`/view/${slugPath(page.slug)}`), target: "_blank", rel: "noopener" }, t("View live"), el("span", { "aria-hidden": "true" }, "\u2197")) : null),
         el("div", { class: "subpanel" },
           el("div", { class: "subpanel__head" }, el("h3", {}, t("Password")), page.has_password ? statusChip("set") : statusChip("draft", t("Staff-only"))),
           form)));
@@ -1625,7 +1626,7 @@
         title, titleFeedback),
       settingRow("theme",
         settingCopy(t("Theme"), t("Applied at render time without changing stored source."), "page-theme"),
-        theme, themeFeedback),
+        el("span", { class: "select-wrap" }, theme, icon("chevron-down", "select-icon")), themeFeedback),
       settingRow("approval",
         settingCopy(t("Approval gate"), t("New agent versions wait for human approval when enabled.")),
         el("label", { class: "toggle-label", for: "approval-gate" }, approval, el("span", {}, t("Require approval"))),
