@@ -7,6 +7,8 @@
 <title>/northwind/q2-report · Pages</title>
 <link rel="stylesheet" href="/shell-assets/flag/fonts/fonts.css">
 <link rel="stylesheet" href="/shell-assets/flag/tokens/design-tokens.css">
+<link rel="stylesheet" href="/shell-assets/flag/components/components.css">
+<link rel="stylesheet" href="/shell-assets/flag/components/shadcn-parity.css">
 <link rel="stylesheet" href="/shell-assets/shell.css">
 <script src="/shell-assets/flag/theme/theme-controller.js"></script>
 <script type="application/json" id="pages-i18n">{"language":"en","messages":null}</script>
@@ -28,11 +30,13 @@
       </span>
     </a>
     <div class="ds-app-header__actions">
-      <label class="sr-only" for="pages-language">Language</label><select id="pages-language" class="language-picker" aria-label="Language"><option value="en" selected>English</option><option value="es">Español</option><option value="pt">Português</option></select>
+      <label class="sr-only" for="pages-language">Language</label><span class="select-wrap select-wrap--sm language-picker-wrap"><select id="pages-language" class="language-picker" aria-label="Language"><option value="en" selected>English</option><option value="es">Español</option><option value="pt">Português</option></select><svg class="select-icon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#chevron-down"></use></svg></span>
       <span class="session-user" title="ops@example.com">ops@example.com</span>
       <button class="icon-action theme-toggle" type="button" data-flag-theme-toggle aria-label="Switch theme" aria-pressed="false" title="Change color theme">
-        <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
-        <svg class="icon-inline theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#moon"></use></svg>
+        <span class="theme-toggle__icon-wrap" aria-hidden="true">
+          <svg class="icon-inline theme-toggle__icon theme-toggle__icon--sun" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#sun"></use></svg>
+          <svg class="icon-inline theme-toggle__icon theme-toggle__icon--moon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#moon"></use></svg>
+        </span>
       </button>
       <form class="header-signout-form" method="get" action="/logout">
         <button class="icon-action header-signout" type="submit" aria-label="Sign out" title="Sign out"><svg class="icon-inline" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#logout"></use></svg></button>
@@ -45,10 +49,10 @@
      tree (axe: landmark-unique). -->
 <main class="shell detail-shell" aria-label="Page review">
   <div class="context-bar">
-    <nav class="context-nav" aria-label="Pages sections">
-    <a class="context-tab" href="/admin" aria-current="page">Client pages</a>
-    <a class="context-tab" href="/admin/templates">Template library</a>
-    <a class="context-tab" href="/admin/portals">Partner portals</a>
+    <nav class="tabs context-nav" aria-label="Pages sections">
+    <a class="tab context-tab" href="/admin" aria-current="page">Client pages</a>
+    <a class="tab context-tab" href="/admin/templates">Template library</a>
+    <a class="tab context-tab" href="/admin/portals">Partner portals</a>
   </nav>
   </div>
   <div class="detail-bar">
@@ -62,9 +66,9 @@
     <nav class="page-switcher" id="page-switcher" aria-label="Page navigation" aria-busy="true">
       <button class="icon-action page-switcher__step" id="page-switcher-prev" type="button" aria-label="Previous page" disabled><span aria-hidden="true">←</span></button>
       <label class="sr-only" for="page-switcher-select">Switch admin page</label>
-      <select class="page-switcher__select" id="page-switcher-select" aria-describedby="page-switcher-count" disabled>
+      <span class="select-wrap select-wrap--sm page-switcher__select-wrap"><select class="page-switcher__select" id="page-switcher-select" aria-describedby="page-switcher-count" disabled>
         <option>Loading pages…</option>
-      </select>
+      </select><svg class="select-icon" aria-hidden="true"><use href="/shell-assets/flag/icons/core-icons.svg#chevron-down"></use></svg></span>
       <span class="page-switcher__count" id="page-switcher-count" role="status" aria-live="polite">Loading…</span>
       <button class="icon-action page-switcher__step" id="page-switcher-next" type="button" aria-label="Next page" disabled><span aria-hidden="true">→</span></button>
     </nav>

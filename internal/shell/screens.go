@@ -35,9 +35,9 @@ func Admin(slug, csrfToken, email, contentOrigin string, locales ...i18n.Locale)
     <nav class="page-switcher" id="page-switcher" aria-label="` + Esc(locale.T("Page navigation")) + `" aria-busy="true">
       <button class="icon-action page-switcher__step" id="page-switcher-prev" type="button" aria-label="` + Esc(locale.T("Previous page")) + `" disabled><span aria-hidden="true">←</span></button>
       <label class="sr-only" for="page-switcher-select">` + Esc(locale.T("Switch admin page")) + `</label>
-      <select class="page-switcher__select" id="page-switcher-select" aria-describedby="page-switcher-count" disabled>
+      <span class="select-wrap select-wrap--sm page-switcher__select-wrap"><select class="page-switcher__select" id="page-switcher-select" aria-describedby="page-switcher-count" disabled>
         <option>` + Esc(locale.T("Loading pages…")) + `</option>
-      </select>
+      </select>` + Icon("chevron-down", "select-icon") + `</span>
       <span class="page-switcher__count" id="page-switcher-count" role="status" aria-live="polite">` + Esc(locale.T("Loading…")) + `</span>
       <button class="icon-action page-switcher__step" id="page-switcher-next" type="button" aria-label="` + Esc(locale.T("Next page")) + `" disabled><span aria-hidden="true">→</span></button>
     </nav>

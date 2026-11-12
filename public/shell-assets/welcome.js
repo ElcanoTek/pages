@@ -244,7 +244,7 @@ if (typeof document !== "undefined") (function () {
         el("th", { class: "operation-table__workspace", scope: "col" }, t("Workspace")),
         el("th", { class: "operation-table__actions", scope: "col" }, t("Actions")))),
       el("tbody", {}, pages.map((page) => operationRow(page, workspaces))));
-    return el("div", { class: "operation-table-wrap" }, table);
+    return el("div", { class: "table-wrap operation-table-wrap" }, table);
   }
 
   function activeWorkspaceLabel(workspaces) {
@@ -303,7 +303,7 @@ if (typeof document !== "undefined") (function () {
       field({ id: "mobile-workspace", label: t("Workspace"), control: select, wrap: "label" }),
       el("button", {
         id: "workspace-manager-mobile",
-        class: "btn workspace-mobile__manage",
+        class: "btn btn-secondary workspace-mobile__manage",
         type: "button",
         title: t("Manage workspaces"),
         "aria-label": t("Manage workspaces"),
@@ -326,7 +326,7 @@ if (typeof document !== "undefined") (function () {
     const form = el("form", { class: "form-stack" },
       field({ id: "move-workspace", label: t("Workspace"), control: select }),
       status);
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
+    const cancel = el("button", { class: "btn btn-secondary", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     // The action row is a sibling of the body, so a type="submit" button there is
     // outside the form and submits nothing. Every dialog on this screen bridges it
     // the same way.
@@ -373,7 +373,7 @@ if (typeof document !== "undefined") (function () {
     const filterButton = (name, className, title, text) => {
       filters[name] = el("button", {
         id: `${name}-filter`,
-        class: `btn btn-sm ${className}`,
+        class: `btn btn-outline btn-sm ${className}`,
         type: "button",
         "aria-pressed": indexFilter === name ? "true" : "false",
         title,
@@ -427,7 +427,7 @@ if (typeof document !== "undefined") (function () {
         }
         const more = el("button", {
           id: "show-more-pages",
-          class: "btn index-more__button",
+          class: "btn btn-secondary index-more__button",
           type: "button",
           onclick: () => {
             // The row that will be first of the newly revealed ones. It renders
@@ -472,7 +472,7 @@ if (typeof document !== "undefined") (function () {
           : [t("Every live page has a refresh"), t("No live page here has gone more than 7 days without new data and without a refresh schedule.")];
         results.replaceChildren(emptyState(title, text,
           el("button", {
-            class: "btn",
+            class: "btn btn-secondary",
             type: "button",
             onclick: () => {
               setFilter(null);
@@ -493,7 +493,7 @@ if (typeof document !== "undefined") (function () {
             onclick: (event) => openNewPageDialog(event.currentTarget),
           }, icon("plus"), t("New page"))
         : el("button", {
-            class: "btn",
+            class: "btn btn-secondary",
             type: "button",
             onclick: () => changeView("all", '.workspace-nav__item[aria-pressed="true"]'),
           }, t("Show all {0} pages", pages.length));
@@ -541,7 +541,7 @@ if (typeof document !== "undefined") (function () {
     workspace.value = workspaceIdForView();
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
     const create = el("button", { class: "btn btn-primary", type: "submit" }, t("Create page"));
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
+    const cancel = el("button", { class: "btn btn-secondary", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const form = el("form", { class: "form-stack" },
       el("div", { class: "form-grid" },
         field({
@@ -609,7 +609,7 @@ if (typeof document !== "undefined") (function () {
     for (const workspace of workspaces) {
       const row = el("div", { class: "workspace-manager-row" });
       const actions = el("div", { class: "workspace-manager-row__actions" });
-      const rename = el("button", { class: "btn btn-sm", type: "button" }, t("Rename"));
+      const rename = el("button", { class: "btn btn-secondary btn-sm", type: "button" }, t("Rename"));
       const remove = el("button", { class: "btn btn-sm btn-danger", type: "button" }, t("Remove"));
       actions.append(rename, remove);
       row.append(el("div", { class: "workspace-manager-row__main" },
@@ -621,7 +621,7 @@ if (typeof document !== "undefined") (function () {
       rename.addEventListener("click", () => {
         const input = el("input", { type: "text", maxlength: "100", value: workspace.name, "aria-label": t("New name for {0}", workspace.name) });
         const save = el("button", { class: "btn btn-sm btn-primary", type: "submit" }, t("Save"));
-        const cancel = el("button", { class: "btn btn-sm", type: "button" }, t("Cancel"));
+        const cancel = el("button", { class: "btn btn-secondary btn-sm", type: "button" }, t("Cancel"));
         const form = el("form", { class: "workspace-rename-form" }, input, save, cancel);
         cancel.addEventListener("click", () => renderWorkspaceManager(modal, currentData.workspaces));
         form.addEventListener("submit", async (event) => {
@@ -680,7 +680,7 @@ if (typeof document !== "undefined") (function () {
       onClose: () => modal.dialog.remove(),
     });
     modal.body.classList.add("workspace-manager-body");
-    modal.actions.append(el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("done") }, t("Done")));
+    modal.actions.append(el("button", { class: "btn btn-secondary", type: "button", onclick: () => modal.requestClose("done") }, t("Done")));
     renderWorkspaceManager(modal, currentData.workspaces);
     modal.open(trigger);
     // Without this the dialog opens focused on its close button, while every other
@@ -708,7 +708,7 @@ if (typeof document !== "undefined") (function () {
     const status = el("p", { class: "form-status", role: "status", "aria-live": "polite" });
     const log = el("pre", { class: "compose-log", hidden: true });
     const run = el("button", { class: "btn btn-primary", type: "submit" }, mode === "revise" ? t("Revise with Cutlass") : t("Generate with Cutlass"));
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
+    const cancel = el("button", { class: "btn btn-secondary", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const form = el("form", { class: "form-stack" },
       field({
         id: "compose-prompt",
@@ -785,7 +785,7 @@ if (typeof document !== "undefined") (function () {
         title: t("Client pages"),
         intro: t("Review, publish, organize, and share versioned client work from one queue."),
         actions: [
-          boot.compose ? el("button", { id: "compose-action", class: "btn", type: "button", onclick: (event) => openComposeDialog(event.currentTarget) }, icon("file"), t("Compose with Cutlass")) : null,
+          boot.compose ? el("button", { id: "compose-action", class: "btn btn-secondary", type: "button", onclick: (event) => openComposeDialog(event.currentTarget) }, icon("file"), t("Compose with Cutlass")) : null,
           el("button", { id: "new-page-action", class: "btn btn-primary", type: "button", onclick: (event) => openNewPageDialog(event.currentTarget) }, icon("plus"), t("New page")),
         ],
         stats: [

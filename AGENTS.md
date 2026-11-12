@@ -105,12 +105,12 @@ no frontend build step:
   Nothing user-published is served under `/assets`: it is the embedded
   `public/assets` tree only, and page content and uploads live in the
   database.
-- Components (buttons, fields, toasts, dialogs) are product CSS in
-  `public/shell-assets/shell.css` that reads Flag tokens and follows Flag's
-  `COMPONENTS.md`. They predate Flag's `components/components.css`, which is
-  not vendored yet: when a shell primitive is next substantially changed,
-  vendor that sheet with `scripts/flag-sync.sh add` and move the primitive onto
-  its classes rather than restyling it here.
+- Components in the admin shells come from Flag's vendored Tier A component
+  sheets (`public/assets/flag/components/components.css` and
+  `public/assets/flag/components/shadcn-parity.css`), loaded after `fonts.css`
+  and `design-tokens.css` and before `public/shell-assets/shell.css`.
+  `public/shell-assets/shell.css` holds only Pages-specific shell layout and
+  screen rules, reading Flag tokens throughout.
 
 ## Run and test
 
@@ -223,7 +223,8 @@ under `internal/ops`. The full doc index is in the [README](README.md).
 Flag (`ElcanoTek/flag`, MIT) is the design system. `flag.lock` lists every
 vendored file, the flag commit it came from and its sha256:
 `public/assets/flag/{fonts,icons,theme,tokens}/` are locked whole (any
-unlocked file in them fails the check), `logos/` file by file (only the two
+unlocked file in them fails the check), `components/`
+(`components.css`, `shadcn-parity.css`) and `logos/` file by file (only the two
 Elcano marks Pages uses), and Flag's MIT licence text travels with the copies
 as `public/assets/flag/FLAG-LICENSE` (NOTICE points at it). `flag-sync.sh`
 refuses a Flag source with uncommitted changes, so the lock's commit always
@@ -236,10 +237,12 @@ scripts/flag-sync.sh add ../flag logos/<file>.svg public/assets/flag/logos/<file
 ```
 
 then commit the files and `flag.lock` together, and run the browser suite: the
-admin shell uses sprite ids from `icons/core-icons.svg` and the token names in
-`tokens/design-tokens.css`. Never fix Flag here: a missing token, icon or a
-wrong comment in a vendored file is a change to `ElcanoTek/flag`, synced back.
-Product styling lives in `public/shell-assets/shell.css` and reads tokens.
+admin shell uses sprite ids from `icons/core-icons.svg`, the token names in
+`tokens/design-tokens.css`, and the component classes in
+`components/components.css` and `components/shadcn-parity.css`. Never fix Flag
+here: a missing token, icon, component rule or a wrong comment in a vendored
+file is a change to `ElcanoTek/flag`, synced back. Pages-specific shell layout
+lives in `public/shell-assets/shell.css` and reads tokens.
 
 The gates: `scripts/stack-check.sh` (`make stack-check`, the first CI job)
 runs `scripts/flag-sync.sh check` offline on every PR, and

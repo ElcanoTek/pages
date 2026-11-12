@@ -187,7 +187,16 @@ func TestShellCSSNoCommentLeaksSelectorText(t *testing.T) {
 
 func assertClassesDefined(t *testing.T, screen string, used []string) {
 	t.Helper()
-	defined := definedClasses(readPublic(t, "shell-assets/shell.css"))
+	defined := map[string]bool{}
+	for _, sheet := range []string{
+		"assets/flag/components/components.css",
+		"assets/flag/components/shadcn-parity.css",
+		"shell-assets/shell.css",
+	} {
+		for name := range definedClasses(readPublic(t, sheet)) {
+			defined[name] = true
+		}
+	}
 	var missing []string
 	for _, name := range used {
 		if !defined[name] {
@@ -195,7 +204,7 @@ func assertClassesDefined(t *testing.T, screen string, used []string) {
 		}
 	}
 	if len(missing) > 0 {
-		t.Errorf("%s renders classes shell.css never defines: %s", screen, strings.Join(missing, ", "))
+		t.Errorf("%s renders classes no shell stylesheet defines: %s", screen, strings.Join(missing, ", "))
 	}
 }
 
@@ -203,12 +212,14 @@ func TestShellCSSTemplateLibraryClassesDefined(t *testing.T) {
 	assertClassesDefined(t, "templates.js", []string{
 		"page-heading", "page-heading__row", "page-heading__copy", "page-heading__intro", "page-heading__actions",
 		"stats", "stat", "panel", "section-block", "section-heading", "section-heading--row",
-		"operation-table", "operation-table-wrap", "page-cell", "table-meta", "row-actions",
+		"table-wrap", "operation-table", "operation-table-wrap", "page-cell", "table-meta", "row-actions",
 		"template-table__template", "template-table__num", "template-table__hash",
 		"template-table__when", "template-table__actions",
 		"row--selected", "template-detail", "template-kv", "code-block", "template-contract",
-		"segmented", "segmented__button", "badge", "badge--live", "badge--pending",
-		"btn", "btn-sm", "btn-primary", "form-stack", "field", "field-label", "field-help",
+		"seg", "seg--md", "seg-option",
+		"badge", "badge-success", "badge-pending", "badge-warning", "badge-secondary",
+		"btn", "btn-sm", "btn-primary", "btn-secondary", "btn-ghost", "btn-danger",
+		"form-stack", "field", "field-label", "field-hint",
 		"note", "note--warning",
 		"cluster", "muted", "sr-only", "state-panel",
 	})
@@ -217,10 +228,11 @@ func TestShellCSSTemplateLibraryClassesDefined(t *testing.T) {
 func TestShellCSSPortalsClassesDefined(t *testing.T) {
 	assertClassesDefined(t, "portals.js", []string{
 		"code-block", "row--selected", "note", "note--warning",
-		"field", "field-label", "field-help", "form-stack", "cluster",
-		"operation-table", "operation-table-wrap", "table-meta", "row-actions",
+		"field", "field-label", "field-hint", "select-wrap", "select-icon", "form-stack", "cluster",
+		"table-wrap", "operation-table", "operation-table-wrap", "table-meta", "row-actions",
 		"section-block", "section-heading", "section-heading--row", "panel",
-		"badge", "badge--live", "btn", "btn-sm", "btn-primary", "btn-danger",
+		"badge", "badge-success", "badge-secondary",
+		"btn", "btn-sm", "btn-primary", "btn-secondary", "btn-danger",
 		"state-panel",
 		// The move-up/move-down controls borrow the dialog close button's square
 		// icon control and the shared icon sizing; the two new ones keep their x

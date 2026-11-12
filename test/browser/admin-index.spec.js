@@ -75,7 +75,7 @@ test("the operations list says how old each dashboard's DATA is", async ({ page 
   // with data this old, it carries only the grey "No refresh" hint.
   await expect(frozen).not.toContainText(/overdue|stale|stuck|blocked/i);
   await expect(frozen.locator(".refresh-health .badge")).toHaveText("No refresh");
-  await expect(frozen.locator(".badge--warning, .badge--error, .refresh-health__reason")).toHaveCount(0);
+  await expect(frozen.locator(".badge-warning, .badge-danger, .refresh-health__reason")).toHaveCount(0);
 
   // A page with no managed data renders no freshness line rather than zeroes.
   const unpublished = page.locator(".operation-table tbody tr", { hasText: "Client 04" }).first();
@@ -659,7 +659,7 @@ test("the same state is named the same way on every screen", async ({ page }) =>
   await page.goto("/admin/long/client/q2-report");
   const chip = page.locator(".page-overview__statuses .badge").first();
   await expect(chip).toHaveText("Live · gated");
-  await expect(chip).toHaveClass(/badge--live/);
+  await expect(chip).toHaveClass(/badge-success/);
 });
 
 test("a status is never printed in the shape the database stores it", async ({ page }) => {

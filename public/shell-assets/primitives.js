@@ -342,10 +342,11 @@
       document.body.append(region);
     }
     const tone = options.tone === "error" ? "error" : "success";
+    const row = el("div", { class: "toast__row" }, el("span", { class: "toast__message" }, message));
     const item = el("div", {
-      class: `toast toast--${tone}`,
+      class: `toast has-icon toast--${tone}`,
       role: tone === "error" ? "alert" : "status",
-    }, el("span", { class: "toast__message" }, message));
+    }, icon(tone === "error" ? "alert-circle" : "check"), row);
 
     let timer = null;
     const dismiss = () => {
@@ -361,7 +362,7 @@
     if (tone === "error") {
       // Dismissible, and it survives a hover — reading a long message must not be
       // a race against its own timer.
-      item.append(el("button", {
+      row.append(el("button", {
         class: "icon-action toast__close",
         type: "button",
         "aria-label": t("Dismiss"),
@@ -403,7 +404,7 @@
     const titleId = `pages-dialog-title-${++nextId}`;
     const descriptionId = `pages-dialog-description-${nextId}`;
     const dialog = el("dialog", {
-      class: `ui-dialog${options.size ? ` ui-dialog--${options.size}` : ""}`,
+      class: `modal${options.size ? ` modal--${options.size}` : ""}`,
       "aria-labelledby": titleId,
       // confirm() sends focus to Cancel, so without this a screen reader hears
       // "Reject version 6? dialog — Cancel button" and never the sentence saying
@@ -411,19 +412,19 @@
       "aria-describedby": options.description ? descriptionId : null,
     });
     const closeButton = el("button", {
-      class: "icon-action ui-dialog__close",
+      class: "icon-action modal__close",
       type: "button",
       "aria-label": options.closeLabel || t("Close dialog"),
       title: options.closeLabel || t("Close dialog"),
     }, icon("close"));
-    const heading = el("div", { class: "ui-dialog__heading" },
+    const heading = el("div", { class: "modal__heading" },
       options.kicker ? el("p", { class: "overline" }, options.kicker) : null,
-      el("h2", { id: titleId }, options.title || t("Dialog")),
-      options.description ? el("p", { id: descriptionId, class: "ui-dialog__description" }, options.description) : null);
-    const body = el("div", { class: "ui-dialog__body" });
-    const actions = el("div", { class: "ui-dialog__actions" });
-    dialog.append(el("div", { class: "ui-dialog__surface" },
-      el("header", { class: "ui-dialog__header" }, heading, closeButton),
+      el("h2", { id: titleId, class: "modal__title" }, options.title || t("Dialog")),
+      options.description ? el("p", { id: descriptionId, class: "modal__description" }, options.description) : null);
+    const body = el("div", { class: "modal__body" });
+    const actions = el("footer", { class: "modal__footer" });
+    dialog.append(el("div", { class: "modal__surface" },
+      el("header", { class: "modal__header" }, heading, closeButton),
       body,
       actions));
 
@@ -506,7 +507,7 @@
       ...[].concat(notes || []).filter(Boolean).map((note) =>
         (note && note.nodeType) ? note : el("p", { class: "note" }, note))
     );
-    const copy = el("button", { class: "btn", type: "button" }, icon("copy"), t("Copy"));
+    const copy = el("button", { class: "btn btn-secondary", type: "button" }, icon("copy"), t("Copy"));
     copy.addEventListener("click", async () => {
       try {
         await copyText(value);
@@ -538,9 +539,9 @@
           modal.dialog.remove();
         },
       });
-      const cancel = el("button", { class: "btn", type: "button" }, options.cancelLabel || t("Cancel"));
+      const cancel = el("button", { class: "btn btn-secondary", type: "button" }, options.cancelLabel || t("Cancel"));
       const proceed = el("button", {
-        class: options.danger ? "btn btn-danger-solid" : "btn btn-primary",
+        class: options.danger ? "btn btn-danger" : "btn btn-primary",
         type: "button",
       }, options.confirmLabel || t("Confirm"));
       cancel.addEventListener("click", () => modal.requestClose("cancel"));
@@ -659,9 +660,17 @@
       el("span", {}, count === 1 ? singular : (plural || singular)));
   }
 
+  const BADGE_TONES = {
+    live: "badge-success",
+    pending: "badge-pending",
+    warning: "badge-warning",
+    error: "badge-danger",
+    draft: "badge-secondary",
+  };
+
   function statusChip(kind, label, options = {}) {
     const entry = STATUS_KINDS[kind] || STATUS_KINDS.neutral;
-    const classes = ["badge", `badge--${entry.tone}`];
+    const classes = ["badge", BADGE_TONES[entry.tone] || "badge-secondary"];
     if (options.class) classes.push(options.class);
     return el("span", { class: classes.join(" "), title: options.title }, label || entry.label);
   }
@@ -709,7 +718,7 @@
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
       button.replaceChildren(
-        el("span", { class: "spinner spinner--inline", "aria-hidden": "true" }),
+        el("span", { class: "spinner", "aria-hidden": "true" }),
         document.createTextNode(label || t("Working…"))
       );
     } else {
@@ -739,8 +748,12 @@
   // the template upload dialog mutates its help line after the file is read.
   function field(options = {}) {
     const { id, label, control, help, wrap = "div", className } = options;
-    const helpNode = !help ? null : (help.nodeType ? help : el("span", { class: "field-help" }, help));
-    const controls = Array.isArray(control) ? control : [control];
+    const helpNode = !help ? null : (help.nodeType ? help : el("span", { class: "field-hint" }, help));
+    const controls = (Array.isArray(control) ? control : [control]).map((node) =>
+      node && node.tagName === "SELECT"
+        ? el("span", { class: "select-wrap" }, node, icon("chevron-down", "select-icon"))
+        : node
+    );
     const classes = `field${className ? ` ${className}` : ""}`;
     if (wrap === "label") {
       return el("label", { class: classes, for: id },

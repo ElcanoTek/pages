@@ -29,7 +29,7 @@ func languageBootstrap(locale i18n.Locale) string {
 // unfamiliar choice. Browser preferences remain host-local and optional.
 func LanguagePicker(locale i18n.Locale) string {
 	var b strings.Builder
-	b.WriteString(`<label class="sr-only" for="pages-language">` + Esc(locale.T("Language")) + `</label><select id="pages-language" class="language-picker" aria-label="` + Esc(locale.T("Language")) + `">`)
+	b.WriteString(`<label class="sr-only" for="pages-language">` + Esc(locale.T("Language")) + `</label><span class="select-wrap select-wrap--sm language-picker-wrap"><select id="pages-language" class="language-picker" aria-label="` + Esc(locale.T("Language")) + `">`)
 	for _, item := range languageNames {
 		selected := ""
 		if item.tag == locale.Language {
@@ -37,7 +37,7 @@ func LanguagePicker(locale i18n.Locale) string {
 		}
 		b.WriteString(`<option value="` + item.tag + `"` + selected + `>` + item.name + `</option>`)
 	}
-	b.WriteString(`</select>`)
+	b.WriteString(`</select>` + Icon("chevron-down", "select-icon") + `</span>`)
 	return b.String()
 }
 

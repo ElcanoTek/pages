@@ -118,7 +118,7 @@
     // drew a second one, so the library's list had two frames where the index's
     // has one.
     return el("section", { class: "section-block" },
-      el("div", { class: "operation-table-wrap" }, table));
+      el("div", { class: "table-wrap operation-table-wrap" }, table));
   }
 
   function listRow(template) {
@@ -164,7 +164,7 @@
         el("div", { class: "page-heading__copy" },
           heading2,
           el("code", {}, d.template.name),
-          el("span", { class: "badge" }, t("Revision {0}", d.revision.revision))),
+          el("span", { class: "badge badge-secondary" }, t("Revision {0}", d.revision.revision))),
         el("div", { class: "cluster" },
           // Retiring is here rather than on the list row: it needs the page count
           // in front of you, which is two panels down.
@@ -176,7 +176,7 @@
           }, t("Retire")),
           el("button", {
             id: "tpl-detail-close",
-            class: "btn btn-sm",
+            class: "btn btn-secondary btn-sm",
             type: "button",
             onclick: () => closeTemplate(),
           }, t("Close")))),
@@ -206,14 +206,14 @@
         el("div", { class: "cluster" },
           el("button", {
             id: "tpl-preview-reload",
-            class: "btn btn-sm",
+            class: "btn btn-secondary btn-sm",
             type: "button",
             onclick: (event) =>
               loadPreview(d.template.name, framedRevision(d), event.currentTarget),
           }, t("Reload")),
           el("button", {
             id: "tpl-preview-tab",
-            class: "btn btn-sm",
+            class: "btn btn-secondary btn-sm",
             type: "button",
             onclick: (event) =>
               openPreviewTab(d.template.name, framedRevision(d), event.currentTarget),
@@ -259,7 +259,7 @@
             : statusChip("draft", t("Not live")))))));
     return el("div", { class: "section-block" },
       el("div", { class: "section-heading" }, el("h3", {}, t("Pages built from this"))),
-      el("div", { class: "operation-table-wrap" }, table));
+      el("div", { class: "table-wrap operation-table-wrap" }, table));
   }
 
   // One code block behind a segmented switch. Three stacked scroll regions is a
@@ -282,11 +282,11 @@
       }
     }
 
-    const segmented = el("div", { class: "segmented", role: "group", "aria-label": t("Which part of the contract to show") },
+    const segmented = el("div", { class: "seg seg--md", role: "group", "aria-label": t("Which part of the contract to show") },
       CONTRACT_VIEWS.map((view) => {
         const button = el("button", {
           id: `tpl-view-${view.key}`,
-          class: "segmented__button",
+          class: "seg-option",
           type: "button",
           onclick: () => show(view.key),
         }, view.label);
@@ -327,7 +327,7 @@
           el("div", { class: "row-actions" },
             el("button", {
               id: `tpl-preview-revision-${revision.revision}`,
-              class: "btn btn-sm",
+              class: "btn btn-secondary btn-sm",
               type: "button",
               // Several of these sit in one table, so the name has to say which.
               "aria-label": t("Preview revision {0}", revision.revision),
@@ -335,7 +335,7 @@
             }, t("Preview"))))))));
     return el("div", { class: "section-block" },
       el("div", { class: "section-heading" }, el("h3", {}, t("Revisions"))),
-      el("div", { class: "operation-table-wrap" }, table));
+      el("div", { class: "table-wrap operation-table-wrap" }, table));
   }
 
   // ── actions ─────────────────────────────────────────────────────────────────
@@ -546,7 +546,7 @@
     let nameIsDerived = false;
 
     const fileInput = el("input", { type: "file", id: "tpl-file", accept: ".html,.htm,text/html" });
-    const fileHelp = el("span", { class: "field-help" }, t("Nothing attached yet."));
+    const fileHelp = el("span", { class: "field-hint" }, t("Nothing attached yet."));
     const nameInput = el("input", { type: "text", id: "tpl-name", placeholder: "nwm-campaign-dashboard", autocomplete: "off" });
     const titleInput = el("input", { type: "text", id: "tpl-title", placeholder: t("NWM Campaign Dashboard"), autocomplete: "off" });
     const descriptionInput = el("textarea", { id: "tpl-description", rows: "2", placeholder: t("What this design is for, and when to reach for it.") });
@@ -564,7 +564,7 @@
       },
     });
 
-    const cancel = el("button", { class: "btn", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
+    const cancel = el("button", { class: "btn btn-secondary", type: "button", onclick: () => modal.requestClose("cancel") }, t("Cancel"));
     const register = el("button", { id: "tpl-register", class: "btn btn-primary", type: "button", disabled: true }, t("Register"));
 
     let busy = false;
