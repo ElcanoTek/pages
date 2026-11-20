@@ -904,6 +904,17 @@ func TestExpectIsEnforced(t *testing.T) {
 	if err := AssertExpectedProfile(p, nil, ""); err != nil {
 		t.Error(err)
 	}
+	// A dotted key some models quote twice still names the same path.
+	quoted := `{"row_count":{"\"rows\"":101},"date_range":{"\"rows.date\"":["2026-03-01","2026-03-31"]},"totals":{"'rows.spend'":20044.103}}`
+	if err := AssertExpectedProfile(p, obj(t, quoted), ""); err != nil {
+		t.Errorf("quoted paths: %v", err)
+	}
+	if err := AssertExpectedProfile(p, obj(t, `{"totals":{"\"rows.spend\"":1}}`), ""); code(err) != "data_reconciliation_failed" || !strings.Contains(details(err), `"tolerance"`) {
+		t.Errorf("a quoted path must still be checked against the payload: %v", err)
+	}
+	if err := AssertExpectedProfile(p, obj(t, `{"totals":{"\"rows.revenue\"":100}}`), ""); !strings.Contains(details(err), "no numeric field at that path") {
+		t.Errorf("%v", err)
+	}
 	if err := AssertExpectedProfile(p, obj(t, `{"tolerance":5}`), ""); code(err) != "data_reconciliation_failed" {
 		t.Error(err)
 	}
@@ -932,13 +943,25 @@ func TestFirstPayloadIsFlagged(t *testing.T) {
 			t.Errorf("message lacks %s", want)
 		}
 	}
-	for _, e := range []string{`{"date_range":{"rows.date":["2026-03-01","2026-03-31"]}}`, `{"row_count":{"rows":21}}`, `{"totals":{"rows.dspSpend":1680}}`} {
+	for _, e := range []string{`{"date_range":{"rows.date":["2026-03-01","2026-03-31"]}}`, `{"row_count":{"rows":21}}`, `{"totals":{"rows.dspSpend":1680}}`,
+		`{"date_range":{"\"rows.date\"":["2026-03-01","2026-03-31"]}}`, `{"row_count":{"\"rows\"":21}}`, `{"totals":{"'rows.dspSpend'":1680}}`} {
 		if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, e)}); len(ws) != 0 {
 			t.Errorf("%s should withdraw the warning", e)
 		}
 	}
 	if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, `{"row_count":{"other":1}}`)}); len(ws) != 1 {
 		t.Error("another array's expect does not cover this one")
+	}
+	if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, `{"row_count":{"\"other\"":1}}`)}); len(ws) != 1 {
+		t.Error("another array's quoted expect does not cover this one")
+	}
+	// A payload that really has an array named with quotes: the quoted key
+	// names that array, exactly as the enforcement reads it, and not "rows".
+	both := firstPayload()
+	both.Set(`"rows"`, both.Value("rows"))
+	ws = CompareDataProfiles(empty, ProfileData(both), CompareOptions{Expected: obj(t, `{"row_count":{"\"rows\"":21}}`)})
+	if len(ws) != 1 || ws[0].Path != "rows" {
+		t.Errorf("a quoted key that names its own array must not cover the bare one: %s", jsonv.Stringify(ws))
 	}
 	if ws := CompareDataProfiles(shipped, shipped, CompareOptions{}); len(ws) != 0 {
 		t.Error("ordinary refresh fired")
