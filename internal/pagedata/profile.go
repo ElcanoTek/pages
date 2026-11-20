@@ -654,16 +654,22 @@ func CompareDataProfiles(previous, next *Profile, opts CompareOptions) []Warning
 		if expected == nil {
 			return false
 		}
-		if rc, ok := expected.Value("row_count").(*jsonv.Object); ok && rc.Has(path) {
-			return true
-		}
+		// The same keys AssertExpectedProfile accepts: a path as written, or
+		// inside one pair of quotes (unquotedPath).
 		prefix := path + "."
-		for _, group := range []string{"totals", "date_range"} {
-			if g, ok := expected.Value(group).(*jsonv.Object); ok {
-				for _, k := range g.Keys() {
-					if strings.HasPrefix(k, prefix) {
+		for _, group := range []string{"row_count", "totals", "date_range"} {
+			g, ok := expected.Value(group).(*jsonv.Object)
+			if !ok {
+				continue
+			}
+			for _, k := range g.Keys() {
+				bare, quoted := unquotedPath(k)
+				if group == "row_count" {
+					if k == path || (quoted && bare == path) {
 						return true
 					}
+				} else if strings.HasPrefix(k, prefix) || (quoted && strings.HasPrefix(bare, prefix)) {
+					return true
 				}
 			}
 		}

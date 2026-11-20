@@ -943,13 +943,17 @@ func TestFirstPayloadIsFlagged(t *testing.T) {
 			t.Errorf("message lacks %s", want)
 		}
 	}
-	for _, e := range []string{`{"date_range":{"rows.date":["2026-03-01","2026-03-31"]}}`, `{"row_count":{"rows":21}}`, `{"totals":{"rows.dspSpend":1680}}`} {
+	for _, e := range []string{`{"date_range":{"rows.date":["2026-03-01","2026-03-31"]}}`, `{"row_count":{"rows":21}}`, `{"totals":{"rows.dspSpend":1680}}`,
+		`{"date_range":{"\"rows.date\"":["2026-03-01","2026-03-31"]}}`, `{"row_count":{"\"rows\"":21}}`, `{"totals":{"'rows.dspSpend'":1680}}`} {
 		if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, e)}); len(ws) != 0 {
 			t.Errorf("%s should withdraw the warning", e)
 		}
 	}
 	if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, `{"row_count":{"other":1}}`)}); len(ws) != 1 {
 		t.Error("another array's expect does not cover this one")
+	}
+	if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, `{"row_count":{"\"other\"":1}}`)}); len(ws) != 1 {
+		t.Error("another array's quoted expect does not cover this one")
 	}
 	if ws := CompareDataProfiles(shipped, shipped, CompareOptions{}); len(ws) != 0 {
 		t.Error("ordinary refresh fired")
