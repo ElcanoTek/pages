@@ -904,6 +904,17 @@ func TestExpectIsEnforced(t *testing.T) {
 	if err := AssertExpectedProfile(p, nil, ""); err != nil {
 		t.Error(err)
 	}
+	// A dotted key some models quote twice still names the same path.
+	quoted := `{"row_count":{"\"rows\"":101},"date_range":{"\"rows.date\"":["2026-03-01","2026-03-31"]},"totals":{"'rows.spend'":20044.103}}`
+	if err := AssertExpectedProfile(p, obj(t, quoted), ""); err != nil {
+		t.Errorf("quoted paths: %v", err)
+	}
+	if err := AssertExpectedProfile(p, obj(t, `{"totals":{"\"rows.spend\"":1}}`), ""); code(err) != "data_reconciliation_failed" || !strings.Contains(details(err), `"tolerance"`) {
+		t.Errorf("a quoted path must still be checked against the payload: %v", err)
+	}
+	if err := AssertExpectedProfile(p, obj(t, `{"totals":{"\"rows.revenue\"":100}}`), ""); !strings.Contains(details(err), "no numeric field at that path") {
+		t.Errorf("%v", err)
+	}
 	if err := AssertExpectedProfile(p, obj(t, `{"tolerance":5}`), ""); code(err) != "data_reconciliation_failed" {
 		t.Error(err)
 	}

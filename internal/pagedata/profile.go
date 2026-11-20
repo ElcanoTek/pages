@@ -971,6 +971,19 @@ type ReconciliationDetails struct {
 	Mismatches []*jsonv.Object `json:"mismatches"`
 }
 
+// unquotedPath strips one pair of matching quotes around an expect path
+// ("rows.spend" or 'rows.spend' sent as the key's text). ok is false when
+// there is no such pair or nothing inside it.
+func unquotedPath(path string) (string, bool) {
+	if len(path) < 3 {
+		return "", false
+	}
+	if q := path[0]; (q == '"' || q == '\'') && path[len(path)-1] == q {
+		return path[1 : len(path)-1], true
+	}
+	return "", false
+}
+
 // AssertExpectedProfile enforces the caller's own arithmetic. An agent that
 // has just summed a CSV can state the totals it believes it wrote, and Pages
 // refuses the write if the payload disagrees. Paths are the dotted paths the
@@ -995,7 +1008,7 @@ func AssertExpectedProfile(profile *Profile, expect any, errorCode string) error
 		return apierror.BadRequest("expect.tolerance must be a fraction between 0 and 1", errorCode, nil)
 	}
 	var mismatches []*jsonv.Object
-	fieldAt := func(path string) *FieldProfile {
+	fieldAtExact := func(path string) *FieldProfile {
 		cut := strings.LastIndex(path, ".")
 		if cut < 0 {
 			return nil
@@ -1006,6 +1019,29 @@ func AssertExpectedProfile(profile *Profile, expect any, errorCode string) error
 		}
 		f, _ := arr.Fields.Get(path[cut+1:])
 		return f
+	}
+	// A path that names nothing as written is tried once more without one
+	// pair of surrounding quotes: some models send a dotted key quoted twice
+	// ({"\"rows.spend\"": 1}), and refusing a correct payload over that costs
+	// a whole refresh run. The exact spelling always wins, so a field whose
+	// name really carries quotes still resolves to itself.
+	fieldAt := func(path string) *FieldProfile {
+		if f := fieldAtExact(path); f != nil {
+			return f
+		}
+		if bare, ok := unquotedPath(path); ok {
+			return fieldAtExact(bare)
+		}
+		return nil
+	}
+	arrayAt := func(path string) (*ArrayProfile, bool) {
+		if arr, ok := profile.Arrays.Get(path); ok {
+			return arr, true
+		}
+		if bare, ok := unquotedPath(path); ok {
+			return profile.Arrays.Get(bare)
+		}
+		return nil, false
 	}
 	group := func(name string) any {
 		v := exp.Value(name)
@@ -1018,7 +1054,7 @@ func AssertExpectedProfile(profile *Profile, expect any, errorCode string) error
 	keys, vals := entries(group("row_count"))
 	for i, path := range keys {
 		want := vals[i]
-		arr, ok := profile.Arrays.Get(path)
+		arr, ok := arrayAt(path)
 		if !ok {
 			mismatches = append(mismatches, jsonv.ObjectOf("check", "row_count", "path", path, "expected", want, "actual", nil, "detail", "no array at that path"))
 		} else if float64(arr.Count) != jsNumber(want) {
