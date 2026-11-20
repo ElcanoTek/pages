@@ -955,6 +955,14 @@ func TestFirstPayloadIsFlagged(t *testing.T) {
 	if ws := CompareDataProfiles(empty, shipped, CompareOptions{Expected: obj(t, `{"row_count":{"\"other\"":1}}`)}); len(ws) != 1 {
 		t.Error("another array's quoted expect does not cover this one")
 	}
+	// A payload that really has an array named with quotes: the quoted key
+	// names that array, exactly as the enforcement reads it, and not "rows".
+	both := firstPayload()
+	both.Set(`"rows"`, both.Value("rows"))
+	ws = CompareDataProfiles(empty, ProfileData(both), CompareOptions{Expected: obj(t, `{"row_count":{"\"rows\"":21}}`)})
+	if len(ws) != 1 || ws[0].Path != "rows" {
+		t.Errorf("a quoted key that names its own array must not cover the bare one: %s", jsonv.Stringify(ws))
+	}
 	if ws := CompareDataProfiles(shipped, shipped, CompareOptions{}); len(ws) != 0 {
 		t.Error("ordinary refresh fired")
 	}

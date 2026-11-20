@@ -654,8 +654,15 @@ func CompareDataProfiles(previous, next *Profile, opts CompareOptions) []Warning
 		if expected == nil {
 			return false
 		}
-		// The same keys AssertExpectedProfile accepts: a path as written, or
-		// inside one pair of quotes (unquotedPath).
+		// The same reading as AssertExpectedProfile: a key names the path as
+		// written when the payload has that array or field, and otherwise the
+		// path inside one pair of quotes (unquotedPath).
+		named := func(k string, exact bool) string {
+			if bare, quoted := unquotedPath(k); quoted && !exact {
+				return bare
+			}
+			return k
+		}
 		prefix := path + "."
 		for _, group := range []string{"row_count", "totals", "date_range"} {
 			g, ok := expected.Value(group).(*jsonv.Object)
@@ -663,12 +670,11 @@ func CompareDataProfiles(previous, next *Profile, opts CompareOptions) []Warning
 				continue
 			}
 			for _, k := range g.Keys() {
-				bare, quoted := unquotedPath(k)
 				if group == "row_count" {
-					if k == path || (quoted && bare == path) {
+					if _, exact := next.Arrays.Get(k); named(k, exact) == path {
 						return true
 					}
-				} else if strings.HasPrefix(k, prefix) || (quoted && strings.HasPrefix(bare, prefix)) {
+				} else if strings.HasPrefix(named(k, profileHasField(next, k)), prefix) {
 					return true
 				}
 			}
@@ -975,6 +981,21 @@ func truthy(v any) bool {
 // ReconciliationDetails is the detail object of a refused expect.
 type ReconciliationDetails struct {
 	Mismatches []*jsonv.Object `json:"mismatches"`
+}
+
+// profileHasField reports whether the dotted path names a field of one of the
+// profile's arrays, exactly as written.
+func profileHasField(p *Profile, path string) bool {
+	cut := strings.LastIndex(path, ".")
+	if cut < 0 {
+		return false
+	}
+	arr, ok := p.Arrays.Get(path[:cut])
+	if !ok {
+		return false
+	}
+	_, ok = arr.Fields.Get(path[cut+1:])
+	return ok
 }
 
 // unquotedPath strips one pair of matching quotes around an expect path
